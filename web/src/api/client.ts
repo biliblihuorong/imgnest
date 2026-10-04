@@ -81,9 +81,12 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   return envelope.data as T;
 }
 
-function notifyUnauthorized(code: number): void {
-  // 仅凭证本身失效（20001：过期/吊销/用户禁用）才清会话；
-  // 20002 是"凭证内容错误"（如改密时旧密码写错），token 仍有效，只把错误抛给调用方。
+/**
+ * 会话失效通知：仅凭证本身失效（20001：过期/吊销/用户禁用）才触发回调，
+ * 清态跳登录；20002 是"凭证内容错误"（如改密时旧密码写错），token 仍有效，
+ * 只把错误抛给调用方。request() 内部与 XHR 上传通道共用。
+ */
+export function notifyUnauthorized(code: number): void {
   if (code !== 20001) {
     return;
   }
