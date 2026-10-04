@@ -1,9 +1,11 @@
 # 版本矩阵（锁定于 2026-10-04）
 
-所有版本号都是 2026-10-04 从各项目 GitHub 正式发布 tag 核对的最新稳定版，并检查过彼此的 `peerDependencies` / `go` 指令兼容性。
+这些版本锁定于 2026-10-04，已核对正式发布 tag 与关键 `peerDependencies` / `go` 指令兼容性；它们不必是各项目当前最新版本。
 升级任何一项都要同步改这张表，并在 PR 里说明原因。
 
 > 注意：核对时 npm 与 Go 官方代理在我这边不可访问，所以这里只验证了「tag 存在 + 依赖声明兼容」。第一次 `pnpm install` / `go mod tidy` 时请确认能装上，然后提交 `pnpm-lock.yaml` 与 `go.sum`，以锁文件为准。
+
+M1 执行补充：官方注册表元数据可访问；本阶段 Go 依赖已安装并执行 tidy/verify，实际选择记录在 `go.mod` / `go.sum`。未使用的前端、AWS SDK、libvips 等模块仍待各阶段首次安装/编译验收；没有擅自升级直接依赖。
 
 ## 工具链
 
@@ -22,8 +24,8 @@
 | --- | --- | --- |
 | github.com/gin-gonic/gin | v1.12.0 | |
 | gorm.io/gorm | v1.31.2 | |
-| gorm.io/driver/postgres | v1.6.3 | 间接引入 jackc/pgx/v5 v5.11.0 |
-| gorm.io/driver/sqlite | v1.6.0 | cgo，底层 mattn/go-sqlite3 v1.14.52 |
+| gorm.io/driver/postgres | v1.6.3 | M1 实际锁文件选择 jackc/pgx/v5 v5.10.0（校正原备注） |
+| gorm.io/driver/sqlite | v1.6.0 | cgo；M1 实际锁文件选择 mattn/go-sqlite3 v1.14.22（校正原备注） |
 | github.com/cshum/vipsgen | v1.3.11 | 只导入 `vipsgen/vips`（libvips 8.18.x） |
 | github.com/evanoberholster/imagemeta | v1.1.0 | EXIF 读取 |
 | github.com/aws/aws-sdk-go-v2 | v1.47.1 | |

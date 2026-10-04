@@ -10,7 +10,7 @@
 
 **Spec:** [docs/spec.md](../../spec.md)、[docs/versions.md](../../versions.md)、[开工审查](../../planning/2026-10-04-readiness.md)。module 路径由用户指定为 `github.com/biliblihuorong/imgnest`。
 
-**Status:** 待用户审阅；下列 checkbox 是实施工作，尚未执行。
+**Status:** 用户已于 2026-10-04 确认并授权并行实施；真实进度与验证记录见 `docs/planning/m1-progress.md`。
 
 ## Global Constraints
 

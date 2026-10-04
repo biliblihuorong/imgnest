@@ -40,6 +40,19 @@ Every response body:
 
 ## Routes
 
+### ImgNest M1 shared authentication decisions
+
+Native and future Lsky endpoints consume the same user/token services.
+New native passwords are 12–72 bytes, bcrypt cost 12; login and current-password
+verification accept nonempty passwords up to 72 bytes to preserve legacy bcrypt
+compatibility. The upper bound is checked before bcrypt comparison because
+comparison alone can accept a suffix beyond 72 bytes. Web tokens expire after 24 hours;
+API tokens may have no expiry or a future expiry. At `expires_at <= now`
+authentication fails. Disabled users cannot authenticate. M1 abilities are
+`["*"]`; changing/resetting a password revokes all that user's tokens,
+while native logout revokes only the current token. These are shared-service
+rules; Lsky routes retain their exact response envelope and HTTP contract.
+
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
 | POST | `/api/v1/tokens` | none, 3/min | form/json `email`, `password` → `data.token` |
@@ -79,7 +92,7 @@ Filter values:
 
 1. Compare the JSON against `references/contract.md` field by field.
 2. Run the contract tests (golden JSON files under
-   `internal/httpapi/lsky/testdata/`) — add one for any new case.
+   `internal/http/lsky/testdata/`) — add one for any new case.
 3. Smoke test with a real client: PicGo + `picgo-plugin-lankong` (or the
    built-in Lsky uploader in uPic), upload one PNG, confirm the returned URL
    opens and is the WebP when `link_prefer = webp`.

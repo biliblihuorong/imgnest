@@ -307,7 +307,7 @@ CDN 缓存不在本程序处理范围内。
 
 ```text
 imgnest/
-├─ cmd/imgnest/main.go        # 入口：serve / migrate / import-lsky / reset-password
+├─ cmd/imgnest/main.go        # 入口：serve / migrate / init-admin / reset-password；import-lsky 延后
 ├─ internal/
 │  ├─ config/                  # 读 config.yaml + 环境变量
 │  ├─ model/                   # GORM 模型
@@ -346,6 +346,23 @@ imgnest/
 - 分支：`main` 可发布，功能走 `feat/*` PR；提交信息用 Conventional Commits（`feat:` `fix:` `refactor:` …）。
 - 测试目标：`pathtpl`、`imaging`、`service/upload` 单测覆盖率 ≥ 80%；存储用 MinIO 容器做 S3 集成测试；蓝空 API 用真实 PicGo 请求样本做契约测试。
 - 版本号 SemVer，打 tag 触发 GitHub Actions 构建多架构镜像（amd64 / arm64）。
+
+### 8.1 M1 已采纳的实施约定（2026-10-04）
+
+用户审阅 M1 实施计划后确认开工并允许并行实现；本节补齐首阶段的精确契约。
+
+- Go module 为 `github.com/biliblihuorong/imgnest`；通过锁定 Go 1.27.1 Linux 开发环境构建与验收，宿主工具链不作为验收依据。
+- 配置优先级：默认值 < 显式 YAML < `IMGNEST_` 环境变量；显式配置文件缺失、无效 YAML/数值/driver 拒绝启动。环境变量保留字段内部下划线，如 `IMGNEST_DATABASE_MAX_OPEN` 对应 `database.max_open`。
+- 默认监听 `:8080`，read_header_timeout=5s、shutdown_timeout=10s，trusted_proxies=[]。SQLite 默认 `data/imgnest.db`、WAL、foreign_keys=ON、busy_timeout=5000ms、max_open=max_idle=1、max_lifetime=0；PostgreSQL 默认 pool 为 25/10、max_lifetime=5min。
+- 0001 先迁移 `groups/users/tokens/settings` 与 `schema_migrations`；存储、图片等在 M2 新增迁移。迁移记录版本、校验和及执行时间；`migrate` 显式执行，`serve` 检查 schema 版本和校验和，不自动修改生产表结构。
+- 初始化注册、游客上传、画廊均关闭，trash_days=7；默认用户组容量 0 表示不限。管理员通过 `init-admin` 显式创建，密码从 stdin 输入；普通注册只创建 user 并使用默认组。
+- username 3–64 个 Unicode 字符；email 去首尾空白、转小写并校验纯邮箱地址；新建和替换的密码为 12–72 字节，bcrypt cost=12；登录/当前密码校验允许非空、至多 72 字节的旧密码以保留旧 bcrypt 兼容。用户 status 为 enabled/disabled。
+- Token 格式 `<id>|<40 random chars>`；随机串用 crypto/rand 产生，库中 SHA-256 仅计算分隔符后的 secret；验证常量时间比较。web Token 默认 24 小时，api Token 可无过期时间，否则必须在未来；M1 abilities 只支持 `["*"]`。每次鉴权检查用户仍 enabled。
+- logout 仅吊销当前 Token；改密与 reset-password 原子更新密码并吊销该用户全部 Token。用户不能查看或吊销其他用户 Token。
+- 新增 `PATCH /api/auth/password`，输入 current_password/new_password，成功需重新登录。登录和注册分别按可信客户端 IP 限流，每分钟 3 次；默认不信任代理头。
+- 原生错误码：10001 参数、20001 未鉴权、20002 凭证错误、20003 权限不足、30001 注册关闭、30002 用户重复、30003 请求限流、50001 内部失败。成功 code=0；失败 data=null，空列表 data=[]。普通注册成功 HTTP 201、重复 409、注册关闭 403、无效凭证 401、限流 429。
+- 时间存 UTC，对外 RFC3339；native DTO 不含 password_hash/token_hash；API Token 只在创建响应返回明文。业务哨兵在共享 model 声明、service 别名引用，避免 repo 反向引用 service。
+- 对外 Go 函数 context 置首；main、Gin handler、http.Handler、SQL driver 等固定接口签名遵守框架契约，业务内部继续传 context。
 
 ## 9. 推荐使用的 Skills
 
