@@ -28,7 +28,10 @@ checklist; if the two disagree, the spec wins and this file must be updated.
    and `skip_if_larger` is on (except `webp_only`).
 9. **Make the thumbnail** (static WebP, long edge `thumb_size`, default 400).
 10. **Write objects**, then the DB row in one transaction (image + exif +
-    `users.used_bytes += size`).
+   `users.used_bytes += unique_cloud_object_bytes`). Original/WebP/cloud
+   thumbnail all count; an uploaded WebP's shared key counts once. Local
+   thumbnail cache does not count. Short reservation/commit transactions
+   surround storage IO; pending image rows hold path and quota reservations.
 11. **Compensate**: if any write or the transaction fails, delete every object
     already written in this request. Never leave orphans.
 
@@ -42,8 +45,11 @@ checklist; if the two disagree, the spec wins and this file must be updated.
 | Local thumbnail | `data/thumbs/{storage_id}/{path}_thumbs.webp` (served at `/t/{key}.webp`) |
 | Recycle bin | `_trash/` + any of the above |
 
-`_thumbs` is a reserved name suffix; `pathtpl.Build` appends `-1` if a rendered
-name ends with it. URLs are never stored: `storage.base_url + "/" + key`.
+`_thumbs` is a reserved name suffix; random filenames rerender up to 5 times,
+deterministic names append `-1`. Internal `_trash`/`.trash` namespaces cannot
+be rendered by user templates. URLs are never stored: base URL plus correctly
+escaped key segments. Private images hide public display; their direct links
+remain accessible, as explicitly chosen by the user.
 
 ## Path template variables
 
@@ -65,9 +71,10 @@ whitespace and `?#%&\:*"<>|` with `-`, keep CJK, ≤100 runes per segment,
   older). Pin both in the Dockerfile.
 - `vips.Startup` once; set `MaxCacheFiles/Mem/Size = 0` (no op cache) and
   `ConcurrencyLevel: 1`; bound parallelism with a semaphore sized to CPUs.
-- Probe with `NewImageFromBuffer(buf, &LoadOptions{N: -1})`, falling back to
-  default options for single-frame loaders. Frames = `Pages()`, frame height
-  = `PageHeight()`.
+- Detect magic before loading; use N=-1 only for animation loaders. Do not
+  silently fall back to first-frame loading after arbitrary errors. Loaded
+  frames = Height()/PageHeight(); Pages is document count, not loaded frames.
+  Pixel budget = width * frame height * loaded frames (no double counting).
 - Convert with `NewThumbnailBuffer(buf, w, &ThumbnailBufferOptions{Height: h,
   Size: SizeDown})`: it auto-rotates from EXIF orientation and only shrinks.
   Use `w = h = 10_000_000` for "no resize". For animated GIF/WebP set
@@ -88,8 +95,13 @@ responses never include EXIF.
 Scrubbing must be **lossless** — never re-encode pixels. Details and byte
 layouts: [references/exif-scrub.md](references/exif-scrub.md).
 
-After scrubbing, reload the result with libvips; if it fails to load, store
-the unmodified bytes, set `scrubbed=false` and log a warning.
+Archive original EXIF/XMP/unknown/MakerNote blocks from container bytes;
+imagemeta's structured result alone does not preserve all data. Avoid locked
+vipsgen GetBlob until ownership is validated; its borrowed-pointer free risk
+was found from source, not yet reproduced natively. GPS/all scrub removes
+MakerNote identity payloads too. Reload and reparse scrubbed bytes; any failure
+rejects the upload. Never keep an unmodified original under an enabled scrub
+mode. WebP/thumbnails explicitly strip metadata; Keep(0) does not strip.
 
 HEIC/AVIF: no in-place scrub in v1. `heif_mode`: `webp_only` (default) |
 `keep` | `reject`.

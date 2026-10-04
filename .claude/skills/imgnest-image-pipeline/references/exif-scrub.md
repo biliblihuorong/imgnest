@@ -13,6 +13,7 @@ pixels as the input.
 | CameraOwnerName | Exif IFD `0xA430` | Zero the value bytes |
 | BodySerialNumber | Exif IFD `0xA431` | Zero the value bytes |
 | LensSerialNumber | Exif IFD `0xA435` | Zero the value bytes |
+| MakerNote | Exif IFD `0x927C` | Archive original locally, then zero/drop opaque payload; vendor owner/serial fields are not limited to standard tags |
 | XMP packet | separate block (see below) | Remove the whole block |
 
 Keep: Make, Model, lens model, exposure, date/time, Orientation, ICC profile.
@@ -35,8 +36,8 @@ needs rebuilding. Keep the tag entries' type and count; only blank the data.
   Extended XMP: `"http://ns.adobe.com/xmp/extension/\0"`. Remove these
   segments entirely (splice out marker + length + payload).
 - Guard every offset/length against the segment bounds; malformed EXIF →
-  return the input unchanged with an error (the caller stores it unscrubbed
-  and logs).
+  return an error; the caller rejects enabled-scrub uploads instead of storing
+  unmodified private metadata in the cloud.
 
 ## PNG
 
