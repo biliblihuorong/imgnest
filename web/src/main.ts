@@ -11,7 +11,8 @@ app.use(createPinia());
 const router = setupRouter();
 app.use(router);
 
-// 401/20001/20002：清空本地登录态并回到登录页
+// 业务码 20001（凭证失效）：清空本地登录态并回到登录页；
+// 20002 是凭证内容错误，由调用方就地展示，不清会话
 setUnauthorizedHandler(() => {
   useAuthStore().clear();
   void router.push("/login").catch(() => {

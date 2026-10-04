@@ -19,11 +19,15 @@ const errorMessage = ref("");
 
 void site.ensureLoaded();
 
+// 后端密码规则：12-72 字节；字节上限客户端预检，超限不发请求
+const passwordBytes = computed(() => new TextEncoder().encode(password.value).length);
+
 const canSubmit = computed(
   () =>
     username.value.trim().length >= 3 &&
     email.value.trim().length > 0 &&
     password.value.length >= 12 &&
+    passwordBytes.value <= 72 &&
     password.value === confirmPassword.value,
 );
 
