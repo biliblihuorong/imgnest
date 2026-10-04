@@ -1,0 +1,135 @@
+---
+name: imgnest-image-pipeline
+description: ImgNest upload and image-processing rules — path templates ({Y}/{m}/{uniqid}…), the original + WebP + thumbnail objects, libvips/vipsgen usage, EXIF extraction and lossless GPS scrubbing, recycle bin and B2 purge. Use whenever writing or reviewing code in internal/pathtpl, internal/imaging, internal/exif, internal/storage or the upload/delete services, or when changing how files are named, converted, stored or deleted.
+---
+
+# ImgNest image pipeline
+
+Source of truth: `docs/spec.md` sections 5 and 6. This skill is the working
+checklist; if the two disagree, the spec wins and this file must be updated.
+
+## The upload flow (order matters)
+
+1. **Authorise and check limits** — group `max_file_bytes`, `allowed_exts`,
+   remaining capacity, per-minute rate. Fail before reading the whole body.
+2. **Read into memory** with a hard cap (`server.max_upload_mb`).
+3. **Detect the real format** from magic bytes + libvips probe. Never trust the
+   file name or `Content-Type`. Reject SVG. Enforce the pixel limit
+   (default 100 MP, frames included).
+4. **Hash** the uploaded bytes → `src_md5` (dedupe key).
+5. **Read EXIF** (`internal/exif`) → `image_exif` row, GPS included.
+6. **Render the path** with `pathtpl.Build(policy.PathTpl, policy.NameTpl, vars)`.
+   On a `(storage_id, path)` collision: re-render if the template has a random
+   variable (max 5 tries), otherwise follow `on_conflict` (`rename` → `-1`,
+   `-2`…, or `reject`).
+7. **Prepare the cloud original** — apply `scrub_mode` (see below). Hash the
+   bytes that will actually be stored → `md5` / `sha1`.
+8. **Make WebP** per `webp_mode`; skip storing it if larger than the original
+   and `skip_if_larger` is on (except `webp_only`).
+9. **Make the thumbnail** (static WebP, long edge `thumb_size`, default 400).
+10. **Write objects**, then the DB row in one transaction (image + exif +
+    `users.used_bytes += size`).
+11. **Compensate**: if any write or the transaction fails, delete every object
+    already written in this request. Never leave orphans.
+
+## Object keys (path has no extension)
+
+| File | Key |
+| --- | --- |
+| Original | `{path}.{ext}` (`jpeg` → `jpg`, lower case) |
+| WebP | `{path}.webp` |
+| Cloud thumbnail | `{path}_thumbs.webp` |
+| Local thumbnail | `data/thumbs/{storage_id}/{path}_thumbs.webp` (served at `/t/{key}.webp`) |
+| Recycle bin | `_trash/` + any of the above |
+
+`_thumbs` is a reserved name suffix; `pathtpl.Build` appends `-1` if a rendered
+name ends with it. URLs are never stored: `storage.base_url + "/" + key`.
+
+## Path template variables
+
+Lsky-compatible: `{Y} {y} {m} {d} {timestamp} {uniqid} {md5} {md5-16}
+{str-random-16} {str-random-10} {filename} {uid}`.
+ImgNest additions: `{H} {i} {s} {sha1} {uuid} {rand:N}` (1–64) and
+`{hash:N}` (1–32, content-MD5 prefix, for spreading files across folders).
+`{md5}` is the **content** hash here (Lsky used a random value).
+Validate templates when a policy is saved; unknown variables are errors.
+
+Sanitising: drop `.`/`..`/empty segments, strip control chars, replace
+whitespace and `?#%&\:*"<>|` with `-`, keep CJK, ≤100 runes per segment,
+≤255 bytes total.
+
+## libvips via vipsgen
+
+- Import exactly one package and match it to the libvips in the image:
+  `github.com/cshum/vipsgen/vips` = libvips 8.18.x (`vips817`, `vips816` for
+  older). Pin both in the Dockerfile.
+- `vips.Startup` once; set `MaxCacheFiles/Mem/Size = 0` (no op cache) and
+  `ConcurrencyLevel: 1`; bound parallelism with a semaphore sized to CPUs.
+- Probe with `NewImageFromBuffer(buf, &LoadOptions{N: -1})`, falling back to
+  default options for single-frame loaders. Frames = `Pages()`, frame height
+  = `PageHeight()`.
+- Convert with `NewThumbnailBuffer(buf, w, &ThumbnailBufferOptions{Height: h,
+  Size: SizeDown})`: it auto-rotates from EXIF orientation and only shrinks.
+  Use `w = h = 10_000_000` for "no resize". For animated GIF/WebP set
+  `OptionString: "n=-1"` (only for those loaders — JPEG rejects `n`).
+- Save with `WebpsaveBuffer` — defaults Q 80, effort 4, `Keep: KeepIcc` for
+  WebP (drops EXIF/XMP/GPS), `Keep: KeepNone` for thumbnails.
+- Always `defer img.Close()`.
+- Runtime env in the container: jemalloc via `LD_PRELOAD`,
+  `MALLOC_ARENA_MAX=2`.
+
+## EXIF: keep locally, scrub in the cloud
+
+`image_exif` keeps everything (GPS, full EXIF + XMP as JSON in `raw`). GPS and
+`raw` are visible only to the owner and admins; public, gallery and Lsky v1
+responses never include EXIF.
+
+`scrub_mode` for the **stored original**: `none` | `gps` (default) | `all`.
+Scrubbing must be **lossless** — never re-encode pixels. Details and byte
+layouts: [references/exif-scrub.md](references/exif-scrub.md).
+
+After scrubbing, reload the result with libvips; if it fails to load, store
+the unmodified bytes, set `scrubbed=false` and log a warning.
+
+HEIC/AVIF: no in-place scrub in v1. `heif_mode`: `webp_only` (default) |
+`keep` | `reject`.
+
+## Thumbnails
+
+Written twice. Admin list, preview and recycle bin read the **local** copy; API
+`thumbnail_url` and the gallery use the **cloud** copy. Missing local thumbs
+are regenerated lazily from the cloud thumbnail or WebP. The local thumbs
+folder is a cache — safe to delete.
+
+## Delete, restore, purge (recycle bin, default 7 days)
+
+- **Delete**: set `deleted_at`, `purge_at = now + trash.days`; server-side
+  `Copy` each object to `_trash/<key>` then `Delete` the original (local:
+  rename). The old URL must 404 immediately. Subtract `used_bytes` now.
+- **Restore**: copy back, clear `deleted_at`. The row keeps holding its
+  `(storage_id, path)` unique slot while in the bin, so restore never collides.
+- **Purge** (hourly job, or "delete permanently", or `trash.days = 0`): call
+  `Driver.Purge` on every `_trash/` key — on B2 this must delete **every
+  version** (`ListObjectVersions` + `DeleteObject` with `VersionId`), otherwise
+  B2 keeps billing. Then delete the local thumb, `image_exif` and `images` row.
+- CDN cache purging is out of scope.
+
+## S3 client settings (COS / R2 / B2)
+
+`RequestChecksumCalculation` and `ResponseChecksumValidation` =
+`WhenRequired`; B2 and some COS/R2 setups reject the SDK's default CRC
+headers. `UsePathStyle` per storage. Put objects with
+`Cache-Control: public, max-age=31536000, immutable` (keys never change).
+
+## Tests every change here should keep green
+
+- `pathtpl`: table tests per variable, sanitiser cases, fuzz `Sanitize`
+  (never yields `..` or a leading `/`).
+- `imaging`: fixtures for JPEG with orientation 6, PNG with alpha, animated
+  GIF (frames preserved), CMYK JPEG, 1×1 image, truncated file, >100 MP header.
+- `exif`: phone JPEG with GPS → GPS parsed; scrubbed output has no GPS, same
+  length, same pixels (decode both and compare), still loads in libvips.
+- `storage`: local driver with `os.Root` cannot escape via `../` or symlinks;
+  S3 driver against MinIO (put/copy/delete/purge with versioning on).
+- Upload service: inject a failing storage on the 2nd write and assert the 1st
+  object was removed (compensation).

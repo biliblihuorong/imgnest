@@ -1,0 +1,14 @@
+/data/
+/bin/
+/.cache/
+/.superpowers/
+/config.yaml
+/.env
+/.env.*
+*.db
+*.db-shm
+*.db-wal
+*.test
+coverage.out
+/web/node_modules/
+/web/dist/

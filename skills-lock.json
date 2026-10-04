@@ -1,0 +1,236 @@
+{
+  "generated": "2026-10-04",
+  "skills": [
+    {
+      "name": "brainstorming",
+      "source": "https://github.com/obra/superpowers",
+      "path": "skills/brainstorming",
+      "commit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+      "license": "MIT"
+    },
+    {
+      "name": "writing-plans",
+      "source": "https://github.com/obra/superpowers",
+      "path": "skills/writing-plans",
+      "commit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+      "license": "MIT"
+    },
+    {
+      "name": "executing-plans",
+      "source": "https://github.com/obra/superpowers",
+      "path": "skills/executing-plans",
+      "commit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+      "license": "MIT"
+    },
+    {
+      "name": "test-driven-development",
+      "source": "https://github.com/obra/superpowers",
+      "path": "skills/test-driven-development",
+      "commit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+      "license": "MIT"
+    },
+    {
+      "name": "systematic-debugging",
+      "source": "https://github.com/obra/superpowers",
+      "path": "skills/systematic-debugging",
+      "commit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+      "license": "MIT"
+    },
+    {
+      "name": "verification-before-completion",
+      "source": "https://github.com/obra/superpowers",
+      "path": "skills/verification-before-completion",
+      "commit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+      "license": "MIT"
+    },
+    {
+      "name": "requesting-code-review",
+      "source": "https://github.com/obra/superpowers",
+      "path": "skills/requesting-code-review",
+      "commit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
+      "license": "MIT"
+    },
+    {
+      "name": "golang-project-layout",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-project-layout",
+      "commit": "8e899e20ff0cd4dc524af3993e4c62d8ee8c5717",
+      "license": "MIT"
+    },
+    {
+      "name": "golang-code-style",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-code-style",
+      "commit": "8e899e20ff0cd4dc524af3993e4c62d8ee8c5717",
+      "license": "MIT"
+    },
+    {
+      "name": "golang-lint",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-lint",
+      "commit": "8e899e20ff0cd4dc524af3993e4c62d8ee8c5717",
+      "license": "MIT"
+    },
+    {
+      "name": "golang-error-handling",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-error-handling",
+      "commit": "8e899e20ff0cd4dc524af3993e4c62d8ee8c5717",
+      "license": "MIT"
+    },
+    {
+      "name": "golang-database",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-database",
+      "commit": "8e899e20ff0cd4dc524af3993e4c62d8ee8c5717",
+      "license": "MIT"
+    },
+    {
+      "name": "golang-concurrency",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-concurrency",
+      "commit": "8e899e20ff0cd4dc524af3993e4c62d8ee8c5717",
+      "license": "MIT"
+    },
+    {
+      "name": "golang-security",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-security",
+      "commit": "8e899e20ff0cd4dc524af3993e4c62d8ee8c5717",
+      "license": "MIT"
+    },
+    {
+      "name": "golang-testing",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-testing",
+      "commit": "8e899e20ff0cd4dc524af3993e4c62d8ee8c5717",
+      "license": "MIT"
+    },
+    {
+      "name": "golang-performance",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-performance",
+      "commit": "8e899e20ff0cd4dc524af3993e4c62d8ee8c5717",
+      "license": "MIT"
+    },
+    {
+      "name": "golang-swagger",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-swagger",
+      "commit": "8e899e20ff0cd4dc524af3993e4c62d8ee8c5717",
+      "license": "MIT"
+    },
+    {
+      "name": "golang-continuous-integration",
+      "source": "https://github.com/samber/cc-skills-golang",
+      "path": "skills/golang-continuous-integration",
+      "commit": "8e899e20ff0cd4dc524af3993e4c62d8ee8c5717",
+      "license": "MIT"
+    },
+    {
+      "name": "vue-best-practices",
+      "source": "https://github.com/vuejs-ai/skills",
+      "path": "skills/vue-best-practices",
+      "commit": "c9d355ff23f654309dd02006be671859df0a134c",
+      "license": "MIT"
+    },
+    {
+      "name": "vue-router-best-practices",
+      "source": "https://github.com/vuejs-ai/skills",
+      "path": "skills/vue-router-best-practices",
+      "commit": "c9d355ff23f654309dd02006be671859df0a134c",
+      "license": "MIT"
+    },
+    {
+      "name": "vue-pinia-best-practices",
+      "source": "https://github.com/vuejs-ai/skills",
+      "path": "skills/vue-pinia-best-practices",
+      "commit": "c9d355ff23f654309dd02006be671859df0a134c",
+      "license": "MIT"
+    },
+    {
+      "name": "vue-testing-best-practices",
+      "source": "https://github.com/vuejs-ai/skills",
+      "path": "skills/vue-testing-best-practices",
+      "commit": "c9d355ff23f654309dd02006be671859df0a134c",
+      "license": "MIT"
+    },
+    {
+      "name": "vite",
+      "source": "https://github.com/antfu/skills",
+      "path": "skills/vite",
+      "commit": "e53a142a2420e8cd812cfe9ed0484ab01bc856aa",
+      "license": "MIT"
+    },
+    {
+      "name": "vitest",
+      "source": "https://github.com/antfu/skills",
+      "path": "skills/vitest",
+      "commit": "e53a142a2420e8cd812cfe9ed0484ab01bc856aa",
+      "license": "MIT"
+    },
+    {
+      "name": "pnpm",
+      "source": "https://github.com/antfu/skills",
+      "path": "skills/pnpm",
+      "commit": "e53a142a2420e8cd812cfe9ed0484ab01bc856aa",
+      "license": "MIT"
+    },
+    {
+      "name": "frontend-design",
+      "source": "https://github.com/anthropics/skills",
+      "path": "skills/frontend-design",
+      "commit": "8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "webapp-testing",
+      "source": "https://github.com/anthropics/skills",
+      "path": "skills/webapp-testing",
+      "commit": "8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "skill-creator",
+      "source": "https://github.com/anthropics/skills",
+      "path": "skills/skill-creator",
+      "commit": "8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "multi-stage-dockerfile",
+      "source": "https://github.com/github/awesome-copilot",
+      "path": "skills/multi-stage-dockerfile",
+      "commit": "143a3d976b3c1603cc8932984d5e1f28501cb5fc",
+      "license": "MIT"
+    },
+    {
+      "name": "differential-review",
+      "source": "https://github.com/trailofbits/skills",
+      "path": "plugins/differential-review/skills/differential-review",
+      "commit": "82fe8226252622fa807643bdca1710901198553a",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "name": "semgrep",
+      "source": "https://github.com/trailofbits/skills",
+      "path": "plugins/static-analysis/skills/semgrep",
+      "commit": "82fe8226252622fa807643bdca1710901198553a",
+      "license": "CC-BY-SA-4.0"
+    },
+    {
+      "name": "imgnest-image-pipeline",
+      "source": "project",
+      "path": ".claude/skills/imgnest-image-pipeline",
+      "commit": null,
+      "license": "project"
+    },
+    {
+      "name": "lsky-api-compat",
+      "source": "project",
+      "path": ".claude/skills/lsky-api-compat",
+      "commit": null,
+      "license": "project"
+    }
+  ]
+}
