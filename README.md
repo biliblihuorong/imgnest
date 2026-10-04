@@ -1,8 +1,8 @@
 # ImgNest
 
-Go + Vue 3 自研图床项目。当前已实现 M1/M2 后端：SQLite/PostgreSQL、用户与 Token、本机/S3 存储、同步图片上传、WebP、双缩略图、完整本地元数据、无损隐私清理和可恢复回收站。Vue 页面、蓝空 v1 兼容及完整管理后台属于后续里程碑。
+Go + Vue 3 自研图床项目。当前已实现 M1–M3：SQLite/PostgreSQL、用户与 Token、本机/S3 存储、同步图片上传、WebP、双缩略图、完整本地元数据、无损隐私清理、可恢复回收站，以及嵌入二进制的 Vue 前端 MVP（登录/注册、拖拽上传与复制链接、我的图片与回收站、Token/账户管理）。蓝空 v1 兼容和完整管理后台属于 M4。
 
-运行与验证步骤见 [开发说明](docs/development.md)，接口契约见 [OpenAPI](docs/openapi.yaml)，本批记录见 [M2 progress](docs/planning/m2-progress.md)，基础阶段见 [M1 progress](docs/planning/m1-progress.md)。仓库保留锁定的版本矩阵、33 个 AI Skill 与许可证说明。
+运行与验证步骤见 [开发说明](docs/development.md)，接口契约见 [OpenAPI](docs/openapi.yaml)，本批记录见 [M3 progress](docs/planning/m3-progress.md)，后端核心见 [M2 progress](docs/planning/m2-progress.md)，基础阶段见 [M1 progress](docs/planning/m1-progress.md)。仓库保留锁定的版本矩阵、33 个 AI Skill 与许可证说明。
 
 ## 目录
 
@@ -32,7 +32,7 @@ imgnest-dev-kit/
 ## 怎么用
 
 1. 使用 Docker Desktop Linux 引擎，按 [开发说明](docs/development.md) 初始化、创建管理员并启动。
-2. 后端依赖已锁定；后续前端按 `docs/versions.md` 安装并提交 `pnpm-lock.yaml`。
+2. 前后端依赖均已锁定；前端 `web/pnpm-lock.yaml` 已提交，命令通过 `make fe-*` / `make release` 在容器内执行。
 3. 用 Claude Code 打开项目即可：`CLAUDE.md` 和 `.claude/skills/` 会被自动加载。
 4. 其他 AI 工具读 `AGENTS.md`。如果工具从 `.agents/skills/` 读 Skill，复制一份过去即可：
    - macOS / Linux：`cp -r .claude/skills .agents/skills`
@@ -40,7 +40,7 @@ imgnest-dev-kit/
 
 ## 开工准备
 
-开工前检查见 [开工审查](docs/planning/2026-10-04-readiness.md)，当前计划见 [M2 实施计划](docs/superpowers/plans/2026-10-04-m2-image-core.md)。实际验证结果和已知范围在 M2 progress 中记录。
+开工前检查见 [开工审查](docs/planning/2026-10-04-readiness.md)，当前计划见 [M3 实施计划](docs/superpowers/plans/2026-10-04-m3-frontend-mvp.md)。实际验证结果和已知范围在 M3 progress 中记录。
 
 ## 更新 Skill
 

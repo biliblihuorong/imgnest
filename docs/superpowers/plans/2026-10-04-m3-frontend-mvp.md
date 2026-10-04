@@ -10,7 +10,7 @@
 
 **Spec:** [spec.md](../../spec.md) §7.2/§8/§10、[M3设计补充](../specs/2026-10-04-m3-frontend-mvp-design.md)、[versions.md](../../versions.md)。基线为 M2 整合提交 `024bb04`（+ docs `3b35948`）。分支 `feat/m3-frontend-mvp`，叠加在未合并的 `feat/m2-image-core` 之上。
 
-**Status:** 计划已获用户确认并行执行（2026-10-04）。实际完成情况以 `docs/planning/m3-progress.md` 为准。
+**Status:** Tasks 1–8 已完成：实现、全量验证与独立审查（无 P1；P2 文档收尾与本批提交，P3 已修复或记录为已知限制）见 [M3 progress](../../planning/m3-progress.md)。原始 checkbox 保留为设计/验收依据。
 
 ## Global Constraints
 

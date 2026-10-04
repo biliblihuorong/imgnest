@@ -1,6 +1,6 @@
-# ImgNest 开发与运行（M1/M2）
+# ImgNest 开发与运行（M1–M3）
 
-当前提供配置/鉴权与图片核心：SQLite/PostgreSQL、版本化迁移、本机/S3、同步 libvips/WebP、双缩略图、完整本地 EXIF、无损脱敏及回收站。Vue 页面、蓝空 v1 和完整管理界面仍按后续里程碑实施。
+当前提供配置/鉴权、图片核心与前端 MVP：SQLite/PostgreSQL、版本化迁移、本机/S3、同步 libvips/WebP、双缩略图、完整本地 EXIF、无损脱敏、可恢复回收站，以及嵌入二进制的 Vue 3 界面（登录/注册、上传、我的图片与回收站、Token/账户）。蓝空 v1 兼容和完整管理后台属于 M4。
 
 ## 固定环境
 
@@ -26,7 +26,7 @@ docker compose -f deploy/compose.dev.yaml run --rm --service-ports dev go run ./
 
 将 username/email 改为实际管理员信息。密码通过 stdin 传入，不放在命令参数、文件或日志中；重复 init-admin 不会提升已有用户或覆盖管理员。注册默认关闭，管理设置的 HTTP/界面在后续阶段实现。
 
-服务监听 [127.0.0.1:18080](http://127.0.0.1:18080)，健康检查为 [healthz](http://127.0.0.1:18080/healthz)。根路径仍返回 JSON404，Vue 前端尚未嵌入。init-local 创建存储、默认规则并绑定默认组，实际本机访问前缀为 /i/{storage_id}。Ctrl+C 触发关闭；二进制同样支持 SIGINT/SIGTERM。M2 单实例运行，监听前恢复遗留图片操作；恢复失败保留记录并拒绝就绪。
+服务监听 [127.0.0.1:18080](http://127.0.0.1:18080)，健康检查为 [healthz](http://127.0.0.1:18080/healthz)。根路径返回嵌入的 Vue 前端（`go:embed web/dist`）：未匹配的路径回退 `index.html`（no-store），`/assets/**` 带 immutable 缓存，`/api`、`/i`、`/t`、`/healthz` 前缀的未知路径保持 JSON 404。init-local 创建存储、默认规则并绑定默认组，实际本机访问前缀为 /i/{storage_id}。Ctrl+C 触发关闭；二进制同样支持 SIGINT/SIGTERM。单实例运行，监听前恢复遗留图片操作；恢复失败保留记录并拒绝就绪。
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:18080/healthz
@@ -72,6 +72,8 @@ SQLite 强制单连接、WAL（文件库）、foreign_keys 和 busy_timeout。Po
 | PATCH /api/auth/password | 验证旧密码、换新密码并吊销全部 Token |
 | GET/POST /api/tokens | 无明文的列表 / 创建 api Token（可无到期时间） |
 | DELETE /api/tokens/{id} | 只允许吊销本人 Token |
+| GET /api/site | 公开站点摘要：site_name 与 register_enabled |
+| GET /api/policies | 当前用户组绑定的启用规则（含存储启用），上传页下拉用 |
 | POST /api/upload | file/files[] multipart，同步单201/批量207；默认private |
 | GET /api/images；GET /api/images/{id} | 本人分页/详情，无EXIF |
 | GET /api/images/{id}/exif | 本人/admin的原始完整EXIF/GPS/raw |
@@ -95,6 +97,25 @@ $taskPlainPassword | docker compose -f deploy/compose.dev.yaml run --rm -T dev g
 Remove-Variable taskPlainPassword, taskPassword
 ```
 
+## 前端开发（M3）
+
+前端在 `web/`：Vue 3.5 + Vite 8（Rolldown）+ TypeScript 6 + Naive UI + Pinia。Node 24.21.0 与 pnpm 12.9.1 已装入 dev 镜像，前端命令全部在容器内执行（宿主 Node 22 仅作手工便利，不作验收依据）；pnpm store 固定到 `pnpm-store` 卷（`web/pnpm-workspace.yaml` 的 storeDir）。
+
+```powershell
+make fe-install   # cd web && pnpm install
+make fe-build     # --frozen-lockfile + gen:api + vite build（产物进 web/dist，嵌入二进制）
+make fe-test      # vitest run（jsdom 组件测试）
+make fe-lint      # vue-tsc --noEmit（双 tsconfig）+ eslint
+make release      # fe-build + go build -trimpath -o bin/imgnest ./cmd/imgnest
+```
+
+- 请求只写在 `web/src/api/`：`client.ts` 解 `{code,message,data}` 外壳并统一错误（业务码 20001 清会话跳登录，20002 凭证内容错误就地展示）；`schema.d.ts` 由 `pnpm gen:api` 从 `docs/openapi.yaml` 生成，类型在 `api/types.ts` 派生，不手改。
+- 全局状态只有 `stores/auth`（token + UserView，token 存 `localStorage["imgnest.token"]`）与 `stores/site`；列表数据留在页面。
+- 路由守卫做本地 token 检查（无 token 深链跳 `/login?redirect=…`），真实鉴权由后端保证；Naive UI 组件显式 import，主题跟随系统。
+- 上传通道用 XHR（fetch 无上传进度），与 fetch 通道共用 `client.notifyUnauthorized`，401 语义一致。
+- `web/dist/.gitkeep` 保持无构建时 `go:embed` 可编译；`pnpm build` 会清空 dist，`make fe-build` 已在构建后恢复该占位文件。
+- 已知限制：`vite.config.ts` 的 `@` 别名用 `import.meta.url` 解析，容器内正确；Windows 宿主直跑 `pnpm dev` 时别名可能失准（宿主不作验收环境）。Playwright E2E 延后到 M4 联调。
+
 ## 复现验收
 
 ```powershell
@@ -104,7 +125,9 @@ docker compose -f deploy/compose.dev.yaml run --rm dev go test -mod=readonly -co
 docker compose -f deploy/compose.dev.yaml run --rm dev go test -mod=readonly -race -count=1 ./...
 docker compose -f deploy/compose.dev.yaml run --rm dev go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run ./...
 docker compose -f deploy/compose.dev.yaml run --rm dev go mod verify
-docker compose -f deploy/compose.dev.yaml run --rm dev go build -trimpath -o bin/imgnest ./cmd/imgnest
+make fe-test
+make fe-lint
+make release
 ```
 
 compose 自动注入双库/MinIO测试环境。必须启动相应测试服务，不能以未配置导致的 skip 代替通过；不用生产数据或云账户做测试。bcrypt race 测试较慢，等待实际退出状态。

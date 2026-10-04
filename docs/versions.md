@@ -7,6 +7,8 @@
 
 执行补充：官方注册表元数据可访问；M1/M2 实际选择记录在 `go.mod` / `go.sum`。AWS SDK、imagemeta、vipsgen 已安装并实际链接固定 libvips，前端仍待 M3 安装；没有升级已锁定直接依赖。M2 显式使用 SDK 自带错误类型，因此 smithy-go v1.28.1 从 SDK 的间接依赖提升为直接依赖；x/sync v0.23.0 由 tidy 保留为间接依赖。
 
+M3 执行补充：前端依赖按上表精确锁定并提交 `web/pnpm-lock.yaml`。Node 24.21.0 与 pnpm 12.9.1（`npm i -g` 固定）已装入 dev 镜像，pnpm store 固定到 compose 卷（`web/pnpm-workspace.yaml` storeDir）；宿主 Node 22 仅作手工便利。实测 pnpm 12 忽略 `npm_config_store_dir` 环境变量，须用 pnpm-workspace.yaml 配置。`openapi-typescript@7.13.0` 声明 peer typescript ^5.x，与锁定的 TS 6.0.3 组合实测 `gen:api` 正常，属可接受取舍；为避免引入锁外依赖（jiti、@types/node），ESLint 配置用 `.mjs`、vite alias 用 `import.meta.url` 解析（Windows 宿主直跑 dev 有已知限制，验收在容器内）。@vueuse/core 已安装，M3 暂无使用点，主题跟随系统暂用 Naive UI 内置 `useOsTheme`。
+
 ## 工具链
 
 | 工具 | 版本 | 说明 |
