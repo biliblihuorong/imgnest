@@ -25,7 +25,7 @@ const (
 
 // TokenRepository persists credential hashes and scopes token mutations to owners.
 type TokenRepository interface {
-	CreateToken(ctx context.Context, token model.Token) (model.Token, error)
+	CreateToken(ctx context.Context, token model.Token, grant model.TokenGrant) (model.Token, error)
 	FindToken(ctx context.Context, id uint64) (model.Token, error)
 	TouchToken(ctx context.Context, id uint64, at time.Time) error
 	ListTokens(ctx context.Context, userID uint64) ([]model.Token, error)
@@ -63,6 +63,7 @@ type Identity struct {
 	User    UserView
 	TokenID uint64
 	Kind    string
+	Subject TokenSubject `json:"-"`
 }
 
 // TokenService creates and verifies compatible bearer credentials.
@@ -89,10 +90,13 @@ func NewTokenService(
 	return &TokenService{tokens: tokens, users: users, now: now}, nil
 }
 
-// Issue creates a credential for an enabled user.
-func (s *TokenService) Issue(ctx context.Context, userID uint64, input TokenInput) (IssuedToken, error) {
+// Issue creates a credential only while the authenticated subject remains valid.
+func (s *TokenService) Issue(ctx context.Context, subject TokenSubject, input TokenInput) (IssuedToken, error) {
 	if err := ctx.Err(); err != nil {
 		return IssuedToken{}, fmt.Errorf("issue token: %w", err)
+	}
+	if subject.userID == 0 || subject.passwordHash == "" {
+		return IssuedToken{}, ErrUnauthenticated
 	}
 	name := strings.TrimSpace(input.Name)
 	validKind := input.Kind == TokenKindWeb || input.Kind == TokenKindAPI
@@ -110,10 +114,6 @@ func (s *TokenService) Issue(ctx context.Context, userID uint64, input TokenInpu
 	if expires != nil && !expires.After(now) {
 		return IssuedToken{}, ErrInvalidInput
 	}
-	user, err := s.enabledUser(ctx, userID)
-	if err != nil {
-		return IssuedToken{}, err
-	}
 	var random [20]byte
 	if _, err := rand.Read(random[:]); err != nil {
 		return IssuedToken{}, fmt.Errorf("generate token secret: %w", err)
@@ -121,11 +121,16 @@ func (s *TokenService) Issue(ctx context.Context, userID uint64, input TokenInpu
 	secret := hex.EncodeToString(random[:])
 	digest := sha256.Sum256([]byte(secret))
 	token, err := s.tokens.CreateToken(ctx, model.Token{
-		UserID: user.ID, Name: name, Kind: input.Kind,
+		UserID: subject.userID, Name: name, Kind: input.Kind,
 		TokenHash: hex.EncodeToString(digest[:]), Abilities: []string{"*"},
 		ExpiresAt: expires, CreatedAt: now, UpdatedAt: now,
+	}, model.TokenGrant{
+		ExpectedPasswordHash: subject.passwordHash, SourceTokenID: subject.sourceTokenID, At: now,
 	})
 	if err != nil {
+		if errors.Is(err, ErrUnauthenticated) && subject.sourceTokenID == 0 {
+			return IssuedToken{}, ErrInvalidCredentials
+		}
 		return IssuedToken{}, fmt.Errorf("persist token: %w", err)
 	}
 	return IssuedToken{
@@ -176,7 +181,10 @@ func (s *TokenService) Authenticate(ctx context.Context, raw string) (Identity, 
 		}
 		return Identity{}, fmt.Errorf("touch bearer token: %w", err)
 	}
-	return Identity{User: userView(user), TokenID: token.ID, Kind: token.Kind}, nil
+	return Identity{
+		User: userView(user), TokenID: token.ID, Kind: token.Kind,
+		Subject: TokenSubject{userID: user.ID, passwordHash: user.PasswordHash, sourceTokenID: token.ID},
+	}, nil
 }
 
 // List returns the owner's credential metadata without secrets.

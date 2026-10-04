@@ -169,10 +169,10 @@ func TestPasswordUpdateRevokesTokensAtomically(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := tokens.CreateToken(t.Context(), testToken(user.ID)); err != nil {
+		if _, err := tokens.CreateToken(t.Context(), testToken(user.ID), testGrant(user.PasswordHash)); err != nil {
 			t.Fatal(err)
 		}
-		if err := users.UpdatePasswordAndRevokeTokens(t.Context(), user.ID, "replacement-digest"); err != nil {
+		if err := users.UpdatePasswordAndRevokeTokens(t.Context(), user.ID, user.PasswordHash, "replacement-digest"); err != nil {
 			t.Fatal(err)
 		}
 		found, err := users.FindUserByID(t.Context(), user.ID)
@@ -183,18 +183,82 @@ func TestPasswordUpdateRevokesTokensAtomically(t *testing.T) {
 		if err != nil || len(listed) != 0 {
 			t.Fatalf("tokens not revoked: count=%d error=%v", len(listed), err)
 		}
-		if _, err := tokens.CreateToken(t.Context(), testToken(user.ID)); err != nil {
+		if _, err := tokens.CreateToken(t.Context(), testToken(user.ID), testGrant(found.PasswordHash)); err != nil {
 			t.Fatal(err)
 		}
 		if err := db.WithContext(t.Context()).Exec("ALTER TABLE tokens RENAME TO tokens_saved").Error; err != nil {
 			t.Fatal(err)
 		}
-		if err := users.UpdatePasswordAndRevokeTokens(t.Context(), user.ID, "must-roll-back"); err == nil {
+		if err := users.UpdatePasswordAndRevokeTokens(t.Context(), user.ID, found.PasswordHash, "must-roll-back"); err == nil {
 			t.Fatal("password update succeeded when revocation could not run")
 		}
 		found, err = users.FindUserByID(t.Context(), user.ID)
 		if err != nil || found.PasswordHash != "replacement-digest" {
 			t.Fatalf("password changed despite failed revocation: %v", err)
+		}
+	})
+}
+
+func TestPasswordCASMismatchKeepsPasswordAndTokens(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		for _, scenario := range []string{"mismatch", "disabled"} {
+			t.Run(scenario, func(t *testing.T) {
+				user, users, tokens := grantFixture(t, db, "cas"+scenario)
+				if _, err := tokens.CreateToken(t.Context(), testToken(user.ID), testGrant(user.PasswordHash)); err != nil {
+					t.Fatal(err)
+				}
+				expected := "stale-digest"
+				if scenario == "disabled" {
+					expected = user.PasswordHash
+					if err := db.WithContext(t.Context()).Model(&model.User{}).
+						Where("id = ?", user.ID).Update("status", model.UserStatusDisabled).Error; err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := users.UpdatePasswordAndRevokeTokens(
+					t.Context(), user.ID, expected, "must-not-replace",
+				); !errors.Is(err, model.ErrInvalidCredentials) {
+					t.Errorf("CAS %s error=%v, want ErrInvalidCredentials", scenario, err)
+				}
+				found, err := users.FindUserByID(t.Context(), user.ID)
+				if err != nil || found.PasswordHash != user.PasswordHash {
+					t.Errorf("failed CAS changed password: error=%v", err)
+				}
+				remaining, err := tokens.ListTokens(t.Context(), user.ID)
+				if err != nil || len(remaining) != 1 {
+					t.Errorf("failed CAS revoked tokens: count=%d error=%v", len(remaining), err)
+				}
+			})
+		}
+	})
+}
+
+func TestConcurrentPasswordCAS(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		user, users, _ := grantFixture(t, db, "concurrentcas")
+		start := make(chan struct{})
+		results := make(chan error, 2)
+		for _, next := range []string{"replacement-one", "replacement-two"} {
+			go func() {
+				<-start
+				results <- users.UpdatePasswordAndRevokeTokens(t.Context(), user.ID, user.PasswordHash, next)
+			}()
+		}
+		close(start)
+		var successes, stale int
+		for range 2 {
+			err := <-results
+			switch {
+			case err == nil:
+				successes++
+			case errors.Is(err, model.ErrInvalidCredentials):
+				stale++
+			default:
+				t.Fatal(err)
+			}
+		}
+		if successes != 1 || stale != 1 {
+			t.Errorf("CAS successes=%d stale=%d, want 1 each", successes, stale)
 		}
 	})
 }

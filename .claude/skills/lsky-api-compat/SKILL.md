@@ -52,6 +52,12 @@ authentication fails. Disabled users cannot authenticate. M1 abilities are
 `["*"]`; changing/resetting a password revokes all that user's tokens,
 while native logout revokes only the current token. These are shared-service
 rules; Lsky routes retain their exact response envelope and HTTP contract.
+Issuance consumes opaque proof from `VerifiedCredentials.Subject` or
+`Identity.Subject`, never a bare user ID. The repository rechecks the current
+password hash and source token under the user's transaction lock; creation,
+revocation, and credential changes share that lock. Password replacement uses
+the verified old hash as a compare-and-swap condition, so an in-flight old
+request cannot bypass completed revocation or overwrite a completed reset.
 
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |

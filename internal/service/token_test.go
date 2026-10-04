@@ -33,12 +33,21 @@ func tokenInput() service.TokenInput {
 	return service.TokenInput{Name: "client", Kind: "api", Abilities: []string{"*"}}
 }
 
+func passwordSubject(t *testing.T, fixture *authFixture, user service.UserView) service.TokenSubject {
+	t.Helper()
+	verified, err := fixture.service.VerifyCredentials(t.Context(), user.Email, testPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return verified.Subject
+}
+
 func TestTokenFormatAndStoredHash(t *testing.T) {
 	forDatabases(t, func(t *testing.T, fixture *authFixture) {
 		user := registerUser(t, fixture, "alice")
 		now := time.Date(2026, 10, 4, 8, 0, 0, 0, time.FixedZone("SGT", 8*60*60))
 		svc := newTokenService(t, fixture, &now)
-		issued, err := svc.Issue(t.Context(), user.ID, tokenInput())
+		issued, err := svc.Issue(t.Context(), passwordSubject(t, fixture, user), tokenInput())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,7 +80,7 @@ func TestTokenFormatAndStoredHash(t *testing.T) {
 		if err != nil || identity.User.ID != user.ID || identity.TokenID != id || identity.Kind != "api" {
 			t.Fatalf("issued token did not authenticate its owner: %v", err)
 		}
-		other, err := svc.Issue(t.Context(), user.ID, tokenInput())
+		other, err := svc.Issue(t.Context(), passwordSubject(t, fixture, user), tokenInput())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -88,7 +97,7 @@ func TestWebTokenDefaultExpiry(t *testing.T) {
 		svc := newTokenService(t, fixture, &now)
 		input := tokenInput()
 		input.Kind = "web"
-		issued, err := svc.Issue(t.Context(), user.ID, input)
+		issued, err := svc.Issue(t.Context(), passwordSubject(t, fixture, user), input)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -107,6 +116,7 @@ func TestTokenInputValidation(t *testing.T) {
 	user := registerUser(t, fixture, "alice")
 	now := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
 	svc := newTokenService(t, fixture, &now)
+	subject := passwordSubject(t, fixture, user)
 	past := now.Add(-time.Second)
 	cases := []struct {
 		name  string
@@ -126,7 +136,7 @@ func TestTokenInputValidation(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := svc.Issue(t.Context(), user.ID, tc.input)
+			_, err := svc.Issue(t.Context(), subject, tc.input)
 			if !errors.Is(err, service.ErrInvalidInput) {
 				t.Fatalf("invalid token input error=%v", err)
 			}
@@ -175,14 +185,18 @@ func TestAuthenticateCompatibleAlphanumericSecret(t *testing.T) {
 		user := registerUser(t, fixture, "alice")
 		secret := strings.Repeat("Gz8X", 10)
 		digest := sha256.Sum256([]byte(secret))
-		stored, err := fixture.tokens.CreateToken(t.Context(), model.Token{
-			UserID: user.ID, Name: "compatible", Kind: "api", Abilities: []string{"*"},
-			TokenHash: hex.EncodeToString(digest[:]),
-		})
+		storedUser, err := fixture.users.FindUserByID(t.Context(), user.ID)
 		if err != nil {
 			t.Fatal(err)
 		}
 		now := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
+		stored, err := fixture.tokens.CreateToken(t.Context(), model.Token{
+			UserID: user.ID, Name: "compatible", Kind: "api", Abilities: []string{"*"},
+			TokenHash: hex.EncodeToString(digest[:]),
+		}, model.TokenGrant{ExpectedPasswordHash: storedUser.PasswordHash, At: now})
+		if err != nil {
+			t.Fatal(err)
+		}
 		svc := newTokenService(t, fixture, &now)
 		raw := strconv.FormatUint(stored.ID, 10) + "|" + secret
 		if _, err := svc.Authenticate(t.Context(), raw); err != nil {
@@ -199,7 +213,7 @@ func TestTokenExpiryAtBoundary(t *testing.T) {
 		expires := now.Add(time.Hour)
 		input := tokenInput()
 		input.ExpiresAt = &expires
-		issued, err := svc.Issue(t.Context(), user.ID, input)
+		issued, err := svc.Issue(t.Context(), passwordSubject(t, fixture, user), input)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -219,7 +233,8 @@ func TestDisabledUser(t *testing.T) {
 		user := registerUser(t, fixture, "alice")
 		now := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
 		svc := newTokenService(t, fixture, &now)
-		issued, err := svc.Issue(t.Context(), user.ID, tokenInput())
+		subject := passwordSubject(t, fixture, user)
+		issued, err := svc.Issue(t.Context(), subject, tokenInput())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -230,7 +245,7 @@ func TestDisabledUser(t *testing.T) {
 		if _, err := svc.Authenticate(t.Context(), issued.Token); !errors.Is(err, service.ErrUnauthenticated) {
 			t.Fatalf("disabled user authenticated: %v", err)
 		}
-		if _, err := svc.Issue(t.Context(), user.ID, tokenInput()); !errors.Is(err, service.ErrForbidden) {
+		if _, err := svc.Issue(t.Context(), subject, tokenInput()); !errors.Is(err, service.ErrInvalidCredentials) {
 			t.Fatalf("disabled user issued token: %v", err)
 		}
 		if _, err := svc.List(t.Context(), user.ID); !errors.Is(err, service.ErrForbidden) {
@@ -244,7 +259,7 @@ func TestRevokedToken(t *testing.T) {
 		user := registerUser(t, fixture, "alice")
 		now := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
 		svc := newTokenService(t, fixture, &now)
-		issued, err := svc.Issue(t.Context(), user.ID, tokenInput())
+		issued, err := svc.Issue(t.Context(), passwordSubject(t, fixture, user), tokenInput())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -260,17 +275,94 @@ func TestRevokedToken(t *testing.T) {
 	})
 }
 
+func TestVerifiedPasswordProofCannotIssueAfterReset(t *testing.T) {
+	forDatabases(t, func(t *testing.T, fixture *authFixture) {
+		user := registerUser(t, fixture, "alice")
+		verified, err := fixture.service.VerifyCredentials(t.Context(), user.Email, testPassword)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := fixture.service.ResetPassword(t.Context(), user.Email, "reset-password-123"); err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
+		svc := newTokenService(t, fixture, &now)
+		if _, err := svc.Issue(t.Context(), verified.Subject, tokenInput()); !errors.Is(err, service.ErrInvalidCredentials) {
+			t.Fatalf("stale password proof issued a token after reset: %v", err)
+		}
+		tokens, err := fixture.tokens.ListTokens(t.Context(), user.ID)
+		if err != nil || len(tokens) != 0 {
+			t.Fatalf("rejected issuance left tokens: count=%d, err=%v", len(tokens), err)
+		}
+	})
+}
+
+func TestIssueRejectsEmptySubject(t *testing.T) {
+	fixture := newAuthFixture(t, "sqlite")
+	now := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
+	svc := newTokenService(t, fixture, &now)
+	_, err := svc.Issue(t.Context(), service.TokenSubject{}, tokenInput())
+	if !errors.Is(err, service.ErrUnauthenticated) {
+		t.Fatalf("empty authorization subject error=%v, want unauthenticated", err)
+	}
+}
+
+func TestAuthenticatedTokenCannotIssueAfterRevoke(t *testing.T) {
+	forDatabases(t, func(t *testing.T, fixture *authFixture) {
+		user := registerUser(t, fixture, "alice")
+		now := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
+		svc := newTokenService(t, fixture, &now)
+		issued, err := svc.Issue(t.Context(), passwordSubject(t, fixture, user), tokenInput())
+		if err != nil {
+			t.Fatal(err)
+		}
+		identity, err := svc.Authenticate(t.Context(), issued.Token)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.Revoke(t.Context(), user.ID, issued.Info.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.Issue(t.Context(), identity.Subject, tokenInput()); !errors.Is(err, service.ErrUnauthenticated) {
+			t.Fatalf("revoked bearer proof issued a token: %v", err)
+		}
+	})
+}
+
+func TestAuthenticatedTokenCannotIssueAtExpiry(t *testing.T) {
+	forDatabases(t, func(t *testing.T, fixture *authFixture) {
+		user := registerUser(t, fixture, "alice")
+		now := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
+		svc := newTokenService(t, fixture, &now)
+		expires := now.Add(time.Hour)
+		input := tokenInput()
+		input.ExpiresAt = &expires
+		issued, err := svc.Issue(t.Context(), passwordSubject(t, fixture, user), input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		identity, err := svc.Authenticate(t.Context(), issued.Token)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now = expires
+		if _, err := svc.Issue(t.Context(), identity.Subject, tokenInput()); !errors.Is(err, service.ErrUnauthenticated) {
+			t.Fatalf("bearer proof issued a token at source expiry: %v", err)
+		}
+	})
+}
+
 func TestTokenOwnerIsolation(t *testing.T) {
 	forDatabases(t, func(t *testing.T, fixture *authFixture) {
 		alice := registerUser(t, fixture, "alice")
 		bob := registerUser(t, fixture, "bob")
 		now := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
 		svc := newTokenService(t, fixture, &now)
-		aliceToken, err := svc.Issue(t.Context(), alice.ID, tokenInput())
+		aliceToken, err := svc.Issue(t.Context(), passwordSubject(t, fixture, alice), tokenInput())
 		if err != nil {
 			t.Fatal(err)
 		}
-		bobToken, err := svc.Issue(t.Context(), bob.ID, tokenInput())
+		bobToken, err := svc.Issue(t.Context(), passwordSubject(t, fixture, bob), tokenInput())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -312,7 +404,7 @@ func TestListOmitsSecrets(t *testing.T) {
 		if err != nil || string(emptyJSON) != "[]" {
 			t.Fatalf("empty token list is %s, err=%v; want []", emptyJSON, err)
 		}
-		issued, err := svc.Issue(t.Context(), user.ID, tokenInput())
+		issued, err := svc.Issue(t.Context(), passwordSubject(t, fixture, user), tokenInput())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -348,7 +440,7 @@ func TestTouchUpdatesLastUsedAt(t *testing.T) {
 		user := registerUser(t, fixture, "alice")
 		now := time.Date(2026, 10, 4, 8, 0, 0, 0, time.FixedZone("SGT", 8*60*60))
 		svc := newTokenService(t, fixture, &now)
-		issued, err := svc.Issue(t.Context(), user.ID, tokenInput())
+		issued, err := svc.Issue(t.Context(), passwordSubject(t, fixture, user), tokenInput())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -390,7 +482,7 @@ func TestAuthenticatePropagatesTouchFailure(t *testing.T) {
 	user := registerUser(t, fixture, "alice")
 	now := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
 	svc := newTokenService(t, fixture, &now)
-	issued, err := svc.Issue(t.Context(), user.ID, tokenInput())
+	issued, err := svc.Issue(t.Context(), passwordSubject(t, fixture, user), tokenInput())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +506,7 @@ func TestAuthenticateWrongSecret(t *testing.T) {
 	user := registerUser(t, fixture, "alice")
 	now := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)
 	svc := newTokenService(t, fixture, &now)
-	issued, err := svc.Issue(t.Context(), user.ID, tokenInput())
+	issued, err := svc.Issue(t.Context(), passwordSubject(t, fixture, user), tokenInput())
 	if err != nil {
 		t.Fatal(err)
 	}

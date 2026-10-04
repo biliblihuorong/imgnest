@@ -26,13 +26,13 @@ type Response struct {
 // UserService is the user business API used by native authentication handlers.
 type UserService interface {
 	Register(context.Context, service.RegisterInput) (service.UserView, error)
-	VerifyCredentials(context.Context, string, string) (service.UserView, error)
+	VerifyCredentials(context.Context, string, string) (service.VerifiedCredentials, error)
 	ChangePassword(context.Context, uint64, string, string) error
 }
 
 // TokenService is the shared token business API used by native handlers.
 type TokenService interface {
-	Issue(context.Context, uint64, service.TokenInput) (service.IssuedToken, error)
+	Issue(context.Context, service.TokenSubject, service.TokenInput) (service.IssuedToken, error)
 	Authenticate(context.Context, string) (service.Identity, error)
 	List(context.Context, uint64) ([]service.TokenView, error)
 	Revoke(context.Context, uint64, uint64) error
@@ -149,12 +149,12 @@ func (h *Handler) login(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	issued, err := h.tokens.Issue(c.Request.Context(), user.ID, service.TokenInput{Name: "web", Kind: "web", Abilities: []string{"*"}})
+	issued, err := h.tokens.Issue(c.Request.Context(), user.Subject, service.TokenInput{Name: "web", Kind: "web", Abilities: []string{"*"}})
 	if err != nil {
 		fail(c, err)
 		return
 	}
-	respond(c, 200, gin.H{"token": issued.Token, "user": user, "expires_at": issued.Info.ExpiresAt})
+	respond(c, 200, gin.H{"token": issued.Token, "user": user.User, "expires_at": issued.Info.ExpiresAt})
 }
 func (h *Handler) me(c *gin.Context) { respond(c, 200, identity(c).User) }
 func (h *Handler) logout(c *gin.Context) {

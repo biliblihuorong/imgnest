@@ -7,6 +7,7 @@ import (
 
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // UserRepository persists user accounts and their credential lifecycle.
@@ -77,25 +78,56 @@ func (r *UserRepository) BootstrapAdmin(ctx context.Context, user model.User) (m
 	return user, nil
 }
 
-// UpdatePasswordAndRevokeTokens commits the credential change and all revocations together.
-func (r *UserRepository) UpdatePasswordAndRevokeTokens(ctx context.Context, userID uint64, hash string) error {
+// UpdatePasswordAndRevokeTokens replaces an enabled user's credential only when
+// expectedHash still matches, revoking all tokens in the same transaction.
+func (r *UserRepository) UpdatePasswordAndRevokeTokens(
+	ctx context.Context,
+	userID uint64,
+	expectedHash, nextHash string,
+) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		updated := tx.Model(&model.User{}).Where("id = ?", userID).Update("password_hash", hash)
+		if _, err := lockUser(ctx, tx, userID); err != nil {
+			return err
+		}
+		updated := tx.Model(&model.User{}).
+			Where(
+				"id = ? AND password_hash = ? AND status = ?",
+				userID,
+				expectedHash,
+				model.UserStatusEnabled,
+			).
+			Update("password_hash", nextHash)
 		if updated.Error != nil {
 			return updated.Error
 		}
 		if updated.RowsAffected == 0 {
-			return model.ErrNotFound
+			return model.ErrInvalidCredentials
 		}
 		return tx.Where("user_id = ?", userID).Delete(&model.Token{}).Error
 	})
+	if errors.Is(err, model.ErrInvalidCredentials) {
+		return fmt.Errorf("update password: %w", model.ErrInvalidCredentials)
+	}
 	if errors.Is(err, model.ErrNotFound) {
 		return fmt.Errorf("update password: %w", model.ErrNotFound)
 	}
 	if err != nil {
-		return databaseError("update password and revoke tokens", err)
+		return repositoryError("update password and revoke tokens", err)
 	}
 	return nil
+}
+
+func lockUser(ctx context.Context, tx *gorm.DB, userID uint64) (model.User, error) {
+	if err := checkRecordID(ctx, userID); err != nil {
+		return model.User{}, err
+	}
+	query := tx.WithContext(ctx)
+	if tx.Name() == "postgres" {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	var user model.User
+	err := query.First(&user, "id = ?", userID).Error
+	return user, err
 }
 
 func userWriteError(operation string, err error) error {

@@ -359,6 +359,8 @@ imgnest/
 - username 3–64 个 Unicode 字符；email 去首尾空白、转小写并校验纯邮箱地址；新建和替换的密码为 12–72 字节，bcrypt cost=12；登录/当前密码校验允许非空、至多 72 字节的旧密码以保留旧 bcrypt 兼容。用户 status 为 enabled/disabled。
 - Token 格式 `<id>|<40 random chars>`；随机串用 crypto/rand 产生，库中 SHA-256 仅计算分隔符后的 secret；验证常量时间比较。web Token 默认 24 小时，api Token 可无过期时间，否则必须在未来；M1 abilities 只支持 `["*"]`。每次鉴权检查用户仍 enabled。
 - logout 仅吊销当前 Token；改密与 reset-password 原子更新密码并吊销该用户全部 Token。用户不能查看或吊销其他用户 Token。
+- Token 签发绑定服务层产生的不透明认证证明，事务内锁定用户并重新检查密码哈希、enabled 状态及来源 Token 的存在/所有权/过期时间；签发与吊销共用用户锁。不能仅凭 middleware 早先读出的 userID 签发新凭证，撤销完成后的在途旧请求必须被拒绝。
+- 改密/重置以读取并验证的旧哈希为 CAS 条件，原子更新与全 Token 删除同事务；旧改密请求不能覆盖已完成的重置。
 - 新增 `PATCH /api/auth/password`，输入 current_password/new_password，成功需重新登录。登录和注册分别按可信客户端 IP 限流，每分钟 3 次；默认不信任代理头。
 - 原生错误码：10001 参数、20001 未鉴权、20002 凭证错误、20003 权限不足、30001 注册关闭、30002 用户重复、30003 请求限流、50001 内部失败。成功 code=0；失败 data=null，空列表 data=[]。普通注册成功 HTTP 201、重复 409、注册关闭 403、无效凭证 401、限流 429。
 - 时间存 UTC，对外 RFC3339；native DTO 不含 password_hash/token_hash；API Token 只在创建响应返回明文。业务哨兵在共享 model 声明、service 别名引用，避免 repo 反向引用 service。

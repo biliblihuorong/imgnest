@@ -2,6 +2,8 @@ package repo
 
 import (
 	"context"
+	"crypto/subtle"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -21,8 +23,9 @@ func NewTokenRepository(ctx context.Context, db *gorm.DB) (*TokenRepository, err
 	return &TokenRepository{db: db}, nil
 }
 
-// CreateToken stores only the secret digest and returns the generated database ID.
-func (r *TokenRepository) CreateToken(ctx context.Context, token model.Token) (model.Token, error) {
+// CreateToken verifies the credential grant under the user's lock and inserts
+// the secret digest in the same transaction.
+func (r *TokenRepository) CreateToken(ctx context.Context, token model.Token, grant model.TokenGrant) (model.Token, error) {
 	if token.Abilities == nil {
 		token.Abilities = []string{}
 	}
@@ -34,7 +37,42 @@ func (r *TokenRepository) CreateToken(ctx context.Context, token model.Token) (m
 		at := token.LastUsedAt.UTC()
 		token.LastUsedAt = &at
 	}
-	if err := r.db.WithContext(ctx).Create(&token).Error; err != nil {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		user, err := lockUser(ctx, tx, token.UserID)
+		if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, model.ErrNotFound) {
+			return model.ErrUnauthenticated
+		}
+		if err != nil {
+			return err
+		}
+		currentHash := subtle.ConstantTimeCompare([]byte(user.PasswordHash), []byte(grant.ExpectedPasswordHash)) == 1
+		if user.Status != model.UserStatusEnabled || !currentHash {
+			return model.ErrUnauthenticated
+		}
+		if grant.SourceTokenID != 0 {
+			if grant.SourceTokenID > math.MaxInt64 {
+				return model.ErrUnauthenticated
+			}
+			var source model.Token
+			if err := tx.First(&source, "id = ?", grant.SourceTokenID).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return model.ErrUnauthenticated
+				}
+				return err
+			}
+			if source.UserID != user.ID {
+				return model.ErrUnauthenticated
+			}
+			if source.ExpiresAt != nil && !grant.At.Before(*source.ExpiresAt) {
+				return model.ErrUnauthenticated
+			}
+		}
+		return tx.Create(&token).Error
+	})
+	if errors.Is(err, model.ErrUnauthenticated) {
+		return model.Token{}, fmt.Errorf("create token: %w", model.ErrUnauthenticated)
+	}
+	if err != nil {
 		return model.Token{}, repositoryError("create token", err)
 	}
 	return token, nil
@@ -84,19 +122,43 @@ func (r *TokenRepository) RevokeToken(ctx context.Context, userID, tokenID uint6
 	if userID > math.MaxInt64 || tokenID > math.MaxInt64 {
 		return fmt.Errorf("revoke token: %w", model.ErrForbidden)
 	}
-	deleted := r.db.WithContext(ctx).Where("user_id = ? AND id = ?", userID, tokenID).Delete(&model.Token{})
-	if deleted.Error != nil {
-		return repositoryError("revoke token", deleted.Error)
-	}
-	if deleted.RowsAffected == 0 {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := lockUser(ctx, tx, userID); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, model.ErrNotFound) {
+				return model.ErrForbidden
+			}
+			return err
+		}
+		deleted := tx.Where("user_id = ? AND id = ?", userID, tokenID).Delete(&model.Token{})
+		if deleted.Error != nil {
+			return deleted.Error
+		}
+		if deleted.RowsAffected == 0 {
+			return model.ErrForbidden
+		}
+		return nil
+	})
+	if errors.Is(err, model.ErrForbidden) {
 		return fmt.Errorf("revoke token: %w", model.ErrForbidden)
+	}
+	if err != nil {
+		return repositoryError("revoke token", err)
 	}
 	return nil
 }
 
 // RevokeAllTokens removes all bearer credentials belonging to the user.
 func (r *TokenRepository) RevokeAllTokens(ctx context.Context, userID uint64) error {
-	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&model.Token{}).Error; err != nil {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := lockUser(ctx, tx, userID); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, model.ErrNotFound) {
+				return nil
+			}
+			return err
+		}
+		return tx.Where("user_id = ?", userID).Delete(&model.Token{}).Error
+	})
+	if err != nil {
 		return repositoryError("revoke all tokens", err)
 	}
 	return nil

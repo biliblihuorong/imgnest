@@ -22,7 +22,7 @@ Execution: native tools plus three workers with disjoint file ownership; parent 
 5. Token service/repository: complete; both drivers tested, hashes/expiry/ownership/touch/revoke/context covered.
 6. Native HTTP/OpenAPI: complete; protocol tests and real SQLite/PG HTTP lifecycle passed. OpenAPI YAML and all local references checked.
 7. CLI/lifecycle: complete; migrate/init-admin/reset/serve and stdin cancellation tests passed. Actual binary process smoke passed on SQLite and PG, including restart persistence.
-8. Complete verification/review/docs: in progress; latest complete lint exit 0, final suite/race and independent review pending.
+8. Complete verification/review/docs: complete; independent review findings fixed, final normal suite/race/lint/build/actual-process checks passed.
 
 ## Verification
 
@@ -52,4 +52,32 @@ Results are appended only after actual runs.
 
 ## Independent review
 
-Pending fresh reviewer over the complete feature branch. No merge, push, release tag or old Lsky data mutation has occurred.
+Fresh independent reviewer read `175a930..a4ba2e5`; two P1 findings required fixes. No merge, push, release tag or old Lsky data mutation has occurred.
+
+- Final: fixed stale credential issuance — baseline isolated copy `TestRevokedRequestCannotIssueToken` failed reset/revoke for sqlite/PG (201 instead of401), and `TestResetInvalidatesInFlightLogin` failed both (200 instead of401); current tests exit0 all6cases. Issue now accepts only opaque TokenSubject, and repository rechecks hash/owner/expiry/source under the user lock.
+- Final: fixed stale password overwrite — two-driver deterministic service barrier and repo CAS tests observed stale update/concurrent successes RED, now GREEN; reset credential remains valid and old writes are rejected.
+- Final: re-graded make test readiness from Minor to Important — promised clean-environment test entry failed without PG — added the same PG preparation as integration target. Actual Docker preparation and complete suites are separately executed.
+- Ruling: internal VerifyCredentials/Issue/repo signatures extended to carry opaque proof and expected hash — fixes verified security races without changing HTTP shape, schema or dependencies — cost if wrong: consumers of internal service interfaces must use the documented proof instead of a bare ID.
+- Previous complete race snapshot exited0 (service181.009s) before these security changes; final post-fix `go test -mod=readonly -race -count=1 ./...` exited0, service280.385s, HTTP63.721s, CLI15.717s. Both drivers executed.
+
+Reviewer behaviors set aside, with parent decisions:
+
+1. Upload/WebP/EXIF/storage/trash/Vue/v1/import remain later milestones — accepted M1 scope — cost: M1 is a backend foundation rather than a released complete image host.
+2. Production image/multiarch/full CI remain release work — development environment validated here — cost: production deployment matrix is not yet certified.
+3. Distributed limits/4096IP ceiling remain documented single-instance choices — cost: multi-instance deployment needs shared limits.
+4. Arbitrary Reader cancellation keeps the existing bounded CLI ruling — cost: long-lived embedding must provide interruptible input.
+5. External/manual database damage is reported, not automatically repaired — cost: recovery needs explicit operator action/migration.
+6. Already-authorized ordinary reads may complete after revocation; durable credential/password writes now revalidate atomically — cost: a revoke does not abort all running read requests.
+7. Body read timeout/login timing/monotonic last_used_at hardening is deferred, not used as a substitute for the two fixed races — cost: those refinements are not guaranteed by M1.
+8. Parent owns final race/lint/build evidence — no independent test result is inferred from read-only review.
+
+## Final verification and delivery
+
+- Post-fix `golangci-lint@v2.14.0 run ./...`: exit0, 0issues.
+- Post-fix `go test -mod=readonly -count=1 ./...`: exit0; CLI6.732s, HTTP5.698s, repo1.952s, service26.146s; SQLite+PG active.
+- Post-fix `go test -mod=readonly -race -count=1 ./...`: exit0; all implemented packages green. No stale snapshot substituted.
+- Post-fix `go mod verify` and `go build -trimpath -o bin/imgnest ./cmd/imgnest`: exit0. `bin/imgnest` is a Linux development artifact and ignored by Git.
+- Actual process smoke runs as part of final CLI suites, covering fresh migrate/admin/serve, health, restart-persisted sessions, token create/revoke/logout on both databases.
+- Original skill quick_validate.py could not run because bundled Python lacks PyYAML. No package installed to bypass this; the existing locked Go YAML parser validated skill frontmatter/name/description, OpenAPI YAML/78refs and local document links. No formal complete OpenAPI validator claim is made.
+- Feature branch `feat/m1-foundation`; component commits plus a focused security fix commit. Main remains the initial development-kit baseline; no remote push/PR/tag/merge performed.
+- M1 is complete. M2 image/storage/pipeline/trash and later frontend/Lsky features remain explicitly out of this delivery.

@@ -27,7 +27,7 @@ func (h *Handler) createToken(c *gin.Context) {
 	if !decode(c, &in) {
 		return
 	}
-	issued, err := h.tokens.Issue(c.Request.Context(), identity(c).User.ID, service.TokenInput{Name: in.Name, Kind: "api", ExpiresAt: in.ExpiresAt, Abilities: []string{"*"}})
+	issued, err := h.tokens.Issue(c.Request.Context(), identity(c).Subject, service.TokenInput{Name: in.Name, Kind: "api", ExpiresAt: in.ExpiresAt, Abilities: []string{"*"}})
 	if err != nil {
 		fail(c, err)
 		return

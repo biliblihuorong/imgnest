@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/config"
 	"github.com/biliblihuorong/imgnest/internal/migrate"
@@ -150,6 +152,10 @@ func registerUser(t *testing.T, fixture *authFixture, name string) service.UserV
 
 func createStoredToken(t *testing.T, fixture *authFixture, userID uint64) model.Token {
 	t.Helper()
+	user, err := fixture.users.FindUserByID(t.Context(), userID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var digest [32]byte
 	if _, err := rand.Read(digest[:]); err != nil {
 		t.Fatal(err)
@@ -157,7 +163,7 @@ func createStoredToken(t *testing.T, fixture *authFixture, userID uint64) model.
 	token, err := fixture.tokens.CreateToken(t.Context(), model.Token{
 		UserID: userID, Name: "test", Kind: "api",
 		TokenHash: hex.EncodeToString(digest[:]), Abilities: []string{"*"},
-	})
+	}, model.TokenGrant{ExpectedPasswordHash: user.PasswordHash, At: time.Now().UTC()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,8 +299,8 @@ func TestVerifyWrongCredentials(t *testing.T) {
 			}
 		}
 		verified, err := fixture.service.VerifyCredentials(t.Context(), " Alice@Example.COM ", testPassword)
-		if err != nil || verified.ID != user.ID {
-			t.Fatalf("valid credentials failed: ID=%d, err=%v", verified.ID, err)
+		if err != nil || verified.User.ID != user.ID {
+			t.Fatalf("valid credentials failed: ID=%d, err=%v", verified.User.ID, err)
 		}
 		if err := fixture.db.WithContext(t.Context()).Model(&model.User{}).
 			Where("id = ?", user.ID).Update("status", "disabled").Error; err != nil {
@@ -374,8 +380,8 @@ func TestVerifyLegacyShortPassword(t *testing.T) {
 	forDatabases(t, func(t *testing.T, fixture *authFixture) {
 		user := createLegacyUser(t, fixture)
 		verified, err := fixture.service.VerifyCredentials(t.Context(), user.Email, "oldpass8")
-		if err != nil || verified.ID != user.ID {
-			t.Fatalf("legacy bcrypt credentials were rejected: ID=%d, err=%v", verified.ID, err)
+		if err != nil || verified.User.ID != user.ID {
+			t.Fatalf("legacy bcrypt credentials were rejected: ID=%d, err=%v", verified.User.ID, err)
 		}
 		_, err = fixture.service.VerifyCredentials(t.Context(), user.Email, "wrongold")
 		if !errors.Is(err, service.ErrInvalidCredentials) {
@@ -492,6 +498,76 @@ func TestResetPasswordRevokesAllTokens(t *testing.T) {
 		}
 		if _, err := fixture.service.VerifyCredentials(t.Context(), user.Email, "reset-password-123"); err != nil {
 			t.Fatal("reset password is invalid")
+		}
+	})
+}
+
+type passwordUpdateBarrier struct {
+	service.UserRepository
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (barrier passwordUpdateBarrier) UpdatePasswordAndRevokeTokens(
+	ctx context.Context,
+	userID uint64,
+	expectedHash, nextHash string,
+) error {
+	close(barrier.entered)
+	select {
+	case <-barrier.release:
+		return barrier.UserRepository.UpdatePasswordAndRevokeTokens(
+			ctx,
+			userID,
+			expectedHash,
+			nextHash,
+		)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestStalePasswordChangeCannotOverwriteReset(t *testing.T) {
+	forDatabases(t, func(t *testing.T, fixture *authFixture) {
+		user := registerUser(t, fixture, "alice")
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		t.Cleanup(func() {
+			select {
+			case <-release:
+			default:
+				close(release)
+			}
+		})
+		blocked, err := service.NewUserService(t.Context(), passwordUpdateBarrier{
+			UserRepository: fixture.users, entered: entered, release: release,
+		}, fixture.settings)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := make(chan error, 1)
+		go func() {
+			result <- blocked.ChangePassword(
+				t.Context(),
+				user.ID,
+				testPassword,
+				"stale-password-123",
+			)
+		}()
+		select {
+		case <-entered:
+		case err := <-result:
+			t.Fatalf("password change never reached the conditional update: %v", err)
+		}
+		if err := fixture.service.ResetPassword(t.Context(), user.Email, "reset-password-123"); err != nil {
+			t.Fatal(err)
+		}
+		close(release)
+		if err := <-result; !errors.Is(err, service.ErrInvalidCredentials) {
+			t.Fatalf("stale password change was accepted after reset: %v", err)
+		}
+		if _, err := fixture.service.VerifyCredentials(t.Context(), user.Email, "reset-password-123"); err != nil {
+			t.Fatal("stale change overwrote the completed password reset")
 		}
 	})
 }

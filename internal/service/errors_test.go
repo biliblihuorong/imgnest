@@ -136,7 +136,7 @@ func TestCredentialLookupFailureIsPreserved(t *testing.T) {
 	}
 }
 
-func TestTokenUserLookupFailureIsPreserved(t *testing.T) {
+func TestTokenListUserLookupFailureIsPreserved(t *testing.T) {
 	want := errors.New("user lookup unavailable")
 	svc, err := service.NewTokenService(
 		t.Context(),
@@ -146,9 +146,6 @@ func TestTokenUserLookupFailureIsPreserved(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if _, err := svc.Issue(t.Context(), 1, tokenInput()); !errors.Is(err, want) {
-		t.Fatalf("issuance lost user lookup failure: %v", err)
 	}
 	if _, err := svc.List(t.Context(), 1); !errors.Is(err, want) {
 		t.Fatalf("list lost user lookup failure: %v", err)
@@ -194,7 +191,10 @@ func TestCanceledServiceOperationsStopBeforePersistence(t *testing.T) {
 		{name: "init admin", run: func() error { _, err := users.InitAdmin(ctx, service.RegisterInput{}); return err }},
 		{name: "change password", run: func() error { return users.ChangePassword(ctx, 1, "", "") }},
 		{name: "reset password", run: func() error { return users.ResetPassword(ctx, "", "") }},
-		{name: "issue", run: func() error { _, err := tokens.Issue(ctx, 1, service.TokenInput{}); return err }},
+		{name: "issue", run: func() error {
+			_, err := tokens.Issue(ctx, service.TokenSubject{}, service.TokenInput{})
+			return err
+		}},
 		{name: "authenticate", run: func() error { _, err := tokens.Authenticate(ctx, ""); return err }},
 		{name: "list", run: func() error { _, err := tokens.List(ctx, 1); return err }},
 		{name: "revoke", run: func() error { return tokens.Revoke(ctx, 1, 1) }},

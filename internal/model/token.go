@@ -8,6 +8,13 @@ const (
 	TokenKindAPI = "api"
 )
 
+// TokenGrant carries the verified credential state that must still hold when a token is inserted.
+type TokenGrant struct {
+	ExpectedPasswordHash string
+	SourceTokenID        uint64
+	At                   time.Time
+}
+
 // Token stores a bearer-secret digest; plaintext tokens never enter this model.
 type Token struct {
 	ID         uint64 `gorm:"primaryKey"`

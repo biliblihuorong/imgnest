@@ -21,7 +21,7 @@ type UserRepository interface {
 	FindUserByEmail(ctx context.Context, email string) (model.User, error)
 	FindUserByID(ctx context.Context, id uint64) (model.User, error)
 	BootstrapAdmin(ctx context.Context, user model.User) (model.User, error)
-	UpdatePasswordAndRevokeTokens(ctx context.Context, userID uint64, hash string) error
+	UpdatePasswordAndRevokeTokens(ctx context.Context, userID uint64, expectedHash, nextHash string) error
 }
 
 // RegisterInput contains only user-controlled registration fields.
@@ -41,6 +41,19 @@ type UserView struct {
 	Status    string    `json:"status"`
 	UsedBytes int64     `json:"used_bytes"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// TokenSubject is opaque authorization proof produced only by successful authentication.
+type TokenSubject struct {
+	userID        uint64
+	passwordHash  string
+	sourceTokenID uint64
+}
+
+// VerifiedCredentials binds the user view to the exact password hash that was verified.
+type VerifiedCredentials struct {
+	User    UserView     `json:"user"`
+	Subject TokenSubject `json:"-"`
 }
 
 // UserService enforces account creation and password rules.
@@ -83,35 +96,37 @@ func (s *UserService) Register(ctx context.Context, input RegisterInput) (UserVi
 	return userView(created), nil
 }
 
-// VerifyCredentials returns a user only when enabled credentials match.
-func (s *UserService) VerifyCredentials(ctx context.Context, email, password string) (UserView, error) {
+// VerifyCredentials returns an enabled user and opaque proof after password verification.
+func (s *UserService) VerifyCredentials(ctx context.Context, email, password string) (VerifiedCredentials, error) {
 	if err := ctx.Err(); err != nil {
-		return UserView{}, fmt.Errorf("verify credentials: %w", err)
+		return VerifiedCredentials{}, fmt.Errorf("verify credentials: %w", err)
 	}
 	if !validCredentialPassword(password) {
-		return UserView{}, ErrInvalidCredentials
+		return VerifiedCredentials{}, ErrInvalidCredentials
 	}
 	normalized, err := normalizeEmail(email)
 	if err != nil {
-		return UserView{}, ErrInvalidCredentials
+		return VerifiedCredentials{}, ErrInvalidCredentials
 	}
 	user, err := s.users.FindUserByEmail(ctx, normalized)
 	if errors.Is(err, ErrNotFound) {
-		return UserView{}, ErrInvalidCredentials
+		return VerifiedCredentials{}, ErrInvalidCredentials
 	}
 	if err != nil {
-		return UserView{}, fmt.Errorf("find credential user: %w", err)
+		return VerifiedCredentials{}, fmt.Errorf("find credential user: %w", err)
 	}
 	if user.Status != model.UserStatusEnabled {
-		return UserView{}, ErrInvalidCredentials
+		return VerifiedCredentials{}, ErrInvalidCredentials
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return UserView{}, ErrInvalidCredentials
+		return VerifiedCredentials{}, ErrInvalidCredentials
 	}
 	if err := ctx.Err(); err != nil {
-		return UserView{}, fmt.Errorf("verify credentials: %w", err)
+		return VerifiedCredentials{}, fmt.Errorf("verify credentials: %w", err)
 	}
-	return userView(user), nil
+	return VerifiedCredentials{
+		User: userView(user), Subject: TokenSubject{userID: user.ID, passwordHash: user.PasswordHash},
+	}, nil
 }
 
 // InitAdmin explicitly bootstraps the single initial administrator.
@@ -151,7 +166,12 @@ func (s *UserService) ChangePassword(ctx context.Context, userID uint64, current
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(current)); err != nil {
 		return ErrInvalidCredentials
 	}
-	return s.replacePassword(ctx, user.ID, next)
+	return s.replacePassword(
+		ctx,
+		user.ID,
+		user.PasswordHash,
+		next,
+	)
 }
 
 // ResetPassword replaces a password and revokes all account tokens atomically.
@@ -173,7 +193,12 @@ func (s *UserService) ResetPassword(ctx context.Context, email, next string) err
 	if user.Status != model.UserStatusEnabled {
 		return ErrForbidden
 	}
-	return s.replacePassword(ctx, user.ID, next)
+	return s.replacePassword(
+		ctx,
+		user.ID,
+		user.PasswordHash,
+		next,
+	)
 }
 
 func (s *UserService) prepareUser(ctx context.Context, input RegisterInput, role string) (model.User, error) {
@@ -204,7 +229,7 @@ func (s *UserService) prepareUser(ctx context.Context, input RegisterInput, role
 	}, nil
 }
 
-func (s *UserService) replacePassword(ctx context.Context, userID uint64, next string) error {
+func (s *UserService) replacePassword(ctx context.Context, userID uint64, expectedHash, next string) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("replace password: %w", err)
 	}
@@ -212,7 +237,12 @@ func (s *UserService) replacePassword(ctx context.Context, userID uint64, next s
 	if err != nil {
 		return fmt.Errorf("hash replacement password: %w", err)
 	}
-	if err := s.users.UpdatePasswordAndRevokeTokens(ctx, userID, string(hash)); err != nil {
+	if err := s.users.UpdatePasswordAndRevokeTokens(
+		ctx,
+		userID,
+		expectedHash,
+		string(hash),
+	); err != nil {
 		return fmt.Errorf("replace password and revoke tokens: %w", err)
 	}
 	return nil

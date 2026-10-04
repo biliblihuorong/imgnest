@@ -32,8 +32,8 @@ func (s *usersStub) Register(_ context.Context, _ service.RegisterInput) (servic
 	}
 	return testUser(), s.err
 }
-func (s *usersStub) VerifyCredentials(_ context.Context, _, _ string) (service.UserView, error) {
-	return testUser(), s.err
+func (s *usersStub) VerifyCredentials(_ context.Context, _, _ string) (service.VerifiedCredentials, error) {
+	return service.VerifiedCredentials{User: testUser()}, s.err
 }
 func (s *usersStub) ChangePassword(_ context.Context, _ uint64, _, _ string) error { return s.err }
 func testUser() service.UserView {
@@ -45,7 +45,7 @@ type tokensStub struct {
 	revokeErr error
 }
 
-func (s *tokensStub) Issue(_ context.Context, _ uint64, in service.TokenInput) (service.IssuedToken, error) {
+func (s *tokensStub) Issue(_ context.Context, _ service.TokenSubject, in service.TokenInput) (service.IssuedToken, error) {
 	return service.IssuedToken{Token: testBearer, Info: service.TokenView{ID: 7, Name: in.Name, Kind: in.Kind, ExpiresAt: in.ExpiresAt, Abilities: []string{"*"}}}, nil
 }
 func (s *tokensStub) Authenticate(_ context.Context, raw string) (service.Identity, error) {
@@ -105,7 +105,7 @@ func envelope(t *testing.T, w *httptest.ResponseRecorder) map[string]json.RawMes
 func expectCode(t *testing.T, w *httptest.ResponseRecorder, status, code int) {
 	t.Helper()
 	if w.Code != status {
-		t.Fatalf("HTTP=%d want %d body=%s", w.Code, status, w.Body.String())
+		t.Fatalf("HTTP=%d want %d", w.Code, status)
 	}
 	var actual int
 	if err := json.Unmarshal(envelope(t, w)["code"], &actual); err != nil {
