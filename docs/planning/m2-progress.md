@@ -57,6 +57,6 @@
 - M2单实例/Linux amd64；真实B2/COS/R2账户未配置，MinIO不替代厂商联调；CDN缓存不处理。Vue/相册CRUD为M3，蓝空v1/完整管理为M4，多架构发布与迁移保留后续关口。
 - 已同步spec§8.2、versions、pipeline Skill、OpenAPI、配置示例和开发说明。M2按整合批次提交，未按12个建议中间提交拆分；未推送/合并/tag，未操作旧蓝空数据。
 
-## 暂停交接
+## 提交记录
 
-用户于2026-10-04要求先暂停并交接。实现与验证已保留，M2代码尚未Git提交；当前HEAD为5165f34。测试PG/MinIO已停止，卷和源码保留。后续入口见[任务交接](m2-handoff-2026-10-04.md)，暂停期间不继续开发或提交。
+用户于2026-10-04恢复并完成Git收尾：敏感信息核对通过（非测试代码无真实凭证，测试凭证仅deploy/compose.dev.yaml的隔离值），新增文件与文档相对链接核对通过，bin/与.cache/保持忽略。M2整合批次以`024bb04`（feat: implement M2 image core pipeline）提交，共97个文件、13103行新增，含本progress与[任务交接](m2-handoff-2026-10-04.md)快照；本节由随后的docs提交单独记录。未推送/合并/tag；测试PG/MinIO容器仍处于停止状态。
