@@ -1,0 +1,68 @@
+{
+  "status": true,
+  "message": "success",
+  "data": {
+    "current_page": 1,
+    "data": [
+      {
+        "album": null,
+        "key": "<string>",
+        "name": "re:^[0-9a-f]{13}\\.png$",
+        "pathname": "re:^2026/10/[0-9a-f]{13}\\.png$",
+        "origin_name": "beta.png",
+        "size": "<positive>",
+        "mimetype": "image/png",
+        "extension": "png",
+        "md5": "re:^[0-9a-f]{32}$",
+        "sha1": "re:^[0-9a-f]{40}$",
+        "width": 8,
+        "height": 8,
+        "links": {
+          "url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.webp$",
+          "html": "<string>",
+          "bbcode": "<string>",
+          "markdown": "<string>",
+          "markdown_with_link": "<string>",
+          "thumbnail_url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}_thumbs\\.webp$"
+        },
+        "human_date": "刚刚",
+        "date": "2026-10-04 12:00:00"
+      },
+      {
+        "album": null,
+        "key": "<string>",
+        "name": "re:^[0-9a-f]{13}\\.png$",
+        "pathname": "re:^2026/10/[0-9a-f]{13}\\.png$",
+        "origin_name": "gamma.png",
+        "size": "<positive>",
+        "mimetype": "image/png",
+        "extension": "png",
+        "md5": "re:^[0-9a-f]{32}$",
+        "sha1": "re:^[0-9a-f]{40}$",
+        "width": 64,
+        "height": 32,
+        "links": {
+          "url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.webp$",
+          "html": "<string>",
+          "bbcode": "<string>",
+          "markdown": "<string>",
+          "markdown_with_link": "<string>",
+          "thumbnail_url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}_thumbs\\.webp$"
+        },
+        "human_date": "刚刚",
+        "date": "2026-10-04 12:00:00"
+      }
+    ],
+    "first_page_url": "http://example.com/api/v1/images?page=1",
+    "from": 1,
+    "last_page": 1,
+    "last_page_url": "http://example.com/api/v1/images?page=1",
+    "links": [],
+    "next_page_url": null,
+    "path": "http://example.com/api/v1/images",
+    "per_page": 40,
+    "prev_page_url": null,
+    "to": 2,
+    "total": 2
+  }
+}

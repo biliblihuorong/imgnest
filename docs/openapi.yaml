@@ -24,6 +24,7 @@ tags:
   - name: Images
   - name: Policies
   - name: Trash
+  - name: Lsky v1
 paths:
   /healthz:
     get:
@@ -623,6 +624,260 @@ paths:
         '200': {description: Thumbnail headers without bytes.}
         default:
           $ref: '#/components/responses/ImageFailure'
+  /api/v1/tokens:
+    post:
+      operationId: v1CreateToken
+      tags: [Lsky v1]
+      summary: Exchange account credentials for an API token
+      description: |
+        Lsky Pro compatible token endpoint. The credentials may arrive as a
+        JSON object or a form body. Issuance is throttled to three attempts
+        per client address per minute; the fourth attempt within a window is
+        rejected with 429. Wrong credentials stay a business failure (HTTP 200
+        with `status: false`) so existing clients only branch on `status`.
+        The returned plaintext token is shown exactly once.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LskyCredentials'}
+          application/x-www-form-urlencoded:
+            schema: {$ref: '#/components/schemas/LskyCredentials'}
+      responses:
+        '200':
+          description: Issued token, or the wrong-credentials failure envelope.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/LskyTokenEnvelope'
+                  - $ref: '#/components/schemas/LskyFailure'
+        '403':
+          $ref: '#/components/responses/LskyDisabled'
+        '429':
+          $ref: '#/components/responses/LskyThrottled'
+    delete:
+      operationId: v1RevokeTokens
+      tags: [Lsky v1]
+      summary: Revoke every token of the authenticated account
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: All API and web tokens of the account are revoked.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LskyNullEnvelope'}
+        '401':
+          $ref: '#/components/responses/LskyUnauthenticated'
+        '403':
+          $ref: '#/components/responses/LskyDisabled'
+  /api/v1/strategies:
+    get:
+      operationId: v1ListStrategies
+      tags: [Lsky v1]
+      summary: List the upload strategies available to the caller
+      description: |
+        Returns the enabled rules bound to the caller's group, ordered by ID —
+        the same grants the upload endpoint enforces. Without a token the list
+        describes the guest group and stays empty unless guest uploads are
+        enabled. A bearer token that fails authentication is rejected; it is
+        never downgraded to guest access.
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Strategy list; empty but never null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LskyStrategiesEnvelope'}
+        '401':
+          $ref: '#/components/responses/LskyUnauthenticated'
+        '403':
+          $ref: '#/components/responses/LskyDisabled'
+  /api/v1/upload:
+    post:
+      operationId: v1Upload
+      tags: [Lsky v1]
+      summary: Upload one image (Lsky compatible multipart)
+      description: |
+        Works with a bearer token or, when the administrator enabled guest
+        uploads, anonymously. A present but invalid Authorization header is
+        always rejected with 401 — it never falls back to guest access.
+        The multipart body carries exactly one `file` part plus the optional
+        `strategy_id`, `album_id` and `permission` (1 public, 0 private)
+        fields. Format detection uses the file header, never the extension,
+        and SVG is refused. Business failures (quota, disallowed format,
+        oversized file, unknown strategy) stay HTTP 200 with `status: false`.
+        `size` is kilobytes as a float; `pathname` is the stored path plus
+        file name; `links.url` follows the rule's `link_prefer`. EXIF and GPS
+        never appear in the response.
+      security:
+        - {}
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary, description: Exactly one image part.}
+                strategy_id: {type: string, description: Numeric rule ID; the group default when absent.}
+                album_id: {type: string, description: Numeric album ID. Guests cannot use albums.}
+                permission: {type: string, enum: ['0', '1'], description: 1 public, 0 private; private when absent.}
+      responses:
+        '200':
+          description: Upload result, or the business-failure envelope.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/LskyUploadEnvelope'
+                  - $ref: '#/components/schemas/LskyFailure'
+        '401':
+          $ref: '#/components/responses/LskyUnauthenticated'
+        '403':
+          $ref: '#/components/responses/LskyDisabled'
+        '429':
+          $ref: '#/components/responses/LskyThrottled'
+  /api/v1/images:
+    get:
+      operationId: v1ListImages
+      tags: [Lsky v1]
+      summary: Page the authenticated account's images
+      description: |
+        Lsky paginator semantics: 40 items per page and the full Laravel
+        field set. The Lsky quirk stands — a missing or zero `album_id`
+        selects only images that are not assigned to any album; a non-zero
+        value lists that album and attaches its `{id, name}` to every item.
+        Items never carry EXIF or GPS.
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: page
+          in: query
+          schema: {type: integer, minimum: 1, default: 1}
+        - name: order
+          in: query
+          schema: {type: string, enum: [newest, earliest, utmost, least], default: newest, description: utmost sorts by size descending.}
+        - name: permission
+          in: query
+          schema: {type: string, enum: [all, public, private], default: all}
+        - name: album_id
+          in: query
+          schema: {type: integer, minimum: 0, description: Zero or absent selects unassigned images.}
+        - name: keyword
+          in: query
+          schema: {type: string, description: Literal substring match on the original or stored file name.}
+      responses:
+        '200':
+          description: Laravel-shaped image page.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LskyImagePageEnvelope'}
+        '401':
+          $ref: '#/components/responses/LskyUnauthenticated'
+        '403':
+          $ref: '#/components/responses/LskyDisabled'
+  /api/v1/images/{key}:
+    delete:
+      operationId: v1DeleteImage
+      tags: [Lsky v1]
+      summary: Move one owned image into the recycle bin
+      description: |
+        The public URL stops resolving immediately; the objects themselves are
+        purged after the retention window. Unknown keys and foreign images are
+        business failures with `status: false`, not HTTP errors.
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Deletion accepted or rejected; clients branch on `status`.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/LskyNullEnvelope'
+                  - $ref: '#/components/schemas/LskyFailure'
+        '401':
+          $ref: '#/components/responses/LskyUnauthenticated'
+        '403':
+          $ref: '#/components/responses/LskyDisabled'
+  /api/v1/albums:
+    get:
+      operationId: v1ListAlbums
+      tags: [Lsky v1]
+      summary: Page the authenticated account's albums
+      description: 40 items per page; `image_num` always reflects the live number of active images.
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: page
+          in: query
+          schema: {type: integer, minimum: 1, default: 1}
+        - name: order
+          in: query
+          schema: {type: string, enum: [newest, earliest, most, least], default: newest, description: most/least sort by image count.}
+        - name: keyword
+          in: query
+          schema: {type: string, description: Literal substring match on name or intro.}
+      responses:
+        '200':
+          description: Laravel-shaped album page.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LskyAlbumPageEnvelope'}
+        '401':
+          $ref: '#/components/responses/LskyUnauthenticated'
+        '403':
+          $ref: '#/components/responses/LskyDisabled'
+  /api/v1/albums/{id}:
+    delete:
+      operationId: v1DeleteAlbum
+      tags: [Lsky v1]
+      summary: Delete one owned album; its images stay
+      description: The images themselves are kept and their album reference is cleared, so they reappear as unassigned.
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: integer, format: int64, minimum: 1}
+      responses:
+        '200':
+          description: Deletion accepted or rejected; clients branch on `status`.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/LskyMessageEnvelope'
+                  - $ref: '#/components/schemas/LskyFailure'
+        '401':
+          $ref: '#/components/responses/LskyUnauthenticated'
+        '403':
+          $ref: '#/components/responses/LskyDisabled'
+  /api/v1/profile:
+    get:
+      operationId: v1GetProfile
+      tags: [Lsky v1]
+      summary: Read the authenticated account's profile and capacity
+      description: '`capacity` and `used_capacity` are kilobytes as floats; a group without a byte limit reports capacity 0.'
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Account profile in the Lsky field set.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LskyProfileEnvelope'}
+        '401':
+          $ref: '#/components/responses/LskyUnauthenticated'
+        '403':
+          $ref: '#/components/responses/LskyDisabled'
 components:
   parameters:
     ImageID:
@@ -1070,6 +1325,216 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/PolicySummary'
+    LskyCredentials:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: {type: string, format: email}
+        password: {type: string, format: password, description: Written verbatim; never logged or echoed.}
+    LskyEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, data]
+      properties:
+        status: {type: boolean, description: The only field Lsky clients branch on.}
+        message: {type: string}
+        data: {description: Operation-specific payload; always an object, never null or an array at the top level.}
+    LskyFailure:
+      type: object
+      additionalProperties: false
+      description: Business failure; always paired with HTTP 200 so clients fall through their status check.
+      required: [status, message, data]
+      properties:
+        status: {type: boolean, enum: [false]}
+        message: {type: string, description: Human-readable reason without technical or credential details.}
+        data: {type: object, additionalProperties: false}
+    LskyNullEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/LskyEnvelope'
+        - type: object
+          properties:
+            data: {type: object, additionalProperties: false}
+    LskyMessageEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/LskyEnvelope'
+        - type: object
+          properties:
+            message: {type: string, enum: ["删除成功"]}
+            data: {type: object, additionalProperties: false}
+    LskyTokenEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/LskyEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: false
+              required: [token]
+              properties:
+                token: {$ref: '#/components/schemas/PlaintextToken'}
+    LskyStrategiesEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/LskyEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: false
+              required: [strategies]
+              properties:
+                strategies:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [id, name]
+                    properties:
+                      id: {$ref: '#/components/schemas/ID'}
+                      name: {type: string}
+    LskyUploadEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/LskyEnvelope'
+        - type: object
+          properties:
+            message: {type: string, enum: ["上传成功"]}
+            data: {$ref: '#/components/schemas/LskyUploadData'}
+    LskyUploadData:
+      type: object
+      additionalProperties: false
+      description: '`name` is the stored file name, `pathname` the storage path plus file name, `origin_name` the client filename, `size` is KB as a float.'
+      required: [key, name, pathname, origin_name, size, mimetype, extension, md5, sha1, links]
+      properties:
+        key: {type: string}
+        name: {type: string}
+        pathname: {type: string}
+        origin_name: {type: string}
+        size: {type: number, format: double, minimum: 0, description: Stored original bytes divided by 1024.}
+        mimetype: {type: string}
+        extension: {type: string}
+        md5: {type: string, description: MD5 of the stored original after metadata scrubbing.}
+        sha1: {type: string, description: SHA-1 of the stored original after metadata scrubbing.}
+        links: {$ref: '#/components/schemas/LskyUploadLinks'}
+    LskyUploadLinks:
+      allOf:
+        - $ref: '#/components/schemas/LskyImageLinks'
+        - type: object
+          additionalProperties: false
+          required: [origin_url, webp_url]
+          properties:
+            origin_url: {type: string, description: ImgNest extra; stored original URL, empty when only a WebP is stored.}
+            webp_url: {type: string, description: ImgNest extra; empty when no WebP is stored.}
+    LskyImageLinks:
+      type: object
+      additionalProperties: false
+      required: [url, html, bbcode, markdown, markdown_with_link, thumbnail_url]
+      properties:
+        url: {type: string, description: The link clients paste; follows the rule's link_prefer.}
+        html: {type: string, description: 'Exactly `&lt;img src="URL" alt="NAME" title="NAME" /&gt;` with only &, < and > escaped.'}
+        bbcode: {type: string}
+        markdown: {type: string}
+        markdown_with_link: {type: string}
+        thumbnail_url: {type: string, description: The cloud _thumbs.webp URL, or the image URL when no thumbnail is stored.}
+    LskyImagePageEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/LskyEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/LskyImagePage'}
+    LskyImagePage:
+      type: object
+      additionalProperties: false
+      description: Laravel paginator shape; from/to are null on an empty page and links is always an array.
+      required: [current_page, data, first_page_url, from, last_page, last_page_url, links, next_page_url, path, per_page, prev_page_url, to, total]
+      properties:
+        current_page: {type: integer, minimum: 1}
+        data:
+          type: array
+          items: {$ref: '#/components/schemas/LskyImageItem'}
+        first_page_url: {type: string}
+        from: {type: integer, nullable: true, minimum: 1}
+        last_page: {type: integer, minimum: 1}
+        last_page_url: {type: string}
+        links: {type: array, items: {type: object, additionalProperties: true}}
+        next_page_url: {type: string, nullable: true}
+        path: {type: string, description: Absolute request origin plus the route path.}
+        per_page: {type: integer, enum: [40]}
+        prev_page_url: {type: string, nullable: true}
+        to: {type: integer, nullable: true, minimum: 1}
+        total: {type: integer, minimum: 0}
+    LskyImageItem:
+      type: object
+      additionalProperties: false
+      description: Never carries EXIF or GPS.
+      required: [album, key, name, pathname, origin_name, size, mimetype, extension, md5, sha1, width, height, links, human_date, date]
+      properties:
+        album:
+          oneOf:
+            - type: 'null'
+            - type: object
+              additionalProperties: false
+              required: [id, name]
+              properties:
+                id: {$ref: '#/components/schemas/ID'}
+                name: {type: string}
+          description: Present only while listing one album.
+        key: {type: string}
+        name: {type: string, description: Stored file name with extension.}
+        pathname: {type: string, description: Storage path plus stored file name.}
+        origin_name: {type: string, description: Client filename at upload time.}
+        size: {type: number, format: double, minimum: 0, description: KB as a float.}
+        mimetype: {type: string}
+        extension: {type: string}
+        md5: {type: string}
+        sha1: {type: string}
+        width: {type: integer, minimum: 1}
+        height: {type: integer, minimum: 1}
+        links: {$ref: '#/components/schemas/LskyImageLinks'}
+        human_date: {type: string, description: Relative text such as 刚刚 or 3 分钟前.}
+        date: {type: string, description: 'Y-m-d H:i:s.'}
+    LskyAlbumPageEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/LskyEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/LskyAlbumPage'}
+    LskyAlbumPage:
+      allOf:
+        - $ref: '#/components/schemas/LskyImagePage'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: {$ref: '#/components/schemas/LskyAlbumItem'}
+    LskyAlbumItem:
+      type: object
+      additionalProperties: false
+      required: [id, name, intro, image_num]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        name: {type: string}
+        intro: {type: string}
+        image_num: {type: integer, minimum: 0, description: Live count of active images.}
+    LskyProfileEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/LskyEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/LskyProfileData'}
+    LskyProfileData:
+      type: object
+      additionalProperties: false
+      required: [name, avatar, email, capacity, used_capacity, url, image_num, album_num, registered_ip]
+      properties:
+        name: {type: string}
+        avatar: {type: string, description: Always empty; ImgNest has no avatars.}
+        email: {type: string}
+        capacity: {type: number, format: double, minimum: 0, description: Group byte limit divided by 1024; 0 means unlimited.}
+        used_capacity: {type: number, format: double, minimum: 0, description: Charged bytes divided by 1024.}
+        url: {type: string, description: Always empty.}
+        image_num: {type: integer, minimum: 0, description: Active images.}
+        album_num: {type: integer, minimum: 0}
+        registered_ip: {type: string, description: Address recorded at registration; may be empty.}
     ErrorEnvelope:
       type: object
       additionalProperties: false
@@ -1084,6 +1549,31 @@ components:
         data:
           $ref: '#/components/schemas/NullData'
   responses:
+    LskyUnauthenticated:
+      description: Missing, malformed, revoked or expired bearer token; never a silent downgrade to guest access.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/LskyFailure'}
+    LskyDisabled:
+      description: The administrator disabled the v1 API; every /api/v1 route answers with this envelope.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/LskyFailure'
+              - type: object
+                properties:
+                  message: {type: string, enum: ["管理员未启用 API"]}
+    LskyThrottled:
+      description: Fixed window exceeded — three token attempts per client address per minute, or the group's upload rate.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/LskyFailure'
+              - type: object
+                properties:
+                  message: {type: string, enum: ["Too Many Attempts."]}
     ImageFailure:
       description: |
         Native error envelope. 400/10001 invalid input; 401/20001 missing or

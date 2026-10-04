@@ -1,0 +1,15 @@
+{
+  "status": true,
+  "message": "success",
+  "data": {
+    "name": "alice",
+    "avatar": "",
+    "email": "alice@example.com",
+    "capacity": 1024,
+    "used_capacity": "<positive>",
+    "url": "",
+    "image_num": 3,
+    "album_num": 2,
+    "registered_ip": "203.0.113.5"
+  }
+}

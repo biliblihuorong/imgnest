@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/config"
+	"github.com/biliblihuorong/imgnest/internal/http/lsky"
 	"github.com/biliblihuorong/imgnest/internal/http/native"
 	"github.com/gin-gonic/gin"
 )
@@ -24,6 +25,8 @@ type Dependencies struct {
 	Health       func(context.Context) error
 	Images       native.ImageService
 	ImageOptions native.ImageOptions
+	// Lsky serves the Lsky-compatible /api/v1 routes when configured.
+	Lsky *lsky.Handler
 	// Web is the built single-page app rooted at its dist directory. When nil
 	// the router keeps returning JSON 404 for unmatched paths.
 	Web fs.FS
@@ -77,6 +80,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.Images != nil {
 		if err := handler.RegisterImageRoutes(ctx, router, deps.Images, deps.ImageOptions); err != nil {
 			return nil, fmt.Errorf("register image routes: %w", err)
+		}
+	}
+	if deps.Lsky != nil {
+		if err := deps.Lsky.RegisterRoutes(ctx, router); err != nil {
+			return nil, fmt.Errorf("register lsky routes: %w", err)
 		}
 	}
 	router.GET("/healthz", func(c *gin.Context) {

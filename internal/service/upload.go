@@ -87,16 +87,45 @@ type uploadObject struct {
 	data    []byte
 }
 
+// uploadPlan binds one upload to its authorization mode: account uploads
+// re-verify the user row and credential grant inside the reservation, while
+// guest uploads resolve the guest group without touching any user row.
+type uploadPlan struct {
+	userID  uint64
+	policy  func(context.Context, uint64) (model.Policy, model.Storage, model.Group, error)
+	reserve func(context.Context, model.UploadReservation) (model.Image, error)
+	commit  func(context.Context, string, string, model.ImageExif) (model.Image, error)
+}
+
 // Upload prepares all versions and publishes them with compensating cleanup.
 func (s *ImageService) Upload(ctx context.Context, subject TokenSubject, input UploadInput) (ImageView, error) {
 	limits, err := s.Preflight(ctx, subject, input.PolicyID)
 	if err != nil {
 		return ImageView{}, err
 	}
+	grant := s.grant(subject)
+	return s.publish(ctx, input, limits, uploadPlan{
+		userID: subject.userID,
+		policy: func(ctx context.Context, policyID uint64) (model.Policy, model.Storage, model.Group, error) {
+			return s.deps.Policies.UploadPolicy(ctx, subject.userID, policyID)
+		},
+		reserve: func(ctx context.Context, reservation model.UploadReservation) (model.Image, error) {
+			reservation.Grant = grant
+			return s.deps.Images.ReserveUpload(ctx, reservation)
+		},
+		commit: func(ctx context.Context, key, op string, exif model.ImageExif) (model.Image, error) {
+			return s.deps.Images.CommitUpload(ctx, key, op, exif, grant)
+		},
+	})
+}
+
+// publish runs the shared upload pipeline: probe, scrub, process, reserve,
+// write objects with compensating cleanup, then commit metadata and quota.
+func (s *ImageService) publish(ctx context.Context, input UploadInput, limits UploadLimits, plan uploadPlan) (ImageView, error) {
 	if len(input.Data) == 0 || int64(len(input.Data)) > limits.MaxFileBytes || input.Filename == "" {
 		return ImageView{}, ErrInvalidInput
 	}
-	policy, backend, group, err := s.deps.Policies.UploadPolicy(ctx, subject.userID, input.PolicyID)
+	policy, backend, group, err := plan.policy(ctx, input.PolicyID)
 	if err != nil {
 		return ImageView{}, fmt.Errorf("select upload rule: %w", err)
 	}
@@ -185,7 +214,7 @@ func (s *ImageService) Upload(ctx context.Context, subject TokenSubject, input U
 	if err != nil {
 		return ImageView{}, err
 	}
-	image := model.Image{UserID: subject.userID, AlbumID: input.AlbumID, PolicyID: policy.ID, StorageID: backend.ID, Key: imageKey, Ext: storedExt, OriginName: path.Base(strings.ReplaceAll(input.Filename, "\\", "/")), MIME: storedMIME, SrcMD5: srcMD5, MD5: storedMD5, SHA1: storedSHA1, IP: input.IP, State: model.ImageStatePending, Operation: model.ImageOperationUpload, OperationID: op, HasOriginal: hasOriginal, HasWebP: len(webp) > 0, HasThumb: len(result.Thumbnail) > 0, Scrubbed: scrubbed, IsPublic: input.IsPublic, Size: int64(len(primary)), WebPSize: int64(len(webp)), ThumbBytes: int64(len(result.Thumbnail)), Width: info.Width, Height: info.Height, Frames: info.LoadedFrames, CreatedAt: s.deps.Now().UTC()}
+	image := model.Image{UserID: plan.userID, AlbumID: input.AlbumID, PolicyID: policy.ID, StorageID: backend.ID, Key: imageKey, Ext: storedExt, OriginName: path.Base(strings.ReplaceAll(input.Filename, "\\", "/")), MIME: storedMIME, SrcMD5: srcMD5, MD5: storedMD5, SHA1: storedSHA1, IP: input.IP, State: model.ImageStatePending, Operation: model.ImageOperationUpload, OperationID: op, HasOriginal: hasOriginal, HasWebP: len(webp) > 0, HasThumb: len(result.Thumbnail) > 0, Scrubbed: scrubbed, IsPublic: input.IsPublic, Size: int64(len(primary)), WebPSize: int64(len(webp)), ThumbBytes: int64(len(result.Thumbnail)), Width: info.Width, Height: info.Height, Frames: info.LoadedFrames, CreatedAt: s.deps.Now().UTC()}
 	driver, err := s.deps.Drivers.DriverFor(ctx, backend)
 	if err != nil {
 		return ImageView{}, storageError(ctx, err)
@@ -233,7 +262,7 @@ func (s *ImageService) Upload(ctx context.Context, subject TokenSubject, input U
 			}
 		}
 		var reservation model.Image
-		reservation, err = s.deps.Images.ReserveUpload(ctx, model.UploadReservation{Image: image, Objects: manifests, Grant: s.grant(subject)})
+		reservation, err = plan.reserve(ctx, model.UploadReservation{Image: image, Objects: manifests})
 		if errors.Is(err, ErrPathConflict) {
 			continue
 		}
@@ -267,7 +296,7 @@ func (s *ImageService) Upload(ctx context.Context, subject TokenSubject, input U
 			return ImageView{}, s.failUpload(ctx, image, driver, storageError(ctx, err))
 		}
 	}
-	committed, err := s.deps.Images.CommitUpload(ctx, image.Key, op, metadata, s.grant(subject))
+	committed, err := plan.commit(ctx, image.Key, op, metadata)
 	if err != nil {
 		// A lost COMMIT acknowledgement must never compensate an already active image.
 		checkCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
@@ -434,7 +463,7 @@ func imageView(image model.Image, backend model.Storage, policy model.Policy) Im
 	if image.HasThumb {
 		localThumb = "/t/" + image.Key + ".webp"
 	}
-	return ImageView{ID: image.ID, Key: image.Key, UserID: image.UserID, AlbumID: image.AlbumID, PolicyID: image.PolicyID, StorageID: image.StorageID, Name: image.OriginName, Ext: image.Ext, MIME: image.MIME, Size: image.Size, WebPSize: image.WebPSize, ChargedBytes: image.ChargedBytes, Width: image.Width, Height: image.Height, Frames: image.Frames, HasOriginal: image.HasOriginal, HasWebP: image.HasWebP, HasThumb: image.HasThumb, Scrubbed: image.Scrubbed, IsPublic: image.IsPublic, MD5: image.MD5, SHA1: image.SHA1, SrcMD5: image.SrcMD5, Links: links, LocalThumbURL: localThumb, DeletedAt: image.DeletedAt, PurgeAt: image.PurgeAt, CreatedAt: image.CreatedAt.UTC()}
+	return ImageView{ID: image.ID, Key: image.Key, UserID: image.UserID, AlbumID: image.AlbumID, PolicyID: image.PolicyID, StorageID: image.StorageID, Name: image.OriginName, Path: image.Path, Ext: image.Ext, MIME: image.MIME, Size: image.Size, WebPSize: image.WebPSize, ChargedBytes: image.ChargedBytes, Width: image.Width, Height: image.Height, Frames: image.Frames, HasOriginal: image.HasOriginal, HasWebP: image.HasWebP, HasThumb: image.HasThumb, Scrubbed: image.Scrubbed, IsPublic: image.IsPublic, MD5: image.MD5, SHA1: image.SHA1, SrcMD5: image.SrcMD5, Links: links, LocalThumbURL: localThumb, DeletedAt: image.DeletedAt, PurgeAt: image.PurgeAt, CreatedAt: image.CreatedAt.UTC()}
 }
 
 func objectURL(base, key string) string {

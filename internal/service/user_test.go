@@ -178,8 +178,10 @@ func TestRegisterDisabled(t *testing.T) {
 		if !errors.Is(err, service.ErrRegistrationDisabled) {
 			t.Fatalf("registration error=%v, want disabled", err)
 		}
+		// Migration 0003 adds the never-authenticating guest anchor row with
+		// id 0; registrations must not write any real account on top of it.
 		var count int64
-		if err := fixture.db.WithContext(t.Context()).Model(&model.User{}).Count(&count).Error; err != nil {
+		if err := fixture.db.WithContext(t.Context()).Model(&model.User{}).Where("id > 0").Count(&count).Error; err != nil {
 			t.Fatal(err)
 		}
 		if count != 0 {

@@ -149,6 +149,7 @@ type ImageView struct {
 	PolicyID      uint64     `json:"policy_id"`
 	StorageID     uint64     `json:"storage_id"`
 	Name          string     `json:"name"`
+	Path          string     `json:"-"`
 	Ext           string     `json:"ext"`
 	MIME          string     `json:"mime"`
 	Size          int64      `json:"size"`

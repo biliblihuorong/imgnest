@@ -1,0 +1,7 @@
+{
+  "status": true,
+  "message": "success",
+  "data": {
+    "token": "re:^\\d+\\|[A-Za-z0-9]{40}$"
+  }
+}

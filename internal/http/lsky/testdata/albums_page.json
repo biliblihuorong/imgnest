@@ -1,0 +1,32 @@
+{
+  "status": true,
+  "message": "success",
+  "data": {
+    "current_page": 1,
+    "data": [
+      {
+        "id": "<positive>",
+        "name": "笔记",
+        "intro": "随手记",
+        "image_num": 0
+      },
+      {
+        "id": "<positive>",
+        "name": "博客",
+        "intro": "文章配图",
+        "image_num": 1
+      }
+    ],
+    "first_page_url": "http://example.com/api/v1/albums?page=1",
+    "from": 1,
+    "last_page": 1,
+    "last_page_url": "http://example.com/api/v1/albums?page=1",
+    "links": [],
+    "next_page_url": null,
+    "path": "http://example.com/api/v1/albums",
+    "per_page": 40,
+    "prev_page_url": null,
+    "to": 2,
+    "total": 2
+  }
+}

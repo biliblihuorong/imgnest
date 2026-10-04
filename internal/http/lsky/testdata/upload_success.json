@@ -1,0 +1,25 @@
+{
+  "status": true,
+  "message": "上传成功",
+  "data": {
+    "key": "<string>",
+    "name": "re:^[0-9a-f]{13}\\.png$",
+    "pathname": "re:^2026/10/[0-9a-f]{13}\\.png$",
+    "origin_name": "travel.png",
+    "size": "<positive>",
+    "mimetype": "image/png",
+    "extension": "png",
+    "md5": "re:^[0-9a-f]{32}$",
+    "sha1": "re:^[0-9a-f]{40}$",
+    "links": {
+      "url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.webp$",
+      "html": "re:^&lt;img src=\"http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.webp\" alt=\"travel\\.png\" title=\"travel\\.png\" /&gt;$",
+      "bbcode": "re:^\\[img\\]http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.webp\\[/img\\]$",
+      "markdown": "re:^!\\[travel\\.png\\]\\(http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.webp\\)$",
+      "markdown_with_link": "re:^\\[!\\[travel\\.png\\]\\(http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.webp\\)\\]\\(http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.webp\\)$",
+      "thumbnail_url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}_thumbs\\.webp$",
+      "origin_url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.png$",
+      "webp_url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.webp$"
+    }
+  }
+}

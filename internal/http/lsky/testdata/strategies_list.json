@@ -1,0 +1,12 @@
+{
+  "status": true,
+  "message": "success",
+  "data": {
+    "strategies": [
+      {
+        "id": "<positive>",
+        "name": "alpha"
+      }
+    ]
+  }
+}

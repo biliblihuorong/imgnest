@@ -51,8 +51,8 @@ func TestMigrateTwice(t *testing.T) {
 		if err := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM settings").Scan(&settings); err != nil {
 			t.Fatal(err)
 		}
-		if defaults != 1 || settings != 5 {
-			t.Fatalf("default groups=%d, settings=%d; want 1 and 5", defaults, settings)
+		if defaults != 1 || settings != 8 {
+			t.Fatalf("default groups=%d, settings=%d; want 1 and 8", defaults, settings)
 		}
 		var registration string
 		if err := db.QueryRowContext(t.Context(), "SELECT value FROM settings WHERE key = 'registration_enabled'").Scan(&registration); err != nil {
@@ -135,8 +135,8 @@ func TestConcurrentMigrations(t *testing.T) {
 		if err := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 			t.Fatal(err)
 		}
-		if count != 2 {
-			t.Fatalf("concurrent migrations recorded %d versions, want 2", count)
+		if count != 3 {
+			t.Fatalf("concurrent migrations recorded %d versions, want 3", count)
 		}
 	})
 }
