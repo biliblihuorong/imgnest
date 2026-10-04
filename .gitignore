@@ -6,6 +6,7 @@
 /.env
 /.env.*
 /private-storage.json
+/.pnpm-store/
 *.db
 *.db-shm
 *.db-wal

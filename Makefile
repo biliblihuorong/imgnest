@@ -12,7 +12,7 @@ build:
 fe-install:
 	$(COMPOSE) run --rm dev sh -c 'cd web && pnpm install'
 fe-build:
-	$(COMPOSE) run --rm dev sh -c 'cd web && pnpm install --frozen-lockfile && pnpm gen:api && pnpm build'
+	$(COMPOSE) run --rm dev sh -c 'cd web && pnpm install --frozen-lockfile && pnpm gen:api && pnpm build && touch dist/.gitkeep'
 fe-test:
 	$(COMPOSE) run --rm dev sh -c 'cd web && pnpm vitest run'
 fe-lint:
