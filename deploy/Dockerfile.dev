@@ -1,6 +1,13 @@
 FROM golang:1.27.1-bookworm AS go-toolchain
+FROM node:24.21.0-bookworm AS node-toolchain
 FROM ghcr.io/cshum/imagor-base:vips8.18.6-r14-dev
 COPY --from=go-toolchain /usr/local/go /usr/local/go
+COPY --from=node-toolchain /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-toolchain /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+    ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx && \
+    npm install -g pnpm@12.9.1 && \
+    npm cache clean --force
 ENV PATH=/usr/local/go/bin:/go/bin:/opt/imagor/bin:$PATH
 ENV CGO_ENABLED=1 GOTOOLCHAIN=local \
     GOPATH=/go GOMODCACHE=/go/pkg/mod GOCACHE=/root/.cache/go-build \

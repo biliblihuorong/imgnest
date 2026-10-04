@@ -1,6 +1,6 @@
 COMPOSE = docker compose -f deploy/compose.dev.yaml
 
-.PHONY: test test-integration build help migrate serve lint
+.PHONY: test test-integration build release fe-install fe-build fe-test fe-lint serve help migrate lint
 test:
 	$(COMPOSE) up -d --wait postgres minio
 	$(COMPOSE) run --rm dev go test -race ./...
@@ -8,6 +8,16 @@ test-integration:
 	$(COMPOSE) up -d --wait postgres minio
 	$(COMPOSE) run --rm dev go test -race -count=1 ./...
 build:
+	$(COMPOSE) run --rm dev go build -trimpath -o bin/imgnest ./cmd/imgnest
+fe-install:
+	$(COMPOSE) run --rm dev sh -c 'cd web && pnpm install'
+fe-build:
+	$(COMPOSE) run --rm dev sh -c 'cd web && pnpm install --frozen-lockfile && pnpm gen:api && pnpm build'
+fe-test:
+	$(COMPOSE) run --rm dev sh -c 'cd web && pnpm vitest run'
+fe-lint:
+	$(COMPOSE) run --rm dev sh -c 'cd web && pnpm typecheck && pnpm lint'
+release: fe-build
 	$(COMPOSE) run --rm dev go build -trimpath -o bin/imgnest ./cmd/imgnest
 help:
 	$(COMPOSE) run --rm dev go run ./cmd/imgnest --help
