@@ -1,6 +1,6 @@
-# ImgNest 开发与运行（M1–M3）
+# ImgNest 开发与运行（M1–M4）
 
-当前提供配置/鉴权、图片核心与前端 MVP：SQLite/PostgreSQL、版本化迁移、本机/S3、同步 libvips/WebP、双缩略图、完整本地 EXIF、无损脱敏、可恢复回收站，以及嵌入二进制的 Vue 3 界面（登录/注册、上传、我的图片与回收站、Token/账户）。蓝空 v1 兼容和完整管理后台属于 M4。
+当前提供配置/鉴权、图片核心、前端 MVP、蓝空 v1 兼容与管理后台：SQLite/PostgreSQL、版本化迁移、本机/S3、同步 libvips/WebP、双缩略图、完整本地 EXIF、无损脱敏、可恢复回收站，嵌入二进制的 Vue 界面（登录/注册、上传、我的图片与回收站、Token/账户），`/api/v1/*` 蓝空兼容（PicGo 可直连），以及 Vue 管理后台（用户/组/存储/规则/站点设置/全站图片）。相册 CRUD/画廊/蓝空迁移属于 M5。
 
 ## 固定环境
 
@@ -31,6 +31,18 @@ docker compose -f deploy/compose.dev.yaml run --rm --service-ports dev go run ./
 ```powershell
 Invoke-RestMethod http://127.0.0.1:18080/healthz
 ```
+
+## 蓝空 v1 与 PicGo 联调
+
+`/api/v1/*` 与蓝空 v1 字段级兼容（契约见项目 skill `lsky-api-compat`）：业务失败为 HTTP 200 + `status:false`；仅 401/403(API 禁用)/429 使用语义状态码；size/capacity 为 KB 浮点；全路由不返回 EXIF。`POST /api/v1/upload` 在开启游客上传后允许匿名（按游客组规则与每 IP 限流）；携带但无效的 Token 一律 401，不降级。
+
+PicGo（picgo-plugin-lankong）或 uPic 手工联调步骤：
+
+1. 先取 Token：`curl -X POST http://127.0.0.1:18080/api/v1/tokens --data-urlencode 'email=…' --data-urlencode 'password=…'`，`data.token` 即 Bearer 值（也可以在网页 Token 页创建）。
+2. 插件配置：API 地址 `http://<host>:<port>/api/v1/upload`，鉴权选 Bearer 并粘贴 Token，域名即为返回的 `links.url`。
+3. 上传一张 PNG，确认返回 URL 可直接打开、`links.url` 与策略 `link_prefer` 一致（默认 WebP）、PicGo 相册能看到缩略图（`thumbnail_url`）。
+
+管理后台：admin 登录后访问 `/admin`（用户/用户组/存储/规则/站点设置/全站图片）。S3 存储凭据 AES-GCM 加密落库，创建后任何接口不回显；「测试连接」执行不覆盖写、复制、清理三项真实探测。站点设置可改站点名（M3 的 `/api/site` 立即生效）、注册/游客上传/画廊开关、回收站天数与 API 开关（`api_enabled=false` 时全部 /api/v1 返回 403）。
 
 ## 配置与 PostgreSQL
 

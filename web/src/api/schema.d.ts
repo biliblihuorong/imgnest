@@ -439,10 +439,866 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange account credentials for an API token
+         * @description Lsky Pro compatible token endpoint. The credentials may arrive as a
+         *     JSON object or a form body. Issuance is throttled to three attempts
+         *     per client address per minute; the fourth attempt within a window is
+         *     rejected with 429. Wrong credentials stay a business failure (HTTP 200
+         *     with `status: false`) so existing clients only branch on `status`.
+         *     The returned plaintext token is shown exactly once.
+         */
+        post: operations["v1CreateToken"];
+        /** Revoke every token of the authenticated account */
+        delete: operations["v1RevokeTokens"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/strategies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the upload strategies available to the caller
+         * @description Returns the enabled rules bound to the caller's group, ordered by ID —
+         *     the same grants the upload endpoint enforces. Without a token the list
+         *     describes the guest group and stays empty unless guest uploads are
+         *     enabled. A bearer token that fails authentication is rejected; it is
+         *     never downgraded to guest access.
+         */
+        get: operations["v1ListStrategies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload one image (Lsky compatible multipart)
+         * @description Works with a bearer token or, when the administrator enabled guest
+         *     uploads, anonymously. A present but invalid Authorization header is
+         *     always rejected with 401 — it never falls back to guest access.
+         *     The multipart body carries exactly one `file` part plus the optional
+         *     `strategy_id`, `album_id` and `permission` (1 public, 0 private)
+         *     fields. Format detection uses the file header, never the extension,
+         *     and SVG is refused. Business failures (quota, disallowed format,
+         *     oversized file, unknown strategy) stay HTTP 200 with `status: false`.
+         *     `size` is kilobytes as a float; `pathname` is the stored path plus
+         *     file name; `links.url` follows the rule's `link_prefer`. EXIF and GPS
+         *     never appear in the response.
+         */
+        post: operations["v1Upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Page the authenticated account's images
+         * @description Lsky paginator semantics: 40 items per page and the full Laravel
+         *     field set. The Lsky quirk stands — a missing or zero `album_id`
+         *     selects only images that are not assigned to any album; a non-zero
+         *     value lists that album and attaches its `{id, name}` to every item.
+         *     Items never carry EXIF or GPS.
+         */
+        get: operations["v1ListImages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/images/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Move one owned image into the recycle bin
+         * @description The public URL stops resolving immediately; the objects themselves are
+         *     purged after the retention window. Unknown keys and foreign images are
+         *     business failures with `status: false`, not HTTP errors.
+         */
+        delete: operations["v1DeleteImage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/albums": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Page the authenticated account's albums
+         * @description 40 items per page; `image_num` always reflects the live number of active images.
+         */
+        get: operations["v1ListAlbums"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/albums/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete one owned album; its images stay
+         * @description The images themselves are kept and their album reference is cleared, so they reappear as unassigned.
+         */
+        delete: operations["v1DeleteAlbum"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the authenticated account's profile and capacity
+         * @description `capacity` and `used_capacity` are kilobytes as floats; a group without a byte limit reports capacity 0.
+         */
+        get: operations["v1GetProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List every account with pagination and an optional keyword
+         * @description Requires the administrator role; any other authenticated caller is
+         *     rejected with 403/code 20003. The never-authenticating guest anchor
+         *     row is not a manageable account and never appears. `keyword` matches
+         *     substring-wise against username and email.
+         */
+        get: operations["adminListUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change an account's status or group
+         * @description Requires the administrator role. `status` accepts only `enabled` and
+         *     `disabled`; disabling an account revokes every one of its bearer
+         *     credentials in the same transaction as the status flip. An
+         *     administrator cannot disable their own account. `group_id` must name
+         *     an existing non-guest group. There is no way to change a role through
+         *     this endpoint.
+         */
+        patch: operations["adminPatchUser"];
+        trace?: never;
+    };
+    "/api/admin/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every group with member counts and rule bindings */
+        get: operations["adminListGroups"];
+        put?: never;
+        /**
+         * Create a group
+         * @description Requires the administrator role. The default and guest roles are
+         *     structural: at most one group of each kind may exist and the flags
+         *     are fixed at creation. `default_policy_id` must be part of
+         *     `policy_ids`; every bound rule must exist.
+         */
+        post: operations["adminCreateGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete an empty, unreferenced, non-structural group
+         * @description Requires the administrator role. The default and guest groups are
+         *     protected (403/20003). A group with members returns 409/30008; a
+         *     group a settings key still points at returns 409/30009. Deletion
+         *     never cascades to accounts.
+         */
+        delete: operations["adminDeleteGroup"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a group's quotas or rule bindings
+         * @description Requires the administrator role. Only the supplied fields change. The
+         *     default/guest flags have no request shape. A nonzero
+         *     `default_policy_id` must stay inside the resulting `policy_ids`.
+         */
+        patch: operations["adminPatchGroup"];
+        trace?: never;
+    };
+    "/api/admin/storages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every storage backend without any configuration */
+        get: operations["adminListStorages"];
+        put?: never;
+        /**
+         * Create and connectivity-test a storage backend
+         * @description Requires the administrator role. Uses the same provisioning path as
+         *     the host setup command: S3 configurations are sealed with the
+         *     deployment master key before persistence and the backend must pass a
+         *     put/copy/delete probe. The response never contains the configuration.
+         */
+        post: operations["adminCreateStorage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/storages/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a backend no rule references
+         * @description Requires the administrator role. Backends still referenced by any
+         *     upload rule return 409/30009; references are re-checked inside the
+         *     deleting transaction.
+         */
+        delete: operations["adminDeleteStorage"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a backend's name, base URL, switch, or configuration
+         * @description Requires the administrator role. A supplied `config` replaces the
+         *     stored configuration wholesale (re-sealed for S3) and must pass the
+         *     connectivity probe before the change is persisted. The configuration
+         *     is never part of any response.
+         */
+        patch: operations["adminPatchStorage"];
+        trace?: never;
+    };
+    "/api/admin/storages/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run the put/copy/delete connectivity probe
+         * @description Requires the administrator role. Writes, copies, and deletes private
+         *     probe objects only; no user data is touched. Each capability is
+         *     reported separately and probe objects are always cleaned up.
+         */
+        post: operations["adminTestStorage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every upload rule */
+        get: operations["adminListPolicies"];
+        put?: never;
+        /**
+         * Create an upload rule from documented defaults plus overrides
+         * @description Requires the administrator role. `name` and `storage_id` are required;
+         *     every other field falls back to the documented conservative defaults.
+         *     Path templates are validated before persistence. Rules are created
+         *     unbound and become usable once a group binds them.
+         */
+        post: operations["adminCreatePolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/policies/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Render one sample path for path/name templates
+         * @description Requires the administrator role. The sample uses the current time,
+         *     the caller's account ID, the filename `example.jpg`, and fixed
+         *     example content digests. Template failures return HTTP 200 with a
+         *     non-empty `error` and an empty `sample`; the diagnostic is a static
+         *     template message.
+         */
+        post: operations["adminPreviewPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/policies/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete an unreferenced rule
+         * @description Requires the administrator role. Rules still referenced by images or
+         *     as a group's default return 409/30009.
+         */
+        delete: operations["adminDeletePolicy"];
+        options?: never;
+        head?: never;
+        /**
+         * Change rule fields
+         * @description Requires the administrator role. Only the supplied fields change and
+         *     the final state is validated exactly like creation, including the
+         *     path templates and the enabled storage backend.
+         */
+        patch: operations["adminPatchPolicy"];
+        trace?: never;
+    };
+    "/api/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the full site configuration */
+        get: operations["adminGetSettings"];
+        /**
+         * Change the supplied settings keys
+         * @description Requires the administrator role. Partial update: only the fields
+         *     present in the body are written, then the full configuration is
+         *     returned. `site_name` must be 1-100 characters, `trash_days` 0-36500,
+         *     `default_group_id` must name an existing group, and `guest_group_id`
+         *     either 0 or an existing group.
+         */
+        put: operations["adminPutSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List every active image site-wide
+         * @description Requires the administrator role. Returns the same safe image views as
+         *     the owner listing. `user_id` filters by owner; `keyword` matches the
+         *     original filename or the stored pathname.
+         */
+        get: operations["adminListImages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/images/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Move any owner's image into the recycle bin
+         * @description Requires the administrator role. The owner-facing pipeline runs
+         *     unchanged: original URLs 404 immediately and physical deletion
+         *     follows the recycle-bin retention.
+         */
+        delete: operations["adminDeleteImage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/trash/purge-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Physically purge the entire site-wide recycle bin
+         * @description Requires the administrator role. Every recycled image goes through
+         *     the regular per-image purge path one at a time. When any purge fails
+         *     the response keeps its partial progress visible: HTTP 502/code 50002
+         *     with `data.purged` counting the images that were fully removed.
+         */
+        post: operations["adminPurgeAllTrash"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AdminUserPatch: {
+            /** @enum {string} */
+            status?: "enabled" | "disabled";
+            group_id?: components["schemas"]["ID"];
+        };
+        AdminUserPage: {
+            items: components["schemas"]["UserView"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            size: number;
+        };
+        GroupView: {
+            id: components["schemas"]["ID"];
+            name: string;
+            is_default: boolean;
+            is_guest: boolean;
+            /**
+             * Format: int64
+             * @description Zero means unlimited.
+             */
+            capacity_bytes: number;
+            /**
+             * Format: int64
+             * @description Zero means the deployment cap.
+             */
+            max_file_bytes: number;
+            allowed_exts: string[];
+            /** @description Zero means unthrottled; also governs guest rate limiting. */
+            upload_per_min: number;
+            /** Format: int64 */
+            default_policy_id: number;
+            policy_ids: components["schemas"]["ID"][];
+            /** Format: int64 */
+            user_count: number;
+        };
+        GroupInput: {
+            name: string;
+            /**
+             * Format: int64
+             * @default 0
+             */
+            capacity_bytes: number;
+            /**
+             * Format: int64
+             * @default 0
+             */
+            max_file_bytes: number;
+            /** @default [] */
+            allowed_exts: string[];
+            /** @default 0 */
+            upload_per_min: number;
+            /**
+             * Format: int64
+             * @default 0
+             */
+            default_policy_id: number;
+            policy_ids?: components["schemas"]["ID"][];
+            /**
+             * @description Only one default group may exist; structural after creation.
+             * @default false
+             */
+            is_default: boolean;
+            /**
+             * @description Only one guest group may exist; structural after creation.
+             * @default false
+             */
+            is_guest: boolean;
+        };
+        GroupPatch: {
+            name?: string;
+            /** Format: int64 */
+            capacity_bytes?: number;
+            /** Format: int64 */
+            max_file_bytes?: number;
+            allowed_exts?: string[];
+            upload_per_min?: number;
+            /** Format: int64 */
+            default_policy_id?: number;
+            policy_ids?: components["schemas"]["ID"][];
+        };
+        /** @description Backend record without any configuration or credential material. */
+        StorageView: {
+            id: components["schemas"]["ID"];
+            name: string;
+            /** @enum {string} */
+            driver: "local" | "s3";
+            base_url: string;
+            enabled: boolean;
+        };
+        StorageInput: {
+            name: string;
+            /** @enum {string} */
+            driver: "local" | "s3";
+            /** Format: uri */
+            base_url: string;
+            /** @description Driver-specific JSON. S3 credentials are sealed with the master key before persistence and never returned. */
+            config?: Record<string, never>;
+        };
+        StoragePatch: {
+            name?: string;
+            /** Format: uri */
+            base_url?: string;
+            enabled?: boolean;
+            /** @description Replaces the stored configuration wholesale; re-sealed for S3 and probe-tested before persistence. Never returned. */
+            config?: Record<string, never>;
+        };
+        StorageTestResult: {
+            ok: boolean;
+            checks: {
+                put: boolean;
+                copy: boolean;
+                delete: boolean;
+            };
+        };
+        PolicyView: {
+            id: components["schemas"]["ID"];
+            storage_id: components["schemas"]["ID"];
+            name: string;
+            path_tpl: string;
+            name_tpl: string;
+            /** @enum {string} */
+            webp_mode: "both" | "webp_only" | "none";
+            webp_quality: number;
+            webp_lossless: boolean;
+            webp_effort: number;
+            max_width: number;
+            max_height: number;
+            thumb_enabled: boolean;
+            thumb_size: number;
+            /** @enum {string} */
+            scrub_mode: "none" | "gps" | "all";
+            /** @enum {string} */
+            heif_mode: "webp_only" | "keep" | "reject";
+            /** @enum {string} */
+            link_prefer: "webp" | "original";
+            /** @enum {string} */
+            on_conflict: "rename" | "reject";
+            strip_meta: boolean;
+            skip_if_larger: boolean;
+            enabled: boolean;
+            created_at: components["schemas"]["Timestamp"];
+            updated_at: components["schemas"]["Timestamp"];
+        };
+        PolicyInput: {
+            name: string;
+            storage_id: components["schemas"]["ID"];
+            enabled?: boolean;
+            /** @default {Y}/{m}/{d} */
+            path_tpl: string;
+            /** @default {uniqid} */
+            name_tpl: string;
+            /**
+             * @default both
+             * @enum {string}
+             */
+            webp_mode: "both" | "webp_only" | "none";
+            /** @default 80 */
+            webp_quality: number;
+            /** @default false */
+            webp_lossless: boolean;
+            /** @default 4 */
+            webp_effort: number;
+            /** @default 0 */
+            max_width: number;
+            /** @default 0 */
+            max_height: number;
+            /** @default true */
+            thumb_enabled: boolean;
+            /** @default 400 */
+            thumb_size: number;
+            /**
+             * @default gps
+             * @enum {string}
+             */
+            scrub_mode: "none" | "gps" | "all";
+            /**
+             * @default webp_only
+             * @enum {string}
+             */
+            heif_mode: "webp_only" | "keep" | "reject";
+            /**
+             * @default webp
+             * @enum {string}
+             */
+            link_prefer: "webp" | "original";
+            /**
+             * @default rename
+             * @enum {string}
+             */
+            on_conflict: "rename" | "reject";
+            /** @default true */
+            strip_meta: boolean;
+            /** @default true */
+            skip_if_larger: boolean;
+        };
+        PolicyPatch: {
+            name?: string;
+            storage_id?: components["schemas"]["ID"];
+            enabled?: boolean;
+            path_tpl?: string;
+            name_tpl?: string;
+            /** @enum {string} */
+            webp_mode?: "both" | "webp_only" | "none";
+            webp_quality?: number;
+            webp_lossless?: boolean;
+            webp_effort?: number;
+            max_width?: number;
+            max_height?: number;
+            thumb_enabled?: boolean;
+            thumb_size?: number;
+            /** @enum {string} */
+            scrub_mode?: "none" | "gps" | "all";
+            /** @enum {string} */
+            heif_mode?: "webp_only" | "keep" | "reject";
+            /** @enum {string} */
+            link_prefer?: "webp" | "original";
+            /** @enum {string} */
+            on_conflict?: "rename" | "reject";
+            strip_meta?: boolean;
+            skip_if_larger?: boolean;
+        };
+        PolicyPreviewRequest: {
+            path_tpl: string;
+            name_tpl: string;
+        };
+        PolicyPreviewResult: {
+            /** @description Rendered sample path; empty when the templates are invalid. */
+            sample: string;
+            /** @description Static template diagnostic; empty on success. */
+            error: string;
+        };
+        AdminSettings: {
+            site_name: string;
+            registration_enabled: boolean;
+            guest_upload_enabled: boolean;
+            gallery_enabled: boolean;
+            trash_days: number;
+            /** @description Master switch of the Lsky-compatible /api/v1 layer. */
+            api_enabled: boolean;
+            /**
+             * Format: int64
+             * @description Zero selects the is_guest group.
+             */
+            guest_group_id: number;
+            default_group_id: components["schemas"]["ID"];
+        };
+        AdminSettingsPatch: {
+            site_name?: string;
+            registration_enabled?: boolean;
+            guest_upload_enabled?: boolean;
+            gallery_enabled?: boolean;
+            trash_days?: number;
+            api_enabled?: boolean;
+            /** Format: int64 */
+            guest_group_id?: number;
+            default_group_id?: components["schemas"]["ID"];
+        };
+        AdminUserPageEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["AdminUserPage"];
+        };
+        AdminUserEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["UserView"];
+        };
+        GroupEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["GroupView"];
+        };
+        StorageEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["StorageView"];
+        };
+        StorageTestEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["StorageTestResult"];
+        };
+        PolicyEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["PolicyView"];
+        };
+        PolicyPreviewEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["PolicyPreviewResult"];
+        };
+        AdminSettingsEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["AdminSettings"];
+        };
+        ImagePageEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["ImagePage"];
+        };
+        TrashPurgeEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: {
+                /** Format: int64 */
+                purged: number;
+            };
+        };
+        NullEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: unknown;
+        };
         ImageIDs: components["schemas"]["ID"][];
         ImageLinks: {
             /** @description Preferred available version. */
@@ -546,9 +1402,6 @@ export interface components {
         };
         ImageEnvelope: components["schemas"]["SuccessEnvelope"] & {
             data?: components["schemas"]["ImageView"];
-        };
-        ImagePageEnvelope: components["schemas"]["SuccessEnvelope"] & {
-            data?: components["schemas"]["ImagePage"];
         };
         ImageExifEnvelope: components["schemas"]["SuccessEnvelope"] & {
             data?: components["schemas"]["ImageExif"];
@@ -712,9 +1565,6 @@ export interface components {
         LoginEnvelope: components["schemas"]["SuccessEnvelope"] & {
             data?: components["schemas"]["LoginData"];
         };
-        NullEnvelope: components["schemas"]["SuccessEnvelope"] & {
-            data?: components["schemas"]["NullData"];
-        };
         TokenListEnvelope: components["schemas"]["SuccessEnvelope"] & {
             data?: components["schemas"]["TokenView"][];
         };
@@ -727,6 +1577,185 @@ export interface components {
         PolicyListEnvelope: components["schemas"]["SuccessEnvelope"] & {
             data?: components["schemas"]["PolicySummary"][];
         };
+        LskyCredentials: {
+            /** Format: email */
+            email: string;
+            /**
+             * Format: password
+             * @description Written verbatim; never logged or echoed.
+             */
+            password: string;
+        };
+        LskyEnvelope: {
+            /** @description The only field Lsky clients branch on. */
+            status: boolean;
+            message: string;
+            /** @description Operation-specific payload; always an object */
+            data: unknown;
+        };
+        /** @description Business failure; always paired with HTTP 200 so clients fall through their status check. */
+        LskyFailure: {
+            /** @enum {boolean} */
+            status: false;
+            /** @description Human-readable reason without technical or credential details. */
+            message: string;
+            data: Record<string, never>;
+        };
+        LskyNullEnvelope: components["schemas"]["LskyEnvelope"] & {
+            data?: Record<string, never>;
+        };
+        LskyMessageEnvelope: components["schemas"]["LskyEnvelope"] & {
+            /** @enum {string} */
+            message?: "删除成功";
+            data?: Record<string, never>;
+        };
+        LskyTokenEnvelope: components["schemas"]["LskyEnvelope"] & {
+            data?: {
+                token: components["schemas"]["PlaintextToken"];
+            };
+        };
+        LskyStrategiesEnvelope: components["schemas"]["LskyEnvelope"] & {
+            data?: {
+                strategies: {
+                    id: components["schemas"]["ID"];
+                    name: string;
+                }[];
+            };
+        };
+        LskyUploadEnvelope: components["schemas"]["LskyEnvelope"] & {
+            /** @enum {string} */
+            message?: "上传成功";
+            data?: components["schemas"]["LskyUploadData"];
+        };
+        /** @description `name` is the stored file name, `pathname` the storage path plus file name, `origin_name` the client filename, `size` is KB as a float. */
+        LskyUploadData: {
+            key: string;
+            name: string;
+            pathname: string;
+            origin_name: string;
+            /**
+             * Format: double
+             * @description Stored original bytes divided by 1024.
+             */
+            size: number;
+            mimetype: string;
+            extension: string;
+            /** @description MD5 of the stored original after metadata scrubbing. */
+            md5: string;
+            /** @description SHA-1 of the stored original after metadata scrubbing. */
+            sha1: string;
+            links: components["schemas"]["LskyUploadLinks"];
+        };
+        LskyUploadLinks: components["schemas"]["LskyImageLinks"] & {
+            /** @description ImgNest extra; stored original URL */
+            origin_url: string;
+            /** @description ImgNest extra; empty when no WebP is stored. */
+            webp_url: string;
+        };
+        LskyImageLinks: {
+            /** @description The link clients paste; follows the rule's link_prefer. */
+            url: string;
+            /** @description Exactly `&lt;img src="URL" alt="NAME" title="NAME" /&gt;` with only &, < and > escaped. */
+            html: string;
+            bbcode: string;
+            markdown: string;
+            markdown_with_link: string;
+            /** @description The cloud _thumbs.webp URL */
+            thumbnail_url: string;
+        };
+        LskyImagePageEnvelope: components["schemas"]["LskyEnvelope"] & {
+            data?: components["schemas"]["LskyImagePage"];
+        };
+        /** @description Laravel paginator shape; from/to are null on an empty page and links is always an array. */
+        LskyImagePage: {
+            current_page: number;
+            data: components["schemas"]["LskyImageItem"][];
+            first_page_url: string;
+            from: number | null;
+            last_page: number;
+            last_page_url: string;
+            links: {
+                [key: string]: unknown;
+            }[];
+            next_page_url: string | null;
+            /** @description Absolute request origin plus the route path. */
+            path: string;
+            /** @enum {integer} */
+            per_page: 40;
+            prev_page_url: string | null;
+            to: number | null;
+            total: number;
+        };
+        /** @description Never carries EXIF or GPS. */
+        LskyImageItem: {
+            /** @description Present only while listing one album. */
+            album: null | {
+                id: components["schemas"]["ID"];
+                name: string;
+            };
+            key: string;
+            /** @description Stored file name with extension. */
+            name: string;
+            /** @description Storage path plus stored file name. */
+            pathname: string;
+            /** @description Client filename at upload time. */
+            origin_name: string;
+            /**
+             * Format: double
+             * @description KB as a float.
+             */
+            size: number;
+            mimetype: string;
+            extension: string;
+            md5: string;
+            sha1: string;
+            width: number;
+            height: number;
+            links: components["schemas"]["LskyImageLinks"];
+            /** @description Relative text such as 刚刚 or 3 分钟前. */
+            human_date: string;
+            /** @description Y-m-d H:i:s. */
+            date: string;
+        };
+        LskyAlbumPageEnvelope: components["schemas"]["LskyEnvelope"] & {
+            data?: components["schemas"]["LskyAlbumPage"];
+        };
+        LskyAlbumPage: components["schemas"]["LskyImagePage"] & {
+            data?: components["schemas"]["LskyAlbumItem"][];
+        };
+        LskyAlbumItem: {
+            id: components["schemas"]["ID"];
+            name: string;
+            intro: string;
+            /** @description Live count of active images. */
+            image_num: number;
+        };
+        LskyProfileEnvelope: components["schemas"]["LskyEnvelope"] & {
+            data?: components["schemas"]["LskyProfileData"];
+        };
+        LskyProfileData: {
+            name: string;
+            /** @description Always empty; ImgNest has no avatars. */
+            avatar: string;
+            email: string;
+            /**
+             * Format: double
+             * @description Group byte limit divided by 1024; 0 means unlimited.
+             */
+            capacity: number;
+            /**
+             * Format: double
+             * @description Charged bytes divided by 1024.
+             */
+            used_capacity: number;
+            /** @description Always empty. */
+            url: string;
+            /** @description Active images. */
+            image_num: number;
+            album_num: number;
+            /** @description Address recorded at registration; may be empty. */
+            registered_ip: string;
+        };
         ErrorEnvelope: {
             /** @enum {integer} */
             code: 10001 | 10002 | 10004 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 50001 | 50002 | 50003;
@@ -736,6 +1765,39 @@ export interface components {
         };
     };
     responses: {
+        /** @description Missing, malformed, revoked or expired bearer token; never a silent downgrade to guest access. */
+        LskyUnauthenticated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["LskyFailure"];
+            };
+        };
+        /** @description The administrator disabled the v1 API; every /api/v1 route answers with this envelope. */
+        LskyDisabled: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["LskyFailure"] & {
+                    /** @enum {string} */
+                    message?: "管理员未启用 API";
+                };
+            };
+        };
+        /** @description Fixed window exceeded — three token attempts per client address per minute, or the group's upload rate. */
+        LskyThrottled: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["LskyFailure"] & {
+                    /** @enum {string} */
+                    message?: "Too Many Attempts.";
+                };
+            };
+        };
         /**
          * @description Native error envelope. 400/10001 invalid input; 401/20001 missing or
          *     revoked authentication; 403/20003 forbidden; 404/10001 missing image;
@@ -846,6 +1908,78 @@ export interface components {
                 "application/json": components["schemas"]["ErrorEnvelope"] & {
                     /** @enum {integer} */
                     code?: 50001;
+                };
+            };
+        };
+        /** @description Authenticated caller is not an administrator; code 20003. */
+        AdminForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"] & {
+                    /** @enum {integer} */
+                    code?: 20003;
+                };
+            };
+        };
+        /** @description Referenced account, group, storage, rule, or image does not exist; code 10001. */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"] & {
+                    /** @enum {integer} */
+                    code?: 10001;
+                };
+            };
+        };
+        /** @description Image operation already in progress; code 30006. */
+        ImageBusy: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"] & {
+                    /** @enum {integer} */
+                    code?: 30006;
+                };
+            };
+        };
+        /** @description Group still has member accounts; code 30008. */
+        GroupHasMembers: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"] & {
+                    /** @enum {integer} */
+                    code?: 30008;
+                };
+            };
+        };
+        /** @description Storage, rule, or group is still referenced by other records; code 30009. */
+        StillReferenced: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"] & {
+                    /** @enum {integer} */
+                    code?: 30009;
+                };
+            };
+        };
+        /** @description Storage backend operation failed; code 50002. */
+        StorageFailed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"] & {
+                    /** @enum {integer} */
+                    code?: 50002;
                 };
             };
         };
@@ -1546,6 +2680,858 @@ export interface operations {
                 content?: never;
             };
             default: components["responses"]["ImageFailure"];
+        };
+    };
+    v1CreateToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LskyCredentials"];
+                "application/x-www-form-urlencoded": components["schemas"]["LskyCredentials"];
+            };
+        };
+        responses: {
+            /** @description Issued token, or the wrong-credentials failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyTokenEnvelope"] | components["schemas"]["LskyFailure"];
+                };
+            };
+            403: components["responses"]["LskyDisabled"];
+            429: components["responses"]["LskyThrottled"];
+        };
+    };
+    v1RevokeTokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All API and web tokens of the account are revoked. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyNullEnvelope"];
+                };
+            };
+            401: components["responses"]["LskyUnauthenticated"];
+            403: components["responses"]["LskyDisabled"];
+        };
+    };
+    v1ListStrategies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Strategy list; empty but never null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyStrategiesEnvelope"];
+                };
+            };
+            401: components["responses"]["LskyUnauthenticated"];
+            403: components["responses"]["LskyDisabled"];
+        };
+    };
+    v1Upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Exactly one image part.
+                     */
+                    file: string;
+                    /** @description Numeric rule ID; the group default when absent. */
+                    strategy_id?: string;
+                    /** @description Numeric album ID. Guests cannot use albums. */
+                    album_id?: string;
+                    /**
+                     * @description 1 public
+                     * @enum {string}
+                     */
+                    permission?: "0" | "1";
+                };
+            };
+        };
+        responses: {
+            /** @description Upload result, or the business-failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyUploadEnvelope"] | components["schemas"]["LskyFailure"];
+                };
+            };
+            401: components["responses"]["LskyUnauthenticated"];
+            403: components["responses"]["LskyDisabled"];
+            429: components["responses"]["LskyThrottled"];
+        };
+    };
+    v1ListImages: {
+        parameters: {
+            query?: {
+                page?: number;
+                order?: "newest" | "earliest" | "utmost" | "least";
+                permission?: "all" | "public" | "private";
+                album_id?: number;
+                keyword?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Laravel-shaped image page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyImagePageEnvelope"];
+                };
+            };
+            401: components["responses"]["LskyUnauthenticated"];
+            403: components["responses"]["LskyDisabled"];
+        };
+    };
+    v1DeleteImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deletion accepted or rejected; clients branch on `status`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyNullEnvelope"] | components["schemas"]["LskyFailure"];
+                };
+            };
+            401: components["responses"]["LskyUnauthenticated"];
+            403: components["responses"]["LskyDisabled"];
+        };
+    };
+    v1ListAlbums: {
+        parameters: {
+            query?: {
+                page?: number;
+                order?: "newest" | "earliest" | "most" | "least";
+                keyword?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Laravel-shaped album page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyAlbumPageEnvelope"];
+                };
+            };
+            401: components["responses"]["LskyUnauthenticated"];
+            403: components["responses"]["LskyDisabled"];
+        };
+    };
+    v1DeleteAlbum: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deletion accepted or rejected; clients branch on `status`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyMessageEnvelope"] | components["schemas"]["LskyFailure"];
+                };
+            };
+            401: components["responses"]["LskyUnauthenticated"];
+            403: components["responses"]["LskyDisabled"];
+        };
+    };
+    v1GetProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account profile in the Lsky field set. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyProfileEnvelope"];
+                };
+            };
+            401: components["responses"]["LskyUnauthenticated"];
+            403: components["responses"]["LskyDisabled"];
+        };
+    };
+    adminListUsers: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["ImagePageNumber"];
+                size?: components["parameters"]["ImagePageSize"];
+                keyword?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of accounts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserPageEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminPatchUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserPatch"];
+            };
+        };
+        responses: {
+            /** @description The updated account view. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminListGroups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All groups in database ID order; the array is never null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {integer} */
+                        code: 0;
+                        message: string;
+                        data: components["schemas"]["GroupView"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminCreateGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupInput"];
+            };
+        };
+        responses: {
+            /** @description The created group view. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminDeleteGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Group deleted; data is null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["GroupHasMembers"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminPatchGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupPatch"];
+            };
+        };
+        responses: {
+            /** @description The updated group view. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminListStorages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All backends in database ID order; no config or secret is ever included. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {integer} */
+                        code: 0;
+                        message: string;
+                        data: components["schemas"]["StorageView"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminCreateStorage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StorageInput"];
+            };
+        };
+        responses: {
+            /** @description The created backend view without configuration. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+            502: components["responses"]["StorageFailed"];
+        };
+    };
+    adminDeleteStorage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Storage deleted; data is null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["StillReferenced"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminPatchStorage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoragePatch"];
+            };
+        };
+        responses: {
+            /** @description The updated backend view without configuration. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            502: components["responses"]["StorageFailed"];
+        };
+    };
+    adminTestStorage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-check probe results. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageTestEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            502: components["responses"]["StorageFailed"];
+        };
+    };
+    adminListPolicies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All rules in database ID order; the array is never null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {integer} */
+                        code: 0;
+                        message: string;
+                        data: components["schemas"]["PolicyView"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminCreatePolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyInput"];
+            };
+        };
+        responses: {
+            /** @description The created rule. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminPreviewPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Sample path or template diagnostic. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyPreviewEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+        };
+    };
+    adminDeletePolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rule deleted; data is null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["StillReferenced"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminPatchPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyPatch"];
+            };
+        };
+        responses: {
+            /** @description The updated rule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminGetSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All eight settings with documented defaults for unset keys. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSettingsEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminPutSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSettingsPatch"];
+            };
+        };
+        responses: {
+            /** @description The saved configuration. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSettingsEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminListImages: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["ImagePageNumber"];
+                size?: components["parameters"]["ImagePageSize"];
+                user_id?: number;
+                keyword?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One site-wide page of images. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImagePageEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminDeleteImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Image recycled; data is null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["ImageBusy"];
+            500: components["responses"]["InternalError"];
+            502: components["responses"]["StorageFailed"];
+        };
+    };
+    adminPurgeAllTrash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every recycled image was purged. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashPurgeEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+            /** @description Some images could not be purged; data carries the successful count. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"] & {
+                        /** @enum {integer} */
+                        code?: 50002;
+                        data?: {
+                            /** Format: int64 */
+                            purged: number;
+                        };
+                    };
+                };
+            };
         };
     };
 }

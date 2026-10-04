@@ -10,7 +10,7 @@
 
 **Spec:** [spec.md](../../spec.md) §2/§4/§7/§8.2、[lsky-api-compat skill](../../../.claude/skills/lsky-api-compat/SKILL.md)（契约唯一来源）、[M4设计补充](../specs/2026-10-04-m4-lsky-admin-design.md)。基线 main `e4ed75a`（M3 已合入）。分支 `feat/m4-lsky-admin`。
 
-**Status:** 计划已获用户确认并行执行（2026-10-04，"继续后续任务"）。实际完成情况以 `docs/planning/m4-progress.md` 为准。
+**Status:** Tasks 1–8 已完成：实现、真实二进制 PicGo 形态冒烟、浏览器走查、独立审查（无 P1；P2 已修，P3 记录）见 [M4 progress](../../planning/m4-progress.md)。真实 PicGo 桌面客户端手工联调留给用户（步骤在 development.md）。原始 checkbox 保留为设计/验收依据。
 
 ## Global Constraints
 

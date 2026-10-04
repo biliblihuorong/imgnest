@@ -9,6 +9,8 @@
 
 M3 执行补充：前端依赖按上表精确锁定并提交 `web/pnpm-lock.yaml`。Node 24.21.0 与 pnpm 12.9.1（`npm i -g` 固定）已装入 dev 镜像，pnpm store 固定到 compose 卷（`web/pnpm-workspace.yaml` storeDir）；宿主 Node 22 仅作手工便利。实测 pnpm 12 忽略 `npm_config_store_dir` 环境变量，须用 pnpm-workspace.yaml 配置。`openapi-typescript@7.13.0` 声明 peer typescript ^5.x，与锁定的 TS 6.0.3 组合实测 `gen:api` 正常，属可接受取舍；为避免引入锁外依赖（jiti、@types/node），ESLint 配置用 `.mjs`、vite alias 用 `import.meta.url` 解析（Windows 宿主直跑 dev 有已知限制，验收在容器内）。@vueuse/core 已安装，M3 暂无使用点，主题跟随系统暂用 Naive UI 内置 `useOsTheme`。
 
+M4 执行补充：无新增前后端依赖。`/api/v1` 与 `/api/admin` 契约已全部写入 `docs/openapi.yaml`；管理端 api 模块（web/src/api/admin.ts）暂为手写类型，后续可切 gen:api 派生。
+
 ## 工具链
 
 | 工具 | 版本 | 说明 |

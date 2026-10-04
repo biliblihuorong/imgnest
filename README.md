@@ -1,8 +1,8 @@
 # ImgNest
 
-Go + Vue 3 自研图床项目。当前已实现 M1–M3：SQLite/PostgreSQL、用户与 Token、本机/S3 存储、同步图片上传、WebP、双缩略图、完整本地元数据、无损隐私清理、可恢复回收站，以及嵌入二进制的 Vue 前端 MVP（登录/注册、拖拽上传与复制链接、我的图片与回收站、Token/账户管理）。蓝空 v1 兼容和完整管理后台属于 M4。
+Go + Vue 3 自研图床项目。当前已实现 M1–M4：SQLite/PostgreSQL、用户与 Token、本机/S3 存储、同步图片上传、WebP、双缩略图、完整本地元数据、无损隐私清理、可恢复回收站，嵌入二进制的 Vue 前端（用户端 MVP + 管理后台），以及与蓝空（Lsky Pro）字段级兼容的 `/api/v1` 接口（PicGo/uPic 可直连，支持游客上传）。相册管理、公开画廊与蓝空数据迁移属于 M5。
 
-运行与验证步骤见 [开发说明](docs/development.md)，接口契约见 [OpenAPI](docs/openapi.yaml)，本批记录见 [M3 progress](docs/planning/m3-progress.md)，后端核心见 [M2 progress](docs/planning/m2-progress.md)，基础阶段见 [M1 progress](docs/planning/m1-progress.md)。仓库保留锁定的版本矩阵、33 个 AI Skill 与许可证说明。
+运行与验证步骤见 [开发说明](docs/development.md)，接口契约见 [OpenAPI](docs/openapi.yaml)，本批记录见 [M4 progress](docs/planning/m4-progress.md)，前端阶段见 [M3 progress](docs/planning/m3-progress.md)，后端核心见 [M2 progress](docs/planning/m2-progress.md)。仓库保留锁定的版本矩阵、33 个 AI Skill 与许可证说明。
 
 ## 目录
 
@@ -40,7 +40,7 @@ imgnest-dev-kit/
 
 ## 开工准备
 
-开工前检查见 [开工审查](docs/planning/2026-10-04-readiness.md)，当前计划见 [M3 实施计划](docs/superpowers/plans/2026-10-04-m3-frontend-mvp.md)。实际验证结果和已知范围在 M3 progress 中记录。
+开工前检查见 [开工审查](docs/planning/2026-10-04-readiness.md)，当前计划见 [M4 实施计划](docs/superpowers/plans/2026-10-04-m4-lsky-admin.md)。实际验证结果和已知范围在 M4 progress 中记录。
 
 ## 更新 Skill
 
