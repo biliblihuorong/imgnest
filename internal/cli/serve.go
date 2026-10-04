@@ -13,6 +13,7 @@ import (
 	httpapi "github.com/biliblihuorong/imgnest/internal/http"
 	"github.com/biliblihuorong/imgnest/internal/migrate"
 	"github.com/biliblihuorong/imgnest/internal/service"
+	"github.com/biliblihuorong/imgnest/web"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 )
@@ -44,7 +45,11 @@ func serveCommand(path *string) *cobra.Command {
 			if err = images.Recover(cmd.Context()); err != nil {
 				return fmt.Errorf("recover unfinished image operations: %w", err)
 			}
-			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout}, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext})
+			webFS, err := web.DistFS()
+			if err != nil {
+				return fmt.Errorf("open embedded web app: %w", err)
+			}
+			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout}, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS})
 			if err != nil {
 				return err
 			}

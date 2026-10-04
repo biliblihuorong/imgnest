@@ -4,6 +4,7 @@ package http
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	stdhttp "net/http"
 	"time"
@@ -23,6 +24,9 @@ type Dependencies struct {
 	Health       func(context.Context) error
 	Images       native.ImageService
 	ImageOptions native.ImageOptions
+	// Web is the built single-page app rooted at its dist directory. When nil
+	// the router keeps returning JSON 404 for unmatched paths.
+	Web fs.FS
 }
 
 // ImageOptions configures bounded native image uploads.
@@ -82,6 +86,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 		}
 		c.JSON(200, native.Response{Code: 0, Message: "ok", Data: gin.H{"status": "ok"}})
 	})
-	router.NoRoute(func(c *gin.Context) { c.JSON(404, native.Response{Code: 10001, Message: "not found", Data: nil}) })
+	if deps.Web != nil {
+		spa := &spaHandler{files: deps.Web}
+		router.NoRoute(spa.handle)
+	} else {
+		router.NoRoute(func(c *gin.Context) { c.JSON(404, native.Response{Code: 10001, Message: "not found", Data: nil}) })
+	}
 	return router, nil
 }
