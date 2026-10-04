@@ -1,0 +1,33 @@
+name: imgnest-dev
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.dev
+    working_dir: /workspace
+    volumes:
+      - ../:/workspace
+      - go-modules:/go/pkg/mod
+      - go-build:/root/.cache/go-build
+    environment:
+      GIN_MODE: release
+      IMGNEST_TEST_POSTGRES_DSN: host=postgres user=imgnest dbname=imgnest_test sslmode=disable
+    ports:
+      - "127.0.0.1:18080:8080"
+  postgres:
+    image: postgres:18.6-bookworm
+    environment:
+      POSTGRES_USER: imgnest
+      POSTGRES_DB: imgnest_test
+      POSTGRES_HOST_AUTH_METHOD: trust
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U imgnest -d imgnest_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - postgres-test:/var/lib/postgresql
+volumes:
+  go-modules:
+  go-build:
+  postgres-test:

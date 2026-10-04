@@ -1,0 +1,18 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - revive
+    - gosec
+  settings:
+    revive:
+      rules:
+        - name: exported
+        - name: error-strings
+        - name: context-as-argument
+formatters:
+  enable:
+    - gofmt

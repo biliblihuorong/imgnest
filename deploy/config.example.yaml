@@ -1,0 +1,20 @@
+# Deployment settings. IMGNEST_ environment variables override these values.
+# Keep database credentials in IMGNEST_DATABASE_DSN rather than this example.
+server:
+  addr: ":8080"
+  trusted_proxies: []
+  read_header_timeout: 5s
+  shutdown_timeout: 10s
+
+database:
+  driver: sqlite
+  dsn: data/imgnest.db
+  max_open: 1
+  max_idle: 1
+  max_lifetime: 0s
+  busy_timeout: 5000ms
+
+# SQLite connections enable WAL and foreign keys in the database layer.
+# PostgreSQL defaults: max_open=25, max_idle=10, max_lifetime=5m.
+# To select PostgreSQL, supply its driver and DSN. Remove the SQLite pool
+# values above if you want the PostgreSQL pool defaults to apply.

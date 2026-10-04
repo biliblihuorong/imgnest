@@ -1,0 +1,9 @@
+.git
+.claude
+.cache
+.superpowers
+data
+bin
+config.yaml
+.env*
+web/node_modules

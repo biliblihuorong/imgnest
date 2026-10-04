@@ -1,0 +1,4 @@
+FROM golang:1.27.1-bookworm
+ENV CGO_ENABLED=1 GOTOOLCHAIN=local
+WORKDIR /workspace
+CMD ["go", "run", "./cmd/imgnest", "--help"]
