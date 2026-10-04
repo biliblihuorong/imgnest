@@ -50,7 +50,10 @@ func Check(ctx context.Context, db *sql.DB, driver string) error {
 	if err != nil {
 		return err
 	}
-	for _, table := range []string{"schema_migrations", "groups", "users", "tokens", "settings"} {
+	for _, table := range []string{
+		"schema_migrations", "groups", "users", "tokens", "settings",
+		"storages", "policies", "group_policies", "albums", "images", "image_exif",
+	} {
 		exists, err := hasTable(ctx, db, driver, table)
 		if err != nil {
 			return migrationError("inspect schema", err)

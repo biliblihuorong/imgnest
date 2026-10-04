@@ -189,7 +189,7 @@ v1 用方案 A 快速跑通，M6 再评估是否换 B。运行参数参照 imago
 
 默认是「逻辑删除 + 回收站」：点删除后图片立刻不可访问，但 7 天内可恢复，到期后物理删除。只改数据库不动文件是不行的：S3 类存储的图片由桶域名直接访问，不经过本程序，文件不动就一直能打开。
 
-1. **删除**：写 `deleted_at` 和 `purge_at`（当前 + 保留天数）；把云端原图/WebP/缩略图服务端复制到 `_trash/{path}…` 再删原 Key（S3 CopyObject，不走本机流量，B2 支持）；本机存储直接 rename 到 `.trash/`。原 URL 立即 404。本地缩略图保留，回收站里可预览。
+1. **删除**：写 `deleted_at` 和 `purge_at`（当前 + 保留天数）；把云端原图/WebP/缩略图服务端复制到 `_trash/{path}…` 再删原 Key；本机同样先安全复制到 `.trash/` 再删原 Key，以支持短事务外的幂等重试。成功响应前确认原 URL 已404。本地缩略图保留，回收站里可预览。S3 复制用条件 multipart completion，避免兼容实现忽略目标防覆盖条件。
 2. **容量**：删除时立即从用户 `used_bytes` 扣除；回收站占用单独在管理后台展示。
 3. **恢复**：反向复制回原 Key，清空 `deleted_at`，链接完全恢复。在回收站中的图片仍占着 `(storage_id, path)` 唯一索引，所以不会被新图抢占路径。
 4. **物理删除**：定时任务每小时扫 `purge_at < now`，删 `_trash/` 对象、本地缩略图、`image_exif` 和 `images` 行；失败自动重试并记日志。
@@ -365,6 +365,23 @@ imgnest/
 - 原生错误码：10001 参数、20001 未鉴权、20002 凭证错误、20003 权限不足、30001 注册关闭、30002 用户重复、30003 请求限流、50001 内部失败。成功 code=0；失败 data=null，空列表 data=[]。普通注册成功 HTTP 201、重复 409、注册关闭 403、无效凭证 401、限流 429。
 - 时间存 UTC，对外 RFC3339；native DTO 不含 password_hash/token_hash；API Token 只在创建响应返回明文。业务哨兵在共享 model 声明、service 别名引用，避免 repo 反向引用 service。
 - 对外 Go 函数 context 置首；main、Gin handler、http.Handler、SQL driver 等固定接口签名遵守框架契约，业务内部继续传 context。
+
+### 8.2 M2 已采纳的实施约定（2026-10-04）
+
+- 用户确认：私有图片仅隐藏公共列表/画廊，持有原图/WebP/云缩略图直链仍可匿名访问；启用脱敏时失败拒绝上传；计费为原图/WebP/云缩略图唯一 Key 实际字节之和，本地缓存不计费。
+- 0002 新增 storages/policies/group_policies/albums/images/image_exif 和 default_policy_id；0001 不改。pending/active/trash 全部占用 unique(storage_id,path)。pending 行在用户事务锁下以 SUM 预约容量，网络 IO 不持数据库锁。
+- 上传先完成魔数+libvips验证、全量元数据归档和处理，再预约路径/配额及对象意图；回执包含 owner、version、SHA256。提交重新检查不透明认证证明、组规则、用户状态及容量。提交确认丢失先读状态，禁止删除已激活对象。
+- 前台失败补偿与后台清理、回收站和缩略图回填共用单实例生命周期锁；锁内复读 operation_id，物理 IO 全部结束后才释放路径。启动时先恢复遗留 upload/cleanup/trash/restore/purge；旧 restore 取消并保留垃圾箱，不伪造用户认证证明。每小时重试已登记清理和到期回收站，默认每批100条。
+- 恢复阶段先预约当前容量、复制回原 Key，再检查当前认证并一次性激活/增加 used；保留 restore_cleanup 操作，清除云垃圾箱副本后才解除繁忙状态。最终清理先确认该 Key 所有实体版本归属，发现外部历史时不删除，保留任务；同归属时逐版本及 marker 删除，确认全空再删库。上传/恢复补偿只删自己拥有的版本。
+- 普通复制仍是服务端复制；源已404的遗留删除操作，仅恢复时流式核对目标与持久 SHA256，以免把同长度的错误副本当作成功。正常上传/删除不下载云副本。
+- 本机持久对象使用 `IMGNST01 + uint32 header length + ObjectInfo JSON + 原始 bytes` 的原子单文件封装；内容本身无重新编码，驱动 Open 只返回图片 bytes。备份需保留整个存储根，不能绕过驱动用静态文件服务器直接输出物理 .jpg/.webp。data/thumbs 缓存仍是普通 WebP 文件；详见 internal/storage/README.md。
+- Image 的 size/ext/mime/md5/sha1/width/height/frames 描述实际保存的主图；webp_only 取真实 WebP 主图，both/none 取原图的视觉尺寸。src_md5 和 EXIF/raw 始终来自上传源。上传原生 DTO、直接图片和缩略图不返回 EXIF。
+- 完整 raw 归档保存容器元数据原始块。classic TIFF 的不透明私有布局可用明确标记的 full-source-fallback（输入至多20MiB）保存在 owner/admin 私有 raw；该情况 gps/all 原图脱敏拒绝。BigTIFF 和不能完整解析的 ISOBMFF 布局明确拒绝，不默默漏存元数据。
+- M2 native 以数值 id 提供图片/EXIF/权限与批量回收站接口；稳定随机 key 用于缩略图及未来 v1。POST /api/upload 接受重复 file/files[]，字段 policy_id/album_id/is_public，单文件201，批量207逐项结果。默认整请求64MiB、单文件20MiB、至多20文件、2并发请求、5min处理期限、100MP含动画帧；这些限制先于完整读取。
+- M2 新码：10002=请求/文件过大(413)、10004=请求取消/超时(408)、30004=容量(403)、30005=路径冲突(409)、30006=图片繁忙(409)、30007=格式不支持(415)、50002=存储(502)、50003=处理/脱敏拒绝(422)。保留 M1 外壳与错误码。
+- M2 提供主机管理员 CLI init-local/init-storage/init-policy；S3 配置用部署32-byte base64主密钥 AES-256-GCM 加密，输入只能 stdin/未跟踪配置。主密钥不入库/日志；连接测试验证实际不覆盖写、复制和清理。本机访问前缀为 /i/{storage_id}，BaseURL 实时读出。
+- 固定 vips8.18.6 的 imagor-base 实际缺 BMP 加载器，M2 在同版本官方源码上启用 Magick，并固定源码校验和；不升级 vipsgen。默认 StripMeta 始终保留 ICC 且保护衍生版本，源 WebP 复用按 scrub_mode 无损处理。输入缺少 terminator、恶意 IFD、像素别名及越界 item 都拒绝。
+- M2 单实例、Linux amd64 已实际验证；真实 MinIO 不代表 B2/COS/R2 账户联调已完成。Vue 页面/相册CRUD与蓝空v1/完整管理后台仍按 M3/M4；多架构发布按 M5。
 
 ## 9. 推荐使用的 Skills
 

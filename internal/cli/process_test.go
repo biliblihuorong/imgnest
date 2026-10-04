@@ -92,7 +92,7 @@ func TestActualProcessSmoke(t *testing.T) {
 				t.Fatal(err)
 			}
 			password := hex.EncodeToString(passwordBytes[:])
-			environ := append(os.Environ(), "IMGNEST_DATABASE_DRIVER="+driver, "IMGNEST_DATABASE_DSN="+dsn, "IMGNEST_SERVER_ADDR=127.0.0.1:0")
+			environ := append(os.Environ(), "IMGNEST_DATABASE_DRIVER="+driver, "IMGNEST_DATABASE_DSN="+dsn, "IMGNEST_SERVER_ADDR=127.0.0.1:0", "IMGNEST_IMAGES_THUMB_CACHE="+filepath.Join(t.TempDir(), "thumbs"))
 			run := func(input string, args ...string) {
 				t.Helper()
 				// #nosec G204 -- test-owned binary with fixed test call-site arguments; no shell execution.
@@ -111,6 +111,7 @@ func TestActualProcessSmoke(t *testing.T) {
 			}
 			run("", "migrate")
 			run(password+"\n", "init-admin", "--username", "smoke", "--email", "smoke@example.com")
+			run("", "init-local", "--root", filepath.Join(t.TempDir(), "objects"))
 			start := func() (string, func()) {
 				t.Helper()
 				cmd := exec.Command(binary, "serve")
@@ -216,6 +217,7 @@ func TestActualProcessSmoke(t *testing.T) {
 				t.Fatal("process login returned no token")
 			}
 			call(origin, "GET", "/api/auth/me", "", login.Token, 200)
+			processImageSmoke(t, binary, origin, login.Token, environ, client, call)
 			stop()
 			origin, stop = start()
 			call(origin, "GET", "/api/auth/me", "", login.Token, 200)

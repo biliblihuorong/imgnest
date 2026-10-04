@@ -22,7 +22,10 @@ func TestMigrateFreshDatabase(t *testing.T) {
 		if err := Up(t.Context(), db, driver); err != nil {
 			t.Fatal(err)
 		}
-		for _, table := range []string{"groups", "users", "tokens", "settings", "schema_migrations"} {
+		for _, table := range []string{
+			"groups", "users", "tokens", "settings", "schema_migrations",
+			"storages", "policies", "group_policies", "albums", "images", "image_exif",
+		} {
 			var count int
 			if err := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
 				t.Fatalf("table %s unavailable: %v", table, err)
@@ -132,8 +135,8 @@ func TestConcurrentMigrations(t *testing.T) {
 		if err := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 			t.Fatal(err)
 		}
-		if count != 1 {
-			t.Fatalf("concurrent migrations recorded %d versions, want 1", count)
+		if count != 2 {
+			t.Fatalf("concurrent migrations recorded %d versions, want 2", count)
 		}
 	})
 }
@@ -184,7 +187,7 @@ func TestCheckPendingAndUnknownVersion(t *testing.T) {
 		if err := Up(t.Context(), db, driver); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.ExecContext(t.Context(), "UPDATE schema_migrations SET version = 99"); err != nil {
+		if _, err := db.ExecContext(t.Context(), "UPDATE schema_migrations SET version = 99 WHERE version = 1"); err != nil {
 			t.Fatal(err)
 		}
 		if err := Check(t.Context(), db, driver); err == nil {
@@ -194,6 +197,60 @@ func TestCheckPendingAndUnknownVersion(t *testing.T) {
 			t.Fatal("up accepted future migration")
 		}
 	})
+}
+
+func TestMigrateM1ToImageCore(t *testing.T) {
+	forEachDatabase(t, func(t *testing.T, db *sql.DB, driver string) {
+		scripts, err := manifest(driver)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := up(t.Context(), db, driver, scripts[:1]); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(t.Context(), `INSERT INTO users
+			(username,email,password_hash,role,group_id,status,used_bytes)
+			VALUES ('existing','existing@example.com','digest','user',1,'enabled',17)`); err != nil {
+			t.Fatal(err)
+		}
+		if err := Up(t.Context(), db, driver); err != nil {
+			t.Fatal(err)
+		}
+		var used int64
+		if err := db.QueryRowContext(t.Context(), "SELECT used_bytes FROM users WHERE username='existing'").Scan(&used); err != nil {
+			t.Fatal(err)
+		}
+		if used != 17 {
+			t.Fatalf("M1 user changed during upgrade: used=%d", used)
+		}
+		var table bool
+		if err := testTableExists(t.Context(), db, driver, "images").Scan(&table); err != nil {
+			t.Fatal(err)
+		}
+		if !table {
+			t.Fatal("M1 upgrade did not create images")
+		}
+		if err := Check(t.Context(), db, driver); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestM1MigrationChecksumsRemainUnchanged(t *testing.T) {
+	for driver, want := range map[string]string{
+		"sqlite":   "90ef153625f486a1b7a808373a0f09523f24aa9083c0d67f3c400e8c21fc3248",
+		"postgres": "e78d55e4dc05286d199428f59fbd9d42a806bdcb5fe212c3123da8aa70d24b19",
+	} {
+		t.Run(driver, func(t *testing.T) {
+			scripts, err := manifest(driver)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := scripts[0].checksum(); got != want {
+				t.Fatalf("published 0001 changed: checksum=%s", got)
+			}
+		})
+	}
 }
 
 func TestMigrationCancelledContext(t *testing.T) {

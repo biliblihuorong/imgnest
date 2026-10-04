@@ -66,3 +66,14 @@ Not scrubbed in v1 (EXIF is an `iloc`-addressed item inside ISOBMFF). Policy
 4. Test fixtures: iPhone HEIC→JPEG export, Android JPEG, Sony/Canon/Nikon
    JPEG, Lightroom export with XMP GPS, PNG screenshot with eXIf, WebP from
    cwebp with `-metadata all`.
+
+M2 actual evidence uses synthetic metadata/native-generated codecs: GPS,
+identity/MakerNote/XMP, multiple blocks, post-SOS JPEG metadata, PNG CRC, GIF
+XMP, TIFF pixel aliases, missing terminators and ISOBMFF item extent bounds.
+The camera exports above remain future fixtures and are not claimed tested.
+
+Classic TIFF metadata is archived by reachable IFD/value ranges, with explicit
+20MiB full-source-fallback only for opaque private layouts; enabled original
+scrub rejects unsupported layouts. BigTIFF rejects. HEIC/AVIF capture supports
+iinfv2/v3, iloc0/1/2 and data construction0/1; unsupported layouts reject.
+Owner/admin raw is never embedded in ImageView or thumbnail responses.

@@ -94,6 +94,18 @@ func TestOutOfRangeIDsAreAbsent(t *testing.T) {
 	})
 }
 
+func TestTokenGrantRejectsExplicitOtherActor(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		first, _, tokens := grantFixture(t, db, "grantactor")
+		other, _, _ := grantFixture(t, db, "granttarget")
+		grant := testGrant(first.PasswordHash)
+		grant.UserID = first.ID
+		if _, err := tokens.CreateToken(t.Context(), testToken(other.ID), grant); !errors.Is(err, model.ErrUnauthenticated) {
+			t.Fatalf("explicit grant actor was ignored: %v", err)
+		}
+	})
+}
+
 func TestTokenGrantRejectsChangedCredentials(t *testing.T) {
 	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
 		for _, scenario := range []string{"password", "disabled", "revoked", "expired", "foreign"} {

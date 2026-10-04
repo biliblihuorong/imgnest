@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
   title: ImgNest Native API
-  version: M1
+  version: M2
   description: |
-    M1 account and token API. Every response uses the native
+    Account, token, and image API. Every API response uses the native
     `{code, message, data}` envelope. Success has code 0 and message `ok`;
     failures have a nonzero business code and data `null`.
     Response timestamps are UTC RFC3339. Passwords, credential hashes,
@@ -12,6 +12,7 @@ info:
     JSON request bodies are limited to 64 KiB. Malformed JSON, additional
     fields, multiple JSON values, and trailing non-whitespace data are
     rejected with HTTP 400 and code 10001.
+    Image bodies at /i and /t use binary responses instead of this envelope.
 servers:
   - url: /
     description: Current ImgNest origin
@@ -19,6 +20,8 @@ tags:
   - name: Health
   - name: Authentication
   - name: Tokens
+  - name: Images
+  - name: Trash
 paths:
   /healthz:
     get:
@@ -263,7 +266,346 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/upload:
+    post:
+      operationId: uploadImages
+      tags: [Images]
+      summary: Upload one or more images with independent compensation
+      description: |
+        Requires a valid bearer token. Authentication and default-group upload
+        preflight happen before the request body is read. Multipart parts are
+        read into bounded memory; source images are never spooled to temporary
+        files. Metadata fields may occur before or after file parts, but may
+        not be repeated. Unknown fields are rejected. The selected policy is
+        checked again before processing. Real image format is detected from
+        bytes by the shared image service, not from filenames or Content-Type.
+        Defaults: 64 MiB total request, at most 20 files, two concurrent upload
+        requests, five-minute request deadline. Group and deployment file caps
+        also apply. File-level failures do not roll back successful siblings.
+        A single file returns its ImageView with HTTP 201 or a normal error;
+        multiple files return HTTP 207 with one result per file, in input order.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              anyOf:
+                - required: [file]
+                - required: ['files[]']
+              properties:
+                file:
+                  type: array
+                  minItems: 1
+                  maxItems: 20
+                  items: {type: string, format: binary}
+                  description: Repeat the file part for multiple images; file or files[] is required.
+                'files[]':
+                  type: array
+                  minItems: 1
+                  maxItems: 20
+                  items: {type: string, format: binary}
+                  description: Alternative repeatable file-part name.
+                policy_id:
+                  $ref: '#/components/schemas/ID'
+                album_id:
+                  $ref: '#/components/schemas/ID'
+                is_public:
+                  type: boolean
+                  default: false
+                  description: Multipart text must be exactly true or false.
+      responses:
+        '201':
+          description: One image committed, including all declared variants.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageEnvelope'}
+        '207':
+          description: Per-file results; inspect every item's status and code.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageBatchEnvelope'}
+        '413':
+          description: Request or file exceeds its byte limit; code 10002.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '408':
+          description: Request canceled or upload deadline exceeded; code 10004.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/images:
+    get:
+      operationId: listImages
+      tags: [Images]
+      summary: List the authenticated user's active images
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/ImagePageNumber'
+        - $ref: '#/components/parameters/ImagePageSize'
+      responses:
+        '200':
+          description: Image page without EXIF, source IP, or storage credentials.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImagePageEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/images/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ImageID'
+    get:
+      operationId: getImage
+      tags: [Images]
+      summary: Read an owner-authorized image
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Image metadata without EXIF.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+    patch:
+      operationId: setImageVisibility
+      tags: [Images]
+      summary: Change public-list visibility
+      description: Private images remain accessible to anyone holding their direct object link.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [is_public]
+              properties:
+                is_public: {type: boolean}
+      responses:
+        '200':
+          description: Updated image.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+    delete:
+      operationId: trashImage
+      tags: [Images]
+      summary: Move an image into the recycle bin
+      description: Successful completion removes the original keys from the origin; CDN cache purging is outside this contract.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Image moved to trash; data is null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NullEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/images/{id}/exif:
+    get:
+      operationId: getImageExif
+      tags: [Images]
+      summary: Read full owner/admin metadata, including GPS
+      description: This authenticated endpoint is the only image API returning GPS and raw metadata.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/ImageID'
+      responses:
+        '200':
+          description: Private metadata; response is not cached.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageExifEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/images/batch:
+    post:
+      operationId: batchImages
+      tags: [Images]
+      summary: Delete images or change their visibility individually
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [action, ids]
+              properties:
+                action: {type: string, enum: [delete, permission]}
+                ids: {$ref: '#/components/schemas/ImageIDs'}
+                is_public:
+                  type: boolean
+                  description: Required for permission; must be omitted for delete.
+      responses:
+        '207':
+          description: Per-ID status, preserving the requested ID order.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageBatchEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/trash:
+    get:
+      operationId: listTrash
+      tags: [Trash]
+      summary: List the authenticated user's recycle bin
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/ImagePageNumber'
+        - $ref: '#/components/parameters/ImagePageSize'
+      responses:
+        '200':
+          description: Recycle-bin page with retained local thumbnail references.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImagePageEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/trash/restore:
+    post:
+      operationId: restoreImages
+      tags: [Trash]
+      summary: Restore selected images to their original paths
+      description: Authorization and current capacity are rechecked before activation.
+      security: [{bearerAuth: []}]
+      requestBody:
+        $ref: '#/components/requestBodies/ImageSelection'
+      responses:
+        '207':
+          description: Per-ID restore results; successful data is null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageBatchEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/trash/purge:
+    post:
+      operationId: purgeImages
+      tags: [Trash]
+      summary: Permanently remove selected trashed images
+      description: Removes owned object history and deletion markers before releasing the image path reservation.
+      security: [{bearerAuth: []}]
+      requestBody:
+        $ref: '#/components/requestBodies/ImageSelection'
+      responses:
+        '207':
+          description: Per-ID purge results; successful data is null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageBatchEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /i/{storageID}/{key}:
+    parameters:
+      - name: storageID
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ID'}
+      - name: key
+        in: path
+        required: true
+        description: Canonical object key, possibly containing slash-separated path segments, with its extension.
+        schema: {type: string}
+    get:
+      operationId: getLocalImageObject
+      tags: [Images]
+      summary: Read an active local object using its direct link
+      description: Private display visibility does not restrict direct links. Pending, deleted, and undeclared objects return 404.
+      security: []
+      responses:
+        '200':
+          description: Raw image bytes with Content-Length and the detected image MIME type.
+          content:
+            image/*:
+              schema: {type: string, format: binary}
+        '302':
+          description: Requested WebP was skipped; Location points to the stored original.
+          headers:
+            Location: {schema: {type: string}}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+    head:
+      operationId: headLocalImageObject
+      tags: [Images]
+      summary: Read local-object headers without its body
+      security: []
+      responses:
+        '200': {description: Image headers without bytes.}
+        '302': {description: WebP fallback redirect.}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /t/{key}.webp:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        description: Stable opaque image key, excluding the .webp suffix.
+        schema: {type: string}
+    get:
+      operationId: getImageThumbnail
+      tags: [Images]
+      summary: Read or lazily refill the local thumbnail cache
+      description: Public thumbnails allow anonymous requests. Private thumbnails require the owner or an administrator. A supplied invalid Bearer token is rejected.
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Raw WebP thumbnail, without metadata.
+          content:
+            image/webp:
+              schema: {type: string, format: binary}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+    head:
+      operationId: headImageThumbnail
+      tags: [Images]
+      summary: Read authorized thumbnail headers without its body
+      security:
+        - {}
+        - bearerAuth: []
+      responses:
+        '200': {description: Thumbnail headers without bytes.}
+        default:
+          $ref: '#/components/responses/ImageFailure'
 components:
+  parameters:
+    ImageID:
+      name: id
+      in: path
+      required: true
+      description: Authenticated native numeric image identifier.
+      schema: {$ref: '#/components/schemas/ID'}
+    ImagePageNumber:
+      name: page
+      in: query
+      schema: {type: integer, minimum: 1, default: 1}
+    ImagePageSize:
+      name: size
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+  requestBodies:
+    ImageSelection:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [ids]
+            properties:
+              ids: {$ref: '#/components/schemas/ImageIDs'}
   securitySchemes:
     bearerAuth:
       type: http
@@ -275,6 +617,126 @@ components:
         alphanumeric characters. Expired or revoked tokens and tokens
         owned by disabled users are rejected with 401/code 20001.
   schemas:
+    ImageIDs:
+      type: array
+      minItems: 1
+      maxItems: 100
+      uniqueItems: true
+      items: {$ref: '#/components/schemas/ID'}
+    ImageLinks:
+      type: object
+      additionalProperties: false
+      required: [url, original, webp, thumbnail_url]
+      properties:
+        url: {type: string, description: Preferred available version.}
+        original: {type: string, description: Empty if no original is stored.}
+        webp: {type: string, description: Empty if no WebP is stored.}
+        thumbnail_url: {type: string, description: Cloud thumbnail URL or an empty string.}
+    ImageView:
+      type: object
+      additionalProperties: false
+      description: Safe image metadata; never contains EXIF, GPS, source IP, provider credentials, or operation internals.
+      required: [id, key, user_id, album_id, policy_id, storage_id, name, ext, mime, size, webp_size, charged_bytes, width, height, frames, has_original, has_webp, has_thumb, scrubbed, is_public, md5, sha1, src_md5, links, local_thumb_url, deleted_at, purge_at, created_at]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        key: {type: string, description: Stable opaque public image identity.}
+        user_id: {$ref: '#/components/schemas/ID'}
+        album_id: {type: integer, format: int64, minimum: 0, description: Zero when no album is selected.}
+        policy_id: {$ref: '#/components/schemas/ID'}
+        storage_id: {$ref: '#/components/schemas/ID'}
+        name: {type: string, description: Original client filename; not used for format detection.}
+        ext: {type: string}
+        mime: {type: string}
+        size: {type: integer, format: int64, minimum: 0, description: Stored primary-object bytes.}
+        webp_size: {type: integer, format: int64, minimum: 0}
+        charged_bytes: {type: integer, format: int64, minimum: 0, description: Unique cloud-object bytes including cloud thumbnail; excludes local cache.}
+        width: {type: integer, minimum: 1}
+        height: {type: integer, minimum: 1}
+        frames: {type: integer, minimum: 1}
+        has_original: {type: boolean}
+        has_webp: {type: boolean}
+        has_thumb: {type: boolean}
+        scrubbed: {type: boolean}
+        is_public: {type: boolean, description: Controls display visibility; direct links remain accessible.}
+        md5: {type: string, description: MD5 of the stored primary object's exact bytes.}
+        sha1: {type: string, description: SHA-1 of the stored primary object's exact bytes.}
+        src_md5: {type: string, description: MD5 of the original uploaded bytes before sanitization.}
+        links: {$ref: '#/components/schemas/ImageLinks'}
+        local_thumb_url: {type: string}
+        deleted_at: {$ref: '#/components/schemas/NullableTimestamp'}
+        purge_at: {$ref: '#/components/schemas/NullableTimestamp'}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+    ImagePage:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/ImageView'}}
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        size: {type: integer, minimum: 1, maximum: 100}
+    ImageExif:
+      type: object
+      additionalProperties: false
+      required: [image_id, make, model, lens, exposure, f_number, focal_length, iso, orientation, taken_at, gps_lat, gps_lng, gps_alt, raw, created_at, updated_at]
+      properties:
+        image_id: {$ref: '#/components/schemas/ID'}
+        make: {type: string}
+        model: {type: string}
+        lens: {type: string}
+        exposure: {type: string}
+        f_number: {type: string}
+        focal_length: {type: string}
+        iso: {type: integer}
+        orientation: {type: integer}
+        taken_at: {$ref: '#/components/schemas/NullableTimestamp'}
+        gps_lat: {type: number, nullable: true}
+        gps_lng: {type: number, nullable: true}
+        gps_alt: {type: number, nullable: true}
+        raw: {type: object, additionalProperties: true, description: Complete private metadata archive, including original blocks.}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+    ImageBatchItem:
+      type: object
+      additionalProperties: false
+      required: [status, code, message, data]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        filename: {type: string, description: Present for upload results.}
+        status: {type: integer, description: HTTP-equivalent status for this item.}
+        code: {type: integer, description: Zero on success; otherwise an application error code.}
+        message: {type: string}
+        data:
+          description: ImageView for successful uploads/visibility updates; null for deletion/restoration/purge or failures.
+          oneOf:
+            - $ref: '#/components/schemas/ImageView'
+            - $ref: '#/components/schemas/NullData'
+    ImageEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ImageView'}
+    ImagePageEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ImagePage'}
+    ImageExifEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ImageExif'}
+    ImageBatchEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: {$ref: '#/components/schemas/ImageBatchItem'}
     ID:
       type: integer
       format: int64
@@ -533,13 +995,25 @@ components:
       properties:
         code:
           type: integer
-          enum: [10001, 20001, 20002, 20003, 30001, 30002, 30003, 50001]
+          enum: [10001, 10002, 10004, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 50001, 50002, 50003]
         message:
           type: string
           description: Human-readable error message without technical or credential details.
         data:
           $ref: '#/components/schemas/NullData'
   responses:
+    ImageFailure:
+      description: |
+        Native error envelope. 400/10001 invalid input; 401/20001 missing or
+        revoked authentication; 403/20003 forbidden; 404/10001 missing image;
+        413/10002 byte limit; 408/10004 cancellation/deadline; 429/30003 upload
+        rate; 403/30004 quota; 409/30005 path conflict; 409/30006 in-progress
+        image operation; 415/30007 disallowed format; 502/50002 storage failure;
+        422/50003 processing or privacy-sanitization failure; 500/50001 other
+        internal failure. No private source data or provider diagnostics are returned.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     InvalidInput:
       description: Invalid JSON, unknown fields, invalid path ID, or invalid input; code 10001.
       content:

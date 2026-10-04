@@ -5,7 +5,7 @@
 
 > 注意：核对时 npm 与 Go 官方代理在我这边不可访问，所以这里只验证了「tag 存在 + 依赖声明兼容」。第一次 `pnpm install` / `go mod tidy` 时请确认能装上，然后提交 `pnpm-lock.yaml` 与 `go.sum`，以锁文件为准。
 
-M1 执行补充：官方注册表元数据可访问；本阶段 Go 依赖已安装并执行 tidy/verify，实际选择记录在 `go.mod` / `go.sum`。未使用的前端、AWS SDK、libvips 等模块仍待各阶段首次安装/编译验收；没有擅自升级直接依赖。
+执行补充：官方注册表元数据可访问；M1/M2 实际选择记录在 `go.mod` / `go.sum`。AWS SDK、imagemeta、vipsgen 已安装并实际链接固定 libvips，前端仍待 M3 安装；没有升级已锁定直接依赖。M2 显式使用 SDK 自带错误类型，因此 smithy-go v1.28.1 从 SDK 的间接依赖提升为直接依赖；x/sync v0.23.0 由 tidy 保留为间接依赖。
 
 ## 工具链
 
@@ -15,7 +15,7 @@ M1 执行补充：官方注册表元数据可访问；本阶段 Go 依赖已安�
 | Node.js | 24.21.0（LTS） | vitest 5 要求 `^22.12 \|\| ^24 \|\| >=26`；`.nvmrc` 写 `24.21.0` |
 | pnpm | 12.9.1 | `package.json` 写 `"packageManager": "pnpm@12.9.1"` |
 | libvips | 8.18.6 | 与 `vipsgen/vips` 包对应，必须一致 |
-| Docker 基础镜像 | `ghcr.io/cshum/imagor-base:vips8.18.6-r14`（运行）/ `-dev`（构建） | 方案 A，见 spec 3.1 |
+| Docker 基础镜像 | `ghcr.io/cshum/imagor-base:vips8.18.6-r14`（运行）/ `-dev`（构建） | M2 dev 镜像基于 -dev 重编同版本 vips，启用 BMP 所需 Magick；见下文 |
 | golangci-lint | v2.14.0 | 配置文件用 v2 格式 |
 
 ## Go 依赖
@@ -32,6 +32,7 @@ M1 执行补充：官方注册表元数据可访问；本阶段 Go 依赖已安�
 | github.com/aws/aws-sdk-go-v2/config | v1.33.6 | |
 | github.com/aws/aws-sdk-go-v2/credentials | v1.20.6 | |
 | github.com/aws/aws-sdk-go-v2/service/s3 | v1.114.0 | 校验和设为 `WhenRequired` |
+| github.com/aws/smithy-go | v1.28.1 | 固定 SDK 所选错误类型依赖，M2 显式导入 |
 | github.com/knadh/koanf/v2 | v2.3.7 | 配置；子模块见下 |
 | github.com/knadh/koanf/providers/file | v1.2.1 | |
 | github.com/knadh/koanf/providers/env/v2 | v2.0.1 | |
@@ -140,4 +141,6 @@ require (
 | --- | --- | --- |
 | PostgreSQL | 18.6（18 系列最新） | 主力；EXIF `raw` 用 JSONB。19 目前还是 beta，先不用 |
 | SQLite | 跟随 mattn/go-sqlite3 内置版本 | 开 WAL + `busy_timeout`，单写连接 |
-| MinIO | 最新稳定版 | 仅用于 S3 驱动集成测试 |
+| MinIO | RELEASE.2025-10-15T17-29-55Z | 官方正式源码 tag；提交9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a，隔离测试专用 |
+
+M2 的实际 native 验证为 Go1.27.1 / vips8.18.6。原 imagor-base 禁用了 Magick，无法加载有效 BMP；开发 Dockerfile 使用官方 vips8.18.6 tarball（SHA256 `3c41e1d5458081bfa4a5bc54e116c46259c75c6760a18027764555632b9dda3e`）重编，保持版本并启用 Magick。构建工具来自镜像 Ubuntu noble：meson1.3.2-1ubuntu1、ninja-build1.11.1-2；它们不属于产品 Go 依赖。实际使用 jemalloc，关闭 libvips 操作缓存。M2 验收覆盖当前 Docker Linux amd64；arm64 发布镜像属于后续发布关口。

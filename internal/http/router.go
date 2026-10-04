@@ -15,13 +15,18 @@ import (
 
 // Dependencies are the application capabilities consumed by the HTTP layer.
 type Dependencies struct {
-	Users  native.UserService
-	Tokens native.TokenService
-	Logger *slog.Logger
-	Server config.Server
-	Now    func() time.Time
-	Health func(context.Context) error
+	Users        native.UserService
+	Tokens       native.TokenService
+	Logger       *slog.Logger
+	Server       config.Server
+	Now          func() time.Time
+	Health       func(context.Context) error
+	Images       native.ImageService
+	ImageOptions native.ImageOptions
 }
+
+// ImageOptions configures bounded native image uploads.
+type ImageOptions = native.ImageOptions
 
 // NewRouter constructs the native API without depending on a concrete repository.
 func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) {
@@ -64,6 +69,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	}
 	if err := handler.RegisterRoutes(ctx, router); err != nil {
 		return nil, fmt.Errorf("register native routes: %w", err)
+	}
+	if deps.Images != nil {
+		if err := handler.RegisterImageRoutes(ctx, router, deps.Images, deps.ImageOptions); err != nil {
+			return nil, fmt.Errorf("register image routes: %w", err)
+		}
 	}
 	router.GET("/healthz", func(c *gin.Context) {
 		if err := deps.Health(c.Request.Context()); err != nil {

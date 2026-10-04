@@ -2,10 +2,10 @@ COMPOSE = docker compose -f deploy/compose.dev.yaml
 
 .PHONY: test test-integration build help migrate serve lint
 test:
-	$(COMPOSE) up -d --wait postgres
+	$(COMPOSE) up -d --wait postgres minio
 	$(COMPOSE) run --rm dev go test -race ./...
 test-integration:
-	$(COMPOSE) up -d --wait postgres
+	$(COMPOSE) up -d --wait postgres minio
 	$(COMPOSE) run --rm dev go test -race -count=1 ./...
 build:
 	$(COMPOSE) run --rm dev go build -trimpath -o bin/imgnest ./cmd/imgnest

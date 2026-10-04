@@ -1,16 +1,16 @@
 # ImgNest
 
-Go + Vue 3 自研图床项目。当前已实现 M1 后端基础：配置、SQLite/PostgreSQL 版本化迁移、用户与 Token 鉴权、原生 API 和 CLI。图片上传、WebP 与 Vue 页面在后续里程碑实现。
+Go + Vue 3 自研图床项目。当前已实现 M1/M2 后端：SQLite/PostgreSQL、用户与 Token、本机/S3 存储、同步图片上传、WebP、双缩略图、完整本地元数据、无损隐私清理和可恢复回收站。Vue 页面、蓝空 v1 兼容及完整管理后台属于后续里程碑。
 
-运行与验证步骤见 [开发说明](docs/development.md)，接口契约见 [OpenAPI](docs/openapi.yaml)，本批记录见 [M1 progress](docs/planning/m1-progress.md)。仓库保留锁定的版本矩阵、33 个 AI Skill 与许可证说明。
+运行与验证步骤见 [开发说明](docs/development.md)，接口契约见 [OpenAPI](docs/openapi.yaml)，本批记录见 [M2 progress](docs/planning/m2-progress.md)，基础阶段见 [M1 progress](docs/planning/m1-progress.md)。仓库保留锁定的版本矩阵、33 个 AI Skill 与许可证说明。
 
 ## 目录
 
 ```text
 imgnest-dev-kit/
-├─ cmd/imgnest/              # serve / migrate / init-admin / reset-password
-├─ internal/                 # config / model / repo / migrate / service / http / cli
-├─ deploy/                   # Go 开发容器、PG 测试服务、配置示例
+├─ cmd/imgnest/              # 服务、迁移、账户与存储/规则初始化 CLI
+├─ internal/                 # 分层业务、存储、libvips、元数据与安全路径
+├─ deploy/                   # 固定 Go/libvips 开发镜像、PG/MinIO 测试服务
 ├─ go.mod / go.sum           # 已验证的后端依赖
 ├─ AGENTS.md                  # AI 协作说明（Codex、Cursor 等通用）
 ├─ CLAUDE.md                  # Claude Code 入口，引用 AGENTS.md
@@ -40,7 +40,7 @@ imgnest-dev-kit/
 
 ## 开工准备
 
-开工前检查见 [开工审查](docs/planning/2026-10-04-readiness.md)，已确认的任务见 [M1 实施计划](docs/superpowers/plans/2026-10-04-m1-foundation.md)。当前进度与实际验证结果在 M1 progress 中记录。
+开工前检查见 [开工审查](docs/planning/2026-10-04-readiness.md)，当前计划见 [M2 实施计划](docs/superpowers/plans/2026-10-04-m2-image-core.md)。实际验证结果和已知范围在 M2 progress 中记录。
 
 ## 更新 Skill
 

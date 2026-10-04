@@ -3,6 +3,7 @@ package config
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
@@ -26,6 +27,13 @@ var environmentKeys = map[string]string{
 	"IMGNEST_SERVER_TRUSTED_PROXIES":     "server.trusted_proxies",
 	"IMGNEST_SERVER_READ_HEADER_TIMEOUT": "server.read_header_timeout",
 	"IMGNEST_SERVER_SHUTDOWN_TIMEOUT":    "server.shutdown_timeout",
+	"IMGNEST_SERVER_MAX_UPLOAD_MB":       "server.max_upload_mb",
+	"IMGNEST_SERVER_MAX_REQUEST_MB":      "server.max_request_mb",
+	"IMGNEST_SERVER_UPLOAD_CONCURRENCY":  "server.upload_concurrency",
+	"IMGNEST_SERVER_PROCESSING_TIMEOUT":  "server.processing_timeout",
+	"IMGNEST_SERVER_MAX_PIXELS":          "server.max_pixels",
+	"IMGNEST_IMAGES_THUMB_CACHE":         "images.thumb_cache",
+	"IMGNEST_SECURITY_MASTER_KEY":        "security.master_key",
 	"IMGNEST_DATABASE_DRIVER":            "database.driver",
 	"IMGNEST_DATABASE_DSN":               "database.dsn",
 	"IMGNEST_DATABASE_MAX_OPEN":          "database.max_open",
@@ -38,6 +46,8 @@ var environmentKeys = map[string]string{
 type Config struct {
 	Server   Server
 	Database Database
+	Images   Images
+	Security Security
 }
 
 // Server configures HTTP serving and graceful shutdown.
@@ -46,7 +56,18 @@ type Server struct {
 	TrustedProxies    []string
 	ReadHeaderTimeout time.Duration
 	ShutdownTimeout   time.Duration
+	MaxUploadMB       int
+	MaxRequestMB      int
+	UploadConcurrency int
+	ProcessingTimeout time.Duration
+	MaxPixels         int
 }
+
+// Images configures the replaceable local preview cache.
+type Images struct{ ThumbCache string }
+
+// Security contains the deployment key used for encrypted cloud credentials.
+type Security struct{ MasterKey string }
 
 // Database configures the selected database and its connection pool.
 type Database struct {
@@ -80,7 +101,7 @@ func Load(ctx context.Context, path string, environ []string) (Config, error) {
 			// YAML diagnostics may quote DSNs, so do not retain their raw error.
 			return Config{}, fmt.Errorf("parse configuration YAML: %w", errInvalid)
 		}
-		for _, section := range []string{"server", "database"} {
+		for _, section := range []string{"server", "database", "images", "security"} {
 			if k.Exists(section) {
 				if _, ok := k.Get(section).(map[string]any); !ok {
 					return Config{}, invalid(section, "must be a mapping")
@@ -137,6 +158,13 @@ func Load(ctx context.Context, path string, environ []string) (Config, error) {
 		"server.trusted_proxies":     []string{},
 		"server.read_header_timeout": "5s",
 		"server.shutdown_timeout":    "10s",
+		"server.max_upload_mb":       20,
+		"server.max_request_mb":      64,
+		"server.upload_concurrency":  2,
+		"server.processing_timeout":  "5m",
+		"server.max_pixels":          100000000,
+		"images.thumb_cache":         "data/thumbs",
+		"security.master_key":        "",
 		"database.driver":            driver,
 		"database.dsn":               "data/imgnest.db",
 		"database.max_open":          1,
@@ -182,6 +210,8 @@ func decode(k *koanf.Koanf) (Config, error) {
 		{key: "server.addr", value: &cfg.Server.Addr},
 		{key: "database.driver", value: &cfg.Database.Driver},
 		{key: "database.dsn", value: &cfg.Database.DSN},
+		{key: "images.thumb_cache", value: &cfg.Images.ThumbCache},
+		{key: "security.master_key", value: &cfg.Security.MasterKey},
 	} {
 		value, ok := k.Get(field.key).(string)
 		if !ok {
@@ -195,6 +225,10 @@ func decode(k *koanf.Koanf) (Config, error) {
 	}{
 		{key: "database.max_open", value: &cfg.Database.MaxOpen},
 		{key: "database.max_idle", value: &cfg.Database.MaxIdle},
+		{key: "server.max_upload_mb", value: &cfg.Server.MaxUploadMB},
+		{key: "server.max_request_mb", value: &cfg.Server.MaxRequestMB},
+		{key: "server.upload_concurrency", value: &cfg.Server.UploadConcurrency},
+		{key: "server.max_pixels", value: &cfg.Server.MaxPixels},
 	} {
 		switch value := k.Get(field.key).(type) {
 		case int:
@@ -217,6 +251,7 @@ func decode(k *koanf.Koanf) (Config, error) {
 		{key: "server.shutdown_timeout", value: &cfg.Server.ShutdownTimeout},
 		{key: "database.max_lifetime", value: &cfg.Database.MaxLifetime},
 		{key: "database.busy_timeout", value: &cfg.Database.BusyTimeout},
+		{key: "server.processing_timeout", value: &cfg.Server.ProcessingTimeout},
 	} {
 		value, ok := k.Get(field.key).(string)
 		if !ok {
@@ -247,6 +282,30 @@ func decode(k *koanf.Koanf) (Config, error) {
 }
 
 func validate(cfg Config) error {
+	if cfg.Server.MaxUploadMB < 1 || cfg.Server.MaxUploadMB > 20 {
+		return invalid("server.max_upload_mb", "must be between 1 and 20")
+	}
+	if cfg.Server.MaxRequestMB < cfg.Server.MaxUploadMB || cfg.Server.MaxRequestMB > 256 {
+		return invalid("server.max_request_mb", "must cover one file and be at most 256")
+	}
+	if cfg.Server.UploadConcurrency < 1 || cfg.Server.UploadConcurrency > 64 {
+		return invalid("server.upload_concurrency", "must be between 1 and 64")
+	}
+	if cfg.Server.MaxPixels < 1 || cfg.Server.MaxPixels > 100000000 {
+		return invalid("server.max_pixels", "must be between 1 and 100000000")
+	}
+	if cfg.Server.ProcessingTimeout <= 0 || cfg.Server.ProcessingTimeout > 30*time.Minute {
+		return invalid("server.processing_timeout", "must be positive and at most 30m")
+	}
+	if strings.TrimSpace(cfg.Images.ThumbCache) == "" {
+		return invalid("images.thumb_cache", "must not be empty")
+	}
+	if cfg.Security.MasterKey != "" {
+		key, err := base64.StdEncoding.DecodeString(cfg.Security.MasterKey)
+		if err != nil || len(key) != 32 {
+			return invalid("security.master_key", "must encode exactly 32 bytes")
+		}
+	}
 	_, port, err := net.SplitHostPort(cfg.Server.Addr)
 	if err != nil {
 		return invalid("server.addr", "must be a host and port")

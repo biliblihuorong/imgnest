@@ -22,7 +22,7 @@ func commandConfig(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	dsn := filepath.Join(t.TempDir(), "cli.db")
-	contents := "database:\n  driver: sqlite\n  dsn: " + dsn + "\nserver:\n  addr: 127.0.0.1:8080\n"
+	contents := "database:\n  driver: sqlite\n  dsn: " + dsn + "\nserver:\n  addr: 127.0.0.1:8080\nimages:\n  thumb_cache: " + filepath.Join(t.TempDir(), "thumbs") + "\n"
 	if err := os.WriteFile(path, []byte(contents), 0600); err != nil {
 		t.Fatal(err)
 	}

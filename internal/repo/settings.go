@@ -57,6 +57,25 @@ func (r *SettingsRepository) DefaultGroupID(ctx context.Context) (uint64, error)
 	return id, nil
 }
 
+// TrashDays returns the bounded, nonnegative retention period for image lifecycle operations.
+func (r *SettingsRepository) TrashDays(ctx context.Context) (int, error) {
+	setting, err := r.find(ctx, "trash_days")
+	if err != nil {
+		return 0, err
+	}
+	var days *int64
+	if err := json.Unmarshal(setting.Value, &days); err != nil {
+		return 0, fmt.Errorf("decode trash retention: %w", model.ErrInvalidInput)
+	}
+	if days == nil {
+		return 0, fmt.Errorf("decode trash retention: %w", model.ErrInvalidInput)
+	}
+	if *days < 0 || *days > 36500 {
+		return 0, fmt.Errorf("decode trash retention: %w", model.ErrInvalidInput)
+	}
+	return int(*days), nil
+}
+
 func (r *SettingsRepository) find(ctx context.Context, key string) (model.Setting, error) {
 	var setting model.Setting
 	if err := r.db.WithContext(ctx).First(&setting, "key = ?", key).Error; err != nil {

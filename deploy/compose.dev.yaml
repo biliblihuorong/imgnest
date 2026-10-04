@@ -11,7 +11,12 @@ services:
       - go-build:/root/.cache/go-build
     environment:
       GIN_MODE: release
+      GOPATH: /go
+      GOMODCACHE: /go/pkg/mod
       IMGNEST_TEST_POSTGRES_DSN: host=postgres user=imgnest dbname=imgnest_test sslmode=disable
+      IMGNEST_TEST_S3_ENDPOINT: http://minio:9000
+      IMGNEST_TEST_S3_ACCESS_KEY: imgnest-test
+      IMGNEST_TEST_S3_SECRET_KEY: isolated-test-only-secret
     ports:
       - "127.0.0.1:18080:8080"
   postgres:
@@ -27,6 +32,15 @@ services:
       retries: 30
     volumes:
       - postgres-test:/var/lib/postgresql
+  minio:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.minio-test
+    environment:
+      MINIO_ROOT_USER: imgnest-test
+      MINIO_ROOT_PASSWORD: isolated-test-only-secret
+    tmpfs:
+      - /data:mode=0700,uid=65532,gid=65532
 volumes:
   go-modules:
   go-build:

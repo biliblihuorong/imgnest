@@ -91,4 +91,4 @@ M2 不清理 CDN 已缓存内容，不把源站404等同于 CDN 全网即时失�
 - vipsgen1.3.11 的 GetBlob 路径将借用的 libvips blob 指针送进会 g_free 的 helper；由源码推断可能悬空/重复释放，尚未原生复现。在隔离所有权测试前禁用这条读取路径，优先直接解析上传容器。GetICCProfile 使用复制路径。锁定版本不擅自升级。[vipsgen包装](https://raw.githubusercontent.com/cshum/vipsgen/v1.3.11/vips/vips.go)、[释放helper](https://raw.githubusercontent.com/cshum/vipsgen/v1.3.11/vips/util.go)、[libvips header.c](https://raw.githubusercontent.com/libvips/libvips/v8.18.6/libvips/iofuncs/header.c)
 - imagemeta.Decode 不自动保留完整 XMP；loader-family Format 不能充分区分 AVIF/HEIC/BMP；加载帧数不能盲用文档总 Pages；WebP keep=0 是未设置、默认 Q75，必须明确项目 Q80、effort4 和 KeepIcc/KeepNone。[imagemeta入口](https://raw.githubusercontent.com/evanoberholster/imagemeta/v1.1.0/imagemeta.go)、[vipsgen](https://github.com/cshum/vipsgen/tree/v1.3.11/vips)
 
-设计核对阶段未写业务代码；用户确认后进入实施，实际命令与结果记录在 M2 progress。
+用户已确认并进入实施；当前实际契约补充以spec§8.2为准，命令与结果记录在 M2 progress。部署启用同版本Magick、原生数值ID、local owned-envelope、条件multipart copy、restore_cleanup/SHA256与生命周期锁等经过实际联调后已同步至规范。

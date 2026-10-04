@@ -35,6 +35,12 @@ checklist; if the two disagree, the spec wins and this file must be updated.
 11. **Compensate**: if any write or the transaction fails, delete every object
     already written in this request. Never leave orphans.
 
+Persist each object's SHA256 with its write intent. Foreground compensation,
+background cleanup, recycle-bin IO and preview-cache rebuilding share the
+single-instance lifecycle fence. Re-read state/operation after acquiring it;
+finish all physical IO before releasing a path. Old cache writes and second
+cleaners must never affect a replacement image at the same path.
+
 ## Object keys (path has no extension)
 
 | File | Key |
@@ -82,6 +88,9 @@ whitespace and `?#%&\:*"<>|` with `-`, keep CJK, ≤100 runes per segment,
 - Save with `WebpsaveBuffer` — defaults Q 80, effort 4, `Keep: KeepIcc` for
   WebP (drops EXIF/XMP/GPS), `Keep: KeepNone` for thumbnails.
 - Always `defer img.Close()`.
+- The pinned imagor-base disables Magick. Rebuild the same vips8.18.6 official
+  tarball with its fixed digest and Magick enabled for BMP; never upgrade
+  vips/vipsgen to hide a missing-loader failure.
 - Runtime env in the container: jemalloc via `LD_PRELOAD`,
   `MALLOC_ARENA_MAX=2`.
 
@@ -103,6 +112,12 @@ MakerNote identity payloads too. Reload and reparse scrubbed bytes; any failure
 rejects the upload. Never keep an unmodified original under an enabled scrub
 mode. WebP/thumbnails explicitly strip metadata; Keep(0) does not strip.
 
+Reject missing container terminators even if native decoders repair them.
+Opaque classic TIFF layouts may archive at most20MiB as explicit private
+full-source-fallback; enabled original scrub rejects unsupported layouts.
+BigTIFF and unsupported ISOBMFF layouts reject rather than lose metadata.
+M2 fixtures are synthetic/native-generated, not camera-brand samples.
+
 HEIC/AVIF: no in-place scrub in v1. `heif_mode`: `webp_only` (default) |
 `keep` | `reject`.
 
@@ -116,14 +131,20 @@ folder is a cache — safe to delete.
 ## Delete, restore, purge (recycle bin, default 7 days)
 
 - **Delete**: set `deleted_at`, `purge_at = now + trash.days`; server-side
-  `Copy` each object to `_trash/<key>` then `Delete` the original (local:
-  rename). The old URL must 404 immediately. Subtract `used_bytes` now.
+  copy to `_trash/<key>` then remove the original (local `.trash/<key>`).
+  Validate byte identity, not just owner+size. Source-already-gone recovery
+  stream-checks the target against persisted SHA256. Success requires the old
+  URL404. Subtract `used_bytes` once.
 - **Restore**: copy back, clear `deleted_at`. The row keeps holding its
   `(storage_id, path)` unique slot while in the bin, so restore never collides.
-- **Purge** (hourly job, or "delete permanently", or `trash.days = 0`): call
-  `Driver.Purge` on every `_trash/` key — on B2 this must delete **every
-  version** (`ListObjectVersions` + `DeleteObject` with `VersionId`), otherwise
-  B2 keeps billing. Then delete the local thumb, `image_exif` and `images` row.
+- **Restore** stays busy as restore_cleanup until trash copies are purged.
+  Startup cancels unfinished old restores without forging user authorization.
+- **Purge**: ImagePurger.PurgeImage first validates all entity-version owners,
+  then removes original/trash versions and markers by VersionId and verifies
+  the listing is empty. Foreign history keeps the operation pending. Only
+  then remove local cache, EXIF and image row. Compensation instead uses
+  OwnedPurger.PurgeOwned, preserving foreign history and clearing local owned
+  staging even when canonical Stat is missing.
 - CDN cache purging is out of scope.
 
 ## S3 client settings (COS / R2 / B2)
@@ -134,6 +155,16 @@ headers. `UsePathStyle` per storage. Put objects with
 `Cache-Control: public, max-age=31536000, immutable` (keys never change).
 
 ## Tests every change here should keep green
+
+Conditional PUT and multipart completion are probed on the real backend. The
+pinned MinIO ignores destination conditions on ordinary CopyObject, so copy
+uses CreateMultipartUpload/UploadPartCopy/CompleteMultipartUpload(IfNoneMatch).
+Unsupported vendor capability fails; MinIO success does not prove B2/COS/R2.
+
+Local durable objects use a single owned envelope (IMGNST01, uint32 header
+length, ObjectInfo JSON, unchanged image bytes); only Driver.Open serves their
+payload. Never expose the physical root via a static file server. Preview cache
+is still raw WebP. See internal/storage/README.md and docs/spec.md§8.2.
 
 - `pathtpl`: table tests per variable, sanitiser cases, fuzz `Sanitize`
   (never yields `..` or a leading `/`).

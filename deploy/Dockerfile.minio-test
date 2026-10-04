@@ -1,0 +1,9 @@
+FROM golang:1.27.1-bookworm AS builder
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local
+RUN go install github.com/minio/minio@RELEASE.2025-10-15T17-29-55Z
+FROM debian:bookworm-slim
+COPY --from=builder /go/bin/minio /usr/local/bin/minio
+USER 65532:65532
+EXPOSE 9000
+ENTRYPOINT ["/usr/local/bin/minio"]
+CMD ["server", "/data"]

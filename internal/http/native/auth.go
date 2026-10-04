@@ -197,8 +197,19 @@ func respond(c *gin.Context, status int, data any) {
 	c.JSON(status, Response{Code: 0, Message: "ok", Data: data})
 }
 func fail(c *gin.Context, err error) {
+	status, response := errorResponse(err)
+	c.JSON(status, response)
+}
+
+func errorResponse(err error) (int, Response) {
 	status, code, message := 500, 50001, "internal error"
 	switch {
+	case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
+		status, code, message = 408, 10004, "request timed out or canceled"
+	case errors.Is(err, errUploadTooLarge):
+		status, code, message = 413, 10002, "upload exceeds size limit"
+	case errors.Is(err, errUploadRateLimited):
+		status, code, message = 429, 30003, "too many uploads"
 	case errors.Is(err, service.ErrInvalidInput):
 		status, code, message = 400, 10001, "invalid request"
 	case errors.Is(err, service.ErrUnauthenticated):
@@ -213,6 +224,18 @@ func fail(c *gin.Context, err error) {
 		status, code, message = 409, 30002, "user already exists"
 	case errors.Is(err, service.ErrNotFound):
 		status, code, message = 404, 10001, "not found"
+	case errors.Is(err, service.ErrQuotaExceeded):
+		status, code, message = 403, 30004, "capacity exceeded"
+	case errors.Is(err, service.ErrPathConflict):
+		status, code, message = 409, 30005, "image path conflict"
+	case errors.Is(err, service.ErrImageBusy):
+		status, code, message = 409, 30006, "image operation in progress"
+	case errors.Is(err, service.ErrUnsupportedFormat):
+		status, code, message = 415, 30007, "image format not allowed"
+	case errors.Is(err, service.ErrStorage):
+		status, code, message = 502, 50002, "storage operation failed"
+	case errors.Is(err, service.ErrProcessing):
+		status, code, message = 422, 50003, "image processing failed"
 	}
-	c.JSON(status, Response{Code: code, Message: message, Data: nil})
+	return status, Response{Code: code, Message: message, Data: nil}
 }

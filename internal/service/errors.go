@@ -19,4 +19,16 @@ var (
 	ErrForbidden = model.ErrForbidden
 	// ErrUnauthenticated identifies a missing, invalid, expired, or revoked credential.
 	ErrUnauthenticated = model.ErrUnauthenticated
+	// ErrQuotaExceeded identifies insufficient actual cloud-object capacity.
+	ErrQuotaExceeded = model.ErrQuotaExceeded
+	// ErrPathConflict identifies an occupied image path or object key.
+	ErrPathConflict = model.ErrPathConflict
+	// ErrImageBusy identifies an unfinished storage transition.
+	ErrImageBusy = model.ErrImageBusy
+	// ErrUnsupportedFormat identifies a disallowed image format.
+	ErrUnsupportedFormat = model.ErrUnsupportedFormat
+	// ErrStorage identifies a failed storage operation without provider details.
+	ErrStorage = model.ErrStorage
+	// ErrProcessing identifies rejected image processing or metadata sanitization.
+	ErrProcessing = model.ErrProcessing
 )

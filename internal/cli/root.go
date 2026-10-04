@@ -27,7 +27,7 @@ func executeWithInput(ctx context.Context, args []string, stdin io.Reader, stdou
 	root.SetErr(stderr)
 	var configPath string
 	root.PersistentFlags().StringVar(&configPath, "config", "", "deployment YAML file")
-	root.AddCommand(migrateCommand(&configPath), adminCommand(&configPath, false), adminCommand(&configPath, true), serveCommand(&configPath))
+	root.AddCommand(migrateCommand(&configPath), adminCommand(&configPath, false), adminCommand(&configPath, true), serveCommand(&configPath), localCommand(&configPath), storageCommand(&configPath), policyCommand(&configPath))
 	if stdin != nil {
 		root.SetIn(stdin)
 	}

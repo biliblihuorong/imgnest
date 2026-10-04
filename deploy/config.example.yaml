@@ -5,6 +5,19 @@ server:
   trusted_proxies: []
   read_header_timeout: 5s
   shutdown_timeout: 10s
+  max_upload_mb: 20
+  max_request_mb: 64
+  upload_concurrency: 2
+  processing_timeout: 5m
+  max_pixels: 100000000
+
+images:
+  thumb_cache: data/thumbs
+
+security:
+  # Empty is sufficient for local-only storage. For S3, inject a base64 32-byte
+  # key through IMGNEST_SECURITY_MASTER_KEY and preserve it with private backups.
+  master_key: ""
 
 database:
   driver: sqlite

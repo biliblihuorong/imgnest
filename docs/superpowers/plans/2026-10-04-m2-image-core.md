@@ -10,7 +10,7 @@
 
 **Spec:** [spec.md](../../spec.md)、[M2设计补充](../specs/2026-10-04-m2-image-core-design.md)、[versions.md](../../versions.md)。基线为 M1 `2f00a6f`。新分支建议 `feat/m2-image-core`，从该基线开始，保留未推送的 M1 历史。
 
-**Status:** 用户于2026-10-04确认三项取舍并授权执行；沿用并行实现/末尾审查，实际进度见 docs/planning/m2-progress.md。
+**Status:** Tasks1–11实现与核心验收已完成，Task12的测试/审查/文档已完成，Git收尾尚未执行。用户于2026-10-04要求暂停并交接；入口为 docs/planning/m2-handoff-2026-10-04.md。原始步骤保留为设计/验收依据，实际证据见M2 progress，暂停期间不继续开发或提交。
 
 ## Global Constraints
 
@@ -37,10 +37,11 @@
 
 | 工作区 | 文件 | 负责内容 |
 | --- | --- | --- |
-| 父代理 | deploy、go.mod/go.sum、internal/cli、internal/http、docs、进度/Git | 固定环境、接线、API、验收 |
+| 父代理 | deploy、go.mod/go.sum、internal/cli、internal/service、docs、进度/Git | 固定环境、接线、业务编排、验收 |
 | 路径/存储 worker | internal/pathtpl、internal/storage | 模板、本机、安全S3与版本清理 |
 | 图像/元数据 worker | internal/imaging、internal/exif、testdata | libvips、容器元数据提取与无损清理 |
-| 持久化/业务 worker | internal/model、internal/repo、internal/service | 迁移契约、预约、上传/回收站编排 |
+| 持久化 worker | internal/model、internal/repo、internal/migrate | 迁移契约、预约、生命周期事务 |
+| 路径/存储 worker 后续 | internal/http、docs/openapi.yaml | 原生协议、真实组件联调与跨作者审查 |
 
 先冻结共享类型，再并行路径/驱动与图像/元数据；父代理负责所有公共依赖改动，workers不改锁文件、Git或他人目录。业务 worker先完成数据层，再利用测试接口编排；父代理最后做实际组件接线。不得把整个M2拆成互不兼容的独立脚手架。
 
@@ -226,4 +227,4 @@ if existingOtherImageBytesChanged { t.Fatal("compensation removed another image"
 
 ## 当前交接
 
-本计划已基于M1与官方锁定源码完成初次自审。用户尚需审阅三项产品取舍和本书面计划；并行方式已确定，不再重复询问执行方式。确认后从Task1连续执行至Task12，再整体汇报。
+三项取舍与执行已获确认，实施连续完成；最终结果在M2 progress。后续按M3计划实施Vue用户界面及相册等功能；当前版本是图片核心后端，不宣称整个M1–M5产品完成。

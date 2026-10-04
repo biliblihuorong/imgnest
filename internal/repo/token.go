@@ -2,7 +2,6 @@ package repo
 
 import (
 	"context"
-	"crypto/subtle"
 	"errors"
 	"fmt"
 	"math"
@@ -45,27 +44,8 @@ func (r *TokenRepository) CreateToken(ctx context.Context, token model.Token, gr
 		if err != nil {
 			return err
 		}
-		currentHash := subtle.ConstantTimeCompare([]byte(user.PasswordHash), []byte(grant.ExpectedPasswordHash)) == 1
-		if user.Status != model.UserStatusEnabled || !currentHash {
-			return model.ErrUnauthenticated
-		}
-		if grant.SourceTokenID != 0 {
-			if grant.SourceTokenID > math.MaxInt64 {
-				return model.ErrUnauthenticated
-			}
-			var source model.Token
-			if err := tx.First(&source, "id = ?", grant.SourceTokenID).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return model.ErrUnauthenticated
-				}
-				return err
-			}
-			if source.UserID != user.ID {
-				return model.ErrUnauthenticated
-			}
-			if source.ExpiresAt != nil && !grant.At.Before(*source.ExpiresAt) {
-				return model.ErrUnauthenticated
-			}
+		if err := validateGrant(ctx, tx, user, grant); err != nil {
+			return err
 		}
 		return tx.Create(&token).Error
 	})

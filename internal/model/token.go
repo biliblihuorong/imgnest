@@ -10,6 +10,7 @@ const (
 
 // TokenGrant carries the verified credential state that must still hold when a token is inserted.
 type TokenGrant struct {
+	UserID               uint64
 	ExpectedPasswordHash string
 	SourceTokenID        uint64
 	At                   time.Time

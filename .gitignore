@@ -5,6 +5,7 @@
 /config.yaml
 /.env
 /.env.*
+/private-storage.json
 *.db
 *.db-shm
 *.db-wal
