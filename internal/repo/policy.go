@@ -213,3 +213,72 @@ func validPolicy(value model.Policy) bool {
 	}
 	return true
 }
+
+// All lists every rule in database ID order, enabled or not, for the
+// management console.
+func (r *PolicyRepository) All(ctx context.Context) ([]model.Policy, error) {
+	policies := []model.Policy{}
+	if err := r.db.WithContext(ctx).Order("id ASC").Find(&policies).Error; err != nil {
+		return nil, repositoryError("list policies", err)
+	}
+	return policies, nil
+}
+
+// Create stores an unbound rule after applying provisioning defaults; group
+// bindings are managed separately through the group endpoints.
+func (r *PolicyRepository) Create(ctx context.Context, value model.Policy) (model.Policy, error) {
+	value = policyDefaults(value)
+	if err := ctx.Err(); err != nil {
+		return model.Policy{}, fmt.Errorf("create policy: %w", err)
+	}
+	if !validPolicy(value) {
+		return model.Policy{}, fmt.Errorf("create policy: %w", model.ErrInvalidInput)
+	}
+	if err := r.db.WithContext(ctx).Create(&value).Error; err != nil {
+		return model.Policy{}, repositoryError("create policy", err)
+	}
+	return value, nil
+}
+
+// Update stores a full rule replacement after validation, preserving the
+// creation timestamp.
+func (r *PolicyRepository) Update(ctx context.Context, value model.Policy) (model.Policy, error) {
+	value = policyDefaults(value)
+	if err := ctx.Err(); err != nil {
+		return model.Policy{}, fmt.Errorf("update policy: %w", err)
+	}
+	if err := checkRecordID(ctx, value.ID); err != nil {
+		return model.Policy{}, fmt.Errorf("update policy: %w", err)
+	}
+	if !validPolicy(value) {
+		return model.Policy{}, fmt.Errorf("update policy: %w", model.ErrInvalidInput)
+	}
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing model.Policy
+		if err := tx.First(&existing, "id = ?", value.ID).Error; err != nil {
+			return err
+		}
+		value.CreatedAt = existing.CreatedAt
+		return tx.Save(&value).Error
+	})
+	if err != nil {
+		return model.Policy{}, repositoryError("update policy", err)
+	}
+	return value, nil
+}
+
+// Delete removes a rule; image and group-default references are rejected by
+// the caller and by the database foreign keys.
+func (r *PolicyRepository) Delete(ctx context.Context, id uint64) error {
+	if err := checkRecordID(ctx, id); err != nil {
+		return fmt.Errorf("delete policy: %w", err)
+	}
+	deleted := r.db.WithContext(ctx).Delete(&model.Policy{}, "id = ?", id)
+	if deleted.Error != nil {
+		return repositoryError("delete policy", deleted.Error)
+	}
+	if deleted.RowsAffected == 0 {
+		return fmt.Errorf("delete policy: %w", model.ErrNotFound)
+	}
+	return nil
+}

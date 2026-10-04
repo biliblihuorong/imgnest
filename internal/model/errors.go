@@ -17,4 +17,9 @@ var (
 	ErrUnsupportedFormat    = errors.New("unsupported image format")
 	ErrStorage              = errors.New("storage operation failed")
 	ErrProcessing           = errors.New("image processing failed")
+	// ErrGroupHasMembers rejects deleting a group that still owns accounts.
+	ErrGroupHasMembers = errors.New("group still has members")
+	// ErrStillReferenced rejects deleting a resource another record points at,
+	// such as a storage backend referenced by a rule.
+	ErrStillReferenced = errors.New("resource is still referenced")
 )

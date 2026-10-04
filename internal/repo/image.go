@@ -650,3 +650,46 @@ func imageError(operation string, err error) error {
 	}
 	return repositoryError(operation, err)
 }
+
+// ListAdminPage pages every active image site-wide with optional owner and
+// keyword filters; the keyword matches the original filename or the stored
+// pathname exactly like the owner listing.
+func (r *ImageRepository) ListAdminPage(ctx context.Context, userID uint64, keyword string, page, size int) ([]model.Image, int64, error) {
+	if page < 1 || size < 1 || size > 200 || page-1 > math.MaxInt/size {
+		return nil, 0, fmt.Errorf("list admin images: %w", model.ErrInvalidInput)
+	}
+	query := r.db.WithContext(ctx).Model(&model.Image{}).Where("state = ?", model.ImageStateActive)
+	if userID != 0 {
+		query = query.Where("user_id = ?", userID)
+	}
+	if strings.TrimSpace(keyword) != "" {
+		pattern := "%" + escapeLike(strings.TrimSpace(keyword)) + "%"
+		query = query.Where(
+			"(origin_name LIKE ? ESCAPE '\\' OR (path || '.' || ext) LIKE ? ESCAPE '\\')",
+			pattern, pattern,
+		)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, repositoryError("count admin images", err)
+	}
+	images := []model.Image{}
+	if err := query.Order("id DESC").Limit(size).Offset((page - 1) * size).Find(&images).Error; err != nil {
+		return nil, 0, repositoryError("list admin images", err)
+	}
+	return images, total, nil
+}
+
+// TrashKeys lists every recycled image key in stable order for site-wide
+// physical purges.
+func (r *ImageRepository) TrashKeys(ctx context.Context) ([]string, error) {
+	keys := []string{}
+	err := r.db.WithContext(ctx).Model(&model.Image{}).
+		Where("state = ?", model.ImageStateTrash).
+		Order("id ASC").
+		Pluck("key", &keys).Error
+	if err != nil {
+		return nil, repositoryError("list trash keys", err)
+	}
+	return keys, nil
+}

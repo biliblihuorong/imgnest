@@ -71,3 +71,47 @@ func (r *StorageRepository) SetBaseURL(ctx context.Context, id uint64, baseURL s
 	}
 	return r.Find(ctx, id)
 }
+
+// Update stores management-console changes to a backend's display values,
+// switch state, and (already encrypted) configuration, preserving the
+// creation timestamp.
+func (r *StorageRepository) Update(ctx context.Context, value model.Storage) (model.Storage, error) {
+	if err := ctx.Err(); err != nil {
+		return model.Storage{}, fmt.Errorf("update storage: %w", err)
+	}
+	if err := checkRecordID(ctx, value.ID); err != nil {
+		return model.Storage{}, fmt.Errorf("update storage: %w", err)
+	}
+	if strings.TrimSpace(value.Name) == "" || !json.Valid(value.Config) {
+		return model.Storage{}, fmt.Errorf("update storage: %w", model.ErrInvalidInput)
+	}
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing model.Storage
+		if err := tx.First(&existing, "id = ?", value.ID).Error; err != nil {
+			return err
+		}
+		value.CreatedAt = existing.CreatedAt
+		return tx.Save(&value).Error
+	})
+	if err != nil {
+		return model.Storage{}, repositoryError("update storage", err)
+	}
+	return value, nil
+}
+
+// Delete removes a backend configuration. Rules still referencing the
+// backend are rejected before this runs, and the policies foreign key still
+// guards against concurrent creation.
+func (r *StorageRepository) Delete(ctx context.Context, id uint64) error {
+	if err := checkRecordID(ctx, id); err != nil {
+		return fmt.Errorf("delete storage: %w", err)
+	}
+	deleted := r.db.WithContext(ctx).Delete(&model.Storage{}, "id = ?", id)
+	if deleted.Error != nil {
+		return repositoryError("delete storage", deleted.Error)
+	}
+	if deleted.RowsAffected == 0 {
+		return fmt.Errorf("delete storage: %w", model.ErrNotFound)
+	}
+	return nil
+}

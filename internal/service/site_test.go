@@ -12,11 +12,16 @@ import (
 type siteSettingStub struct {
 	SettingsRepository
 	enabled bool
+	name    string
 	err     error
 }
 
 func (s siteSettingStub) RegistrationEnabled(context.Context) (bool, error) {
 	return s.enabled, s.err
+}
+
+func (s siteSettingStub) SiteName(context.Context) (string, error) {
+	return s.name, s.err
 }
 
 type siteUserStub struct{ UserRepository }
@@ -25,12 +30,15 @@ func TestSiteViewExposesOnlyPublicFields(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		enabled bool
+		setting string
+		want    string
 	}{
-		{"registration closed", false},
-		{"registration open", true},
+		{"registration closed", false, "", DefaultSiteName},
+		{"registration open", true, "", DefaultSiteName},
+		{"configured name", true, "My Nest", "My Nest"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			users, err := NewUserService(t.Context(), siteUserStub{}, siteSettingStub{enabled: tc.enabled})
+			users, err := NewUserService(t.Context(), siteUserStub{}, siteSettingStub{enabled: tc.enabled, name: tc.setting})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -38,7 +46,7 @@ func TestSiteViewExposesOnlyPublicFields(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if view.SiteName != DefaultSiteName || view.RegisterEnabled != tc.enabled {
+			if view.SiteName != tc.want || view.RegisterEnabled != tc.enabled {
 				t.Fatalf("site view %+v", view)
 			}
 			raw, err := json.Marshal(view)

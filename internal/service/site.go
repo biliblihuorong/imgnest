@@ -17,9 +17,8 @@ type SiteView struct {
 }
 
 // Site returns the public site view. Registration mirrors the account
-// registration switch; the site name falls back to DefaultSiteName because M3
-// has no site-name setting yet. When an administrator-configurable name is
-// introduced, this method reads it through SettingsRepository.
+// registration switch; the site name reads the administrator-configured
+// setting and falls back to DefaultSiteName while none is stored.
 func (s *UserService) Site(ctx context.Context) (SiteView, error) {
 	if err := ctx.Err(); err != nil {
 		return SiteView{}, fmt.Errorf("read site view: %w", err)
@@ -28,5 +27,12 @@ func (s *UserService) Site(ctx context.Context) (SiteView, error) {
 	if err != nil {
 		return SiteView{}, fmt.Errorf("read registration setting: %w", err)
 	}
-	return SiteView{SiteName: DefaultSiteName, RegisterEnabled: enabled}, nil
+	name, err := s.settings.SiteName(ctx)
+	if err != nil {
+		return SiteView{}, fmt.Errorf("read site name setting: %w", err)
+	}
+	if name == "" {
+		name = DefaultSiteName
+	}
+	return SiteView{SiteName: name, RegisterEnabled: enabled}, nil
 }

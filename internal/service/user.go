@@ -24,11 +24,15 @@ type UserRepository interface {
 	UpdatePasswordAndRevokeTokens(ctx context.Context, userID uint64, expectedHash, nextHash string) error
 }
 
-// RegisterInput contains only user-controlled registration fields.
+// RegisterInput contains the user-controlled registration fields plus the
+// server-derived client address, which only the owner's profile read returns.
 type RegisterInput struct {
 	Username string
 	Email    string
 	Password string
+	// IP is supplied by the HTTP layer from the client address; it is never
+	// part of a decoded request body.
+	IP string
 }
 
 // UserView exposes account attributes without credential hashes.
@@ -226,6 +230,7 @@ func (s *UserService) prepareUser(ctx context.Context, input RegisterInput, role
 	return model.User{
 		Username: username, Email: email, PasswordHash: string(hash),
 		GroupID: groupID, Role: role, Status: model.UserStatusEnabled,
+		RegisteredIP: strings.TrimSpace(input.IP),
 	}, nil
 }
 

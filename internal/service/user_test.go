@@ -665,3 +665,28 @@ func TestConcurrentAdminBootstrap(t *testing.T) {
 		}
 	})
 }
+
+func TestRegisterRecordsClientIP(t *testing.T) {
+	forDatabases(t, func(t *testing.T, fixture *authFixture) {
+		enableRegistration(t, fixture)
+		user, err := fixture.service.Register(t.Context(), service.RegisterInput{
+			Username: "alice", Email: "alice@example.com", Password: testPassword, IP: "192.0.2.9",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		stored, err := fixture.users.FindUserByID(t.Context(), user.ID)
+		if err != nil || stored.RegisteredIP != "192.0.2.9" {
+			t.Fatalf("registered_ip=%q err=%v", stored.RegisteredIP, err)
+		}
+		// The address stays out of the API view; only the owner's profile read
+		// may return it.
+		raw, err := json.Marshal(user)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(raw), "192.0.2.9") {
+			t.Fatal("user view leaked the registration address")
+		}
+	})
+}

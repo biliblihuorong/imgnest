@@ -127,11 +127,19 @@ func (h *Handler) authenticate(c *gin.Context) {
 }
 func identity(c *gin.Context) service.Identity { return c.MustGet(identityKey).(service.Identity) }
 func (h *Handler) register(c *gin.Context) {
-	var in service.RegisterInput
-	if !decode(c, &in) {
+	// The client address is server-derived and must never be part of the
+	// decoded request shape.
+	var input struct {
+		Username string `json:"username"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if !decode(c, &input) {
 		return
 	}
-	user, err := h.users.Register(c.Request.Context(), in)
+	user, err := h.users.Register(c.Request.Context(), service.RegisterInput{
+		Username: input.Username, Email: input.Email, Password: input.Password, IP: c.ClientIP(),
+	})
 	if err != nil {
 		fail(c, err)
 		return
@@ -234,6 +242,10 @@ func errorResponse(err error) (int, Response) {
 		status, code, message = 409, 30006, "image operation in progress"
 	case errors.Is(err, service.ErrUnsupportedFormat):
 		status, code, message = 415, 30007, "image format not allowed"
+	case errors.Is(err, service.ErrGroupHasMembers):
+		status, code, message = 409, 30008, "group still has members"
+	case errors.Is(err, service.ErrStillReferenced):
+		status, code, message = 409, 30009, "resource is still referenced"
 	case errors.Is(err, service.ErrStorage):
 		status, code, message = 502, 50002, "storage operation failed"
 	case errors.Is(err, service.ErrProcessing):

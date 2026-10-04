@@ -21,6 +21,9 @@ type User struct {
 	Role         string
 	Status       string
 	UsedBytes    int64
+	// RegisteredIP records the client address of account creation; only the
+	// account owner's profile read may return it.
+	RegisteredIP string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

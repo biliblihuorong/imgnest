@@ -25,6 +25,7 @@ tags:
   - name: Policies
   - name: Trash
   - name: Lsky v1
+  - name: Admin
 paths:
   /healthz:
     get:
@@ -878,6 +879,631 @@ paths:
           $ref: '#/components/responses/LskyUnauthenticated'
         '403':
           $ref: '#/components/responses/LskyDisabled'
+  /api/admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [Admin]
+      summary: List every account with pagination and an optional keyword
+      description: |
+        Requires the administrator role; any other authenticated caller is
+        rejected with 403/code 20003. The never-authenticating guest anchor
+        row is not a manageable account and never appears. `keyword` matches
+        substring-wise against username and email.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImagePageNumber'}
+        - {$ref: '#/components/parameters/ImagePageSize'}
+        - {name: keyword, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: One page of accounts.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminUserPageEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/users/{id}:
+    patch:
+      operationId: adminPatchUser
+      tags: [Admin]
+      summary: Change an account's status or group
+      description: |
+        Requires the administrator role. `status` accepts only `enabled` and
+        `disabled`; disabling an account revokes every one of its bearer
+        credentials in the same transaction as the status flip. An
+        administrator cannot disable their own account. `group_id` must name
+        an existing non-guest group. There is no way to change a role through
+        this endpoint.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImageID'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminUserPatch'}
+      responses:
+        '200':
+          description: The updated account view.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminUserEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/groups:
+    get:
+      operationId: adminListGroups
+      tags: [Admin]
+      summary: List every group with member counts and rule bindings
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: All groups in database ID order; the array is never null.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [code, message, data]
+                properties:
+                  code: {type: integer, enum: [0]}
+                  message: {type: string}
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/GroupView'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: adminCreateGroup
+      tags: [Admin]
+      summary: Create a group
+      description: |
+        Requires the administrator role. The default and guest roles are
+        structural: at most one group of each kind may exist and the flags
+        are fixed at creation. `default_policy_id` must be part of
+        `policy_ids`; every bound rule must exist.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GroupInput'}
+      responses:
+        '201':
+          description: The created group view.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GroupEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/groups/{id}:
+    patch:
+      operationId: adminPatchGroup
+      tags: [Admin]
+      summary: Change a group's quotas or rule bindings
+      description: |
+        Requires the administrator role. Only the supplied fields change. The
+        default/guest flags have no request shape. A nonzero
+        `default_policy_id` must stay inside the resulting `policy_ids`.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImageID'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GroupPatch'}
+      responses:
+        '200':
+          description: The updated group view.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GroupEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: adminDeleteGroup
+      tags: [Admin]
+      summary: Delete an empty, unreferenced, non-structural group
+      description: |
+        Requires the administrator role. The default and guest groups are
+        protected (403/20003). A group with members returns 409/30008; a
+        group a settings key still points at returns 409/30009. Deletion
+        never cascades to accounts.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImageID'}
+      responses:
+        '200':
+          description: Group deleted; data is null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NullEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/GroupHasMembers'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/storages:
+    get:
+      operationId: adminListStorages
+      tags: [Admin]
+      summary: List every storage backend without any configuration
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: All backends in database ID order; no config or secret is ever included.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [code, message, data]
+                properties:
+                  code: {type: integer, enum: [0]}
+                  message: {type: string}
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/StorageView'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: adminCreateStorage
+      tags: [Admin]
+      summary: Create and connectivity-test a storage backend
+      description: |
+        Requires the administrator role. Uses the same provisioning path as
+        the host setup command: S3 configurations are sealed with the
+        deployment master key before persistence and the backend must pass a
+        put/copy/delete probe. The response never contains the configuration.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StorageInput'}
+      responses:
+        '201':
+          description: The created backend view without configuration.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StorageEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '502':
+          $ref: '#/components/responses/StorageFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/storages/{id}:
+    patch:
+      operationId: adminPatchStorage
+      tags: [Admin]
+      summary: Change a backend's name, base URL, switch, or configuration
+      description: |
+        Requires the administrator role. A supplied `config` replaces the
+        stored configuration wholesale (re-sealed for S3) and must pass the
+        connectivity probe before the change is persisted. The configuration
+        is never part of any response.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImageID'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StoragePatch'}
+      responses:
+        '200':
+          description: The updated backend view without configuration.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StorageEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/StorageFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: adminDeleteStorage
+      tags: [Admin]
+      summary: Delete a backend no rule references
+      description: |
+        Requires the administrator role. Backends still referenced by any
+        upload rule return 409/30009; references are re-checked inside the
+        deleting transaction.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImageID'}
+      responses:
+        '200':
+          description: Storage deleted; data is null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NullEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StillReferenced'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/storages/{id}/test:
+    post:
+      operationId: adminTestStorage
+      tags: [Admin]
+      summary: Run the put/copy/delete connectivity probe
+      description: |
+        Requires the administrator role. Writes, copies, and deletes private
+        probe objects only; no user data is touched. Each capability is
+        reported separately and probe objects are always cleaned up.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImageID'}
+      responses:
+        '200':
+          description: Per-check probe results.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StorageTestEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/StorageFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/policies:
+    get:
+      operationId: adminListPolicies
+      tags: [Admin]
+      summary: List every upload rule
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: All rules in database ID order; the array is never null.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [code, message, data]
+                properties:
+                  code: {type: integer, enum: [0]}
+                  message: {type: string}
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/PolicyView'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: adminCreatePolicy
+      tags: [Admin]
+      summary: Create an upload rule from documented defaults plus overrides
+      description: |
+        Requires the administrator role. `name` and `storage_id` are required;
+        every other field falls back to the documented conservative defaults.
+        Path templates are validated before persistence. Rules are created
+        unbound and become usable once a group binds them.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PolicyInput'}
+      responses:
+        '201':
+          description: The created rule.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PolicyEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/policies/preview:
+    post:
+      operationId: adminPreviewPolicy
+      tags: [Admin]
+      summary: Render one sample path for path/name templates
+      description: |
+        Requires the administrator role. The sample uses the current time,
+        the caller's account ID, the filename `example.jpg`, and fixed
+        example content digests. Template failures return HTTP 200 with a
+        non-empty `error` and an empty `sample`; the diagnostic is a static
+        template message.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PolicyPreviewRequest'}
+      responses:
+        '200':
+          description: Sample path or template diagnostic.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PolicyPreviewEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+  /api/admin/policies/{id}:
+    patch:
+      operationId: adminPatchPolicy
+      tags: [Admin]
+      summary: Change rule fields
+      description: |
+        Requires the administrator role. Only the supplied fields change and
+        the final state is validated exactly like creation, including the
+        path templates and the enabled storage backend.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImageID'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PolicyPatch'}
+      responses:
+        '200':
+          description: The updated rule.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PolicyEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: adminDeletePolicy
+      tags: [Admin]
+      summary: Delete an unreferenced rule
+      description: |
+        Requires the administrator role. Rules still referenced by images or
+        as a group's default return 409/30009.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImageID'}
+      responses:
+        '200':
+          description: Rule deleted; data is null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NullEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StillReferenced'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/settings:
+    get:
+      operationId: adminGetSettings
+      tags: [Admin]
+      summary: Read the full site configuration
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: All eight settings with documented defaults for unset keys.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminSettingsEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: adminPutSettings
+      tags: [Admin]
+      summary: Change the supplied settings keys
+      description: |
+        Requires the administrator role. Partial update: only the fields
+        present in the body are written, then the full configuration is
+        returned. `site_name` must be 1-100 characters, `trash_days` 0-36500,
+        `default_group_id` must name an existing group, and `guest_group_id`
+        either 0 or an existing group.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminSettingsPatch'}
+      responses:
+        '200':
+          description: The saved configuration.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminSettingsEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/images:
+    get:
+      operationId: adminListImages
+      tags: [Admin]
+      summary: List every active image site-wide
+      description: |
+        Requires the administrator role. Returns the same safe image views as
+        the owner listing. `user_id` filters by owner; `keyword` matches the
+        original filename or the stored pathname.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImagePageNumber'}
+        - {$ref: '#/components/parameters/ImagePageSize'}
+        - {name: user_id, in: query, schema: {type: integer, format: int64, minimum: 0, default: 0}}
+        - {name: keyword, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: One site-wide page of images.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImagePageEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/images/{id}:
+    delete:
+      operationId: adminDeleteImage
+      tags: [Admin]
+      summary: Move any owner's image into the recycle bin
+      description: |
+        Requires the administrator role. The owner-facing pipeline runs
+        unchanged: original URLs 404 immediately and physical deletion
+        follows the recycle-bin retention.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImageID'}
+      responses:
+        '200':
+          description: Image recycled; data is null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NullEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/ImageBusy'
+        '502':
+          $ref: '#/components/responses/StorageFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/trash/purge-all:
+    post:
+      operationId: adminPurgeAllTrash
+      tags: [Admin]
+      summary: Physically purge the entire site-wide recycle bin
+      description: |
+        Requires the administrator role. Every recycled image goes through
+        the regular per-image purge path one at a time. When any purge fails
+        the response keeps its partial progress visible: HTTP 502/code 50002
+        with `data.purged` counting the images that were fully removed.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Every recycled image was purged.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TrashPurgeEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '502':
+          description: Some images could not be purged; data carries the successful count.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorEnvelope'
+                  - type: object
+                    properties:
+                      code: {type: integer, enum: [50002]}
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required: [purged]
+                        properties:
+                          purged: {type: integer, format: int64, minimum: 0}
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   parameters:
     ImageID:
@@ -916,6 +1542,329 @@ components:
         alphanumeric characters. Expired or revoked tokens and tokens
         owned by disabled users are rejected with 401/code 20001.
   schemas:
+    AdminUserPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        status: {type: string, enum: [enabled, disabled]}
+        group_id: {$ref: '#/components/schemas/ID'}
+    AdminUserPage:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/UserView'}
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        size: {type: integer, minimum: 1, maximum: 100}
+    GroupView:
+      type: object
+      additionalProperties: false
+      required: [id, name, is_default, is_guest, capacity_bytes, max_file_bytes, allowed_exts, upload_per_min, default_policy_id, policy_ids, user_count]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        name: {type: string}
+        is_default: {type: boolean}
+        is_guest: {type: boolean}
+        capacity_bytes: {type: integer, format: int64, minimum: 0, description: Zero means unlimited.}
+        max_file_bytes: {type: integer, format: int64, minimum: 0, description: Zero means the deployment cap.}
+        allowed_exts:
+          type: array
+          items: {type: string}
+        upload_per_min: {type: integer, minimum: 0, description: Zero means unthrottled; also governs guest rate limiting.}
+        default_policy_id: {type: integer, format: int64, minimum: 0}
+        policy_ids:
+          type: array
+          items: {$ref: '#/components/schemas/ID'}
+        user_count: {type: integer, format: int64, minimum: 0}
+    GroupInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 64}
+        capacity_bytes: {type: integer, format: int64, minimum: 0, default: 0}
+        max_file_bytes: {type: integer, format: int64, minimum: 0, default: 0}
+        allowed_exts: {type: array, items: {type: string}, default: []}
+        upload_per_min: {type: integer, minimum: 0, default: 0}
+        default_policy_id: {type: integer, format: int64, minimum: 0, default: 0}
+        policy_ids:
+          type: array
+          items: {$ref: '#/components/schemas/ID'}
+        is_default: {type: boolean, default: false, description: Only one default group may exist; structural after creation.}
+        is_guest: {type: boolean, default: false, description: Only one guest group may exist; structural after creation.}
+    GroupPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: {type: string, minLength: 1, maxLength: 64}
+        capacity_bytes: {type: integer, format: int64, minimum: 0}
+        max_file_bytes: {type: integer, format: int64, minimum: 0}
+        allowed_exts: {type: array, items: {type: string}}
+        upload_per_min: {type: integer, minimum: 0}
+        default_policy_id: {type: integer, format: int64, minimum: 0}
+        policy_ids:
+          type: array
+          items: {$ref: '#/components/schemas/ID'}
+    StorageView:
+      type: object
+      additionalProperties: false
+      required: [id, name, driver, base_url, enabled]
+      description: Backend record without any configuration or credential material.
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        name: {type: string}
+        driver: {type: string, enum: [local, s3]}
+        base_url: {type: string}
+        enabled: {type: boolean}
+    StorageInput:
+      type: object
+      additionalProperties: false
+      required: [name, driver, base_url]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 64}
+        driver: {type: string, enum: [local, s3]}
+        base_url: {type: string, format: uri}
+        config:
+          type: object
+          description: Driver-specific JSON. S3 credentials are sealed with the master key before persistence and never returned.
+    StoragePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: {type: string, minLength: 1, maxLength: 64}
+        base_url: {type: string, format: uri}
+        enabled: {type: boolean}
+        config:
+          type: object
+          description: Replaces the stored configuration wholesale; re-sealed for S3 and probe-tested before persistence. Never returned.
+    StorageTestResult:
+      type: object
+      additionalProperties: false
+      required: [ok, checks]
+      properties:
+        ok: {type: boolean}
+        checks:
+          type: object
+          additionalProperties: false
+          required: [put, copy, delete]
+          properties:
+            put: {type: boolean}
+            copy: {type: boolean}
+            delete: {type: boolean}
+    PolicyView:
+      type: object
+      additionalProperties: false
+      required: [id, storage_id, name, path_tpl, name_tpl, webp_mode, webp_quality, webp_lossless, webp_effort, max_width, max_height, thumb_enabled, thumb_size, scrub_mode, heif_mode, link_prefer, on_conflict, strip_meta, skip_if_larger, enabled, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        storage_id: {$ref: '#/components/schemas/ID'}
+        name: {type: string}
+        path_tpl: {type: string}
+        name_tpl: {type: string}
+        webp_mode: {type: string, enum: [both, webp_only, none]}
+        webp_quality: {type: integer, minimum: 1, maximum: 100}
+        webp_lossless: {type: boolean}
+        webp_effort: {type: integer, minimum: 0, maximum: 6}
+        max_width: {type: integer, minimum: 0}
+        max_height: {type: integer, minimum: 0}
+        thumb_enabled: {type: boolean}
+        thumb_size: {type: integer, minimum: 1}
+        scrub_mode: {type: string, enum: [none, gps, all]}
+        heif_mode: {type: string, enum: [webp_only, keep, reject]}
+        link_prefer: {type: string, enum: [webp, original]}
+        on_conflict: {type: string, enum: [rename, reject]}
+        strip_meta: {type: boolean}
+        skip_if_larger: {type: boolean}
+        enabled: {type: boolean}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+    PolicyInput:
+      type: object
+      additionalProperties: false
+      required: [name, storage_id]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 64}
+        storage_id: {$ref: '#/components/schemas/ID'}
+        enabled: {type: boolean}
+        path_tpl: {type: string, default: '{Y}/{m}/{d}'}
+        name_tpl: {type: string, default: '{uniqid}'}
+        webp_mode: {type: string, enum: [both, webp_only, none], default: both}
+        webp_quality: {type: integer, minimum: 1, maximum: 100, default: 80}
+        webp_lossless: {type: boolean, default: false}
+        webp_effort: {type: integer, minimum: 0, maximum: 6, default: 4}
+        max_width: {type: integer, minimum: 0, default: 0}
+        max_height: {type: integer, minimum: 0, default: 0}
+        thumb_enabled: {type: boolean, default: true}
+        thumb_size: {type: integer, minimum: 1, default: 400}
+        scrub_mode: {type: string, enum: [none, gps, all], default: gps}
+        heif_mode: {type: string, enum: [webp_only, keep, reject], default: webp_only}
+        link_prefer: {type: string, enum: [webp, original], default: webp}
+        on_conflict: {type: string, enum: [rename, reject], default: rename}
+        strip_meta: {type: boolean, default: true}
+        skip_if_larger: {type: boolean, default: true}
+    PolicyPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: {type: string, minLength: 1, maxLength: 64}
+        storage_id: {$ref: '#/components/schemas/ID'}
+        enabled: {type: boolean}
+        path_tpl: {type: string}
+        name_tpl: {type: string}
+        webp_mode: {type: string, enum: [both, webp_only, none]}
+        webp_quality: {type: integer, minimum: 1, maximum: 100}
+        webp_lossless: {type: boolean}
+        webp_effort: {type: integer, minimum: 0, maximum: 6}
+        max_width: {type: integer, minimum: 0}
+        max_height: {type: integer, minimum: 0}
+        thumb_enabled: {type: boolean}
+        thumb_size: {type: integer, minimum: 1}
+        scrub_mode: {type: string, enum: [none, gps, all]}
+        heif_mode: {type: string, enum: [webp_only, keep, reject]}
+        link_prefer: {type: string, enum: [webp, original]}
+        on_conflict: {type: string, enum: [rename, reject]}
+        strip_meta: {type: boolean}
+        skip_if_larger: {type: boolean}
+    PolicyPreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [path_tpl, name_tpl]
+      properties:
+        path_tpl: {type: string}
+        name_tpl: {type: string}
+    PolicyPreviewResult:
+      type: object
+      additionalProperties: false
+      required: [sample, error]
+      properties:
+        sample: {type: string, description: Rendered sample path; empty when the templates are invalid.}
+        error: {type: string, description: Static template diagnostic; empty on success.}
+    AdminSettings:
+      type: object
+      additionalProperties: false
+      required: [site_name, registration_enabled, guest_upload_enabled, gallery_enabled, trash_days, api_enabled, guest_group_id, default_group_id]
+      properties:
+        site_name: {type: string, minLength: 1, maxLength: 100}
+        registration_enabled: {type: boolean}
+        guest_upload_enabled: {type: boolean}
+        gallery_enabled: {type: boolean}
+        trash_days: {type: integer, minimum: 0, maximum: 36500}
+        api_enabled: {type: boolean, description: Master switch of the Lsky-compatible /api/v1 layer.}
+        guest_group_id: {type: integer, format: int64, minimum: 0, description: Zero selects the is_guest group.}
+        default_group_id: {$ref: '#/components/schemas/ID'}
+    AdminSettingsPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        site_name: {type: string, minLength: 1, maxLength: 100}
+        registration_enabled: {type: boolean}
+        guest_upload_enabled: {type: boolean}
+        gallery_enabled: {type: boolean}
+        trash_days: {type: integer, minimum: 0, maximum: 36500}
+        api_enabled: {type: boolean}
+        guest_group_id: {type: integer, format: int64, minimum: 0}
+        default_group_id: {$ref: '#/components/schemas/ID'}
+    AdminUserPageEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/AdminUserPage'}
+    AdminUserEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/UserView'}
+    GroupEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/GroupView'}
+    StorageEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/StorageView'}
+    StorageTestEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/StorageTestResult'}
+    PolicyEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/PolicyView'}
+    PolicyPreviewEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/PolicyPreviewResult'}
+    AdminSettingsEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/AdminSettings'}
+    ImagePageEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/ImagePage'}
+    TrashPurgeEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data:
+          type: object
+          additionalProperties: false
+          required: [purged]
+          properties:
+            purged: {type: integer, format: int64, minimum: 0}
+    NullEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {nullable: true}
     ImageIDs:
       type: array
       minItems: 1
@@ -1016,12 +1965,6 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/ImageView'}
-    ImagePageEnvelope:
-      allOf:
-        - $ref: '#/components/schemas/SuccessEnvelope'
-        - type: object
-          properties:
-            data: {$ref: '#/components/schemas/ImagePage'}
     ImageExifEnvelope:
       allOf:
         - $ref: '#/components/schemas/SuccessEnvelope'
@@ -1286,13 +2229,6 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/LoginData'
-    NullEnvelope:
-      allOf:
-        - $ref: '#/components/schemas/SuccessEnvelope'
-        - type: object
-          properties:
-            data:
-              $ref: '#/components/schemas/NullData'
     TokenListEnvelope:
       allOf:
         - $ref: '#/components/schemas/SuccessEnvelope'
@@ -1670,6 +2606,7 @@ components:
                   code:
                     type: integer
                     enum: [30003]
+
     InternalError:
       description: Internal operation or database health check failed; code 50001.
       content:
@@ -1682,3 +2619,75 @@ components:
                   code:
                     type: integer
                     enum: [50001]
+    AdminForbidden:
+      description: Authenticated caller is not an administrator; code 20003.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [20003]
+    NotFound:
+      description: Referenced account, group, storage, rule, or image does not exist; code 10001.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [10001]
+    ImageBusy:
+      description: Image operation already in progress; code 30006.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [30006]
+    GroupHasMembers:
+      description: Group still has member accounts; code 30008.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [30008]
+    StillReferenced:
+      description: Storage, rule, or group is still referenced by other records; code 30009.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [30009]
+    StorageFailed:
+      description: Storage backend operation failed; code 50002.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [50002]

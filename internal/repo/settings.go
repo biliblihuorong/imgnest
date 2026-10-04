@@ -76,6 +76,85 @@ func (r *SettingsRepository) TrashDays(ctx context.Context) (int, error) {
 	return int(*days), nil
 }
 
+// SiteName returns the configured public site name, or an empty string when
+// no name was ever stored; the service layer owns the display fallback.
+func (r *SettingsRepository) SiteName(ctx context.Context) (string, error) {
+	setting, found, err := r.findOptional(ctx, "site_name")
+	if err != nil || !found {
+		return "", err
+	}
+	var name *string
+	if err := json.Unmarshal(setting.Value, &name); err != nil {
+		return "", databaseError("decode site name", err)
+	}
+	if name == nil {
+		return "", nil
+	}
+	return *name, nil
+}
+
+// ReadSettings returns every stored setting keyed by its settings key. Callers
+// apply their own defaults for absent keys.
+func (r *SettingsRepository) ReadSettings(ctx context.Context) (map[string]json.RawMessage, error) {
+	var settings []model.Setting
+	if err := r.db.WithContext(ctx).Find(&settings).Error; err != nil {
+		return nil, databaseError("list settings", err)
+	}
+	values := make(map[string]json.RawMessage, len(settings))
+	for _, setting := range settings {
+		values[setting.Key] = setting.Value
+	}
+	return values, nil
+}
+
+// UpdateSettings upserts the given JSON values one key at a time inside a
+// single transaction; settings keys not present stay untouched.
+func (r *SettingsRepository) UpdateSettings(ctx context.Context, values map[string]json.RawMessage) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for key, value := range values {
+			if !json.Valid(value) {
+				return fmt.Errorf("update setting %s: %w", key, model.ErrInvalidInput)
+			}
+			if tx.Name() == "postgres" {
+				err := tx.Exec(
+					"INSERT INTO settings (key, value) VALUES (?, ?::jsonb) "+
+						"ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP",
+					key, string(value),
+				).Error
+				if err != nil {
+					return err
+				}
+				continue
+			}
+			err := tx.Exec(
+				"INSERT INTO settings (key, value) VALUES (?, ?) "+
+					"ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP",
+				key, string(value),
+			).Error
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return databaseError("update settings", err)
+	}
+	return nil
+}
+
+func (r *SettingsRepository) findOptional(ctx context.Context, key string) (model.Setting, bool, error) {
+	var setting model.Setting
+	err := r.db.WithContext(ctx).First(&setting, "key = ?", key).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.Setting{}, false, nil
+	}
+	if err != nil {
+		return model.Setting{}, false, databaseError("find setting", err)
+	}
+	return setting, true, nil
+}
+
 func (r *SettingsRepository) find(ctx context.Context, key string) (model.Setting, error) {
 	var setting model.Setting
 	if err := r.db.WithContext(ctx).First(&setting, "key = ?", key).Error; err != nil {

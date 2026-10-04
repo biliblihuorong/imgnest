@@ -13,6 +13,7 @@ import (
 	httpapi "github.com/biliblihuorong/imgnest/internal/http"
 	"github.com/biliblihuorong/imgnest/internal/http/lsky"
 	"github.com/biliblihuorong/imgnest/internal/migrate"
+	"github.com/biliblihuorong/imgnest/internal/pathtpl"
 	"github.com/biliblihuorong/imgnest/internal/repo"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/biliblihuorong/imgnest/web"
@@ -51,11 +52,15 @@ func serveCommand(path *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			adminService, err := newAdminService(cmd.Context(), db, cfg)
+			if err != nil {
+				return err
+			}
 			webFS, err := web.DistFS()
 			if err != nil {
 				return fmt.Errorf("open embedded web app: %w", err)
 			}
-			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout}, Lsky: lskyHandler, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS})
+			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout}, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS})
 			if err != nil {
 				return err
 			}
@@ -130,6 +135,48 @@ func newLskyHandler(ctx context.Context, db *gorm.DB, cfg config.Config, users *
 		return nil, fmt.Errorf("create lsky handler: %w", err)
 	}
 	return handler, nil
+}
+
+// newAdminService wires the management console onto the same repositories the
+// other services use; storage creation reuses the provisioning path so cloud
+// credentials are sealed and probed exactly like init-storage.
+func newAdminService(ctx context.Context, db *gorm.DB, cfg config.Config) (*service.AdminService, error) {
+	adminRepo, err := repo.NewAdminRepository(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("create admin repository: %w", err)
+	}
+	storagesRepo, err := repo.NewStorageRepository(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("create storage repository: %w", err)
+	}
+	policiesRepo, err := repo.NewPolicyRepository(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("create policy repository: %w", err)
+	}
+	settingsRepo, err := repo.NewSettingsRepository(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("create settings repository: %w", err)
+	}
+	drivers, err := newDriverFactory(ctx, cfg.Security.MasterKey)
+	if err != nil {
+		return nil, err
+	}
+	provision, err := service.NewProvisionService(ctx, storagesRepo, policiesRepo, drivers, drivers.codec, service.TemplateValidatorFunc(pathtpl.Validate))
+	if err != nil {
+		_ = drivers.close()
+		return nil, fmt.Errorf("create provision service: %w", err)
+	}
+	adminService, err := service.NewAdminService(ctx, service.AdminDependencies{
+		Users: adminRepo, Groups: adminRepo, References: adminRepo,
+		Storages: storagesRepo, Policies: policiesRepo, Settings: settingsRepo,
+		Provision: provision, Drivers: drivers, Secrets: drivers.codec,
+		Templates: service.TemplateValidatorFunc(pathtpl.Validate), Now: time.Now,
+	})
+	if err != nil {
+		_ = drivers.close()
+		return nil, fmt.Errorf("create admin service: %w", err)
+	}
+	return adminService, nil
 }
 
 func runServer(ctx context.Context, server *http.Server, listener net.Listener, timeout time.Duration) error {

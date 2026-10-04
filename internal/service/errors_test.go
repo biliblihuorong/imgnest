@@ -47,6 +47,10 @@ func (settings failingSettings) DefaultGroupID(context.Context) (uint64, error) 
 	return 0, settings.err
 }
 
+func (settings failingSettings) SiteName(context.Context) (string, error) {
+	return "", settings.err
+}
+
 type unavailableUsers struct{ service.UserRepository }
 
 type groupFailure struct{ err error }
@@ -57,6 +61,10 @@ func (settings groupFailure) RegistrationEnabled(context.Context) (bool, error) 
 
 func (settings groupFailure) DefaultGroupID(context.Context) (uint64, error) {
 	return 0, settings.err
+}
+
+func (settings groupFailure) SiteName(context.Context) (string, error) {
+	return "", settings.err
 }
 
 func TestInvalidRegistrationStopsBeforeGroupLookup(t *testing.T) {

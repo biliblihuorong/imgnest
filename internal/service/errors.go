@@ -31,4 +31,9 @@ var (
 	ErrStorage = model.ErrStorage
 	// ErrProcessing identifies rejected image processing or metadata sanitization.
 	ErrProcessing = model.ErrProcessing
+	// ErrGroupHasMembers rejects deleting a group that still owns accounts.
+	ErrGroupHasMembers = model.ErrGroupHasMembers
+	// ErrStillReferenced rejects deleting a storage, policy, or group that
+	// other records still point at.
+	ErrStillReferenced = model.ErrStillReferenced
 )

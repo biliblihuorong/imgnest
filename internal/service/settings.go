@@ -6,4 +6,7 @@ import "context"
 type SettingsRepository interface {
 	RegistrationEnabled(ctx context.Context) (bool, error)
 	DefaultGroupID(ctx context.Context) (uint64, error)
+	// SiteName returns the configured public site name; an empty value means
+	// no name was stored and the caller falls back to DefaultSiteName.
+	SiteName(ctx context.Context) (string, error)
 }

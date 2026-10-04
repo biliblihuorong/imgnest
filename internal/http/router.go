@@ -27,6 +27,10 @@ type Dependencies struct {
 	ImageOptions native.ImageOptions
 	// Lsky serves the Lsky-compatible /api/v1 routes when configured.
 	Lsky *lsky.Handler
+	// Admin serves the /api/admin management routes when configured.
+	Admin native.AdminService
+	// AdminImages is the site-wide image portion of the management console.
+	AdminImages native.AdminImages
 	// Web is the built single-page app rooted at its dist directory. When nil
 	// the router keeps returning JSON 404 for unmatched paths.
 	Web fs.FS
@@ -80,6 +84,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.Images != nil {
 		if err := handler.RegisterImageRoutes(ctx, router, deps.Images, deps.ImageOptions); err != nil {
 			return nil, fmt.Errorf("register image routes: %w", err)
+		}
+	}
+	if deps.Admin != nil {
+		if err := handler.RegisterAdminRoutes(ctx, router, deps.Admin, deps.AdminImages); err != nil {
+			return nil, fmt.Errorf("register admin routes: %w", err)
 		}
 	}
 	if deps.Lsky != nil {
