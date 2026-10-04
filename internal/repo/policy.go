@@ -97,6 +97,28 @@ func (r *PolicyRepository) Find(ctx context.Context, id uint64) (model.Policy, e
 	return value, nil
 }
 
+// GroupPolicies lists the enabled rules bound to a group and ordered by ID.
+// A rule whose storage backend is disabled is excluded, matching the
+// upload-time grant semantics of UploadPolicy; a group without bindings
+// yields an empty, non-nil list.
+func (r *PolicyRepository) GroupPolicies(ctx context.Context, groupID uint64) ([]model.Policy, error) {
+	if err := checkRecordID(ctx, groupID); err != nil {
+		return nil, fmt.Errorf("list group policies: %w", err)
+	}
+	policies := []model.Policy{}
+	err := r.db.WithContext(ctx).Table("policies").
+		Select("policies.*").
+		Joins("JOIN group_policies ON group_policies.policy_id = policies.id").
+		Joins("JOIN storages ON storages.id = policies.storage_id").
+		Where("group_policies.group_id = ? AND policies.enabled = ? AND storages.enabled = ?", groupID, true, true).
+		Order("policies.id ASC").
+		Find(&policies).Error
+	if err != nil {
+		return nil, repositoryError("list group policies", err)
+	}
+	return policies, nil
+}
+
 func permittedPolicy(tx *gorm.DB, user model.User, policyID uint64) (model.Policy, model.Storage, model.Group, error) {
 	var group model.Group
 	if err := tx.First(&group, "id = ?", user.GroupID).Error; err != nil {

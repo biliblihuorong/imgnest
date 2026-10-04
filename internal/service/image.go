@@ -44,6 +44,7 @@ type PolicyRepository interface {
 	UploadPolicy(context.Context, uint64, uint64) (model.Policy, model.Storage, model.Group, error)
 	Find(context.Context, uint64) (model.Policy, error)
 	CreateAndBind(context.Context, model.Policy, uint64, bool) (model.Policy, error)
+	GroupPolicies(context.Context, uint64) ([]model.Policy, error)
 }
 
 // StorageRepository persists backend settings without publishing credentials.

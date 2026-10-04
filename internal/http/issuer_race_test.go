@@ -142,6 +142,7 @@ type httpapiUserService interface {
 	Register(context.Context, service.RegisterInput) (service.UserView, error)
 	VerifyCredentials(context.Context, string, string) (verifiedCredential, error)
 	ChangePassword(context.Context, uint64, string, string) error
+	Site(context.Context) (service.SiteView, error)
 }
 
 type heldBody struct {

@@ -36,6 +36,9 @@ func (s *usersStub) VerifyCredentials(_ context.Context, _, _ string) (service.V
 	return service.VerifiedCredentials{User: testUser()}, s.err
 }
 func (s *usersStub) ChangePassword(_ context.Context, _ uint64, _, _ string) error { return s.err }
+func (s *usersStub) Site(_ context.Context) (service.SiteView, error) {
+	return service.SiteView{SiteName: "ImgNest", RegisterEnabled: true}, s.err
+}
 func testUser() service.UserView {
 	return service.UserView{ID: 7, Username: "tester", Email: "tester@example.com", Role: "user", Status: "enabled", GroupID: 1, CreatedAt: time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC)}
 }

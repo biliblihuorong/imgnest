@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ImgNest Native API
-  version: M2
+  version: M3
   description: |
     Account, token, and image API. Every API response uses the native
     `{code, message, data}` envelope. Success has code 0 and message `ok`;
@@ -18,9 +18,11 @@ servers:
     description: Current ImgNest origin
 tags:
   - name: Health
+  - name: Site
   - name: Authentication
   - name: Tokens
   - name: Images
+  - name: Policies
   - name: Trash
 paths:
   /healthz:
@@ -37,6 +39,48 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthEnvelope'
         '503':
+          $ref: '#/components/responses/InternalError'
+  /api/site:
+    get:
+      operationId: getSite
+      tags: [Site]
+      summary: Read the public site descriptor
+      description: |
+        Public endpoint without authentication. It returns only the site name
+        and the registration switch; no other settings keys are exposed.
+        The site name defaults to `ImgNest` until a configured name exists.
+      security: []
+      responses:
+        '200':
+          description: Public site descriptor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SiteEnvelope'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/policies:
+    get:
+      operationId: listPolicies
+      tags: [Policies]
+      summary: List the rules the authenticated user may upload through
+      description: |
+        Returns the enabled rules bound to the authenticated user's group whose
+        storage backend is enabled, ordered by ID — the same grant semantics
+        the upload endpoint enforces, so every listed rule is acceptable to
+        upload. A group without eligible bindings yields data `[]`, never null.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Permitted rules for the upload-page selector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyListEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
           $ref: '#/components/responses/InternalError'
   /api/auth/register:
     post:
@@ -916,6 +960,28 @@ components:
           $ref: '#/components/schemas/UserView'
         expires_at:
           $ref: '#/components/schemas/Timestamp'
+    SiteView:
+      type: object
+      additionalProperties: false
+      required: [site_name, register_enabled]
+      properties:
+        site_name:
+          type: string
+          minLength: 1
+          description: Public site title; defaults to ImgNest until a configured name exists.
+          example: ImgNest
+        register_enabled:
+          type: boolean
+          description: Whether self-service registration currently accepts new users.
+    PolicySummary:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        name:
+          type: string
+          description: Rule display name shown in the upload-page selector.
     IssuedToken:
       type: object
       additionalProperties: false
@@ -988,6 +1054,22 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/IssuedToken'
+    SiteEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/SiteView'
+    PolicyListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/PolicySummary'
     ErrorEnvelope:
       type: object
       additionalProperties: false

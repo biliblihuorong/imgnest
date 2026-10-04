@@ -28,6 +28,7 @@ type UserService interface {
 	Register(context.Context, service.RegisterInput) (service.UserView, error)
 	VerifyCredentials(context.Context, string, string) (service.VerifiedCredentials, error)
 	ChangePassword(context.Context, uint64, string, string) error
+	Site(context.Context) (service.SiteView, error)
 }
 
 // TokenService is the shared token business API used by native handlers.
@@ -71,6 +72,7 @@ func (h *Handler) RegisterRoutes(ctx context.Context, router gin.IRouter) error 
 	}
 	router.POST("/api/auth/register", h.rateLimit, h.register)
 	router.POST("/api/auth/login", h.rateLimit, h.login)
+	router.GET("/api/site", h.site)
 	protected := router.Group("/api", h.authenticate)
 	protected.GET("/auth/me", h.me)
 	protected.POST("/auth/logout", h.logout)

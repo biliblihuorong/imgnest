@@ -24,6 +24,7 @@ type ImageService interface {
 	Get(context.Context, service.TokenSubject, uint64) (service.ImageView, error)
 	List(context.Context, service.TokenSubject, service.ImageQuery) (service.ImagePage, error)
 	Exif(context.Context, service.TokenSubject, uint64) (model.ImageExif, error)
+	ListPolicies(context.Context, service.TokenSubject) ([]service.PolicySummary, error)
 	SetPublic(context.Context, service.TokenSubject, uint64, bool) (service.ImageView, error)
 	Trash(context.Context, service.TokenSubject, string) error
 	Restore(context.Context, service.TokenSubject, string) error
@@ -52,6 +53,7 @@ func (h *Handler) RegisterImageRoutes(ctx context.Context, router gin.IRouter, i
 	image := &imageHandler{auth: h, images: images, options: opts, slots: make(chan struct{}, opts.MaxConcurrent)}
 	protected := router.Group("/api", h.authenticate)
 	protected.POST("/upload", image.upload)
+	protected.GET("/policies", image.listPolicies)
 	protected.GET("/images", image.list)
 	protected.GET("/images/:id", image.get)
 	protected.GET("/images/:id/exif", image.exif)
