@@ -455,3 +455,38 @@ func v1AlbumNames(t *testing.T, body []byte) []string {
 	}
 	return names
 }
+
+func TestV1ImageDeleteContract(t *testing.T) {
+	for _, driver := range []string{"sqlite", "postgres"} {
+		t.Run(driver, func(t *testing.T) {
+			fixture := newV1Fixture(t, driver)
+			token := fixture.login(t)
+
+			uploaded := fixture.upload(t, "gone.png", pngBytes(t, 24, 24), token)
+			mustStatus(t, uploaded, 200)
+			key, _ := v1Data(t, uploaded.Body.Bytes())["key"].(string)
+			if key == "" {
+				t.Fatal("upload response missing image key")
+			}
+
+			// Success moves the image into the recycle bin with an empty object.
+			deleted := fixture.request(t, "DELETE", "/api/v1/images/"+key, "", "", token)
+			mustStatus(t, deleted, 200)
+			assertGolden(t, "image_deleted.json", deleted.Body.Bytes())
+
+			// Re-deleting the trashed key stays idempotent (HTTP 200 success).
+			repeat := fixture.request(t, "DELETE", "/api/v1/images/"+key, "", "", token)
+			mustStatus(t, repeat, 200)
+			assertGolden(t, "image_deleted.json", repeat.Body.Bytes())
+
+			// A key that never existed stays a business failure (HTTP 200).
+			missing := fixture.request(t, "DELETE", "/api/v1/images/00000000000000000000000000000000", "", "", token)
+			mustStatus(t, missing, 200)
+			assertGolden(t, "image_missing.json", missing.Body.Bytes())
+
+			anonymous := fixture.request(t, "DELETE", "/api/v1/images/"+key, "", "", "")
+			mustStatus(t, anonymous, 401)
+			assertGolden(t, "error_401.json", anonymous.Body.Bytes())
+		})
+	}
+}
