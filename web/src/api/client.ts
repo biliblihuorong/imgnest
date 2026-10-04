@@ -49,7 +49,7 @@ interface Envelope {
  * 发起同源请求并解包 data。
  * - 外壳 code !== 0：抛 ApiError{code, message, status}；
  * - 网络失败或响应体不是 JSON：抛 ApiError{code: -1, message: "网络错误", status: 0}；
- * - HTTP 401 或业务码 20001/20002：先触发 setUnauthorizedHandler 注册的回调再抛错。
+ * - 业务码 20001（未鉴权/凭证失效）：先触发 setUnauthorizedHandler 注册的回调再抛错。
  */
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
@@ -75,14 +75,16 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   const message = typeof envelope.message === "string" ? envelope.message : "未知错误";
 
   if (code !== 0) {
-    notifyUnauthorized(response.status, code);
+    notifyUnauthorized(code);
     throw new ApiError(code, message, response.status);
   }
   return envelope.data as T;
 }
 
-function notifyUnauthorized(status: number, code: number): void {
-  if (status !== 401 && code !== 20001 && code !== 20002) {
+function notifyUnauthorized(code: number): void {
+  // 仅凭证本身失效（20001：过期/吊销/用户禁用）才清会话；
+  // 20002 是"凭证内容错误"（如改密时旧密码写错），token 仍有效，只把错误抛给调用方。
+  if (code !== 20001) {
     return;
   }
   unauthorizedHandler?.();

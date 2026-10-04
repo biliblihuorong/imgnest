@@ -19,7 +19,7 @@ M3 交付：登录/注册、上传页、我的图片（含回收站管理）、T
 
 - **工具链**：Node 24.21.0 / pnpm 12.9.1 进入 dev 镜像（`npm i -g pnpm@12.9.1`，不启用 corepack 交互）；宿主 Node 22 不作为验收依据。pnpm store 固定到容器卷。版本全部按 `docs/versions.md` 精确锁定，`.nvmrc` 写 `24.21.0`，`engines.node` `>=24.21.0 <25`。
 - **类型生成**：`openapi-typescript@7.13.0` 从 `docs/openapi.yaml` 生成 `web/src/api/schema.d.ts`；`src/api/` 里手写薄封装（fetch + Bearer + envelope 解包 + 错误码映射），请求只写在 `src/api/`。
-- **Token 保存**：web token（24h）存 `localStorage["imgnest.token"]`。这是 Bearer + SPA 架构下的标准取舍（规范未定 cookie）；XSS 面通过不渲染任何用户 HTML、依赖 Naive UI 文本插值控制。401/20001/20002 统一清 token 并跳登录。
+- **Token 保存**：web token（24h）存 `localStorage["imgnest.token"]`。这是 Bearer + SPA 架构下的标准取舍（规范未定 cookie）；XSS 面通过不渲染任何用户 HTML、依赖 Naive UI 文本插值控制。业务码 20001（未鉴权/凭证过期吊销/用户禁用）统一清 token 并跳登录；20002（凭证内容错误，如改密旧密码写错）不清会话，错误抛给调用方就地展示。
 - **全局状态**：Pinia 只放 `auth`（token + UserView）与 `site`（site_name、register_enabled）两个 store，列表数据留在页面。
 - **路由**：`/login`、`/register`、`/upload`（默认首页，`/` 重定向）、`/images`、`/tokens`；全局守卫未登录跳 `/login`（携带 redirect 回跳），已登录访问 /login|/register 跳 `/upload`。守卫只做本地 token 存在性检查，真实校验靠首个 API 请求 401。
 - **Naive UI**：直接按需 `import { NButton } from "naive-ui"`，不引入 unplugin 自动导入（不在锁定清单）；主题跟随系统（`useOsTheme` + darkTheme），移动端做基础响应式，不做专门移动端设计。

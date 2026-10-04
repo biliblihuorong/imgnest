@@ -100,7 +100,7 @@ describe("api client request", () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
-  it("业务码 20002（HTTP 200）同样触发未授权回调", async () => {
+  it("业务码 20002（凭证内容错误）不清会话，只抛错给调用方", async () => {
     const handler = vi.fn();
     setUnauthorizedHandler(handler);
     vi.stubGlobal(
@@ -108,14 +108,14 @@ describe("api client request", () => {
       vi
         .fn()
         .mockResolvedValue(
-          jsonResponse({ code: 20002, message: "当前密码不正确", data: null }, 200),
+          jsonResponse({ code: 20002, message: "当前密码不正确", data: null }, 401),
         ),
     );
 
     await expect(request("/api/auth/password", { method: "PATCH" })).rejects.toBeInstanceOf(
       ApiError,
     );
-    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("fetch 抛出异常时抛出 code=-1 的网络错误", async () => {
