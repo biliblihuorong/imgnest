@@ -1,0 +1,638 @@
+openapi: 3.0.3
+info:
+  title: ImgNest Native API
+  version: M1
+  description: |
+    M1 account and token API. Every response uses the native
+    `{code, message, data}` envelope. Success has code 0 and message `ok`;
+    failures have a nonzero business code and data `null`.
+    Response timestamps are UTC RFC3339. Passwords, credential hashes,
+    and token hashes are never returned. Plaintext tokens are returned
+    only by login and token creation.
+    JSON request bodies are limited to 64 KiB. Malformed JSON, additional
+    fields, multiple JSON values, and trailing non-whitespace data are
+    rejected with HTTP 400 and code 10001.
+servers:
+  - url: /
+    description: Current ImgNest origin
+tags:
+  - name: Health
+  - name: Authentication
+  - name: Tokens
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      tags: [Health]
+      summary: Check application and database health
+      security: []
+      responses:
+        '200':
+          description: Application and database are available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthEnvelope'
+        '503':
+          $ref: '#/components/responses/InternalError'
+  /api/auth/register:
+    post:
+      operationId: registerUser
+      tags: [Authentication]
+      summary: Register an ordinary user
+      description: |
+        Registration must be enabled by the site administrator. The server
+        assigns role `user` and the default group; clients cannot set role,
+        group_id, or other account attributes. Limited to three requests
+        per minute per client IP, independently of the login limit.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created. No token is issued by registration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '403':
+          $ref: '#/components/responses/RegistrationDisabled'
+        '409':
+          $ref: '#/components/responses/UserExists'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/auth/login:
+    post:
+      operationId: login
+      tags: [Authentication]
+      summary: Log in and issue a web token
+      description: |
+        A successful login issues a web token that expires in 24 hours.
+        Copy the token from this response; it cannot be retrieved later.
+        Limited to three requests per minute per client IP, independently
+        of the registration limit. Disabled users cannot log in.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Credentials accepted and web token issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [Authentication]
+      summary: Get the authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Enabled user associated with the bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/auth/logout:
+    post:
+      operationId: logout
+      tags: [Authentication]
+      summary: Revoke the current bearer token
+      description: Other tokens belonging to the user remain active.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current token revoked; data is null.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NullEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/auth/password:
+    patch:
+      operationId: changePassword
+      tags: [Authentication]
+      summary: Change the password and revoke all user tokens
+      description: |
+        Requires the current password. A successful change revokes every
+        token owned by the user, including the token used for this request.
+        Log in again with the new password to obtain a new web token.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordRequest'
+      responses:
+        '200':
+          description: Password changed and all tokens revoked; data is null.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NullEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          description: |
+            Code 20001 means the bearer token is missing or invalid.
+            Code 20002 means the current password is incorrect.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorEnvelope'
+                  - type: object
+                    properties:
+                      code:
+                        type: integer
+                        enum: [20001, 20002]
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/tokens:
+    get:
+      operationId: listTokens
+      tags: [Tokens]
+      summary: List the authenticated user's token metadata
+      description: |
+        Returns an array of TokenView objects. An empty list has data `[]`.
+        The plaintext secret and token hash are never included.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Token metadata owned by the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenListEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createToken
+      tags: [Tokens]
+      summary: Create an API token
+      description: |
+        The server assigns kind `api` and abilities `["*"]`. These fields
+        cannot be provided by clients in M1. The expiry may be omitted or
+        null for an API token without an expiry; otherwise it must be later
+        than the current time. The plaintext token is returned only once.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTokenRequest'
+      responses:
+        '201':
+          description: API token created, with plaintext and safe metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssuedTokenEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/tokens/{id}:
+    delete:
+      operationId: revokeToken
+      tags: [Tokens]
+      summary: Revoke an owned token
+      description: |
+        A token belonging to another user and a nonexistent token both
+        return 403 with code 20003 to avoid disclosing token ownership.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Positive signed BIGINT token identifier.
+          schema:
+            $ref: '#/components/schemas/ID'
+      responses:
+        '200':
+          description: Owned token revoked; data is null.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NullEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: '<id>|<40 alphanumeric characters>'
+      description: |
+        Send `Authorization: Bearer <token>`. The token consists of a
+        positive signed BIGINT ID, a pipe, and exactly 40 ASCII
+        alphanumeric characters. Expired or revoked tokens and tokens
+        owned by disabled users are rejected with 401/code 20001.
+  schemas:
+    ID:
+      type: integer
+      format: int64
+      minimum: 1
+      maximum: 9223372036854775807
+      description: Positive signed BIGINT database identifier, serialized as a JSON number.
+      example: 7
+    Timestamp:
+      type: string
+      format: date-time
+      description: UTC RFC3339 timestamp; fractional seconds may be present.
+      example: '2026-10-04T00:00:00Z'
+    NullableTimestamp:
+      type: string
+      format: date-time
+      nullable: true
+      description: UTC RFC3339 timestamp, or null when unset.
+      example: null
+    Password:
+      type: string
+      format: password
+      writeOnly: true
+      description: |
+        New password length is 12–72 UTF-8 bytes, not characters or runes.
+        Whitespace is part of the password and is not trimmed. The byte
+        limits are enforced by the service; OpenAPI minLength/maxLength
+        would count characters and therefore are not used here.
+      x-min-bytes: 12
+      x-max-bytes: 72
+    CredentialPassword:
+      type: string
+      format: password
+      writeOnly: true
+      minLength: 1
+      description: |
+        Existing password for login or current-password verification.
+        Accepts 1–72 UTF-8 bytes so legacy bcrypt credentials below the
+        new-password minimum remain usable. Whitespace is not trimmed.
+        The upper limit counts bytes, so maxLength is not used here.
+      x-min-bytes: 1
+      x-max-bytes: 72
+    EmailInput:
+      type: string
+      description: |
+        Plain email address. Surrounding whitespace is trimmed and the
+        address is lowercased before validation. Display-name forms such
+        as `Name <user@example.com>` are rejected.
+      example: user@example.com
+    PlaintextToken:
+      type: string
+      pattern: '^[1-9][0-9]*\|[A-Za-z0-9]{40}$'
+      description: |
+        Newly issued bearer credential. Its ID is a positive signed BIGINT
+        database identifier and its secret is exactly 40 ASCII alphanumeric characters.
+        Only login and token creation responses expose this value.
+      example: 7|abcdefghijklmnopqrstuvwxyz0123456789ABCD
+    NullData:
+      type: object
+      nullable: true
+      enum: [null]
+      description: Always the JSON null value.
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+          description: Username of 3–64 Unicode code points (Go runes).
+          example: imgnest-user
+        email:
+          $ref: '#/components/schemas/EmailInput'
+        password:
+          $ref: '#/components/schemas/Password'
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          $ref: '#/components/schemas/EmailInput'
+        password:
+          $ref: '#/components/schemas/CredentialPassword'
+    PasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          $ref: '#/components/schemas/CredentialPassword'
+        new_password:
+          $ref: '#/components/schemas/Password'
+    CreateTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Token name; it must contain a non-whitespace character.
+          example: blog-client
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            Optional RFC3339 expiry later than the current time. Omitted
+            or null means no expiry. Returned timestamps are normalized
+            to UTC.
+          example: '2026-11-04T00:00:00Z'
+    UserView:
+      type: object
+      additionalProperties: false
+      required: [id, group_id, username, email, role, status, used_bytes, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        group_id:
+          $ref: '#/components/schemas/ID'
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, user]
+        status:
+          type: string
+          enum: [enabled, disabled]
+        used_bytes:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Storage usage in bytes.
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+    TokenView:
+      type: object
+      additionalProperties: false
+      required: [id, name, kind, abilities, expires_at, last_used_at, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/ID'
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [web, api]
+        abilities:
+          type: array
+          minItems: 1
+          maxItems: 1
+          description: M1 supports only the single wildcard ability ["*"].
+          items:
+            type: string
+            enum: ['*']
+        expires_at:
+          $ref: '#/components/schemas/NullableTimestamp'
+        last_used_at:
+          $ref: '#/components/schemas/NullableTimestamp'
+        created_at:
+          $ref: '#/components/schemas/Timestamp'
+    LoginData:
+      type: object
+      additionalProperties: false
+      required: [token, user, expires_at]
+      properties:
+        token:
+          $ref: '#/components/schemas/PlaintextToken'
+        user:
+          $ref: '#/components/schemas/UserView'
+        expires_at:
+          $ref: '#/components/schemas/Timestamp'
+    IssuedToken:
+      type: object
+      additionalProperties: false
+      required: [token, info]
+      properties:
+        token:
+          $ref: '#/components/schemas/PlaintextToken'
+        info:
+          $ref: '#/components/schemas/TokenView'
+    SuccessEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+          enum: [0]
+        message:
+          type: string
+          enum: [ok]
+        data:
+          description: Operation-specific success payload.
+    HealthEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: false
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [ok]
+    UserEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/UserView'
+    LoginEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/LoginData'
+    NullEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/NullData'
+    TokenListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/TokenView'
+    IssuedTokenEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/IssuedToken'
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+          enum: [10001, 20001, 20002, 20003, 30001, 30002, 30003, 50001]
+        message:
+          type: string
+          description: Human-readable error message without technical or credential details.
+        data:
+          $ref: '#/components/schemas/NullData'
+  responses:
+    InvalidInput:
+      description: Invalid JSON, unknown fields, invalid path ID, or invalid input; code 10001.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [10001]
+    Unauthenticated:
+      description: Missing, malformed, expired, revoked, or otherwise invalid bearer token; code 20001.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [20001]
+    InvalidCredentials:
+      description: Incorrect email/password or disabled account; code 20002.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [20002]
+    Forbidden:
+      description: Token does not belong to the authenticated user or does not exist; code 20003.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [20003]
+    RegistrationDisabled:
+      description: Site registration is disabled; code 30001.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [30001]
+    UserExists:
+      description: Username or email is already registered; code 30002.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [30002]
+    RateLimited:
+      description: More than three registration or login requests per minute from the same client IP; code 30003.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [30003]
+    InternalError:
+      description: Internal operation or database health check failed; code 50001.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: integer
+                    enum: [50001]
