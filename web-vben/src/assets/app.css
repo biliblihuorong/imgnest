@@ -1,0 +1,28 @@
+/* Vben owns the design system; these rules only bridge ImageNest's content. */
+html,
+body,
+#app {
+  width: 100%;
+  min-height: 100%;
+  height: 100%;
+  margin: 0;
+}
+body {
+  min-width: 320px;
+}
+:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 3px;
+}
+.n-data-table {
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,21 @@
+# Independent runtime-only Vben source workspace.
+packages:
+  - vendor/vben/packages/*
+  - vendor/vben/packages/@core/*
+  - vendor/vben/packages/@core/base/*
+  - vendor/vben/packages/@core/ui-kit/*
+  - vendor/vben/packages/effects/*
+  - vendor/vben/internal/*
+overrides:
+  vue: 3.5.43
+  "@vue/shared": 3.5.43
+  vue-router: 5.3.1
+  pinia: 4.0.3
+  "@vueuse/core": 15.0.0
+  "@vueuse/integrations": 15.0.0
+# Native watcher and Vue compatibility shim required by upstream build/runtime.
+allowBuilds:
+  "@parcel/watcher": true
+  vue-demi: true
+# Run commands must not reinstall dependencies using another environment's store.
+verifyDepsBeforeRun: false

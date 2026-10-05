@@ -42,3 +42,14 @@
 - CC-BY-SA-4.0（trailofbits/skills 的 `differential-review`、`semgrep`）：再分发或修改后分发时需署名并以相同许可证发布；仅在本项目内部使用无额外要求。
 
 更新方式见 `scripts/install-skills.sh`（或 Windows 下 `scripts/install-skills.ps1`），版本记录在 `skills-lock.json`。
+
+## Vben Admin 前端框架
+
+- 来源：[vbenjs/vue-vben-admin](https://github.com/vbenjs/vue-vben-admin/tree/50f4ede309d4450c7dd417399cb8d5c02346d2d2)
+- 版本：5.8.0；提交：`50f4ede309d4450c7dd417399cb8d5c02346d2d2`
+- 许可证：MIT，版权与完整许可原文保留在 `web-vben/vendor/vben/LICENSE`
+- 包含范围：真实 Vben layout/common-ui/preferences/stores/styles/icons 及递归运行依赖，含其 shadcn/Reka UI 内核、Tailwind 主题与必要构建插件
+- 文件来源及上游 SHA-256：`web-vben/vendor/vben/UPSTREAM.json`；局部构建适配说明：`web-vben/vendor/vben/README.md`
+- 不包含上游 demo apps、文档站、playground 或它们的后端；未将自制组件冒充 Vben 包
+
+框架 npm 依赖（Reka UI、Tailwind CSS、Lucide、Iconify、Vue I18n、TanStack、VueUse、Zod 等）的精确选择记录于 `docs/versions.md` 与 `web-vben/pnpm-lock.yaml`。它们保留各自安装包中的许可证；Vben 的 MIT 许可不替代这些独立项目及图标集的许可。

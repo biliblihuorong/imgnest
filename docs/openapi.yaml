@@ -86,6 +86,149 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/auth/captcha:
+    get:
+      operationId: getPublicCaptcha
+      tags: [Authentication]
+      summary: Read the active native authentication challenge configuration
+      description: |
+        Public and read-only. Returns exactly enabled, provider, site_key, and
+        version. Disabled configurations expose empty provider and site_key;
+        drafts, hostnames, secrets, and encrypted values are never returned.
+        A read failure is unavailable, never an implicit disabled configuration.
+      security: []
+      responses:
+        '200':
+          description: Active public configuration; absent settings default to disabled/version 0.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CaptchaPublicEnvelope'}
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
+  /api/admin/captcha:
+    get:
+      operationId: getAdminCaptcha
+      tags: [Admin]
+      summary: Read safe active and draft CAPTCHA configuration
+      description: |
+        Requires an enabled administrator, checked by both HTTP and service.
+        Neither plaintext nor encrypted secrets are returned. A configured secret
+        is indicated only by secret_configured. The existing general settings
+        endpoint does not expose or modify this configuration.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/CaptchaAdmin'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
+  /api/admin/captcha/draft:
+    put:
+      operationId: saveCaptchaDraft
+      tags: [Admin]
+      summary: Save a candidate without changing active protection
+      description: |
+        The whole settings snapshot is persisted using atomic compare-and-swap.
+        Every successful mutation increments version; use the latest top-level
+        version as expected_version. Saving invalidates both candidate tests.
+        Only Turnstile is supported. Known official test keys are rejected.
+        Omit secret to reuse the same provider's draft secret, or its active
+        secret if no draft exists. Empty secret is invalid. clear_secret=true
+        requires disabled protection and an omitted secret; it also discards
+        the retained active configuration. A new provider cannot reuse a secret.
+        Configuration requires the deployment's existing AES-GCM master key.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CaptchaDraftRequest'}
+      responses:
+        '200':
+          $ref: '#/components/responses/CaptchaAdmin'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/CaptchaConflict'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
+  /api/admin/captcha/test:
+    post:
+      operationId: testCaptchaDraft
+      tags: [Admin]
+      summary: Verify one candidate challenge before activation
+      description: |
+        Consumes a fresh provider token for action login or register. The returned
+        hostname must exactly match a configured hostname. Each successful test
+        is bound to the unchanged draft and expires after 15 minutes; both actions
+        must be tested. A concurrent draft edit cannot inherit an in-flight test.
+        Limited to three requests per minute per client IP before provider calls.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CaptchaTestRequest'}
+      responses:
+        '200':
+          $ref: '#/components/responses/CaptchaAdmin'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/CaptchaConflictOrNotReady'
+        '422':
+          $ref: '#/components/responses/CaptchaFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
+  /api/admin/captcha/activation:
+    post:
+      operationId: setCaptchaActivation
+      tags: [Admin]
+      summary: Atomically activate a tested candidate or disable protection
+      description: |
+        Enabling requires fresh successful login and register candidate tests,
+        a usable master key, and both compatibility acknowledgements. The first
+        acknowledges that unchanged legacy web cannot log in while protection is
+        enabled. The second acknowledges that /api/v1/tokens still accepts
+        passwords without CAPTCHA. No header or frontend parameter bypasses
+        native verification. Disabling requires the current version and admin
+        authentication; it retains configuration and existing sessions.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CaptchaActivationRequest'}
+      responses:
+        '200':
+          $ref: '#/components/responses/CaptchaAdmin'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/CaptchaConflictOrNotReady'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
   /api/auth/register:
     post:
       operationId: registerUser
@@ -95,7 +238,10 @@ paths:
         Registration must be enabled by the site administrator. The server
         assigns role `user` and the default group; clients cannot set role,
         group_id, or other account attributes. Limited to three requests
-        per minute per client IP, independently of the login limit.
+        per minute per client IP, independently of the login limit. The rate
+        limit runs before provider verification. When CAPTCHA is enabled,
+        captcha_token must pass the active provider for action register before
+        account creation. Closed registration does not consume a provider token.
       security: []
       requestBody:
         required: true
@@ -116,10 +262,14 @@ paths:
           $ref: '#/components/responses/RegistrationDisabled'
         '409':
           $ref: '#/components/responses/UserExists'
+        '422':
+          $ref: '#/components/responses/CaptchaFailed'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
   /api/auth/login:
     post:
       operationId: login
@@ -129,7 +279,10 @@ paths:
         A successful login issues a web token that expires in 24 hours.
         Copy the token from this response; it cannot be retrieved later.
         Limited to three requests per minute per client IP, independently
-        of the registration limit. Disabled users cannot log in.
+        of the registration limit. Disabled users cannot log in. The rate limit
+        runs before provider verification. When CAPTCHA is enabled, captcha_token
+        must pass the active provider for action login before password checking
+        and token issuance. Failure never falls back to password-only login.
       security: []
       requestBody:
         required: true
@@ -148,10 +301,14 @@ paths:
           $ref: '#/components/responses/InvalidInput'
         '401':
           $ref: '#/components/responses/InvalidCredentials'
+        '422':
+          $ref: '#/components/responses/CaptchaFailed'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
   /api/auth/me:
     get:
       operationId: getCurrentUser
@@ -1673,6 +1830,117 @@ components:
         alphanumeric characters. Expired or revoked tokens and tokens
         owned by disabled users are rejected with 401/code 20001.
   schemas:
+    CaptchaVersion:
+      type: integer
+      format: int64
+      minimum: 0
+      maximum: 9007199254740991
+      description: Monotonically increasing snapshot version; safe to represent as a JavaScript integer.
+    CaptchaToken:
+      type: string
+      maxLength: 2048
+      writeOnly: true
+      description: Single-use provider token; required when native CAPTCHA is enabled. Never retained or echoed.
+    CaptchaPublicView:
+      type: object
+      additionalProperties: false
+      required: [enabled, provider, site_key, version]
+      properties:
+        enabled: {type: boolean}
+        provider: {type: string, enum: ['', turnstile]}
+        site_key: {type: string}
+        version: {$ref: '#/components/schemas/CaptchaVersion'}
+    CaptchaConfigView:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required: [provider, site_key, hostnames, secret_configured, version]
+      properties:
+        provider: {type: string, enum: [turnstile]}
+        site_key: {type: string}
+        hostnames: {type: array, items: {type: string}}
+        secret_configured: {type: boolean}
+        version: {$ref: '#/components/schemas/CaptchaVersion'}
+    CaptchaDraftView:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required: [provider, site_key, hostnames, secret_configured, version, tested, tested_actions]
+      properties:
+        provider: {type: string, enum: [turnstile]}
+        site_key: {type: string}
+        hostnames: {type: array, items: {type: string}}
+        secret_configured: {type: boolean}
+        version: {$ref: '#/components/schemas/CaptchaVersion'}
+        tested: {type: boolean, description: Both candidate actions passed within the last 15 minutes.}
+        tested_actions:
+          type: array
+          items: {type: string, enum: [login, register]}
+          description: Fresh successful actions, in login then register order; empty array if none.
+    CaptchaAdminView:
+      type: object
+      additionalProperties: false
+      required: [version, enabled, active, draft, configuration_available]
+      properties:
+        version: {$ref: '#/components/schemas/CaptchaVersion'}
+        enabled: {type: boolean}
+        active: {$ref: '#/components/schemas/CaptchaConfigView'}
+        draft: {$ref: '#/components/schemas/CaptchaDraftView'}
+        configuration_available:
+          type: boolean
+          description: The deployment has a configured master key; existing secret decryption may still fail.
+    CaptchaDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, provider, site_key, hostnames]
+      properties:
+        expected_version: {$ref: '#/components/schemas/CaptchaVersion'}
+        provider: {type: string, enum: [turnstile]}
+        site_key: {type: string, minLength: 1, maxLength: 256, pattern: '^[a-zA-Z0-9_-]+$'}
+        hostnames:
+          type: array
+          minItems: 1
+          maxItems: 10
+          uniqueItems: true
+          items: {type: string, maxLength: 253}
+          description: Lowercase fully qualified DNS hostnames, exact matches only; no URL, port, IP, wildcard, or trailing dot.
+        secret:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          pattern: '^[a-zA-Z0-9_-]+$'
+          writeOnly: true
+          description: Omit to reuse; null or an empty string is not a new secret. Never returned.
+        clear_secret: {type: boolean, default: false}
+    CaptchaTestRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, captcha_token, action]
+      properties:
+        expected_version: {$ref: '#/components/schemas/CaptchaVersion'}
+        captcha_token: {$ref: '#/components/schemas/CaptchaToken'}
+        action: {type: string, enum: [login, register]}
+    CaptchaActivationRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, enabled, acknowledge_legacy_incompatibility, acknowledge_v1_unprotected]
+      properties:
+        expected_version: {$ref: '#/components/schemas/CaptchaVersion'}
+        enabled: {type: boolean}
+        acknowledge_legacy_incompatibility: {type: boolean}
+        acknowledge_v1_unprotected: {type: boolean}
+    CaptchaPublicEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/CaptchaPublicView'}
+    CaptchaAdminEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/CaptchaAdminView'}
     AdminUserPatch:
       type: object
       additionalProperties: false
@@ -2291,6 +2559,8 @@ components:
           $ref: '#/components/schemas/EmailInput'
         password:
           $ref: '#/components/schemas/Password'
+        captcha_token:
+          $ref: '#/components/schemas/CaptchaToken'
     LoginRequest:
       type: object
       additionalProperties: false
@@ -2300,6 +2570,8 @@ components:
           $ref: '#/components/schemas/EmailInput'
         password:
           $ref: '#/components/schemas/CredentialPassword'
+        captcha_token:
+          $ref: '#/components/schemas/CaptchaToken'
     PasswordRequest:
       type: object
       additionalProperties: false
@@ -2717,13 +2989,38 @@ components:
       properties:
         code:
           type: integer
-          enum: [10001, 10002, 10004, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 50001, 50002, 50003]
+          enum: [10001, 10002, 10004, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 30010, 30011, 30012, 50001, 50002, 50003, 50004]
         message:
           type: string
           description: Human-readable error message without technical or credential details.
         data:
           $ref: '#/components/schemas/NullData'
   responses:
+    CaptchaAdmin:
+      description: Safe administrator snapshot after a successful read or mutation.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/CaptchaAdminEnvelope'}
+    CaptchaFailed:
+      description: Missing, oversized, expired, replayed, rejected, or action/hostname-mismatched challenge; code 30010. Obtain a fresh token.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    CaptchaConflict:
+      description: Stale expected_version or concurrent modification; code 30011. Reload before retrying.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    CaptchaConflictOrNotReady:
+      description: Code 30011 for stale/concurrent version; code 30012 for absent candidate, missing/faded candidate tests, or missing compatibility acknowledgements.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    CaptchaUnavailable:
+      description: Configuration storage, secret encryption/decryption, provider protocol, timeout, or provider service unavailable; code 50004. Protection stays enabled and no session is issued.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     LskyUnauthenticated:
       description: Missing, malformed, revoked or expired bearer token; never a silent downgrade to guest access.
       content:

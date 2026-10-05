@@ -631,7 +631,10 @@ func adjustAlbum(tx *gorm.DB, image model.Image, delta int64) error {
 	if image.AlbumID == 0 {
 		return nil
 	}
-	return tx.Model(&model.Album{}).Where("id = ?", image.AlbumID).Update("image_count", gorm.Expr("image_count + ?", delta)).Error
+	if err := lockImageAlbums(tx, image.UserID, []uint64{image.AlbumID}); err != nil {
+		return err
+	}
+	return refreshAlbumCount(tx, image.AlbumID, delta)
 }
 
 func deleteImage(tx *gorm.DB, image model.Image) error {

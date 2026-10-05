@@ -92,8 +92,18 @@ func (r *AlbumRepository) Update(ctx context.Context, ownerID, albumID uint64, v
 		if album.UserID != ownerID {
 			return model.ErrForbidden
 		}
+		// Image moves and lifecycle writes lock this owner before image and
+		// album rows. Take the same lock before a cover FK can lock an image.
+		if _, err := lockUser(ctx, tx, ownerID); err != nil {
+			return err
+		}
 		changes := make(map[string]any, len(values)+1)
 		for key, value := range values {
+			// The public API uses uint64(0) for no cover; the nullable
+			// foreign key must store SQL NULL rather than image ID zero.
+			if key == "cover_image_id" && value == uint64(0) {
+				value = nil
+			}
 			changes[key] = value
 		}
 		changes["updated_at"] = time.Now().UTC()
@@ -154,6 +164,11 @@ func (r *AlbumRepository) DeleteOwned(ctx context.Context, ownerID, albumID uint
 		}
 		if album.UserID != ownerID {
 			return model.ErrForbidden
+		}
+		// Serialize detachment with the owner's image/album mutations before
+		// acquiring image or album write locks.
+		if _, err := lockUser(ctx, tx, ownerID); err != nil {
+			return err
 		}
 		if err := tx.Model(&model.Image{}).
 			Where("album_id = ? AND user_id = ?", albumID, ownerID).

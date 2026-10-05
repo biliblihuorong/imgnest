@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // OwnedActiveImage resolves an image that must exist, belong to the owner and
@@ -34,13 +36,64 @@ func (r *ImageRepository) SetAlbum(ctx context.Context, key string, albumID uint
 		if image.State != model.ImageStateActive {
 			return model.ErrInvalidInput
 		}
+		albumIDs := []uint64{}
+		for _, id := range []uint64{image.AlbumID, albumID} {
+			if id != 0 && !slices.Contains(albumIDs, id) {
+				albumIDs = append(albumIDs, id)
+			}
+		}
+		slices.Sort(albumIDs)
+		if err := lockImageAlbums(tx, image.UserID, albumIDs); err != nil {
+			return err
+		}
 		values := map[string]any{"album_id": nil}
 		if albumID > 0 {
 			values["album_id"] = albumID
 		}
-		return updateImage(tx, image.ID, values)
+		if err := updateImage(tx, image.ID, values); err != nil {
+			return err
+		}
+		for _, id := range albumIDs {
+			if err := refreshAlbumCount(tx, id, 0); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	return finishImageError("set image album", err)
+}
+
+// lockImageAlbums follows withImage's owner/image locks. Callers pass distinct
+// ascending IDs so concurrent moves cannot invert the album lock order.
+func lockImageAlbums(tx *gorm.DB, ownerID uint64, albumIDs []uint64) error {
+	for _, id := range albumIDs {
+		query := tx
+		if tx.Name() == "postgres" {
+			query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+		}
+		var album model.Album
+		if err := query.First(&album, "id = ?", id).Error; err != nil {
+			return err
+		}
+		if album.UserID != ownerID {
+			return model.ErrForbidden
+		}
+	}
+	return nil
+}
+
+// refreshAlbumCount repairs pre-existing drift as well as the current change.
+// The album is locked before counting. Lifecycle callers use a pending delta
+// before their image state transition; SetAlbum calls after moving membership.
+func refreshAlbumCount(tx *gorm.DB, albumID uint64, delta int64) error {
+	var active int64
+	if err := tx.Model(&model.Image{}).
+		Where("album_id = ? AND state = ?", albumID, model.ImageStateActive).
+		Count(&active).Error; err != nil {
+		return err
+	}
+	return tx.Model(&model.Album{}).Where("id = ?", albumID).
+		Update("image_count", active+delta).Error
 }
 
 // ListGallery pages public active images newest first together with their

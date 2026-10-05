@@ -17,6 +17,7 @@ import (
 
 // Dependencies are the application capabilities consumed by the HTTP layer.
 type Dependencies struct {
+	Captcha      native.CaptchaService
 	Users        native.UserService
 	Tokens       native.TokenService
 	Logger       *slog.Logger
@@ -82,6 +83,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	}
 	if err := handler.RegisterRoutes(ctx, router); err != nil {
 		return nil, fmt.Errorf("register native routes: %w", err)
+	}
+	if deps.Captcha != nil {
+		if err := handler.RegisterCaptchaRoutes(ctx, router, deps.Captcha); err != nil {
+			return nil, fmt.Errorf("register captcha routes: %w", err)
+		}
 	}
 	if deps.Images != nil {
 		if err := handler.RegisterImageRoutes(ctx, router, deps.Images, deps.ImageOptions); err != nil {

@@ -253,7 +253,13 @@ func TestResetInvalidatesInFlightLogin(t *testing.T) {
 			go func() { router.ServeHTTP(response, r); close(finished) }()
 			select {
 			case <-paused.ready:
-			case <-time.After(3 * time.Second):
+			case <-finished:
+				close(paused.release)
+				t.Fatalf("login finished before password verification barrier: HTTP=%d", response.Code)
+			case <-time.After(15 * time.Second):
+				// Real cost-12 bcrypt can exceed three seconds under race
+				// instrumentation on constrained executors. Keep a bounded
+				// wait without weakening the reset/token ordering assertion.
 				close(paused.release)
 				t.Fatal("password verification barrier not reached")
 			}
