@@ -1,20 +1,28 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { NButton, NImage, NPopconfirm, NSwitch, NTag, NTooltip } from "naive-ui";
+import { NButton, NCheckbox, NDropdown, NImage, NPopconfirm, NSwitch, NTag, NTooltip, type DropdownOption } from "naive-ui";
 import type { ImageView } from "@/api/images";
 import { formatBytes } from "@/lib/format";
 import { formatDateTime } from "./time";
 
 const props = defineProps<{
   image: ImageView;
-  /** 该卡片有待完成的写操作（改可见性/删除）时禁用控件。 */
+  /** 该卡片有待完成的写操作（改可见性/删除/移动）时禁用控件。 */
   busy?: boolean;
+  /** 是否显示左上角多选框（图片页批量操作）。 */
+  selectable?: boolean;
+  /** 多选框受控值。 */
+  selected?: boolean;
+  /** 「移动到相册」下拉选项（key=相册 id，0=移出相册）；为空不显示移动入口。 */
+  albumOptions?: DropdownOption[];
 }>();
 
 const emit = defineEmits<{
   open: [];
   toggle: [isPublic: boolean];
   remove: [];
+  select: [checked: boolean];
+  move: [albumId: number];
 }>();
 
 const thumbFailed = ref(false);
@@ -24,10 +32,22 @@ const extText = computed(() => props.image.ext.replace(/^\./, "").toUpperCase())
 function onThumbError(): void {
   thumbFailed.value = true;
 }
+
+function onMoveSelect(key: string | number): void {
+  emit("move", Number(key));
+}
 </script>
 
 <template>
   <div class="image-card">
+    <div v-if="selectable" class="image-card__check" @click.stop>
+      <NCheckbox
+        size="small"
+        :checked="selected"
+        :aria-label="`选择 ${image.name}`"
+        @update:checked="emit('select', $event)"
+      />
+    </div>
     <div class="image-card__thumb" @click="emit('open')">
       <NImage
         v-if="thumbUrl"
@@ -67,6 +87,14 @@ function onThumbError(): void {
           公开/私有只影响公共列表与画廊展示，私有图片的直链仍可访问。
         </NTooltip>
         <div class="image-card__spacer" />
+        <NDropdown
+          v-if="albumOptions && albumOptions.length > 0"
+          trigger="click"
+          :options="albumOptions"
+          @select="onMoveSelect"
+        >
+          <NButton size="tiny" quaternary type="primary" :disabled="busy">移动</NButton>
+        </NDropdown>
         <NPopconfirm
           positive-text="确认删除"
           negative-text="取消"
@@ -84,10 +112,21 @@ function onThumbError(): void {
 
 <style scoped>
 .image-card {
+  position: relative;
   border: 1px solid rgba(128, 128, 128, 0.25);
   border-radius: 8px;
   overflow: hidden;
   background: transparent;
+}
+
+.image-card__check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 1;
+  padding: 2px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .image-card__thumb {

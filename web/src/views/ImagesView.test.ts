@@ -2,7 +2,12 @@ import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NMessageProvider, NPagination, NSelect } from "naive-ui";
 import { h } from "vue";
+import { listAlbums } from "@/api/albums";
+import { makeAlbum } from "@/components/albums/fixtures";
 import {
+  batchAlbums,
+  batchDelete,
+  batchPermission,
   deleteImage,
   getImageExif,
   listImages,
@@ -20,17 +25,50 @@ vi.mock("@/api/images", () => ({
   listTrash: vi.fn(),
   restoreImages: vi.fn(),
   purgeImages: vi.fn(),
+  batchDelete: vi.fn(),
+  batchPermission: vi.fn(),
+  batchAlbums: vi.fn(),
+}));
+
+vi.mock("@/api/albums", () => ({
+  listAlbums: vi.fn(),
 }));
 
 const listImagesMock = vi.mocked(listImages);
 const setImageVisibilityMock = vi.mocked(setImageVisibility);
 const deleteImageMock = vi.mocked(deleteImage);
 const getImageExifMock = vi.mocked(getImageExif);
+const batchAlbumsMock = vi.mocked(batchAlbums);
+const batchDeleteMock = vi.mocked(batchDelete);
+const batchPermissionMock = vi.mocked(batchPermission);
+const listAlbumsMock = vi.mocked(listAlbums);
 
 enableAutoUnmount(afterEach);
 
 function mountImages() {
   return mount(() => h(NMessageProvider, () => h(ImagesView)));
+}
+
+function findButton(wrapper: Awaited<ReturnType<typeof mountImages>>, text: string) {
+  const button = [...wrapper.findAll("button")].find((node) => node.text().trim() === text);
+  if (!button) {
+    throw new Error(`找不到按钮：${text}`);
+  }
+  return button;
+}
+
+function bodyButton(text: string): HTMLButtonElement {
+  const button = [...document.body.querySelectorAll("button")].find(
+    (node) => node.textContent?.trim() === text,
+  );
+  if (!button) {
+    throw new Error(`document.body 中找不到按钮：${text}`);
+  }
+  return button;
+}
+
+function batchItemOk(id: number) {
+  return { id, status: 200, code: 0, message: "ok", data: null };
 }
 
 beforeEach(() => {
@@ -43,6 +81,12 @@ beforeEach(() => {
     total: 42,
     page: 1,
     size: 20,
+  });
+  listAlbumsMock.mockResolvedValue({
+    items: [makeAlbum({ id: 7, name: "旅行" }), makeAlbum({ id: 8, name: "工作" })],
+    total: 2,
+    page: 1,
+    size: 100,
   });
 });
 
@@ -137,5 +181,176 @@ describe("ImagesView", () => {
 
     expect(getImageExifMock).toHaveBeenCalledWith(1);
     expect(document.body.textContent).toContain("仅本人可见");
+  });
+
+  it("挂载时加载相册列表供筛选与移动使用", async () => {
+    await mountImages();
+    await flushPromises();
+
+    expect(listAlbumsMock).toHaveBeenCalledWith({ page: 1, size: 100 });
+  });
+
+  it("相册筛选：未归类传 album_id=0，具体相册传 id，清空后不传", async () => {
+    const wrapper = await mountImages();
+    await flushPromises();
+
+    const selects = wrapper.findAllComponents(NSelect);
+    expect(selects.length).toBe(2);
+
+    await selects[1]!.vm.$emit("update:value", 0);
+    await flushPromises();
+    expect(listImagesMock).toHaveBeenLastCalledWith({ page: 1, size: 20, album_id: 0 });
+
+    await selects[1]!.vm.$emit("update:value", 7);
+    await flushPromises();
+    expect(listImagesMock).toHaveBeenLastCalledWith({ page: 1, size: 20, album_id: 7 });
+
+    await selects[1]!.vm.$emit("update:value", null);
+    await flushPromises();
+    expect(listImagesMock).toHaveBeenLastCalledWith({ page: 1, size: 20 });
+  });
+
+  it("相册筛选切换后回到第 1 页并清空多选", async () => {
+    const wrapper = await mountImages();
+    await flushPromises();
+
+    await wrapper.findAllComponents(ImageCard)[0].vm.$emit("select", true);
+    await flushPromises();
+    expect(wrapper.text()).toContain("已选 1 张");
+
+    const selects = wrapper.findAllComponents(NSelect);
+    await selects[1]!.vm.$emit("update:value", 7);
+    await flushPromises();
+
+    expect(listImagesMock).toHaveBeenLastCalledWith({ page: 1, size: 20, album_id: 7 });
+    expect(wrapper.text()).not.toContain("已选 1 张");
+  });
+
+  it("多选两张后批量移动：调用 batchAlbums 并刷新、清空选择", async () => {
+    batchAlbumsMock.mockResolvedValue([batchItemOk(1), batchItemOk(2)]);
+    const wrapper = await mountImages();
+    await flushPromises();
+
+    const cards = wrapper.findAllComponents(ImageCard);
+    await cards[0].vm.$emit("select", true);
+    await cards[1].vm.$emit("select", true);
+    await flushPromises();
+    expect(wrapper.text()).toContain("已选 2 张");
+
+    const selects = wrapper.findAllComponents(NSelect);
+    expect(selects.length).toBe(3);
+    await selects[2]!.vm.$emit("update:value", 7);
+    await flushPromises();
+
+    await findButton(wrapper, "移动到相册").trigger("click");
+    await flushPromises();
+
+    expect(batchAlbumsMock).toHaveBeenCalledWith([1, 2], 7);
+    expect(listImagesMock).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).not.toContain("已选 2 张");
+    expect(document.body.textContent).toContain("移动成功 2 张");
+  });
+
+  it("未选择目标相册时批量移动给出警告且不发请求", async () => {
+    const wrapper = await mountImages();
+    await flushPromises();
+
+    await wrapper.findAllComponents(ImageCard)[0].vm.$emit("select", true);
+    await flushPromises();
+    await findButton(wrapper, "移动到相册").trigger("click");
+    await flushPromises();
+
+    expect(batchAlbumsMock).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("请先选择目标相册");
+  });
+
+  it("批量移动部分失败时逐项反馈，成功的仍刷新列表", async () => {
+    batchAlbumsMock.mockResolvedValue([
+      { id: 1, status: 404, code: 30002, message: "图片不存在", data: null },
+      batchItemOk(2),
+    ]);
+    const wrapper = await mountImages();
+    await flushPromises();
+
+    const cards = wrapper.findAllComponents(ImageCard);
+    await cards[0].vm.$emit("select", true);
+    await cards[1].vm.$emit("select", true);
+    const selects = wrapper.findAllComponents(NSelect);
+    await selects[2]!.vm.$emit("update:value", 8);
+    await flushPromises();
+
+    await findButton(wrapper, "移动到相册").trigger("click");
+    await flushPromises();
+
+    expect(document.body.textContent).toContain("移动成功 1 张");
+    expect(document.body.textContent).toContain("移动失败（ID 1）：图片不存在");
+    expect(listImagesMock).toHaveBeenCalledTimes(2);
+    expect(wrapper.text()).not.toContain("已选 2 张");
+  });
+
+  it("批量删除：Popconfirm 确认后调用 batchDelete 并清空选择", async () => {
+    batchDeleteMock.mockResolvedValue([batchItemOk(1), batchItemOk(2)]);
+    const wrapper = await mountImages();
+    await flushPromises();
+
+    const cards = wrapper.findAllComponents(ImageCard);
+    await cards[0].vm.$emit("select", true);
+    await cards[1].vm.$emit("select", true);
+    await findButton(wrapper, "批量删除").trigger("click");
+    await flushPromises();
+
+    const panel = document.body.querySelector(".n-popconfirm__panel");
+    expect(panel?.textContent).toContain("移入回收站");
+
+    await bodyButton("确认删除").click();
+    await flushPromises();
+
+    expect(batchDeleteMock).toHaveBeenCalledWith([1, 2]);
+    expect(document.body.textContent).toContain("删除成功 2 张");
+    expect(wrapper.text()).not.toContain("已选 2 张");
+  });
+
+  it("批量改公开/私有：调用 batchPermission", async () => {
+    batchPermissionMock.mockResolvedValue([batchItemOk(1)]);
+    const wrapper = await mountImages();
+    await flushPromises();
+
+    await wrapper.findAllComponents(ImageCard)[0].vm.$emit("select", true);
+    await findButton(wrapper, "设为公开").trigger("click");
+    await flushPromises();
+    expect(batchPermissionMock).toHaveBeenLastCalledWith([1], true);
+    expect(document.body.textContent).toContain("设为公开成功 1 张");
+
+    await wrapper.findAllComponents(ImageCard)[0].vm.$emit("select", true);
+    await findButton(wrapper, "设为私有").trigger("click");
+    await flushPromises();
+    expect(batchPermissionMock).toHaveBeenLastCalledWith([1], false);
+    expect(document.body.textContent).toContain("设为私有成功 1 张");
+  });
+
+  it("卡片「移动」下拉移动单张：batchAlbums([id], target)，不清空其他选择", async () => {
+    batchAlbumsMock.mockResolvedValue([batchItemOk(1)]);
+    const wrapper = await mountImages();
+    await flushPromises();
+
+    await wrapper.findAllComponents(ImageCard)[0].vm.$emit("move", 7);
+    await flushPromises();
+
+    expect(batchAlbumsMock).toHaveBeenCalledWith([1], 7);
+    expect(document.body.textContent).toContain("移动成功 1 张");
+  });
+
+  it("批量条「取消」清空选择", async () => {
+    const wrapper = await mountImages();
+    await flushPromises();
+
+    await wrapper.findAllComponents(ImageCard)[0].vm.$emit("select", true);
+    await flushPromises();
+    expect(wrapper.text()).toContain("已选 1 张");
+
+    await findButton(wrapper, "取消").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain("已选 1 张");
   });
 });

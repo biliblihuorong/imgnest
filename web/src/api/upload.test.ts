@@ -187,6 +187,27 @@ describe("uploadImages", () => {
     await promise;
   });
 
+  it("albumId 提供时发送 album_id 表单字段；未提供时不发送", async () => {
+    const withAlbum = uploadImages({
+      files: [makeFile("a.png", 1)],
+      policyId: 1,
+      isPublic: false,
+      albumId: 5,
+    });
+    expect(FakeXHR.instances[0]?.sent?.get("album_id")).toBe("5");
+    FakeXHR.instances[0]?.respond(201, envelopeJson(imageView));
+    await withAlbum;
+
+    const withoutAlbum = uploadImages({
+      files: [makeFile("b.png", 1)],
+      policyId: 1,
+      isPublic: false,
+    });
+    expect(FakeXHR.instances[1]?.sent?.get("album_id")).toBeNull();
+    FakeXHR.instances[1]?.respond(201, envelopeJson(imageView));
+    await withoutAlbum;
+  });
+
   it("外壳 code!=0：失败项携带 code/message/status（与 client 错误语义一致）", async () => {
     const promise = uploadImages({ files: [makeFile("a.png", 1)], policyId: 1, isPublic: false });
     FakeXHR.instances[0].respond(

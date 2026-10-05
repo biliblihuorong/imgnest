@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { request } from "./client";
 import {
+  batchAlbums,
+  batchDelete,
+  batchPermission,
   deleteImage,
   getImage,
   getImageExif,
@@ -99,6 +102,82 @@ describe("listTrash", () => {
     await listTrash({ page: 3, size: 100 });
 
     expect(requestMock).toHaveBeenCalledWith("/api/trash?page=3&size=100");
+  });
+});
+
+describe("listImages album_id 过滤", () => {
+  it("不传 album_id 时不出现查询参数（=全部）", async () => {
+    await listImages({ page: 1, size: 20 });
+
+    expect(requestMock).toHaveBeenCalledWith("/api/images?page=1&size=20");
+  });
+
+  it("显式 album_id=0 必须序列化（0=未归类）", async () => {
+    await listImages({ page: 1, size: 20, album_id: 0 });
+
+    expect(requestMock).toHaveBeenCalledWith("/api/images?page=1&size=20&album_id=0");
+  });
+
+  it("显式相册 id 参与查询串", async () => {
+    await listImages({ album_id: 7 });
+
+    expect(requestMock).toHaveBeenCalledWith("/api/images?album_id=7");
+  });
+});
+
+describe("batchDelete", () => {
+  it("POST {action:delete, ids} 到 /api/images/batch", async () => {
+    await batchDelete([1, 2]);
+
+    expect(requestMock).toHaveBeenCalledWith("/api/images/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: '{"action":"delete","ids":[1,2]}',
+    });
+  });
+});
+
+describe("batchPermission", () => {
+  it("POST {action:permission, ids, is_public} 到 /api/images/batch", async () => {
+    await batchPermission([3], true);
+
+    expect(requestMock).toHaveBeenCalledWith("/api/images/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: '{"action":"permission","ids":[3],"is_public":true}',
+    });
+  });
+
+  it("is_public=false 按字面量发送", async () => {
+    await batchPermission([3, 4], false);
+
+    expect(requestMock).toHaveBeenCalledWith("/api/images/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: '{"action":"permission","ids":[3,4],"is_public":false}',
+    });
+  });
+});
+
+describe("batchAlbums", () => {
+  it("POST {action:album, ids, album_id} 到 /api/images/batch", async () => {
+    await batchAlbums([1, 2], 5);
+
+    expect(requestMock).toHaveBeenCalledWith("/api/images/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: '{"action":"album","ids":[1,2],"album_id":5}',
+    });
+  });
+
+  it("album_id=0 表示移出相册且必须序列化", async () => {
+    await batchAlbums([6], 0);
+
+    expect(requestMock).toHaveBeenCalledWith("/api/images/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: '{"action":"album","ids":[6],"album_id":0}',
+    });
   });
 });
 

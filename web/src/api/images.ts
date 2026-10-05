@@ -21,7 +21,15 @@ export interface PageParams {
   size?: number;
 }
 
-function pageQuery(params: PageParams): string {
+/**
+ * 图片列表参数：分页 + 相册过滤。
+ * album_id 缺省（undefined）=全部；显式 0=未归类（不属于任何相册）。
+ */
+export interface ListParams extends PageParams {
+  album_id?: number;
+}
+
+function pageQuery(params: ListParams): string {
   const search = new URLSearchParams();
   if (params.page !== undefined) {
     search.set("page", String(params.page));
@@ -29,12 +37,16 @@ function pageQuery(params: PageParams): string {
   if (params.size !== undefined) {
     search.set("size", String(params.size));
   }
+  // 显式 0 必须序列化（0=未归类），只有 undefined 才省略
+  if (params.album_id !== undefined) {
+    search.set("album_id", String(params.album_id));
+  }
   const query = search.toString();
   return query ? `?${query}` : "";
 }
 
-/** 分页列出当前用户的未删除图片。 */
-export function listImages(params: PageParams = {}): Promise<ImagePage> {
+/** 分页列出当前用户的未删除图片（可按相册过滤）。 */
+export function listImages(params: ListParams = {}): Promise<ImagePage> {
   return request<ImagePage>(`/api/images${pageQuery(params)}`);
 }
 
@@ -90,4 +102,39 @@ export function purgeImages(ids: number[]): Promise<ImageBatchItem[]> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+/* ---------------- 原生批量操作（POST /api/images/batch，207 逐项） ---------------- */
+
+/** POST /api/images/batch 的请求体；响应按请求 ids 顺序逐项返回。 */
+interface ImageBatchBody {
+  action: "delete" | "permission" | "album";
+  ids: number[];
+  /** action=permission 时必带；delete/album 时省略。 */
+  is_public?: boolean;
+  /** action=album 时必带；0=移出相册。 */
+  album_id?: number;
+}
+
+function postBatch(body: ImageBatchBody): Promise<ImageBatchItem[]> {
+  return request<ImageBatchItem[]>("/api/images/batch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/** 批量把图片移入回收站（原 URL 立即 404）；207 逐项结果。 */
+export function batchDelete(ids: number[]): Promise<ImageBatchItem[]> {
+  return postBatch({ action: "delete", ids });
+}
+
+/** 批量修改公私可见性；207 逐项结果。 */
+export function batchPermission(ids: number[], isPublic: boolean): Promise<ImageBatchItem[]> {
+  return postBatch({ action: "permission", ids, is_public: isPublic });
+}
+
+/** 批量移动图片到相册（albumId=0 移出相册）；207 逐项结果。 */
+export function batchAlbums(ids: number[], albumId: number): Promise<ImageBatchItem[]> {
+  return postBatch({ action: "album", ids, album_id: albumId });
 }

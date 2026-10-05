@@ -69,6 +69,11 @@ export type UploadItemResult =
 export interface UploadImageOptions {
   policyId: number | null;
   isPublic: boolean;
+  /**
+   * 目标相册 id；null/undefined = 不入相册（不发送 album_id 字段）。
+   * openapi /api/upload multipart 契约的 album_id（M2 起后端已支持）。
+   */
+  albumId?: number | null;
   /** 单文件的 XHR upload.onprogress（字节进度）。 */
   onProgress?: (loaded: number, total: number) => void;
 }
@@ -98,6 +103,7 @@ export async function uploadImages(options: UploadImagesOptions): Promise<Upload
     const result = await uploadOne(file, {
       policyId: options.policyId,
       isPublic: options.isPublic,
+      albumId: options.albumId,
       onProgress,
     });
     results.push(result);
@@ -112,6 +118,7 @@ async function uploadOne(file: File, options: UploadImageOptions): Promise<Uploa
       file,
       options.policyId,
       options.isPublic,
+      options.albumId ?? null,
       options.onProgress,
     );
     return { ok: true, filename: file.name, status, image };
@@ -133,6 +140,7 @@ function requestUpload(
   file: File,
   policyId: number | null,
   isPublic: boolean,
+  albumId: number | null,
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<{ image: ImageView; status: number }> {
   return new Promise((resolve, reject) => {
@@ -143,6 +151,9 @@ function requestUpload(
     }
     // openapi：multipart 文本必须精确为 true / false
     form.append("is_public", isPublic ? "true" : "false");
+    if (albumId !== null) {
+      form.append("album_id", String(albumId));
+    }
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/upload");

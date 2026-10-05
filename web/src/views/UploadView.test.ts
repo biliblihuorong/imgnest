@@ -1,9 +1,10 @@
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import naive from "naive-ui";
+import naive, { NMessageProvider, NSelect } from "naive-ui";
 import { defineComponent, h } from "vue";
-import { NMessageProvider } from "naive-ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/api/client";
+import { listAlbums } from "@/api/albums";
+import { makeAlbum } from "@/components/albums/fixtures";
 import * as policiesApi from "@/api/policies";
 import * as uploadApi from "@/api/upload";
 import type { ImageView, UploadItemResult } from "@/api/upload";
@@ -14,12 +15,17 @@ vi.mock("@/api/policies", () => ({
   listPolicies: vi.fn(),
 }));
 
+vi.mock("@/api/albums", () => ({
+  listAlbums: vi.fn(),
+}));
+
 vi.mock("@/api/upload", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/upload")>()),
   uploadImages: vi.fn(),
 }));
 
 const policiesApiMock = vi.mocked(policiesApi);
+const listAlbumsMock = vi.mocked(listAlbums);
 const uploadImagesMock = vi.mocked(uploadApi.uploadImages);
 
 function makeFile(name: string, size: number): File {
@@ -114,6 +120,12 @@ describe("UploadView", () => {
         disconnect(): void {}
       },
     );
+    listAlbumsMock.mockResolvedValue({
+      items: [makeAlbum({ id: 5, name: "旅行" })],
+      total: 1,
+      page: 1,
+      size: 100,
+    });
   });
 
   afterEach(() => {
@@ -274,5 +286,26 @@ describe("UploadView", () => {
     await startUpload(wrapper);
 
     expect(uploadImagesMock.mock.calls[0]?.[0]?.isPublic).toBe(true);
+  });
+
+  it("选择相册后上传选项带 album_id，清除后回到 null", async () => {
+    policiesApiMock.listPolicies.mockResolvedValue([{ id: 1, name: "规则一" }]);
+    uploadImagesMock.mockResolvedValue([] as UploadItemResult[]);
+    const wrapper = mountView();
+    await flushPromises();
+
+    // 相册选择器是第二个 NSelect（第一个是上传规则）
+    const selects = wrapper.findAllComponents(NSelect);
+    expect(selects.length).toBe(2);
+    await selects[1]!.vm.$emit("update:value", 5);
+
+    await chooseFiles(wrapper, [makeFile("a.png", 100)]);
+    await startUpload(wrapper);
+    expect(uploadImagesMock.mock.calls[0]?.[0]?.albumId).toBe(5);
+
+    await selects[1]!.vm.$emit("update:value", null);
+    await chooseFiles(wrapper, [makeFile("b.png", 100)]);
+    await startUpload(wrapper);
+    expect(uploadImagesMock.mock.calls[1]?.[0]?.albumId).toBeNull();
   });
 });

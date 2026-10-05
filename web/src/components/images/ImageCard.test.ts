@@ -1,13 +1,14 @@
-import { enableAutoUnmount, mount } from "@vue/test-utils";
+import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ImageView } from "@/api/images";
+import type { DropdownOption } from "naive-ui";
 import { makeImage } from "./fixtures";
 import ImageCard from "./ImageCard.vue";
 
 enableAutoUnmount(afterEach);
 
-function mountCard(image: ImageView = makeImage()) {
-  return mount(ImageCard, { props: { image } });
+function mountCard(image: ImageView = makeImage(), props: Record<string, unknown> = {}) {
+  return mount(ImageCard, { props: { image, ...props } });
 }
 
 describe("ImageCard", () => {
@@ -77,5 +78,41 @@ describe("ImageCard", () => {
     await Promise.resolve();
 
     expect(wrapper.emitted("remove")).toHaveLength(1);
+  });
+
+  it("selectable 时显示左上角多选框：点击发出 select 且不触发 open", async () => {
+    const wrapper = mountCard(makeImage(), { selectable: true, selected: false });
+
+    expect(wrapper.find(".image-card__check").exists()).toBe(true);
+    await wrapper.find(".n-checkbox").trigger("click");
+
+    expect(wrapper.emitted("select")).toEqual([[true]]);
+    expect(wrapper.emitted("open")).toBeUndefined();
+  });
+
+  it("未启用 selectable 时不显示多选框", () => {
+    const wrapper = mountCard();
+
+    expect(wrapper.find(".image-card__check").exists()).toBe(false);
+  });
+
+  it("albumOptions 提供时显示移动下拉，选择相册后发出 move", async () => {
+    const options: DropdownOption[] = [
+      { label: "移出相册", key: 0 },
+      { label: "旅行", key: 7 },
+    ];
+    const wrapper = mountCard(makeImage(), { albumOptions: options });
+
+    await [...wrapper.findAll("button")].find((b) => b.text() === "移动")!.trigger("click");
+    await flushPromises();
+
+    const option = [...document.body.querySelectorAll(".n-dropdown-option-body")].find((node) =>
+      node.textContent?.includes("旅行"),
+    );
+    expect(option).toBeDefined();
+    option!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
+
+    expect(wrapper.emitted("move")).toEqual([[7]]);
   });
 });

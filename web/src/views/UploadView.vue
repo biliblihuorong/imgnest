@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from "vue";
 import UploadDropzone from "@/components/upload/UploadDropzone.vue";
 import UploadQueueList from "@/components/upload/UploadQueueList.vue";
 import type { UploadQueueItem } from "@/components/upload/types";
+import { listAlbums, type AlbumView } from "@/api/albums";
 import { listPolicies } from "@/api/policies";
 import type { PolicySummary } from "@/api/types";
 import {
@@ -23,6 +24,11 @@ const policiesError = ref<string | null>(null);
 const policyId = ref<number | null>(null);
 const isPublic = ref(false);
 
+/** 相册列表：null=加载中/加载失败（不阻塞上传，仅隐藏选择器）。 */
+const albums = ref<AlbumView[] | null>(null);
+/** 目标相册；null=不入相册（不发 album_id 字段）。 */
+const albumId = ref<number | null>(null);
+
 const items = ref<UploadQueueItem[]>([]);
 let nextItemId = 1;
 
@@ -33,12 +39,17 @@ const policyOptions = computed<SelectOption[]>(() =>
   (policies.value ?? []).map((policy) => ({ label: policy.name, value: policy.id })),
 );
 
+const albumOptions = computed<SelectOption[]>(() =>
+  (albums.value ?? []).map((album) => ({ label: album.name, value: album.id })),
+);
+
 const canUpload = computed(
   () => policyId.value !== null && !uploading.value && items.value.some((item) => item.state === "queued"),
 );
 
 onMounted(() => {
   void loadPolicies();
+  void loadAlbums();
 });
 
 async function loadPolicies(): Promise<void> {
@@ -52,6 +63,16 @@ async function loadPolicies(): Promise<void> {
     }
   } catch (error) {
     policiesError.value = error instanceof Error ? error.message : "上传规则加载失败";
+  }
+}
+
+/** 相册列表加载失败只影响「不入相册」选择，不打断上传主流程。 */
+async function loadAlbums(): Promise<void> {
+  try {
+    const data = await listAlbums({ page: 1, size: 100 });
+    albums.value = data.items;
+  } catch {
+    albums.value = [];
   }
 }
 
@@ -98,6 +119,7 @@ async function runUpload(targets: UploadQueueItem[]): Promise<void> {
       files: targets.map((item) => item.file),
       policyId: policyId.value,
       isPublic: isPublic.value,
+      albumId: albumId.value,
       onFileStart: (index, file) => {
         const item = targets[index];
         if (!item) {
@@ -170,6 +192,15 @@ function applyResult(item: UploadQueueItem | undefined, result: UploadItemResult
         placeholder="选择上传规则"
         :disabled="uploading"
       />
+      <NSelect
+        v-if="albums !== null"
+        v-model:value="albumId"
+        class="upload-view__album"
+        :options="albumOptions"
+        placeholder="选择相册（可选）"
+        clearable
+        :disabled="uploading"
+      />
       <label class="upload-view__public">
         <NSwitch v-model:value="isPublic" :disabled="uploading">
           <template #checked>公开</template>
@@ -214,6 +245,11 @@ function applyResult(item: UploadQueueItem | undefined, result: UploadItemResult
 .upload-view__policy {
   flex: 1;
   min-width: 200px;
+}
+
+.upload-view__album {
+  flex: 1;
+  min-width: 180px;
 }
 
 .upload-view__empty-policy {
