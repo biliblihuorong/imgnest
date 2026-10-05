@@ -24,7 +24,8 @@ type ImageRepository interface {
 	FindByID(context.Context, uint64) (model.Image, error)
 	FindByPath(context.Context, uint64, string) (model.Image, error)
 	FindExif(context.Context, string) (model.ImageExif, error)
-	List(context.Context, uint64, bool, bool, int, int) ([]model.Image, int64, error)
+	List(context.Context, uint64, bool, bool, int, int, *uint64) ([]model.Image, int64, error)
+	SetAlbum(context.Context, string, uint64, model.TokenGrant) error
 	SetPublic(context.Context, string, bool, model.TokenGrant) error
 	BeginTrash(context.Context, string, string, model.TokenGrant, int) (model.Image, error)
 	FinishTrash(context.Context, string, string) error
@@ -45,6 +46,13 @@ type PolicyRepository interface {
 	Find(context.Context, uint64) (model.Policy, error)
 	CreateAndBind(context.Context, model.Policy, uint64, bool) (model.Policy, error)
 	GroupPolicies(context.Context, uint64) ([]model.Policy, error)
+}
+
+// AlbumStore locates one owner's album for image assignment checks. It is an
+// optional capability: the concrete album repository implements it and the
+// composition root wires it into ImageDependencies.
+type AlbumStore interface {
+	FindOwned(ctx context.Context, ownerID, albumID uint64) (model.Album, error)
 }
 
 // StorageRepository persists backend settings without publishing credentials.
@@ -95,18 +103,21 @@ type ImageSettings interface {
 
 // ImageDependencies contains only the capabilities needed by image business rules.
 type ImageDependencies struct {
-	Images       ImageRepository
-	Policies     PolicyRepository
-	Storages     StorageRepository
-	Users        UserRepository
-	Tokens       TokenRepository
-	Drivers      StorageProvider
-	Paths        PathBuilder
-	Imaging      imaging.Processor
-	Extractor    exif.Extractor
-	Scrubber     exif.Scrubber
-	Cache        ThumbCache
-	Settings     ImageSettings
+	Images    ImageRepository
+	Policies  PolicyRepository
+	Storages  StorageRepository
+	Users     UserRepository
+	Tokens    TokenRepository
+	Drivers   StorageProvider
+	Paths     PathBuilder
+	Imaging   imaging.Processor
+	Extractor exif.Extractor
+	Scrubber  exif.Scrubber
+	Cache     ThumbCache
+	Settings  ImageSettings
+	// Albums validates album ownership for image assignment; it is optional
+	// and album-related operations reject requests while it stays unset.
+	Albums       AlbumStore
 	Now          func() time.Time
 	MaxFileBytes int64
 }
@@ -173,10 +184,13 @@ type ImageView struct {
 	CreatedAt     time.Time  `json:"created_at"`
 }
 
-// ImageQuery limits one owner's active images or recycle bin.
+// ImageQuery limits one owner's active images or recycle bin. AlbumID nil
+// means "no album filter"; zero selects unassigned images; a positive value
+// selects one owner-verified album.
 type ImageQuery struct {
 	Page, Size   int
 	Trash, Admin bool
+	AlbumID      *uint64
 }
 
 // ImagePage is the native image-list response.
@@ -185,6 +199,21 @@ type ImagePage struct {
 	Total int64       `json:"total"`
 	Page  int         `json:"page"`
 	Size  int         `json:"size"`
+}
+
+// GalleryItem is one public gallery entry: an image view plus the uploader's
+// username. ImageView already excludes EXIF, addresses, and internals.
+type GalleryItem struct {
+	ImageView
+	Uploader string `json:"uploader"`
+}
+
+// GalleryPage is the public gallery listing.
+type GalleryPage struct {
+	Items []GalleryItem `json:"items"`
+	Total int64         `json:"total"`
+	Page  int           `json:"page"`
+	Size  int           `json:"size"`
 }
 
 // UploadLimits permits HTTP to check authentication and group caps before reading a body.

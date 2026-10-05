@@ -45,6 +45,8 @@ func (s *ImageService) imageByID(ctx context.Context, subject TokenSubject, id u
 }
 
 // List paginates the actor's active images or trash, with explicit administrator scope.
+// A positive album filter is verified to belong to the actor first; a foreign
+// album rejects with ErrForbidden exactly like direct image access.
 func (s *ImageService) List(ctx context.Context, subject TokenSubject, query ImageQuery) (ImagePage, error) {
 	actor, err := s.actor(ctx, subject)
 	if err != nil {
@@ -62,7 +64,16 @@ func (s *ImageService) List(ctx context.Context, subject TokenSubject, query Ima
 	if query.Page < 1 || query.Page > 1000000 || query.Size < 1 || query.Size > 100 {
 		return ImagePage{}, ErrInvalidInput
 	}
-	images, total, err := s.deps.Images.List(ctx, actor.ID, query.Admin, query.Trash, query.Page, query.Size)
+	if query.AlbumID != nil && *query.AlbumID > 0 && !query.Admin {
+		albums, err := s.albumStore()
+		if err != nil {
+			return ImagePage{}, err
+		}
+		if _, err := albums.FindOwned(ctx, actor.ID, *query.AlbumID); err != nil {
+			return ImagePage{}, fmt.Errorf("list album images: %w", err)
+		}
+	}
+	images, total, err := s.deps.Images.List(ctx, actor.ID, query.Admin, query.Trash, query.Page, query.Size, query.AlbumID)
 	if err != nil {
 		return ImagePage{}, fmt.Errorf("list images: %w", err)
 	}

@@ -36,7 +36,7 @@ func serveCommand(path *string) *cobra.Command {
 				return err
 			}
 			logger := slog.New(slog.NewJSONHandler(cmd.OutOrStdout(), nil))
-			images, closeImages, err := newImageServices(cmd.Context(), db, cfg)
+			images, albums, closeImages, err := newImageServices(cmd.Context(), db, cfg)
 			if err != nil {
 				return err
 			}
@@ -48,7 +48,7 @@ func serveCommand(path *string) *cobra.Command {
 			if err = images.Recover(cmd.Context()); err != nil {
 				return fmt.Errorf("recover unfinished image operations: %w", err)
 			}
-			lskyHandler, err := newLskyHandler(cmd.Context(), db, cfg, users, tokens, images)
+			lskyHandler, err := newLskyHandler(cmd.Context(), db, cfg, users, tokens, images, albums)
 			if err != nil {
 				return err
 			}
@@ -60,7 +60,7 @@ func serveCommand(path *string) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("open embedded web app: %w", err)
 			}
-			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout}, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS})
+			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout}, Albums: albums, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS})
 			if err != nil {
 				return err
 			}
@@ -100,8 +100,9 @@ func runImageWorker(ctx context.Context, images *service.ImageService, logger *s
 }
 
 // newLskyHandler wires the Lsky v1 compatibility layer onto the shared
-// services; it owns no business rules of its own.
-func newLskyHandler(ctx context.Context, db *gorm.DB, cfg config.Config, users *service.UserService, tokens *service.TokenService, images *service.ImageService) (*lsky.Handler, error) {
+// services; it owns no business rules of its own. The album service is shared
+// with the native routes so both APIs observe the same ownership rules.
+func newLskyHandler(ctx context.Context, db *gorm.DB, cfg config.Config, users *service.UserService, tokens *service.TokenService, images *service.ImageService, albums *service.AlbumService) (*lsky.Handler, error) {
 	lskyRepo, err := repo.NewLskyRepository(ctx, db)
 	if err != nil {
 		return nil, fmt.Errorf("create lsky repository: %w", err)
@@ -113,10 +114,6 @@ func newLskyHandler(ctx context.Context, db *gorm.DB, cfg config.Config, users *
 	policiesRepo, err := repo.NewPolicyRepository(ctx, db)
 	if err != nil {
 		return nil, fmt.Errorf("create policy repository: %w", err)
-	}
-	albums, err := service.NewAlbumService(ctx, albumsRepo, time.Now)
-	if err != nil {
-		return nil, fmt.Errorf("create album service: %w", err)
 	}
 	lskyService, err := service.NewLskyService(ctx, service.LskyDependencies{Lsky: lskyRepo, Albums: albumsRepo, Policies: policiesRepo, Now: time.Now})
 	if err != nil {

@@ -103,7 +103,7 @@ func TestRealMinIOEncryptedImageLifecycle(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		images, closeImages, err := newImageServices(ctx, db, cfg)
+		images, _, closeImages, err := newImageServices(ctx, db, cfg)
 		if err != nil {
 			return err
 		}

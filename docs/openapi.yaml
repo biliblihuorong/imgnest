@@ -22,6 +22,8 @@ tags:
   - name: Authentication
   - name: Tokens
   - name: Images
+  - name: Albums
+  - name: Gallery
   - name: Policies
   - name: Trash
   - name: Lsky v1
@@ -390,10 +392,17 @@ paths:
       operationId: listImages
       tags: [Images]
       summary: List the authenticated user's active images
+      description: |
+        The optional `album_id` filter differs from the v1 quirk: an absent
+        parameter means every image regardless of album, an explicit `0`
+        selects only unassigned images, and a positive value selects the
+        images of that album after verifying the album belongs to the caller
+        (a foreign album answers 403/20003, a missing one 404/10001).
       security: [{bearerAuth: []}]
       parameters:
         - $ref: '#/components/parameters/ImagePageNumber'
         - $ref: '#/components/parameters/ImagePageSize'
+        - $ref: '#/components/parameters/ImageAlbumFilter'
       responses:
         '200':
           description: Image page without EXIF, source IP, or storage credentials.
@@ -488,11 +497,20 @@ paths:
               additionalProperties: false
               required: [action, ids]
               properties:
-                action: {type: string, enum: [delete, permission]}
+                action: {type: string, enum: [delete, permission, album]}
                 ids: {$ref: '#/components/schemas/ImageIDs'}
                 is_public:
                   type: boolean
-                  description: Required for permission; must be omitted for delete.
+                  description: Required for permission; must be omitted for delete and album.
+                album_id:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  description: |
+                    Album action only — a positive value moves every image into
+                    that owned album (foreign 403/20003, missing 404/10001 per
+                    item) and zero moves them out of any album. Must be omitted
+                    or zero for delete and permission.
       responses:
         '207':
           description: Per-ID status, preserving the requested ID order.
@@ -552,6 +570,108 @@ paths:
               schema: {$ref: '#/components/schemas/ImageBatchEnvelope'}
         default:
           $ref: '#/components/responses/ImageFailure'
+  /api/albums:
+    get:
+      operationId: listAlbums
+      tags: [Albums]
+      summary: Page the authenticated user's albums with live image counts
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/ImagePageNumber'
+        - $ref: '#/components/parameters/ImagePageSize'
+        - name: keyword
+          in: query
+          description: Case-insensitive substring match against album name or intro.
+          schema: {type: string}
+      responses:
+        '200':
+          description: Album page; image_count is recomputed from active images on every read.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AlbumPageEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+    post:
+      operationId: createAlbum
+      tags: [Albums]
+      summary: Create one owned album
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AlbumInput'}
+      responses:
+        '201':
+          description: Album created; the returned view carries a zero image_count.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AlbumEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/albums/{id}:
+    parameters:
+      - $ref: '#/components/parameters/AlbumID'
+    patch:
+      operationId: updateAlbum
+      tags: [Albums]
+      summary: Partially update one owned album
+      description: |
+        Only the provided fields change. An existing album owned by another
+        account answers 403/20003 and a missing one 404/10001, mirroring the
+        image endpoints. A zero cover_image_id clears the cover.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AlbumPatch'}
+      responses:
+        '200':
+          description: Updated album with a freshly counted view.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AlbumEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+    delete:
+      operationId: deleteAlbum
+      tags: [Albums]
+      summary: Delete one owned album; its images stay and become unassigned
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Album removed; data is null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NullEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/gallery:
+    get:
+      operationId: listGallery
+      tags: [Gallery]
+      summary: Page the public gallery anonymously
+      description: |
+        Public endpoint without authentication. It serves only active images
+        marked public, newest first, each with the uploader's username (the
+        seeded guest anchor appears as `guest`). When the site switch
+        `gallery_enabled` is closed — or its setting cannot be read — the
+        endpoint answers the same well-formed empty page so switch state
+        cannot be probed. Responses never contain EXIF, GPS, IP addresses,
+        or email addresses.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ImagePageNumber'
+        - $ref: '#/components/parameters/ImagePageSize'
+      responses:
+        '200':
+          description: Gallery page; possibly empty while the gallery is closed.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GalleryPageEnvelope'}
+        '500':
+          $ref: '#/components/responses/InternalError'
   /i/{storageID}/{key}:
     parameters:
       - name: storageID
@@ -1512,6 +1632,17 @@ components:
       required: true
       description: Authenticated native numeric image identifier.
       schema: {$ref: '#/components/schemas/ID'}
+    AlbumID:
+      name: id
+      in: path
+      required: true
+      description: Authenticated native numeric album identifier.
+      schema: {$ref: '#/components/schemas/ID'}
+    ImageAlbumFilter:
+      name: album_id
+      in: query
+      description: Absent means no album filter; 0 selects unassigned images; a positive value selects one owner-verified album.
+      schema: {type: integer, format: int64, minimum: 0}
     ImagePageNumber:
       name: page
       in: query
@@ -1923,6 +2054,93 @@ components:
         total: {type: integer, format: int64, minimum: 0}
         page: {type: integer, minimum: 1}
         size: {type: integer, minimum: 1, maximum: 100}
+    AlbumView:
+      type: object
+      additionalProperties: false
+      description: Owned album row; image_count always reflects the live number of active member images.
+      required: [id, name, intro, is_public, cover_image_id, image_count, cover_thumb_url, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        name: {type: string, minLength: 1, maxLength: 100}
+        intro: {type: string, maxLength: 500}
+        is_public: {type: boolean, description: Stored for a later gallery mode; this milestone keeps it write-only metadata.}
+        cover_image_id: {type: integer, format: int64, minimum: 0, description: Zero when no cover is selected; otherwise one of the owner's active images.}
+        image_count: {type: integer, format: int64, minimum: 0, description: Live count of active images in the album, recomputed on every read.}
+        cover_thumb_url: {type: string, description: Local /t/ preview of the cover image, or an empty string when there is no cover, the cover image is gone, or it carries no thumbnail.}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+    AlbumInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100, description: Required, at most 100 characters after whitespace trimming.}
+        intro: {type: string, maxLength: 500}
+        is_public: {type: boolean, default: false}
+        cover_image_id: {type: integer, format: int64, minimum: 0, default: 0, description: Zero (default) means no cover; nonzero must reference one of the owner's active images or the request fails with 400/10001.}
+    AlbumPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: Partial update; omitted fields stay unchanged and an empty patch is rejected.
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        intro: {type: string, maxLength: 500}
+        is_public: {type: boolean}
+        cover_image_id: {type: integer, format: int64, minimum: 0, description: Zero clears the cover.}
+    AlbumPage:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/AlbumView'}}
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        size: {type: integer, minimum: 1, maximum: 100}
+    GalleryItem:
+      type: object
+      additionalProperties: false
+      description: One public gallery entry — the same flat shape as ImageView plus the uploader's username; never contains EXIF, GPS, IP addresses, or emails.
+      required: [id, key, user_id, album_id, policy_id, storage_id, name, ext, mime, size, webp_size, charged_bytes, width, height, frames, has_original, has_webp, has_thumb, scrubbed, is_public, md5, sha1, src_md5, links, local_thumb_url, deleted_at, purge_at, created_at, uploader]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        key: {type: string}
+        user_id: {$ref: '#/components/schemas/ID'}
+        album_id: {type: integer, format: int64, minimum: 0}
+        policy_id: {$ref: '#/components/schemas/ID'}
+        storage_id: {$ref: '#/components/schemas/ID'}
+        name: {type: string}
+        ext: {type: string}
+        mime: {type: string}
+        size: {type: integer, format: int64, minimum: 0}
+        webp_size: {type: integer, format: int64, minimum: 0}
+        charged_bytes: {type: integer, format: int64, minimum: 0}
+        width: {type: integer, minimum: 1}
+        height: {type: integer, minimum: 1}
+        frames: {type: integer, minimum: 1}
+        has_original: {type: boolean}
+        has_webp: {type: boolean}
+        has_thumb: {type: boolean}
+        scrubbed: {type: boolean}
+        is_public: {type: boolean}
+        md5: {type: string}
+        sha1: {type: string}
+        src_md5: {type: string}
+        links: {$ref: '#/components/schemas/ImageLinks'}
+        local_thumb_url: {type: string}
+        deleted_at: {$ref: '#/components/schemas/NullableTimestamp'}
+        purge_at: {$ref: '#/components/schemas/NullableTimestamp'}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        uploader: {type: string, description: Uploader's username; the seeded guest anchor appears as `guest`.}
+    GalleryPage:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/GalleryItem'}}
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        size: {type: integer, minimum: 1, maximum: 100}
     ImageExif:
       type: object
       additionalProperties: false
@@ -1955,7 +2173,7 @@ components:
         code: {type: integer, description: Zero on success; otherwise an application error code.}
         message: {type: string}
         data:
-          description: ImageView for successful uploads/visibility updates; null for deletion/restoration/purge or failures.
+          description: ImageView for successful uploads, visibility, and album moves; null for deletion/restoration/purge or failures.
           oneOf:
             - $ref: '#/components/schemas/ImageView'
             - $ref: '#/components/schemas/NullData'
@@ -1979,6 +2197,24 @@ components:
             data:
               type: array
               items: {$ref: '#/components/schemas/ImageBatchItem'}
+    AlbumEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/AlbumView'}
+    AlbumPageEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/AlbumPage'}
+    GalleryPageEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/GalleryPage'}
     ID:
       type: integer
       format: int64

@@ -139,13 +139,26 @@ func TestSiteAndPoliciesContract(t *testing.T) {
 			if err := json.Unmarshal(envelope(t, site)["data"], &siteData); err != nil {
 				t.Fatal(err)
 			}
-			if len(siteData) != 2 || siteData["site_name"] != "ImgNest" || siteData["register_enabled"] != true {
+			if len(siteData) != 3 || siteData["site_name"] != "ImgNest" || siteData["register_enabled"] != true || siteData["gallery_enabled"] != false {
 				t.Fatalf("site data %s", site.Body.String())
 			}
-			for _, private := range []string{"trash_days", "gallery_enabled", "guest_upload_enabled", "default_group_id", "registration_enabled"} {
+			for _, private := range []string{"trash_days", "guest_upload_enabled", "default_group_id", "registration_enabled"} {
 				if strings.Contains(site.Body.String(), private) {
 					t.Fatalf("site response leaked %s", private)
 				}
+			}
+
+			// The gallery switch is closed by default: anonymous visitors get a
+			// well-formed empty page instead of an authorization error.
+			gallery := request(t, router, "GET", "/api/gallery", "", "")
+			expectCode(t, gallery, 200, 0)
+			var galleryData map[string]any
+			if err := json.Unmarshal(envelope(t, gallery)["data"], &galleryData); err != nil {
+				t.Fatal(err)
+			}
+			items, ok := galleryData["items"].([]any)
+			if !ok || len(items) != 0 || galleryData["total"] != float64(0) {
+				t.Fatalf("closed gallery page %s", gallery.Body.String())
 			}
 
 			expectCode(t, request(t, router, "GET", "/api/policies", "", ""), 401, 20001)

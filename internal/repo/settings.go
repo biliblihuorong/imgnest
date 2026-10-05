@@ -93,6 +93,23 @@ func (r *SettingsRepository) SiteName(ctx context.Context) (string, error) {
 	return *name, nil
 }
 
+// GalleryEnabled returns the public gallery switch. An absent key reads as
+// closed so deployments without the seed never leak a gallery.
+func (r *SettingsRepository) GalleryEnabled(ctx context.Context) (bool, error) {
+	setting, found, err := r.findOptional(ctx, "gallery_enabled")
+	if err != nil || !found {
+		return false, err
+	}
+	var enabled *bool
+	if err := json.Unmarshal(setting.Value, &enabled); err != nil {
+		return false, databaseError("decode gallery setting", err)
+	}
+	if enabled == nil {
+		return false, nil
+	}
+	return *enabled, nil
+}
+
 // ReadSettings returns every stored setting keyed by its settings key. Callers
 // apply their own defaults for absent keys.
 func (r *SettingsRepository) ReadSettings(ctx context.Context) (map[string]json.RawMessage, error) {

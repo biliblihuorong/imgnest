@@ -25,6 +25,8 @@ type Dependencies struct {
 	Health       func(context.Context) error
 	Images       native.ImageService
 	ImageOptions native.ImageOptions
+	// Albums serves the native album management routes when configured.
+	Albums native.Albums
 	// Lsky serves the Lsky-compatible /api/v1 routes when configured.
 	Lsky *lsky.Handler
 	// Admin serves the /api/admin management routes when configured.
@@ -84,6 +86,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.Images != nil {
 		if err := handler.RegisterImageRoutes(ctx, router, deps.Images, deps.ImageOptions); err != nil {
 			return nil, fmt.Errorf("register image routes: %w", err)
+		}
+	}
+	if deps.Albums != nil {
+		if err := handler.RegisterAlbumRoutes(ctx, router, deps.Albums); err != nil {
+			return nil, fmt.Errorf("register album routes: %w", err)
 		}
 	}
 	if deps.Admin != nil {

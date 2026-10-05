@@ -311,8 +311,10 @@ func (r *ImageRepository) FindExif(ctx context.Context, key string) (model.Image
 	return exif, nil
 }
 
-// List pages active or trashed records and excludes pending uploads.
-func (r *ImageRepository) List(ctx context.Context, userID uint64, admin, trash bool, page, size int) ([]model.Image, int64, error) {
+// List pages active or trashed records and excludes pending uploads. The
+// album filter distinguishes absence (no filter), zero (unassigned, meaning
+// a NULL or zero album reference) and a positive album ID.
+func (r *ImageRepository) List(ctx context.Context, userID uint64, admin, trash bool, page, size int, albumID *uint64) ([]model.Image, int64, error) {
 	if page < 1 || size < 1 || size > 200 {
 		return nil, 0, fmt.Errorf("list images: %w", model.ErrInvalidInput)
 	}
@@ -326,6 +328,13 @@ func (r *ImageRepository) List(ctx context.Context, userID uint64, admin, trash 
 	query := r.db.WithContext(ctx).Model(&model.Image{}).Where("state = ?", state)
 	if !admin {
 		query = query.Where("user_id = ?", userID)
+	}
+	if albumID != nil {
+		if *albumID == 0 {
+			query = query.Where("album_id IS NULL OR album_id = 0")
+		} else {
+			query = query.Where("album_id = ?", *albumID)
+		}
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {

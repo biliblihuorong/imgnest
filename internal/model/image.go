@@ -72,3 +72,10 @@ type UploadReservation struct {
 	Objects []ObjectReceipt
 	Grant   TokenGrant
 }
+
+// GalleryImage pairs one public gallery row with its uploader's username.
+// Guest uploads (user_id zero) have no account row and carry an empty name.
+type GalleryImage struct {
+	Image    `gorm:"embedded"`
+	Uploader string
+}

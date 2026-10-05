@@ -161,7 +161,7 @@ func newV1Fixture(t *testing.T, driver string) *v1Fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	albums, err := service.NewAlbumService(ctx, albumRepo, func() time.Time { return fixedNow })
+	albums, err := service.NewAlbumService(ctx, albumRepo, imageRepo, func() time.Time { return fixedNow })
 	if err != nil {
 		t.Fatal(err)
 	}

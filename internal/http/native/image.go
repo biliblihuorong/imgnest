@@ -26,6 +26,8 @@ type ImageService interface {
 	Exif(context.Context, service.TokenSubject, uint64) (model.ImageExif, error)
 	ListPolicies(context.Context, service.TokenSubject) ([]service.PolicySummary, error)
 	SetPublic(context.Context, service.TokenSubject, uint64, bool) (service.ImageView, error)
+	SetAlbum(context.Context, service.TokenSubject, uint64, uint64) (service.ImageView, error)
+	Gallery(context.Context, int, int) (service.GalleryPage, error)
 	Trash(context.Context, service.TokenSubject, string) error
 	Restore(context.Context, service.TokenSubject, string) error
 	Purge(context.Context, service.TokenSubject, string) error
@@ -63,6 +65,9 @@ func (h *Handler) RegisterImageRoutes(ctx context.Context, router gin.IRouter, i
 	protected.GET("/trash", image.listTrash)
 	protected.POST("/trash/restore", image.restore)
 	protected.POST("/trash/purge", image.purge)
+	// The gallery is a public read-only endpoint and deliberately sits
+	// outside the authenticated group, like /api/site.
+	router.GET("/api/gallery", image.gallery)
 	router.GET("/i/:storageID/*key", image.publicObject)
 	router.HEAD("/i/:storageID/*key", image.publicObject)
 	router.GET("/t/:key", image.thumbnail)
@@ -125,28 +130,45 @@ func (h *imageHandler) exif(c *gin.Context) {
 func (h *imageHandler) list(c *gin.Context)      { h.listImages(c, false) }
 func (h *imageHandler) listTrash(c *gin.Context) { h.listImages(c, true) }
 func (h *imageHandler) listImages(c *gin.Context, trash bool) {
-	page, size := 1, 20
-	for name, target := range map[string]*int{"page": &page, "size": &size} {
-		if value, exists := c.GetQuery(name); exists {
-			n, err := strconv.Atoi(value)
-			if err != nil || n < 1 {
-				fail(c, service.ErrInvalidInput)
-				return
-			}
-			*target = n
-		}
-	}
-	if size > 100 || page > (math.MaxInt/size) {
-		fail(c, service.ErrInvalidInput)
+	page, size, ok := pageParams(c)
+	if !ok {
 		return
 	}
-	result, err := h.images.List(c.Request.Context(), identity(c).Subject, service.ImageQuery{Page: page, Size: size, Trash: trash})
+	// album_id semantics: absent means no filter, explicit zero selects
+	// unassigned images, a positive value selects one owner-verified album.
+	// This differs from the v1 quirk where a missing album_id already means
+	// unassigned.
+	var albumFilter *uint64
+	if value, exists := c.GetQuery("album_id"); exists {
+		parsed, err := strconv.ParseUint(value, 10, 64)
+		if err != nil || parsed > math.MaxInt64 {
+			fail(c, service.ErrInvalidInput)
+			return
+		}
+		albumFilter = &parsed
+	}
+	result, err := h.images.List(c.Request.Context(), identity(c).Subject, service.ImageQuery{Page: page, Size: size, Trash: trash, AlbumID: albumFilter})
 	if err != nil {
 		fail(c, err)
 		return
 	}
 	if result.Items == nil {
 		result.Items = []service.ImageView{}
+	}
+	respond(c, 200, result)
+}
+func (h *imageHandler) gallery(c *gin.Context) {
+	page, size, ok := pageParams(c)
+	if !ok {
+		return
+	}
+	result, err := h.images.Gallery(c.Request.Context(), page, size)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	if result.Items == nil {
+		result.Items = []service.GalleryItem{}
 	}
 	respond(c, 200, result)
 }
@@ -177,7 +199,7 @@ func (h *imageHandler) remove(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if _, err := h.perform(c.Request.Context(), identity(c).Subject, id, "delete", false); err != nil {
+	if _, err := h.perform(c.Request.Context(), identity(c).Subject, id, "delete", false, 0); err != nil {
 		fail(c, err)
 		return
 	}
@@ -185,19 +207,38 @@ func (h *imageHandler) remove(c *gin.Context) {
 }
 func (h *imageHandler) batch(c *gin.Context) {
 	var input struct {
-		Action string   `json:"action"`
-		IDs    []uint64 `json:"ids"`
-		Public *bool    `json:"is_public"`
+		Action  string   `json:"action"`
+		IDs     []uint64 `json:"ids"`
+		Public  *bool    `json:"is_public"`
+		AlbumID uint64   `json:"album_id"`
 	}
 	if !decode(c, &input) {
 		return
 	}
-	if (input.Action != "delete" && input.Action != "permission") || (input.Action == "permission" && input.Public == nil) || (input.Action == "delete" && input.Public != nil) {
+	// Each action owns a disjoint body: album takes album_id (0 = move out),
+	// permission takes is_public, delete takes neither.
+	switch input.Action {
+	case "delete":
+		if input.Public != nil || input.AlbumID != 0 {
+			fail(c, service.ErrInvalidInput)
+			return
+		}
+	case "permission":
+		if input.Public == nil || input.AlbumID != 0 {
+			fail(c, service.ErrInvalidInput)
+			return
+		}
+	case "album":
+		if input.Public != nil {
+			fail(c, service.ErrInvalidInput)
+			return
+		}
+	default:
 		fail(c, service.ErrInvalidInput)
 		return
 	}
 	value := input.Public != nil && *input.Public
-	h.batchActions(c, input.IDs, input.Action, value)
+	h.batchActions(c, input.IDs, input.Action, value, input.AlbumID)
 }
 func (h *imageHandler) restore(c *gin.Context) { h.trashBatch(c, "restore") }
 func (h *imageHandler) purge(c *gin.Context)   { h.trashBatch(c, "purge") }
@@ -208,9 +249,9 @@ func (h *imageHandler) trashBatch(c *gin.Context, action string) {
 	if !decode(c, &input) {
 		return
 	}
-	h.batchActions(c, input.IDs, action, false)
+	h.batchActions(c, input.IDs, action, false, 0)
 }
-func (h *imageHandler) batchActions(c *gin.Context, ids []uint64, action string, public bool) {
+func (h *imageHandler) batchActions(c *gin.Context, ids []uint64, action string, public bool, albumID uint64) {
 	if len(ids) == 0 || len(ids) > 100 {
 		fail(c, service.ErrInvalidInput)
 		return
@@ -225,7 +266,7 @@ func (h *imageHandler) batchActions(c *gin.Context, ids []uint64, action string,
 	}
 	results := make([]imageResult, 0, len(ids))
 	for _, id := range ids {
-		data, err := h.perform(c.Request.Context(), identity(c).Subject, id, action, public)
+		data, err := h.perform(c.Request.Context(), identity(c).Subject, id, action, public, albumID)
 		item := imageResult{ID: id, Status: 200, Response: Response{Code: 0, Message: "ok", Data: data}}
 		if err != nil {
 			item.Status, item.Response = errorResponse(err)
@@ -234,7 +275,7 @@ func (h *imageHandler) batchActions(c *gin.Context, ids []uint64, action string,
 	}
 	respond(c, 207, results)
 }
-func (h *imageHandler) perform(ctx context.Context, subject service.TokenSubject, id uint64, action string, public bool) (any, error) {
+func (h *imageHandler) perform(ctx context.Context, subject service.TokenSubject, id uint64, action string, public bool, albumID uint64) (any, error) {
 	image, err := h.images.Get(ctx, subject, id)
 	if err != nil {
 		return nil, err
@@ -248,6 +289,8 @@ func (h *imageHandler) perform(ctx context.Context, subject service.TokenSubject
 		return nil, h.images.Purge(ctx, subject, image.Key)
 	case "permission":
 		return h.images.SetPublic(ctx, subject, id, public)
+	case "album":
+		return h.images.SetAlbum(ctx, subject, id, albumID)
 	}
 	return nil, service.ErrInvalidInput
 }

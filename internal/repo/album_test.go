@@ -111,7 +111,9 @@ func TestAlbumFindAndDelete(t *testing.T) {
 		if err != nil || found.ID != blog.ID || found.Name != "博客" {
 			t.Fatalf("FindOwned = %+v err=%v", found, err)
 		}
-		if _, err := albums.FindOwned(t.Context(), fixture.user.ID, foreign.ID); !errors.Is(err, model.ErrNotFound) {
+		// An existing album owned by somebody else stays invisible but is
+		// reported as forbidden, matching the image service semantics.
+		if _, err := albums.FindOwned(t.Context(), fixture.user.ID, foreign.ID); !errors.Is(err, model.ErrForbidden) {
 			t.Fatalf("foreign album readable: %v", err)
 		}
 		if _, err := albums.FindOwned(t.Context(), fixture.user.ID, 99999); !errors.Is(err, model.ErrNotFound) {
@@ -146,6 +148,69 @@ func TestAlbumFindAndDelete(t *testing.T) {
 		var imageRows int64
 		if err := db.Model(&model.Image{}).Where("id = ?", assigned.ID).Count(&imageRows).Error; err != nil || imageRows != 1 {
 			t.Fatalf("album deletion removed the image itself (count=%d err=%v)", imageRows, err)
+		}
+	})
+}
+
+func TestAlbumCreateUpdateAndLiveCounts(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		fixture := newImageFixture(t, db, "album-write")
+		albums, err := NewAlbumRepository(t.Context(), db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := albums.Create(t.Context(), model.Album{UserID: fixture.user.ID, Name: "   "}); !errors.Is(err, model.ErrInvalidInput) {
+			t.Fatalf("blank album name accepted: %v", err)
+		}
+		blog, err := albums.Create(t.Context(), model.Album{UserID: fixture.user.ID, Name: "博客", Intro: "旧简介"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if blog.ID == 0 || blog.UserID != fixture.user.ID || blog.ImageCount != 0 || blog.CreatedAt.IsZero() || blog.UpdatedAt.IsZero() {
+			t.Fatalf("created album = %+v", blog)
+		}
+		foreign, err := albums.Create(t.Context(), model.Album{UserID: 0, Name: "游客的"})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		first := reserveAndCommit(t, fixture, "album-write-1", "2026/01/album-write-1")
+		second := reserveAndCommit(t, fixture, "album-write-2", "2026/01/album-write-2")
+		if err := db.Exec("UPDATE images SET album_id = ? WHERE id IN (?, ?)", blog.ID, first.ID, second.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+
+		public := true
+		updated, err := albums.Update(t.Context(), fixture.user.ID, blog.ID, map[string]any{
+			"name": "新名", "intro": "新简介", "is_public": public, "cover_image_id": first.ID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.Name != "新名" || updated.Intro != "新简介" || !updated.IsPublic || updated.CoverImageID != first.ID {
+			t.Fatalf("updated album = %+v", updated)
+		}
+		// The single record carries the same live count the listing computes.
+		if updated.ImageCount != 2 {
+			t.Fatalf("live image_count = %d, want 2", updated.ImageCount)
+		}
+		if _, err := albums.Update(t.Context(), fixture.user.ID, foreign.ID, map[string]any{"name": "x"}); !errors.Is(err, model.ErrForbidden) {
+			t.Fatalf("foreign album update = %v", err)
+		}
+		if _, err := albums.Update(t.Context(), fixture.user.ID, 99999, map[string]any{"name": "x"}); !errors.Is(err, model.ErrNotFound) {
+			t.Fatalf("missing album update = %v", err)
+		}
+
+		// Trashing one image drops the live count of the owned album only.
+		if err := db.Exec("UPDATE images SET state = ?, deleted_at = ? WHERE id = ?", model.ImageStateTrash, fixedRepoNow, second.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		reread, err := albums.FindOwned(t.Context(), fixture.user.ID, blog.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reread.ImageCount != 1 {
+			t.Fatalf("live image_count after trash = %d, want 1", reread.ImageCount)
 		}
 	})
 }

@@ -104,39 +104,45 @@ func (f *driverFactory) close() error {
 	return result
 }
 
-func newImageServices(ctx context.Context, db *gorm.DB, cfg config.Config) (*service.ImageService, func() error, error) {
+// newImageServices wires the image runtime together with the album repository
+// it needs for album assignment and the album service sharing the same repos.
+func newImageServices(ctx context.Context, db *gorm.DB, cfg config.Config) (*service.ImageService, *service.AlbumService, func() error, error) {
 	images, err := repo.NewImageRepository(ctx, db)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	albumsRepo, err := repo.NewAlbumRepository(ctx, db)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	policies, err := repo.NewPolicyRepository(ctx, db)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	stores, err := repo.NewStorageRepository(ctx, db)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	users, err := repo.NewUserRepository(ctx, db)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	tokens, err := repo.NewTokenRepository(ctx, db)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	settings, err := repo.NewSettingsRepository(ctx, db)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	drivers, err := newDriverFactory(ctx, cfg.Security.MasterKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	cache, err := thumbcache.New(ctx, cfg.Images.ThumbCache)
 	if err != nil {
 		_ = drivers.close()
-		return nil, nil, service.ErrStorage
+		return nil, nil, nil, service.ErrStorage
 	}
 	cleanup := func() error {
 		cacheErr := cache.Close()
@@ -146,20 +152,25 @@ func newImageServices(ctx context.Context, db *gorm.DB, cfg config.Config) (*ser
 		}
 		return nil
 	}
+	albums, err := service.NewAlbumService(ctx, albumsRepo, images, time.Now)
+	if err != nil {
+		_ = cleanup()
+		return nil, nil, nil, err
+	}
 	processor, err := imaging.NewProcessor(ctx, int64(cfg.Server.MaxPixels), runtime.GOMAXPROCS(0))
 	if err != nil {
 		_ = cleanup()
-		return nil, nil, service.ErrProcessing
+		return nil, nil, nil, service.ErrProcessing
 	}
 	metadata, err := exif.NewProcessor(ctx)
 	if err != nil {
 		_ = cleanup()
-		return nil, nil, service.ErrProcessing
+		return nil, nil, nil, service.ErrProcessing
 	}
-	svc, err := service.NewImageService(ctx, service.ImageDependencies{Images: images, Policies: policies, Storages: stores, Users: users, Tokens: tokens, Drivers: drivers, Paths: service.PathFunctions{BuildPath: pathtpl.Build, CleanPath: pathtpl.Sanitize}, Imaging: processor, Extractor: metadata, Scrubber: metadata, Cache: cache, Settings: settings, Now: time.Now, MaxFileBytes: int64(cfg.Server.MaxUploadMB) << 20})
+	svc, err := service.NewImageService(ctx, service.ImageDependencies{Images: images, Policies: policies, Storages: stores, Users: users, Tokens: tokens, Drivers: drivers, Paths: service.PathFunctions{BuildPath: pathtpl.Build, CleanPath: pathtpl.Sanitize}, Imaging: processor, Extractor: metadata, Scrubber: metadata, Cache: cache, Settings: settings, Albums: albumsRepo, Now: time.Now, MaxFileBytes: int64(cfg.Server.MaxUploadMB) << 20})
 	if err != nil {
 		_ = cleanup()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return svc, cleanup, nil
+	return svc, albums, cleanup, nil
 }

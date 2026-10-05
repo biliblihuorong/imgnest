@@ -9,16 +9,18 @@ import (
 const DefaultSiteName = "ImgNest"
 
 // SiteView is the public site descriptor. It deliberately exposes nothing
-// beyond the site name and the registration switch; all other settings keys
-// stay private to administrators.
+// beyond the site name, the registration switch, and the gallery switch; all
+// other settings keys stay private to administrators.
 type SiteView struct {
 	SiteName        string `json:"site_name"`
 	RegisterEnabled bool   `json:"register_enabled"`
+	GalleryEnabled  bool   `json:"gallery_enabled"`
 }
 
 // Site returns the public site view. Registration mirrors the account
-// registration switch; the site name reads the administrator-configured
-// setting and falls back to DefaultSiteName while none is stored.
+// registration switch; the gallery switch drives whether the public gallery
+// serves content; the site name reads the administrator-configured setting
+// and falls back to DefaultSiteName while none is stored.
 func (s *UserService) Site(ctx context.Context) (SiteView, error) {
 	if err := ctx.Err(); err != nil {
 		return SiteView{}, fmt.Errorf("read site view: %w", err)
@@ -34,5 +36,9 @@ func (s *UserService) Site(ctx context.Context) (SiteView, error) {
 	if name == "" {
 		name = DefaultSiteName
 	}
-	return SiteView{SiteName: name, RegisterEnabled: enabled}, nil
+	gallery, err := s.settings.GalleryEnabled(ctx)
+	if err != nil {
+		return SiteView{}, fmt.Errorf("read gallery setting: %w", err)
+	}
+	return SiteView{SiteName: name, RegisterEnabled: enabled, GalleryEnabled: gallery}, nil
 }

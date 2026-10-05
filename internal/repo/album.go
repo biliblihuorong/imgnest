@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"gorm.io/gorm"
@@ -47,7 +48,7 @@ func (r *AlbumRepository) ListByOwner(ctx context.Context, ownerID uint64, page,
 	}
 	albums := []model.Album{}
 	if err := base().
-		Select("albums.id, albums.user_id, albums.name, albums.intro, albums.is_public, albums.cover_image_id, COUNT(images.id) AS image_count").
+		Select(albumColumns+", COUNT(images.id) AS image_count").
 		Joins("LEFT JOIN images ON images.album_id = albums.id AND images.state = ?", model.ImageStateActive).
 		Group("albums.id").
 		Order(albumOrder(order)).
@@ -58,14 +59,73 @@ func (r *AlbumRepository) ListByOwner(ctx context.Context, ownerID uint64, page,
 	return albums, total, nil
 }
 
-// FindOwned resolves one album owned by the caller.
+// albumColumns is the explicit column list shared by every album read. It is
+// explicit because albums already owns a stored image_count and a duplicated
+// output name would break PostgreSQL (SQLite tolerates it).
+const albumColumns = "albums.id, albums.user_id, albums.name, albums.intro, albums.is_public, albums.cover_image_id, albums.created_at, albums.updated_at"
+
+// Create persists one owner's album row with its live zero count.
+func (r *AlbumRepository) Create(ctx context.Context, album model.Album) (model.Album, error) {
+	if err := ctx.Err(); err != nil {
+		return model.Album{}, fmt.Errorf("create album: %w", err)
+	}
+	if strings.TrimSpace(album.Name) == "" {
+		return model.Album{}, fmt.Errorf("create album: %w", model.ErrInvalidInput)
+	}
+	if err := r.db.WithContext(ctx).Create(&album).Error; err != nil {
+		return model.Album{}, repositoryError("create album", err)
+	}
+	return album, nil
+}
+
+// Update applies validated field changes to one owned album inside a
+// transaction and returns the reloaded row with its live image count.
+func (r *AlbumRepository) Update(ctx context.Context, ownerID, albumID uint64, values map[string]any) (model.Album, error) {
+	if err := checkRecordID(ctx, albumID); err != nil {
+		return model.Album{}, fmt.Errorf("update album: %w", err)
+	}
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var album model.Album
+		if err := tx.First(&album, "id = ?", albumID).Error; err != nil {
+			return err
+		}
+		if album.UserID != ownerID {
+			return model.ErrForbidden
+		}
+		changes := make(map[string]any, len(values)+1)
+		for key, value := range values {
+			changes[key] = value
+		}
+		changes["updated_at"] = time.Now().UTC()
+		return tx.Model(&model.Album{}).Where("id = ?", albumID).Updates(changes).Error
+	})
+	if errors.Is(err, model.ErrForbidden) {
+		return model.Album{}, fmt.Errorf("update album: %w", model.ErrForbidden)
+	}
+	if err != nil {
+		return model.Album{}, repositoryError("update album", err)
+	}
+	return r.FindOwned(ctx, ownerID, albumID)
+}
+
+// FindOwned resolves one album owned by the caller with its live image count.
+// An existing album owned by somebody else reports forbidden so callers can
+// mirror the image service's foreign-resource behavior.
 func (r *AlbumRepository) FindOwned(ctx context.Context, ownerID, albumID uint64) (model.Album, error) {
 	if err := checkRecordID(ctx, albumID); err != nil {
 		return model.Album{}, fmt.Errorf("find album: %w", err)
 	}
 	var album model.Album
-	if err := r.db.WithContext(ctx).First(&album, "id = ? AND user_id = ?", albumID, ownerID).Error; err != nil {
+	if err := r.db.WithContext(ctx).Table("albums").
+		Select(albumColumns+", COUNT(images.id) AS image_count").
+		Joins("LEFT JOIN images ON images.album_id = albums.id AND images.state = ?", model.ImageStateActive).
+		Where("albums.id = ?", albumID).
+		Group("albums.id").
+		First(&album).Error; err != nil {
 		return model.Album{}, repositoryError("find album", err)
+	}
+	if album.UserID != ownerID {
+		return model.Album{}, fmt.Errorf("find album: %w", model.ErrForbidden)
 	}
 	return album, nil
 }

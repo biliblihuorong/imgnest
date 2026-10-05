@@ -54,13 +54,15 @@ func TestSiteViewIsPublicAndExact(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		enabled  bool
+		gallery  bool
 		expected string
 	}{
-		{"registration open", true, `{"site_name":"ImgNest","register_enabled":true}`},
-		{"registration closed", false, `{"site_name":"ImgNest","register_enabled":false}`},
+		{"registration open", true, false, `{"site_name":"ImgNest","register_enabled":true,"gallery_enabled":false}`},
+		{"registration closed", false, false, `{"site_name":"ImgNest","register_enabled":false,"gallery_enabled":false}`},
+		{"gallery open", true, true, `{"site_name":"ImgNest","register_enabled":true,"gallery_enabled":true}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			router := siteRouter(t, &siteUsersStub{view: service.SiteView{SiteName: "ImgNest", RegisterEnabled: tc.enabled}})
+			router := siteRouter(t, &siteUsersStub{view: service.SiteView{SiteName: "ImgNest", RegisterEnabled: tc.enabled, GalleryEnabled: tc.gallery}})
 			response := requestSite(t, router, "/api/site")
 			if response.Code != http.StatusOK {
 				t.Fatalf("anonymous site status=%d", response.Code)
@@ -79,7 +81,7 @@ func TestSiteViewIsPublicAndExact(t *testing.T) {
 			if err := json.Unmarshal(envelope.Data, &fields); err != nil {
 				t.Fatal(err)
 			}
-			if len(fields) != 2 {
+			if len(fields) != 3 {
 				t.Fatalf("site data exposes %d fields: %s", len(fields), envelope.Data)
 			}
 			// The public descriptor must not change unmatched API routing.
