@@ -258,7 +258,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List the authenticated user's active images */
+        /**
+         * List the authenticated user's active images
+         * @description The optional `album_id` filter differs from the v1 quirk: an absent
+         *     parameter means every image regardless of album, an explicit `0`
+         *     selects only unassigned images, and a positive value selects the
+         *     images of that album after verifying the album belongs to the caller
+         *     (a foreign album answers 403/20003, a missing one 404/10001).
+         */
         get: operations["listImages"];
         put?: never;
         post?: never;
@@ -384,6 +391,76 @@ export interface paths {
          * @description Removes owned object history and deletion markers before releasing the image path reservation.
          */
         post: operations["purgeImages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/albums": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Page the authenticated user's albums with live image counts */
+        get: operations["listAlbums"];
+        put?: never;
+        /** Create one owned album */
+        post: operations["createAlbum"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/albums/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric album identifier. */
+                id: components["parameters"]["AlbumID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete one owned album; its images stay and become unassigned */
+        delete: operations["deleteAlbum"];
+        options?: never;
+        head?: never;
+        /**
+         * Partially update one owned album
+         * @description Only the provided fields change. An existing album owned by another
+         *     account answers 403/20003 and a missing one 404/10001, mirroring the
+         *     image endpoints. A zero cover_image_id clears the cover.
+         */
+        patch: operations["updateAlbum"];
+        trace?: never;
+    };
+    "/api/gallery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Page the public gallery anonymously
+         * @description Public endpoint without authentication. It serves only active images
+         *     marked public, newest first, each with the uploader's username (the
+         *     seeded guest anchor appears as `guest`). When the site switch
+         *     `gallery_enabled` is closed — or its setting cannot be read — the
+         *     endpoint answers the same well-formed empty page so switch state
+         *     cannot be probed. Responses never contain EXIF, GPS, IP addresses,
+         *     or email addresses.
+         */
+        get: operations["listGallery"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1367,6 +1444,103 @@ export interface components {
             page: number;
             size: number;
         };
+        /** @description Owned album row; image_count always reflects the live number of active member images. */
+        AlbumView: {
+            id: components["schemas"]["ID"];
+            name: string;
+            intro: string;
+            /** @description Stored for a later gallery mode; this milestone keeps it write-only metadata. */
+            is_public: boolean;
+            /**
+             * Format: int64
+             * @description Zero when no cover is selected; otherwise one of the owner's active images.
+             */
+            cover_image_id: number;
+            /**
+             * Format: int64
+             * @description Live count of active images in the album
+             */
+            image_count: number;
+            /** @description Local /t/ preview of the cover image */
+            cover_thumb_url: string;
+            created_at: components["schemas"]["Timestamp"];
+            updated_at: components["schemas"]["Timestamp"];
+        };
+        AlbumInput: {
+            /** @description Required */
+            name: string;
+            intro?: string;
+            /** @default false */
+            is_public: boolean;
+            /**
+             * Format: int64
+             * @description Zero (default) means no cover; nonzero must reference one of the owner's active images or the request fails with 400/10001.
+             * @default 0
+             */
+            cover_image_id: number;
+        };
+        /** @description Partial update; omitted fields stay unchanged and an empty patch is rejected. */
+        AlbumPatch: {
+            name?: string;
+            intro?: string;
+            is_public?: boolean;
+            /**
+             * Format: int64
+             * @description Zero clears the cover.
+             */
+            cover_image_id?: number;
+        };
+        AlbumPage: {
+            items: components["schemas"]["AlbumView"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            size: number;
+        };
+        /** @description One public gallery entry — the same flat shape as ImageView plus the uploader's username; never contains EXIF, GPS, IP addresses, or emails. */
+        GalleryItem: {
+            id: components["schemas"]["ID"];
+            key: string;
+            user_id: components["schemas"]["ID"];
+            /** Format: int64 */
+            album_id: number;
+            policy_id: components["schemas"]["ID"];
+            storage_id: components["schemas"]["ID"];
+            name: string;
+            ext: string;
+            mime: string;
+            /** Format: int64 */
+            size: number;
+            /** Format: int64 */
+            webp_size: number;
+            /** Format: int64 */
+            charged_bytes: number;
+            width: number;
+            height: number;
+            frames: number;
+            has_original: boolean;
+            has_webp: boolean;
+            has_thumb: boolean;
+            scrubbed: boolean;
+            is_public: boolean;
+            md5: string;
+            sha1: string;
+            src_md5: string;
+            links: components["schemas"]["ImageLinks"];
+            local_thumb_url: string;
+            deleted_at: components["schemas"]["NullableTimestamp"];
+            purge_at: components["schemas"]["NullableTimestamp"];
+            created_at: components["schemas"]["Timestamp"];
+            /** @description Uploader's username; the seeded guest anchor appears as `guest`. */
+            uploader: string;
+        };
+        GalleryPage: {
+            items: components["schemas"]["GalleryItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            size: number;
+        };
         ImageExif: {
             image_id: components["schemas"]["ID"];
             make: string;
@@ -1397,7 +1571,7 @@ export interface components {
             /** @description Zero on success; otherwise an application error code. */
             code: number;
             message: string;
-            /** @description ImageView for successful uploads/visibility updates; null for deletion/restoration/purge or failures. */
+            /** @description ImageView for successful uploads, visibility, and album moves; null for deletion/restoration/purge or failures. */
             data: components["schemas"]["ImageView"] | components["schemas"]["NullData"];
         };
         ImageEnvelope: components["schemas"]["SuccessEnvelope"] & {
@@ -1408,6 +1582,15 @@ export interface components {
         };
         ImageBatchEnvelope: components["schemas"]["SuccessEnvelope"] & {
             data?: components["schemas"]["ImageBatchItem"][];
+        };
+        AlbumEnvelope: components["schemas"]["SuccessEnvelope"] & {
+            data?: components["schemas"]["AlbumView"];
+        };
+        AlbumPageEnvelope: components["schemas"]["SuccessEnvelope"] & {
+            data?: components["schemas"]["AlbumPage"];
+        };
+        GalleryPageEnvelope: components["schemas"]["SuccessEnvelope"] & {
+            data?: components["schemas"]["GalleryPage"];
         };
         /**
          * Format: int64
@@ -1989,6 +2172,10 @@ export interface components {
     parameters: {
         /** @description Authenticated native numeric image identifier. */
         ImageID: components["schemas"]["ID"];
+        /** @description Authenticated native numeric album identifier. */
+        AlbumID: components["schemas"]["ID"];
+        /** @description Absent means no album filter; 0 selects unassigned images; a positive value selects one owner-verified album. */
+        ImageAlbumFilter: number;
         ImagePageNumber: number;
         ImagePageSize: number;
     };
@@ -2357,6 +2544,8 @@ export interface operations {
             query?: {
                 page?: components["parameters"]["ImagePageNumber"];
                 size?: components["parameters"]["ImagePageSize"];
+                /** @description Absent means no album filter; 0 selects unassigned images; a positive value selects one owner-verified album. */
+                album_id?: components["parameters"]["ImageAlbumFilter"];
             };
             header?: never;
             path?: never;
@@ -2489,10 +2678,18 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    action: "delete" | "permission";
+                    action: "delete" | "permission" | "album";
                     ids: components["schemas"]["ImageIDs"];
-                    /** @description Required for permission; must be omitted for delete. */
+                    /** @description Required for permission; must be omitted for delete and album. */
                     is_public?: boolean;
+                    /**
+                     * Format: int64
+                     * @description Album action only — a positive value moves every image into
+                     *     that owned album (foreign 403/20003, missing 404/10001 per
+                     *     item) and zero moves them out of any album. Must be omitted
+                     *     or zero for delete and permission.
+                     */
+                    album_id?: number;
                 };
             };
         };
@@ -2573,6 +2770,133 @@ export interface operations {
                 };
             };
             default: components["responses"]["ImageFailure"];
+        };
+    };
+    listAlbums: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["ImagePageNumber"];
+                size?: components["parameters"]["ImagePageSize"];
+                /** @description Case-insensitive substring match against album name or intro. */
+                keyword?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Album page; image_count is recomputed from active images on every read. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlbumPageEnvelope"];
+                };
+            };
+            default: components["responses"]["ImageFailure"];
+        };
+    };
+    createAlbum: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlbumInput"];
+            };
+        };
+        responses: {
+            /** @description Album created; the returned view carries a zero image_count. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlbumEnvelope"];
+                };
+            };
+            default: components["responses"]["ImageFailure"];
+        };
+    };
+    deleteAlbum: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric album identifier. */
+                id: components["parameters"]["AlbumID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Album removed; data is null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullEnvelope"];
+                };
+            };
+            default: components["responses"]["ImageFailure"];
+        };
+    };
+    updateAlbum: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric album identifier. */
+                id: components["parameters"]["AlbumID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlbumPatch"];
+            };
+        };
+        responses: {
+            /** @description Updated album with a freshly counted view. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlbumEnvelope"];
+                };
+            };
+            default: components["responses"]["ImageFailure"];
+        };
+    };
+    listGallery: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["ImagePageNumber"];
+                size?: components["parameters"]["ImagePageSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Gallery page; possibly empty while the gallery is closed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GalleryPageEnvelope"];
+                };
+            };
+            500: components["responses"]["InternalError"];
         };
     };
     getLocalImageObject: {

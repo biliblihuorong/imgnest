@@ -18,6 +18,12 @@ vi.mock("@/views/ImagesView.vue", () => ({
 vi.mock("@/views/TokensView.vue", () => ({
   default: { name: "TokensViewStub", template: "<div />" },
 }));
+vi.mock("@/views/AlbumsView.vue", () => ({
+  default: { name: "AlbumsViewStub", template: "<div />" },
+}));
+vi.mock("@/views/GalleryView.vue", () => ({
+  default: { name: "GalleryViewStub", template: "<div />" },
+}));
 
 describe("router 守卫", () => {
   beforeEach(() => {
@@ -49,6 +55,23 @@ describe("router 守卫", () => {
 
     expect(router.currentRoute.value.path).toBe("/login");
     expect(router.currentRoute.value.query.redirect).toBeUndefined();
+  });
+
+  it("未登录访问 /gallery 直接放行", async () => {
+    const router = setupRouter();
+    await router.push("/gallery");
+    await router.isReady();
+
+    expect(router.currentRoute.value.path).toBe("/gallery");
+  });
+
+  it("已登录访问 /gallery 同样放行，不被弹回 /upload", async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|token");
+    const router = setupRouter();
+    await router.push("/gallery");
+    await router.isReady();
+
+    expect(router.currentRoute.value.path).toBe("/gallery");
   });
 
   it("已登录访问 /login 时跳转 /upload", async () => {

@@ -36,7 +36,9 @@ export const ADMIN_ROUTER_NAMES = {
   adminImages: "admin-images",
 } as const;
 
-const PUBLIC_PATHS = new Set<string>(["/login", "/register", "/gallery"]);
+const PUBLIC_PATHS = new Set<string>(["/login", "/register"]);
+// 公开且登录态也放行的路径（画廊）；PUBLIC_PATHS 则是"登录态访问即弹回 /upload"的登录/注册页。
+const OPEN_PATHS = new Set<string>(["/gallery"]);
 
 /**
  * admin 子树守卫（挂在 /admin 父路由的 beforeEnter 上，进入子树即触发）：
@@ -154,6 +156,9 @@ export function setupRouter(): Router {
   });
 
   router.beforeEach((to) => {
+    if (OPEN_PATHS.has(to.path)) {
+      return true;
+    }
     let token: string | null = null;
     try {
       token = localStorage.getItem(TOKEN_STORAGE_KEY);

@@ -78,6 +78,16 @@ describe("AppLayout", () => {
     expect(menuLabels(wrapper)).toEqual(["上传", "图片", "Token"]);
   });
 
+  it("登录态菜单出现相册入口，匿名态不出现", () => {
+    const anonymous = mountLayout();
+    expect(menuLabels(anonymous)).not.toContain("相册");
+    anonymous.unmount();
+
+    useAuthStore().user = makeUser();
+    const loggedIn = mountLayout();
+    expect(menuLabels(loggedIn)).toEqual(["上传", "图片", "相册", "Token"]);
+  });
+
   it("匿名态点击登录按钮跳转 /login", async () => {
     const pushSpy = vi.spyOn(router, "push").mockResolvedValue(undefined);
     const wrapper = mountLayout();
@@ -110,10 +120,15 @@ describe("AppLayout", () => {
   });
 
   it("galleryEnabled=false 时菜单不出现画廊项", () => {
-    const wrapper = mountLayout();
+    useAuthStore().user = makeUser();
+    const loggedIn = mountLayout();
+    expect(menuLabels(loggedIn)).toEqual(["上传", "图片", "相册", "Token"]);
+    loggedIn.unmount();
 
-    expect(menuLabels(wrapper)).not.toContain("画廊");
-    expect(menuLabels(wrapper)).toEqual(["上传", "图片", "Token"]);
+    useAuthStore().user = null;
+    const anonymous = mountLayout();
+    expect(menuLabels(anonymous)).toEqual(["上传", "图片", "Token"]);
+    expect(menuLabels(anonymous)).not.toContain("画廊");
   });
 
   it("点击画廊菜单项跳转 /gallery", async () => {

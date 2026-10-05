@@ -21,12 +21,15 @@ const site = useSiteStore();
 
 void site.ensureLoaded();
 
-/** 菜单动态：站点开启公开画廊时插入「画廊」入口（登录与匿名均显示）。 */
+/** 菜单动态：登录态显示「相册」；站点开启公开画廊时插入「画廊」入口（登录与匿名均显示）。 */
 const menuOptions = computed<MenuOption[]>(() => {
   const options: MenuOption[] = [
     { label: "上传", key: "/upload" },
     { label: "图片", key: "/images" },
   ];
+  if (auth.user) {
+    options.push({ label: "相册", key: "/albums" });
+  }
   if (site.galleryEnabled) {
     options.push({ label: "画廊", key: "/gallery" });
   }
