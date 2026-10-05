@@ -28,6 +28,7 @@ func (h *Handler) RegisterAlbumRoutes(ctx context.Context, router gin.IRouter, a
 	album := &albumHandler{auth: h, albums: albums}
 	protected := router.Group("/api", h.authenticate)
 	protected.GET("/albums", album.list)
+	protected.GET("/albums/suggestions", album.suggestions)
 	protected.POST("/albums", album.create)
 	protected.PATCH("/albums/:id", album.update)
 	protected.DELETE("/albums/:id", album.remove)

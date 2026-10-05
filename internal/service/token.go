@@ -127,7 +127,7 @@ func (s *TokenService) Issue(ctx context.Context, subject TokenSubject, input To
 		TokenHash: hex.EncodeToString(digest[:]), Abilities: []string{"*"},
 		ExpiresAt: expires, CreatedAt: now, UpdatedAt: now,
 	}, model.TokenGrant{
-		ExpectedPasswordHash: subject.passwordHash, SourceTokenID: subject.sourceTokenID, At: now,
+		ExpectedPasswordHash: subject.passwordHash, ExpectedAccountState: subject.accountState, SourceTokenID: subject.sourceTokenID, At: now,
 	})
 	if err != nil {
 		if errors.Is(err, ErrUnauthenticated) && subject.sourceTokenID == 0 {
@@ -191,7 +191,7 @@ func (s *TokenService) Authenticate(ctx context.Context, raw string) (Identity, 
 	applyAvatar(&view, config)
 	return Identity{
 		User: view, TokenID: token.ID, Kind: token.Kind,
-		Subject: TokenSubject{userID: user.ID, passwordHash: user.PasswordHash, sourceTokenID: token.ID},
+		Subject: TokenSubject{userID: user.ID, passwordHash: user.PasswordHash, sourceTokenID: token.ID, accountState: accountState(user)},
 	}, nil
 }
 

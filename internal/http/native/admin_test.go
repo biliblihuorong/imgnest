@@ -362,9 +362,9 @@ func TestAdminPatchUserBodyShape(t *testing.T) {
 	if view.ID != 8 || view.Status != "disabled" || view.GroupID != 3 {
 		t.Fatalf("patched view=%+v", view)
 	}
-	rejected := adminRequest(t, router, "PATCH", "/api/admin/users/8", `{"role":"admin"}`, adminBearer)
+	rejected := adminRequest(t, router, "PATCH", "/api/admin/users/8", `{"password":"replacement-password"}`, adminBearer)
 	if rejected.Code != http.StatusBadRequest {
-		t.Fatalf("role escalation accepted: %d", rejected.Code)
+		t.Fatalf("password edit accepted: %d", rejected.Code)
 	}
 	expectAdminCode(t, rejected, 10001)
 }

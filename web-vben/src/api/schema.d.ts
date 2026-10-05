@@ -422,6 +422,16 @@ export interface paths {
          *     `keyword`, `order`, `min_size`/`max_size`, `from`/`to` and `exif`
          *     parameters narrow the same owner-scoped page; inverted size bounds or
          *     time windows answer 400/10001.
+         *     With `qv=1`, `q` (including an empty string) and a valid IANA `tz`
+         *     are required. The query uses the unified-search v1.1 grammar; old
+         *     filtering parameters cannot be mixed into this mode. The server
+         *     resolves authorized album names, validates the complete query, applies
+         *     every predicate before counting/pagination, and returns `data.search`.
+         *     Ordinary terms match the original displayed filename only; camera,
+         *     format, visibility, album, size, date and sorting use explicit fields.
+         *     Dates refer to upload created_at with inclusive after and exclusive
+         *     before boundaries. Unsupported versions or invalid mixed protocols
+         *     never silently fall back to the legacy search.
          */
         get: operations["listImages"];
         put?: never;
@@ -566,6 +576,53 @@ export interface paths {
         put?: never;
         /** Create one owned album */
         post: operations["createAlbum"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/albums/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggest albums within the caller's authorized search scope
+         * @description Returns only string IDs, names and a hasMore flag. Suggestions do not
+         *     replace exact server-side name resolution when executing a search.
+         *     An optional scope_album_id restricts suggestions to one owner-verified
+         *     album, matching the fixed boundary of the album-detail image list.
+         */
+        get: operations["suggestSearchAlbums"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/albums/{id}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search inside one fixed owner-verified album
+         * @description Requires unified-search qv=1. The path album is a fixed server-enforced
+         *     boundary independent of q, and cannot be removed by clearing or
+         *     changing the query. Unknown and inaccessible albums share the same
+         *     ALBUM_NOT_AVAILABLE diagnostic. Query album conditions may only narrow
+         *     this boundary and never select images outside it.
+         */
+        get: operations["searchAlbumImages"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -875,7 +932,16 @@ export interface paths {
          */
         get: operations["adminListUsers"];
         put?: never;
-        post?: never;
+        /**
+         * Create an account with an initial password
+         * @description Administrator-only creation is independent of the public registration
+         *     switch. The initial password follows the existing 12–72 UTF-8 byte
+         *     policy and is stored only as a bcrypt hash. No password, hash or token
+         *     is returned. The group must be an existing non-guest group. Username
+         *     and normalized email remain unique; display_name is optional and
+         *     non-unique. No invitation or activation email is sent.
+         */
+        post: operations["adminCreateUser"];
         delete?: never;
         options?: never;
         head?: never;
@@ -896,13 +962,16 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Change an account's status or group
-         * @description Requires the administrator role. `status` accepts only `enabled` and
-         *     `disabled`; disabling an account revokes every one of its bearer
-         *     credentials in the same transaction as the status flip. An
-         *     administrator cannot disable their own account. `group_id` must name
-         *     an existing non-guest group. There is no way to change a role through
-         *     this endpoint.
+         * Edit an account's identity, profile, role, status or group
+         * @description Requires the administrator role and only changes explicitly provided
+         *     fields. Effective username, email, role, status or group changes revoke
+         *     all of the account's bearer credentials atomically. Display-name-only
+         *     edits and unchanged values preserve sessions. An administrator cannot
+         *     disable their own account; concurrent changes cannot disable or demote
+         *     the last enabled administrator. group_id must name a non-guest group.
+         *     Username and normalized email remain unique. Password changes are not
+         *     accepted here; used_bytes, IDs, avatar settings and timestamps are also
+         *     server-owned. Self-service username/email remain read-only.
          */
         patch: operations["adminPatchUser"];
         trace?: never;
@@ -1278,7 +1347,34 @@ export interface components {
         CaptchaAdminEnvelope: components["schemas"]["SuccessEnvelope"] & {
             data?: components["schemas"]["CaptchaAdminView"];
         };
+        AdminUserCreate: {
+            /** @description Trimmed unique username. */
+            username: string;
+            /**
+             * Format: email
+             * @description Trimmed and lowercased unique plain email address.
+             */
+            email: string;
+            password: components["schemas"]["Password"];
+            /**
+             * @description Optional non-unique display name; blank falls back to username.
+             * @default
+             */
+            display_name: string;
+            /** @enum {string} */
+            role: "admin" | "user";
+            /** @enum {string} */
+            status: "enabled" | "disabled";
+            group_id: components["schemas"]["ID"];
+        };
+        /** @description Only provided fields change; an empty object is a no-op that preserves sessions. */
         AdminUserPatch: {
+            username?: string;
+            /** Format: email */
+            email?: string;
+            display_name?: string;
+            /** @enum {string} */
+            role?: "admin" | "user";
             /** @enum {string} */
             status?: "enabled" | "disabled";
             group_id?: components["schemas"]["ID"];
@@ -1673,12 +1769,59 @@ export interface components {
             purge_at: components["schemas"]["NullableTimestamp"];
             created_at: components["schemas"]["Timestamp"];
         };
+        SearchAlbum: {
+            /** @description Decimal ID string preserved without JavaScript number conversion. */
+            id: string;
+            name: string;
+        };
+        SearchMetadata: {
+            /** @enum {integer} */
+            appliedVersion: 1;
+            /** @description Canonical query with resolved stable album IDs. */
+            canonicalQ: string;
+            tz: string;
+            authorizedAlbums: components["schemas"]["SearchAlbum"][];
+            appliedRange: {
+                afterUtc: components["schemas"]["NullableTimestamp"];
+                beforeUtc: components["schemas"]["NullableTimestamp"];
+            };
+        };
+        SearchDiagnostic: {
+            /** @enum {string} */
+            code: "UNKNOWN_FIELD" | "MISSING_VALUE" | "UNCLOSED_QUOTE" | "INVALID_ESCAPE" | "UNEXPECTED_CHARACTER" | "EMPTY_LIST_ITEM" | "INVALID_ENUM" | "INVALID_DATE" | "INVALID_SIZE" | "DUPLICATE_FIELD" | "RANGE_CONFLICT" | "QUERY_TOO_COMPLEX" | "INVALID_TIMEZONE" | "ALBUM_NOT_AVAILABLE" | "ALBUM_AMBIGUOUS" | "DATE_NOT_REPRESENTABLE" | "CONTROL_CHARACTER" | "UNSUPPORTED_QUERY_VERSION" | "MIXED_QUERY_PROTOCOL" | "INVALID_PARAMETER" | "INVALID_PAGINATION";
+            messageKey: string;
+            /** @description Half-open source range in original JavaScript UTF-16 code units. */
+            span: {
+                start: number;
+                end: number;
+            };
+            /** @description Localizable diagnostic arguments; any candidates are authorized albums only. */
+            args: {
+                [key: string]: unknown;
+            };
+        };
+        SearchErrorEnvelope: {
+            /** @description Existing numeric native error code */
+            code: number;
+            message: string;
+            data: {
+                diagnostics: components["schemas"]["SearchDiagnostic"][];
+            };
+        };
+        AlbumSuggestions: {
+            items: components["schemas"]["SearchAlbum"][];
+            hasMore: boolean;
+        };
+        AlbumSuggestionsEnvelope: components["schemas"]["SuccessEnvelope"] & {
+            data?: components["schemas"]["AlbumSuggestions"];
+        };
         ImagePage: {
             items: components["schemas"]["ImageView"][];
             /** Format: int64 */
             total: number;
             page: number;
             size: number;
+            search?: components["schemas"]["SearchMetadata"];
         };
         /** @description Owned album row; image_count always reflects the live number of active member images. */
         AlbumView: {
@@ -2213,6 +2356,24 @@ export interface components {
         };
     };
     responses: {
+        /** @description Invalid unified-search syntax, parameters, version, complexity or mixed protocol. No partial query is executed. */
+        SearchInvalid: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["SearchErrorEnvelope"];
+            };
+        };
+        /** @description An album is unavailable in the authorized scope or its exact name is ambiguous. Missing and inaccessible resources are indistinguishable. */
+        SearchAlbumUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["SearchErrorEnvelope"];
+            };
+        };
         /** @description Safe administrator snapshot after a successful read or mutation. */
         CaptchaAdmin: {
             headers: {
@@ -2484,8 +2645,12 @@ export interface components {
         AlbumID: components["schemas"]["ID"];
         /** @description Absent means no album filter; 0 selects unassigned images; a positive value selects one owner-verified album. */
         ImageAlbumFilter: number;
-        /** @description Unified search needle matched case-insensitively against the file name OR the stored EXIF make/model/lens, up to 200 bytes. */
+        /** @description With qv=1, required unified-search grammar input (empty allowed), at most 4096 UTF-8 bytes. Without qv, the legacy filename/path/EXIF OR needle remains limited to 200 bytes. */
         ImageUnifiedSearch: string;
+        /** @description Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–100000 and size is one of 20, 50, 100. */
+        ImageQueryVersion: 1;
+        /** @description Required with qv=1; valid IANA time zone used for upload-date boundaries, independent of display language. */
+        ImageQueryTimezone: string;
         /** @description Case-insensitive substring match on the stored file name (display name or stored path plus extension), up to 200 bytes. */
         ImageKeywordFilter: string;
         /** @description Sort for the page; the default matches the previous behavior (newest). */
@@ -3002,8 +3167,12 @@ export interface operations {
                 size?: components["parameters"]["ImagePageSize"];
                 /** @description Absent means no album filter; 0 selects unassigned images; a positive value selects one owner-verified album. */
                 album_id?: components["parameters"]["ImageAlbumFilter"];
-                /** @description Unified search needle matched case-insensitively against the file name OR the stored EXIF make/model/lens, up to 200 bytes. */
+                /** @description With qv=1, required unified-search grammar input (empty allowed), at most 4096 UTF-8 bytes. Without qv, the legacy filename/path/EXIF OR needle remains limited to 200 bytes. */
                 q?: components["parameters"]["ImageUnifiedSearch"];
+                /** @description Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–100000 and size is one of 20, 50, 100. */
+                qv?: components["parameters"]["ImageQueryVersion"];
+                /** @description Required with qv=1; valid IANA time zone used for upload-date boundaries, independent of display language. */
+                tz?: components["parameters"]["ImageQueryTimezone"];
                 /** @description Case-insensitive substring match on the stored file name (display name or stored path plus extension), up to 200 bytes. */
                 keyword?: components["parameters"]["ImageKeywordFilter"];
                 /** @description Sort for the page; the default matches the previous behavior (newest). */
@@ -3034,6 +3203,8 @@ export interface operations {
                     "application/json": components["schemas"]["ImagePageEnvelope"];
                 };
             };
+            400: components["responses"]["SearchInvalid"];
+            422: components["responses"]["SearchAlbumUnavailable"];
             default: components["responses"]["ImageFailure"];
         };
     };
@@ -3292,6 +3463,68 @@ export interface operations {
                     "application/json": components["schemas"]["AlbumEnvelope"];
                 };
             };
+            default: components["responses"]["ImageFailure"];
+        };
+    };
+    suggestSearchAlbums: {
+        parameters: {
+            query?: {
+                keyword?: string;
+                page?: number;
+                size?: number;
+                scope_album_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable authorized album suggestions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlbumSuggestionsEnvelope"];
+                };
+            };
+            400: components["responses"]["SearchInvalid"];
+            422: components["responses"]["SearchAlbumUnavailable"];
+            default: components["responses"]["ImageFailure"];
+        };
+    };
+    searchAlbumImages: {
+        parameters: {
+            query?: {
+                /** @description Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–100000 and size is one of 20, 50, 100. */
+                qv?: components["parameters"]["ImageQueryVersion"];
+                /** @description With qv=1, required unified-search grammar input (empty allowed), at most 4096 UTF-8 bytes. Without qv, the legacy filename/path/EXIF OR needle remains limited to 200 bytes. */
+                q?: components["parameters"]["ImageUnifiedSearch"];
+                /** @description Required with qv=1; valid IANA time zone used for upload-date boundaries, independent of display language. */
+                tz?: components["parameters"]["ImageQueryTimezone"];
+                page?: components["parameters"]["ImagePageNumber"];
+                size?: components["parameters"]["ImagePageSize"];
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Search result within the fixed album, including search metadata. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImagePageEnvelope"];
+                };
+            };
+            400: components["responses"]["SearchInvalid"];
+            422: components["responses"]["SearchAlbumUnavailable"];
             default: components["responses"]["ImageFailure"];
         };
     };
@@ -3744,6 +3977,44 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    adminCreateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserCreate"];
+            };
+        };
+        responses: {
+            /** @description The created safe account view. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Username or email already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
     adminPatchUser: {
         parameters: {
             query?: never;
@@ -3773,6 +4044,15 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["AdminForbidden"];
             404: components["responses"]["NotFound"];
+            /** @description Username or email already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

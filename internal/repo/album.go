@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
+	"github.com/biliblihuorong/imgnest/internal/searchquery"
 	"gorm.io/gorm"
 )
 
@@ -72,6 +73,8 @@ func (r *AlbumRepository) Create(ctx context.Context, album model.Album) (model.
 	if strings.TrimSpace(album.Name) == "" {
 		return model.Album{}, fmt.Errorf("create album: %w", model.ErrInvalidInput)
 	}
+	nfc, folded := searchquery.NFC(album.Name), searchquery.Normalize(album.Name)
+	album.NameNFC, album.NameSearch = &nfc, &folded
 	if err := r.db.WithContext(ctx).Create(&album).Error; err != nil {
 		return model.Album{}, repositoryError("create album", err)
 	}
@@ -105,6 +108,10 @@ func (r *AlbumRepository) Update(ctx context.Context, ownerID, albumID uint64, v
 				value = nil
 			}
 			changes[key] = value
+		}
+		if name, ok := changes["name"].(string); ok {
+			changes["name_nfc"] = searchquery.NFC(name)
+			changes["name_search"] = searchquery.Normalize(name)
 		}
 		changes["updated_at"] = time.Now().UTC()
 		return tx.Model(&model.Album{}).Where("id = ?", albumID).Updates(changes).Error

@@ -72,6 +72,7 @@ type TokenSubject struct {
 	userID        uint64
 	passwordHash  string
 	sourceTokenID uint64
+	accountState  *model.AccountState
 }
 
 // VerifiedCredentials binds the user view to the exact password hash that was verified.
@@ -153,7 +154,7 @@ func (s *UserService) VerifyCredentials(ctx context.Context, email, password str
 		return VerifiedCredentials{}, err
 	}
 	return VerifiedCredentials{
-		User: view, Subject: TokenSubject{userID: user.ID, passwordHash: user.PasswordHash},
+		User: view, Subject: TokenSubject{userID: user.ID, passwordHash: user.PasswordHash, accountState: accountState(user)},
 	}, nil
 }
 
@@ -211,9 +212,9 @@ func (s *UserService) UpdateDisplayName(ctx context.Context, userID uint64, disp
 	if err := ctx.Err(); err != nil {
 		return UserView{}, fmt.Errorf("update display name: %w", err)
 	}
-	name := strings.TrimSpace(displayName)
-	if name != "" && (!utf8.ValidString(name) || containsControlRune(name) || utf8.RuneCountInString(name) > maxDisplayNameRunes) {
-		return UserView{}, ErrInvalidInput
+	name, err := normalizeDisplayName(displayName)
+	if err != nil {
+		return UserView{}, err
 	}
 	if userID == 0 {
 		return UserView{}, ErrInvalidInput
@@ -274,10 +275,8 @@ func (s *UserService) ResetPassword(ctx context.Context, email, next string) err
 }
 
 func (s *UserService) prepareUser(ctx context.Context, input RegisterInput, role string) (model.User, error) {
-	username := strings.TrimSpace(input.Username)
-	runes := utf8.RuneCountInString(username)
-	invalidUsername := !utf8.ValidString(username) || runes < 3 || runes > 64
-	if invalidUsername || !validPassword(input.Password) {
+	username, err := normalizeUsername(input.Username)
+	if err != nil || !validPassword(input.Password) {
 		return model.User{}, ErrInvalidInput
 	}
 	email, err := normalizeEmail(input.Email)
@@ -319,6 +318,27 @@ func (s *UserService) replacePassword(ctx context.Context, userID uint64, expect
 		return fmt.Errorf("replace password and revoke tokens: %w", err)
 	}
 	return nil
+}
+
+func normalizeUsername(raw string) (string, error) {
+	username := strings.TrimSpace(raw)
+	runes := utf8.RuneCountInString(username)
+	if !utf8.ValidString(username) || runes < 3 || runes > 64 {
+		return "", ErrInvalidInput
+	}
+	return username, nil
+}
+
+func normalizeDisplayName(raw string) (string, error) {
+	name := strings.TrimSpace(raw)
+	if name != "" && (!utf8.ValidString(name) || containsControlRune(name) || utf8.RuneCountInString(name) > maxDisplayNameRunes) {
+		return "", ErrInvalidInput
+	}
+	return name, nil
+}
+
+func accountState(user model.User) *model.AccountState {
+	return &model.AccountState{AuthVersion: user.AuthVersion, Username: user.Username, Email: user.Email, Role: user.Role, Status: user.Status, GroupID: user.GroupID}
 }
 
 func normalizeEmail(raw string) (string, error) {

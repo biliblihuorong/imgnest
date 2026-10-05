@@ -150,8 +150,9 @@ def run(args):
                 hashes = [row[0] for row in connection.execute("SELECT token_hash FROM tokens")]
                 cover_schema = connection.execute("PRAGMA foreign_key_check").fetchall()
             # Migration 0003 owns a disabled id=0 guest anchor, excluded from the
-            # administrative account list. Only the two id>0 accounts are ours.
-            assert member_count == 2 and guest_count == 1 and counts["users"] == 3 and counts["tokens"] == 1, "Unexpected persisted fixture identities/tokens"
+            # administrative account list. Three id>0 accounts belong to this
+            # fixture, including the account created through the admin API.
+            assert member_count == 3 and guest_count == 1 and counts["users"] == 4 and counts["tokens"] == 1, "Unexpected persisted fixture identities/tokens"
             assert all(counts[table] == 0 for table in ("images", "image_exif", "albums")), "Fixture lifecycle left database rows"
             assert used == 0 and not cover_schema, "Quota or foreign-key invariant failed"
             assert not any(value in sensitive for value in hashes), "Plaintext token persisted"

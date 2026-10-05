@@ -35,7 +35,10 @@ func Up(ctx context.Context, db *sql.DB, driver string) error {
 	if err != nil {
 		return err
 	}
-	return up(ctx, db, driver, scripts)
+	if err := up(ctx, db, driver, scripts); err != nil {
+		return err
+	}
+	return BackfillSearch(ctx, db, driver)
 }
 
 // Check verifies that the database matches the binary's migration manifest.
@@ -72,7 +75,7 @@ func Check(ctx context.Context, db *sql.DB, driver string) error {
 	if len(applied) != len(scripts) {
 		return errors.New("database has pending migrations; run migrate")
 	}
-	return nil
+	return checkSearchBackfill(ctx, db)
 }
 
 func up(ctx context.Context, db *sql.DB, driver string, scripts []migration) (result error) {

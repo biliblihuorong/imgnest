@@ -92,3 +92,13 @@ describe("deleteAlbum", () => {
     expect(requestMock).toHaveBeenCalledWith("/api/albums/9", { method: "DELETE" });
   });
 });
+
+import { suggestAlbums } from "./albums";
+it("album suggestions use string IDs, bounded pages and an independent fixed scope", async () => {
+  const signal = new AbortController().signal;
+  await suggestAlbums("暑假", 2, signal, "9007199254740993");
+  expect(vi.mocked(request)).toHaveBeenCalledWith(
+    "/api/albums/suggestions?keyword=%E6%9A%91%E5%81%87&page=2&size=20&scope_album_id=9007199254740993",
+    { signal },
+  );
+});

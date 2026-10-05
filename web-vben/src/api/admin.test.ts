@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createGroup,
+  createUser,
   createPolicy,
   createStorage,
   deleteAdminImage,
@@ -22,13 +23,7 @@ import {
   updatePolicy,
   updateStorage,
 } from "./admin";
-import type {
-  AdminSettings,
-  AdminUserView,
-  GroupView,
-  PolicyView,
-  StorageView,
-} from "./admin";
+import type { AdminSettings, AdminUserView, GroupView, PolicyView, StorageView } from "./admin";
 import { ApiError, request } from "./client";
 
 vi.mock("./client", async (importOriginal) => {
@@ -132,6 +127,59 @@ describe("api/admin 用户域", () => {
 
     await listUsers({ page: 2, size: 50, keyword: "ab" });
     expect(requestMock).toHaveBeenCalledWith("/api/admin/users?page=2&size=50&keyword=ab");
+  });
+
+  it("createUser POSTs only the supplied account fields and returns the decorated view", async () => {
+    const body = {
+      username: "alice",
+      email: "alice@example.com",
+      password: "initial-password-123",
+      display_name: "Alice",
+      role: "admin" as const,
+      status: "disabled" as const,
+      group_id: 1,
+    };
+    requestMock.mockResolvedValueOnce(userFixture);
+    expect(createUser).toBeTypeOf("function");
+    await expect(createUser(body)).resolves.toEqual(userFixture);
+    expect(requestMock).toHaveBeenCalledWith("/api/admin/users", {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(body),
+    });
+  });
+
+  it("patchUser accepts account and role edits without a password field", async () => {
+    const body = {
+      username: "alice-new",
+      email: "new@example.com",
+      display_name: "New name",
+      role: "admin" as const,
+    };
+    requestMock.mockResolvedValueOnce(userFixture);
+    await expect(patchUser(7, body)).resolves.toEqual(userFixture);
+    expect(requestMock).toHaveBeenCalledWith("/api/admin/users/7", {
+      method: "PATCH",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(body),
+    });
+  });
+
+  it("account creation and editing preserve API errors for localized UI feedback", async () => {
+    const error = new ApiError(30002, "duplicate account", 409);
+    requestMock.mockRejectedValue(error);
+    await expect(
+      createUser({
+        username: "alice",
+        email: "alice@example.com",
+        password: "initial-password-123",
+        display_name: "",
+        role: "user",
+        status: "enabled",
+        group_id: 1,
+      }),
+    ).rejects.toBe(error);
+    await expect(patchUser(7, { email: "alice@example.com" })).rejects.toBe(error);
   });
 
   it("patchUser 以 PATCH 提交状态与所属组并返回更新后的视图", async () => {

@@ -97,15 +97,63 @@ describe("AlbumsView", () => {
     expect(wrapper.findAllComponents(AlbumCard)).toHaveLength(2);
   });
 
-  it("列表为空时显示空态，引导按钮跳转上传页", async () => {
+  it("没有相册时空态按钮打开新建表单而不是上传页", async () => {
     listAlbumsMock.mockResolvedValue({ items: [], total: 0, page: 1, size: 20 });
     const wrapper = await mountAlbums();
     await flushPromises();
 
     expect(wrapper.text()).toContain("还没有相册");
-    await viewButton(wrapper, "去上传页").trigger("click");
+    await wrapper.find(".albums-view__empty button").trigger("click");
+    await flushPromises();
+    expect(document.body.querySelector(".n-modal")).not.toBeNull();
+    expect(document.body.querySelector(".n-modal")?.textContent).toContain("新建相册");
+    expect(createAlbumMock).not.toHaveBeenCalled();
+    expect(pushMock).not.toHaveBeenCalled();
+    await bodyButton("取消").click();
+    await flushPromises();
+    await wrapper.find(".albums-view__empty button").trigger("click");
+    await flushPromises();
+    expect(document.body.querySelector<HTMLInputElement>(".n-modal input")?.value).toBe("");
+  });
 
-    expect(pushMock).toHaveBeenCalledWith("/upload");
+  it("已经存在的空相册仍显示相册卡片，不误显示无相册引导", async () => {
+    listAlbumsMock.mockResolvedValue({
+      items: [makeAlbum({ id: 2, name: "空相册", image_count: 0 })],
+      total: 1,
+      page: 1,
+      size: 20,
+    });
+    const wrapper = mountAlbums();
+    await flushPromises();
+    expect(wrapper.findAllComponents(AlbumCard)).toHaveLength(1);
+    expect(wrapper.text()).toContain("0 张图片");
+    expect(wrapper.find(".albums-view__empty").exists()).toBe(false);
+  });
+
+  it("外部删除导致末页失效时仅回退一次，不误称没有相册", async () => {
+    const wrapper = mountAlbums();
+    await flushPromises();
+    listAlbumsMock.mockResolvedValueOnce({ items: [], total: 21, page: 3, size: 20 });
+    listAlbumsMock.mockResolvedValueOnce({
+      items: [makeAlbum({ id: 21, name: "最后的相册" })],
+      total: 21,
+      page: 2,
+      size: 20,
+    });
+    wrapper.findComponent(NPagination).vm.$emit("update:page", 3);
+    await flushPromises();
+    expect(listAlbumsMock).toHaveBeenLastCalledWith({ page: 2, size: 20 });
+    expect(listAlbumsMock).toHaveBeenCalledTimes(3);
+    expect(wrapper.text()).toContain("最后的相册");
+    expect(wrapper.text()).not.toContain("还没有相册");
+  });
+
+  it("空页但总数非零时不显示创建第一个相册的空态", async () => {
+    listAlbumsMock.mockResolvedValue({ items: [], total: 2, page: 1, size: 20 });
+    const wrapper = mountAlbums();
+    await flushPromises();
+    expect(wrapper.text()).toContain("本页没有相册");
+    expect(wrapper.text()).not.toContain("还没有相册");
   });
 
   it("新建相册：Modal 提交调用 createAlbum 并刷新列表", async () => {

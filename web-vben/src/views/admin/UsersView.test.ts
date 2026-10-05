@@ -1,7 +1,18 @@
 import { i18n } from "@vben/locales";
 import { nextTick } from "vue";
 import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import { NMessageProvider, NPagination, NSelect, NSwitch } from "naive-ui";
+import {
+  NFormItem,
+  NInput,
+  NMessageProvider,
+  NModal,
+  NPagination,
+  NSelect,
+  NSwitch,
+} from "naive-ui";
+import { createPinia, setActivePinia } from "pinia";
+import { useAuthStore } from "@/stores/auth";
+import { ApiError, TOKEN_STORAGE_KEY } from "@/api/client";
 import { h } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as adminApi from "@/api/admin";
@@ -10,11 +21,15 @@ import UsersView from "./UsersView.vue";
 
 vi.mock("@/api/admin", () => ({
   listUsers: vi.fn(),
+  createUser: vi.fn(),
   patchUser: vi.fn(),
   listGroups: vi.fn(),
 }));
 
 const adminApiMock = vi.mocked(adminApi);
+const { replaceRoute } = vi.hoisted(() => ({ replaceRoute: vi.fn() }));
+vi.mock("vue-router", () => ({ useRouter: () => ({ replace: replaceRoute }) }));
+let pinia = createPinia();
 
 // jsdom 未实现 ResizeObserver，naive-ui 表格/弹层依赖它
 class ResizeObserverStub {
@@ -66,11 +81,15 @@ function makePage(items: AdminUserView[], totalCount = items.length): AdminUserP
 }
 
 function mountView(): VueWrapper {
-  return mount(() => h(NMessageProvider, () => h(UsersView)));
+  return mount(() => h(NMessageProvider, () => h(UsersView)), { global: { plugins: [pinia] } });
 }
 
 beforeEach(() => {
   vi.resetAllMocks();
+  localStorage.clear();
+  pinia = createPinia();
+  setActivePinia(pinia);
+  replaceRoute.mockResolvedValue(undefined);
   adminApiMock.listUsers.mockResolvedValue(
     makePage([
       makeUser(),
@@ -87,7 +106,8 @@ beforeEach(() => {
   );
   adminApiMock.listGroups.mockResolvedValue([
     makeGroup(),
-    makeGroup({ id: 2, name: "游客组", is_default: false, is_guest: true }),
+    makeGroup({ id: 2, name: "专业组", is_default: false }),
+    makeGroup({ id: 3, name: "游客组", is_default: false, is_guest: true }),
   ]);
 });
 
@@ -103,7 +123,7 @@ describe("UsersView", () => {
     expect(text).toContain("alice@example.com");
     expect(text).toContain("管理员");
     expect(text).toContain("默认组");
-    expect(text).toContain("游客组");
+    expect(text).toContain("专业组");
     expect(text).toContain("1.5 KB");
     expect(text).toContain("0 B");
     expect(text).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
@@ -219,7 +239,7 @@ describe("UsersView", () => {
     await flushPromises();
 
     expect(adminApiMock.patchUser).toHaveBeenCalledWith(1, { group_id: 2 });
-    expect(document.body.textContent).toContain("已将「alice」移至「游客组」");
+    expect(document.body.textContent).toContain("已将「alice」移至「专业组」");
   });
 
   it("调整用户组失败：行数据不变并提示错误", async () => {
@@ -291,4 +311,453 @@ it("keeps the newest user search when an older response arrives later", async ()
   await flushPromises();
   expect(wrapper.text()).toContain("new-result");
   expect(wrapper.text()).not.toContain("stale-result");
+});
+
+function bodyButton(text: string): HTMLButtonElement {
+  const button = Array.from(document.body.querySelectorAll("button")).find(
+    (item) => item.textContent?.trim() === text,
+  );
+  expect(button, `button ${text}`).toBeTruthy();
+  return button!;
+}
+
+function formField(wrapper: VueWrapper, path: string) {
+  const field = wrapper.findAllComponents(NFormItem).find((item) => item.props("path") === path);
+  expect(field, `form field ${path}`).toBeTruthy();
+  return field!;
+}
+
+async function setText(wrapper: VueWrapper, path: string, value: string) {
+  formField(wrapper, path).findComponent(NInput).vm.$emit("update:value", value);
+  await nextTick();
+}
+
+async function setChoice(wrapper: VueWrapper, path: string, value: string | number | null) {
+  formField(wrapper, path).findComponent(NSelect).vm.$emit("update:value", value);
+  await nextTick();
+}
+
+async function openCreate(wrapper: VueWrapper) {
+  const button = wrapper.findAll("button").find((item) => item.text() === "新建用户");
+  expect(button).toBeTruthy();
+  await button!.trigger("click");
+  await flushPromises();
+}
+
+async function openEdit(wrapper: VueWrapper, index = 0) {
+  const button = wrapper.findAll("button").filter((item) => item.text() === "编辑")[index];
+  expect(button).toBeTruthy();
+  await button!.trigger("click");
+  await flushPromises();
+}
+
+async function fillCreate(wrapper: VueWrapper) {
+  await setText(wrapper, "username", " charlie ");
+  await setText(wrapper, "email", " CHARLIE@EXAMPLE.COM ");
+  await setText(wrapper, "password", "initial-password-123");
+  await setText(wrapper, "display_name", " Charlie ");
+}
+
+function signInAs(user = makeUser()) {
+  const auth = useAuthStore(pinia);
+  auth.token = "current-session";
+  auth.user = user;
+  localStorage.setItem(TOKEN_STORAGE_KEY, auth.token);
+  return auth;
+}
+
+describe("admin account forms", () => {
+  it("creates a user with all account fields, normalized identity and initial password", async () => {
+    adminApiMock.createUser.mockResolvedValue(makeUser({ id: 4, username: "charlie" }));
+    const wrapper = mountView();
+    await flushPromises();
+    await openCreate(wrapper);
+    await fillCreate(wrapper);
+    await setChoice(wrapper, "role", "admin");
+    await setChoice(wrapper, "status", "disabled");
+    await setChoice(wrapper, "group_id", 2);
+    bodyButton("创建").click();
+    await flushPromises();
+    expect(adminApiMock.createUser).toHaveBeenCalledExactlyOnceWith({
+      username: "charlie",
+      email: "charlie@example.com",
+      password: "initial-password-123",
+      display_name: "Charlie",
+      role: "admin",
+      status: "disabled",
+      group_id: 2,
+    });
+    expect(adminApiMock.patchUser).not.toHaveBeenCalled();
+    expect(wrapper.findComponent(NModal).props("show")).toBe(false);
+    expect(adminApiMock.listUsers).toHaveBeenCalledTimes(2);
+    expect(document.body.textContent).toContain("用户「charlie」已创建");
+  });
+
+  it("prefills edits, hides password, preserves avatar and submits only changed fields", async () => {
+    adminApiMock.patchUser.mockResolvedValue(
+      makeUser({
+        username: "alice-new",
+        email: "new@example.com",
+        display_name: "New name",
+        role: "admin",
+        status: "disabled",
+        group_id: 2,
+      }),
+    );
+    const wrapper = mountView();
+    await flushPromises();
+    await openEdit(wrapper);
+    expect(formField(wrapper, "username").findComponent(NInput).props("value")).toBe("alice");
+    expect(formField(wrapper, "email").findComponent(NInput).props("value")).toBe(
+      "alice@example.com",
+    );
+    expect(
+      wrapper.findAllComponents(NFormItem).some((item) => item.props("path") === "password"),
+    ).toBe(false);
+    expect(document.body.querySelector('input[type="password"]')).toBeNull();
+    await setText(wrapper, "username", " alice-new ");
+    await setText(wrapper, "email", " NEW@EXAMPLE.COM ");
+    await setText(wrapper, "display_name", " New name ");
+    await setChoice(wrapper, "role", "admin");
+    await setChoice(wrapper, "status", "disabled");
+    await setChoice(wrapper, "group_id", 2);
+    bodyButton("保存").click();
+    await flushPromises();
+    expect(adminApiMock.patchUser).toHaveBeenCalledExactlyOnceWith(1, {
+      username: "alice-new",
+      email: "new@example.com",
+      display_name: "New name",
+      role: "admin",
+      status: "disabled",
+      group_id: 2,
+    });
+    expect(adminApiMock.createUser).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("用户「alice-new」已更新");
+  });
+
+  it.each([
+    ["username", "  ", "用户名须为 3–64 个字符"],
+    ["username", "ab", "用户名须为 3–64 个字符"],
+    ["username", "a".repeat(65), "用户名须为 3–64 个字符"],
+    ["email", "not-an-email", "请输入有效的邮箱地址"],
+    ["email", "Alice <alice@example.com>", "请输入有效的邮箱地址"],
+    ["password", "", "初始密码须为 12–72 字节"],
+    ["password", "short", "初始密码须为 12–72 字节"],
+    ["password", "密".repeat(25), "初始密码须为 12–72 字节"],
+    ["display_name", "😀".repeat(65), "显示名称最多 64 个字符，且不能含控制字符"],
+    ["display_name", "bad\u0000name", "显示名称最多 64 个字符，且不能含控制字符"],
+  ])("validates %s before sending a create request", async (path, value, error) => {
+    const wrapper = mountView();
+    await flushPromises();
+    await openCreate(wrapper);
+    await fillCreate(wrapper);
+    await setText(wrapper, path, value);
+    bodyButton("创建").click();
+    await flushPromises();
+    expect(adminApiMock.createUser).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain(error);
+    expect(wrapper.findComponent(NModal).props("show")).toBe(true);
+  });
+
+  it("counts Unicode names by code points and passwords by UTF-8 bytes", async () => {
+    adminApiMock.createUser.mockResolvedValue(makeUser({ id: 4 }));
+    const wrapper = mountView();
+    await flushPromises();
+    await openCreate(wrapper);
+    await fillCreate(wrapper);
+    await setText(wrapper, "username", "😀".repeat(64));
+    await setText(wrapper, "display_name", "😀".repeat(64));
+    await setText(wrapper, "password", "密".repeat(4));
+    bodyButton("创建").click();
+    await flushPromises();
+    expect(adminApiMock.createUser).toHaveBeenCalledOnce();
+  });
+
+  it("filters guest groups from inline and form options and blocks forged selections", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    for (const select of wrapper.findAllComponents(NSelect)) {
+      expect(select.props("options")).toEqual([
+        { label: "默认组", value: 1 },
+        { label: "专业组", value: 2 },
+      ]);
+    }
+    wrapper.findAllComponents(NSelect)[0].vm.$emit("update:value", 3);
+    await flushPromises();
+    expect(adminApiMock.patchUser).not.toHaveBeenCalled();
+    await openCreate(wrapper);
+    await fillCreate(wrapper);
+    expect(formField(wrapper, "group_id").findComponent(NSelect).props("value")).toBe(1);
+    expect(formField(wrapper, "group_id").findComponent(NSelect).props("options")).toHaveLength(2);
+    await setChoice(wrapper, "group_id", 3);
+    bodyButton("创建").click();
+    await flushPromises();
+    expect(adminApiMock.createUser).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("请选择非游客用户组");
+  });
+
+  it.each([
+    ["role", "owner"],
+    ["status", "deleted"],
+  ])("rejects an invalid %s selection", async (path, value) => {
+    const wrapper = mountView();
+    await flushPromises();
+    await openCreate(wrapper);
+    await fillCreate(wrapper);
+    await setChoice(wrapper, path, value);
+    bodyButton("创建").click();
+    await flushPromises();
+    expect(adminApiMock.createUser).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("请选择有效的角色和状态");
+  });
+
+  it("validates edits as well as newly created accounts", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    await openEdit(wrapper);
+    await setText(wrapper, "username", "ab");
+    bodyButton("保存").click();
+    await flushPromises();
+    expect(adminApiMock.patchUser).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("用户名须为 3–64 个字符");
+  });
+
+  it("requires an explicitly selected group when no default is available", async () => {
+    adminApiMock.listGroups.mockResolvedValue([makeGroup({ is_default: false })]);
+    const wrapper = mountView();
+    await flushPromises();
+    await openCreate(wrapper);
+    await fillCreate(wrapper);
+    expect(formField(wrapper, "group_id").findComponent(NSelect).props("value")).toBeNull();
+    bodyButton("创建").click();
+    await flushPromises();
+    expect(adminApiMock.createUser).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("请选择非游客用户组");
+  });
+
+  it.each(["create", "edit"])(
+    "keeps the %s form open on API errors with localized feedback",
+    async (mode) => {
+      adminApiMock.createUser.mockRejectedValue(new ApiError(30002, "private diagnostic", 409));
+      adminApiMock.patchUser.mockRejectedValue(new ApiError(30002, "private diagnostic", 409));
+      const wrapper = mountView();
+      await flushPromises();
+      if (mode === "create") {
+        await openCreate(wrapper);
+        await fillCreate(wrapper);
+      } else {
+        await openEdit(wrapper);
+        await setText(wrapper, "email", "duplicate@example.com");
+      }
+      bodyButton(mode === "create" ? "创建" : "保存").click();
+      await flushPromises();
+      expect(document.body.textContent).toContain("账号已存在");
+      expect(document.body.textContent).not.toContain("private diagnostic");
+      expect(wrapper.findComponent(NModal).props("show")).toBe(true);
+      expect(adminApiMock.listUsers).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("prevents repeated submission and dismissal while saving, then permits retry or cancellation", async () => {
+    let rejectSave!: (error: Error) => void;
+    adminApiMock.createUser.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectSave = reject;
+        }),
+    );
+    const wrapper = mountView();
+    await flushPromises();
+    await openCreate(wrapper);
+    await fillCreate(wrapper);
+    bodyButton("创建").click();
+    bodyButton("创建").click();
+    await flushPromises();
+    expect(adminApiMock.createUser).toHaveBeenCalledOnce();
+    const modal = wrapper.findComponent(NModal);
+    expect(modal.props("closable")).toBe(false);
+    expect(modal.props("maskClosable")).toBe(false);
+    expect(modal.props("closeOnEsc")).toBe(false);
+    expect(bodyButton("取消").disabled).toBe(true);
+    rejectSave(new Error("interrupted"));
+    await flushPromises();
+    expect(modal.props("closable")).toBe(true);
+    bodyButton("取消").click();
+    await flushPromises();
+    await openCreate(wrapper);
+    expect(formField(wrapper, "username").findComponent(NInput).props("value")).toBe("");
+    expect(formField(wrapper, "password").findComponent(NInput).props("value")).toBe("");
+  });
+
+  it.each([
+    ["username", "alice-new"],
+    ["email", "new@example.com"],
+    ["role", "admin"],
+    ["status", "disabled"],
+    ["group_id", 2],
+  ])(
+    "clears the current session and returns to login after a self %s change",
+    async (path, value) => {
+      const auth = signInAs();
+      adminApiMock.patchUser.mockResolvedValue(makeUser({ [path]: value }));
+      const wrapper = mountView();
+      await flushPromises();
+      await openEdit(wrapper);
+      if (typeof value === "string" && ["username", "email"].includes(path as string)) {
+        await setText(wrapper, path as string, value);
+      } else {
+        await setChoice(wrapper, path as string, value);
+      }
+      expect(document.body.textContent).toContain(
+        "修改自己的用户名、邮箱、角色、状态或用户组后，需要重新登录",
+      );
+      bodyButton("保存").click();
+      await flushPromises();
+      expect(auth.token).toBeNull();
+      expect(auth.user).toBeNull();
+      expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+      expect(replaceRoute).toHaveBeenCalledWith("/login");
+      expect(adminApiMock.listUsers).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("refreshes nickname and avatar in the current user without invalidating the session", async () => {
+    const auth = signInAs();
+    const updated = makeUser({
+      display_name: "Alice renamed",
+      avatar_config_version: 3,
+      avatar_url: "https://weavatar.com/avatar/hash",
+    });
+    adminApiMock.patchUser.mockResolvedValue(updated);
+    const wrapper = mountView();
+    await flushPromises();
+    await openEdit(wrapper);
+    await setText(wrapper, "display_name", " Alice renamed ");
+    bodyButton("保存").click();
+    await flushPromises();
+    expect(adminApiMock.patchUser).toHaveBeenCalledWith(1, { display_name: "Alice renamed" });
+    expect(auth.user).toEqual(updated);
+    expect(auth.token).toBe("current-session");
+    expect(replaceRoute).not.toHaveBeenCalled();
+  });
+
+  it("does not invalidate a normalized no-op identity edit and allows clearing nickname", async () => {
+    const initial = makeUser({ display_name: "Alice" });
+    adminApiMock.listUsers.mockResolvedValue(makePage([initial]));
+    const auth = signInAs(initial);
+    adminApiMock.patchUser.mockResolvedValue(makeUser());
+    const wrapper = mountView();
+    await flushPromises();
+    await openEdit(wrapper);
+    await setText(wrapper, "username", " alice ");
+    await setText(wrapper, "email", " ALICE@EXAMPLE.COM ");
+    await setText(wrapper, "display_name", " ");
+    bodyButton("保存").click();
+    await flushPromises();
+    expect(adminApiMock.patchUser).toHaveBeenCalledWith(1, { display_name: "" });
+    expect(auth.user?.display_name).toBe("");
+    expect(auth.token).toBe("current-session");
+    expect(replaceRoute).not.toHaveBeenCalled();
+  });
+
+  it.each(["status", "group"])(
+    "invalidates self sessions from the existing inline %s control",
+    async (control) => {
+      const auth = signInAs();
+      adminApiMock.patchUser.mockResolvedValue(
+        makeUser(control === "status" ? { status: "disabled" } : { group_id: 2 }),
+      );
+      const wrapper = mountView();
+      await flushPromises();
+      if (control === "status")
+        wrapper.findAllComponents(NSwitch)[0].vm.$emit("update:value", false);
+      else wrapper.findAllComponents(NSelect)[0].vm.$emit("update:value", 2);
+      await flushPromises();
+      expect(auth.token).toBeNull();
+      expect(replaceRoute).toHaveBeenCalledWith("/login");
+    },
+  );
+
+  it("accepts a fully normalized no-op edit without ending the current session", async () => {
+    const auth = signInAs();
+    adminApiMock.patchUser.mockResolvedValue(makeUser());
+    const wrapper = mountView();
+    await flushPromises();
+    await openEdit(wrapper);
+    await setText(wrapper, "username", " alice ");
+    await setText(wrapper, "email", " ALICE@EXAMPLE.COM ");
+    bodyButton("保存").click();
+    await flushPromises();
+    expect(adminApiMock.patchUser).toHaveBeenCalledExactlyOnceWith(1, {});
+    expect(auth.token).toBe("current-session");
+    expect(replaceRoute).not.toHaveBeenCalled();
+    expect(wrapper.findComponent(NModal).props("show")).toBe(false);
+  });
+
+  it("keeps the current session when a self identity edit is rejected", async () => {
+    const auth = signInAs();
+    adminApiMock.patchUser.mockRejectedValue(new ApiError(30002, "duplicate", 409));
+    const wrapper = mountView();
+    await flushPromises();
+    await openEdit(wrapper);
+    await setText(wrapper, "email", "duplicate@example.com");
+    bodyButton("保存").click();
+    await flushPromises();
+    expect(auth.user?.email).toBe("alice@example.com");
+    expect(auth.token).toBe("current-session");
+    expect(replaceRoute).not.toHaveBeenCalled();
+    expect(wrapper.findComponent(NModal).props("show")).toBe(true);
+  });
+
+  it("does not invalidate the administrator when editing another account", async () => {
+    const auth = signInAs(makeUser({ id: 99, role: "admin", username: "owner" }));
+    adminApiMock.patchUser.mockResolvedValue(makeUser({ email: "new@example.com" }));
+    const wrapper = mountView();
+    await flushPromises();
+    await openEdit(wrapper);
+    await setText(wrapper, "email", "new@example.com");
+    bodyButton("保存").click();
+    await flushPromises();
+    expect(auth.user?.username).toBe("owner");
+    expect(auth.token).toBe("current-session");
+    expect(replaceRoute).not.toHaveBeenCalled();
+  });
+
+  it("does not clear a newer login when an older self update completes", async () => {
+    const auth = signInAs();
+    let finish!: (user: AdminUserView) => void;
+    adminApiMock.patchUser.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const wrapper = mountView();
+    await flushPromises();
+    await openEdit(wrapper);
+    await setText(wrapper, "email", "new@example.com");
+    bodyButton("保存").click();
+    await flushPromises();
+    auth.clear();
+    auth.token = "new-session";
+    auth.user = makeUser({ email: "new@example.com" });
+    localStorage.setItem(TOKEN_STORAGE_KEY, "new-session");
+    finish(makeUser({ email: "new@example.com" }));
+    await flushPromises();
+    expect(auth.token).toBe("new-session");
+    expect(replaceRoute).not.toHaveBeenCalled();
+    expect(adminApiMock.listUsers).toHaveBeenCalledTimes(1);
+  });
+
+  it("localizes an open account form when the language changes", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    await openCreate(wrapper);
+    i18n.global.locale.value = "en-US";
+    await nextTick();
+    expect(document.body.textContent).toContain("Create user");
+    expect(document.body.textContent).toContain("Initial password");
+    expect(document.body.textContent).toContain("Display name");
+    expect(document.body.textContent).not.toContain("初始密码");
+  });
 });

@@ -8,6 +8,7 @@
  * 业务失败抛 ApiError（10001 名称非法/引用图片非本人、20003 他人资源）。
  */
 import { request } from "./client";
+import type { components } from "./schema";
 
 /** 相册安全视图：契约 AlbumView；cover_image_id 0=无封面。 */
 export interface AlbumView {
@@ -96,4 +97,18 @@ export function updateAlbum(id: number, patch: AlbumPatch): Promise<AlbumView> {
  */
 export function deleteAlbum(id: number): Promise<null> {
   return request<null>(`/api/albums/${id}`, { method: "DELETE" });
+}
+
+/** Bounded current-owner suggestions, independent of legacy first-100 move options. */
+export type AlbumSuggestion = components["schemas"]["SearchAlbum"];
+export type AlbumSuggestionPage = components["schemas"]["AlbumSuggestions"];
+export function suggestAlbums(
+  keyword: string,
+  page = 1,
+  signal?: AbortSignal,
+  scopeAlbumId?: string,
+): Promise<AlbumSuggestionPage> {
+  const query = new URLSearchParams({ keyword, page: String(page), size: "20" });
+  if (scopeAlbumId !== undefined) query.set("scope_album_id", scopeAlbumId);
+  return request<AlbumSuggestionPage>(`/api/albums/suggestions?${query}`, { signal });
 }

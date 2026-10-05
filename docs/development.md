@@ -73,7 +73,7 @@ SQLite 强制单连接、WAL（文件库）、foreign_keys 和 busy_timeout。Po
 
 ## API
 
-精确契约在 [openapi.yaml](openapi.yaml)。原生响应固定 `code/message/data`，成功 code=0，失败 data=null；时间 UTC RFC3339。
+精确契约在 [openapi.yaml](openapi.yaml)。原生响应固定 `code/message/data`，成功 code=0，普通失败 data=null；统一搜索错误在 data.diagnostics 返回结构化诊断。时间 UTC RFC3339。
 
 | 路由 | 用途 |
 | --- | --- |

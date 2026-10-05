@@ -3,7 +3,6 @@ import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
 import { NAlert, NButton, NEmpty, NPagination, NSpin } from "naive-ui";
 import { shallowRef } from "vue";
-import { useRouter } from "vue-router";
 import type { AlbumView } from "@/api/albums";
 import AlbumCard from "@/components/albums/AlbumCard.vue";
 import AlbumFormModal from "@/components/albums/AlbumFormModal.vue";
@@ -11,7 +10,6 @@ import { ALBUM_PAGE_SIZE, useAlbums } from "@/components/albums/useAlbums";
 import { formatApiError } from "@/locales/errors";
 
 const { t } = useI18n();
-const router = useRouter();
 const { albums, total, page, loading, loadError, busyIds, load, changePage, remove } = useAlbums();
 const modalShow = shallowRef(false);
 const editing = shallowRef<AlbumView | null>(null);
@@ -36,12 +34,15 @@ function openForm(album: AlbumView | null): void {
         <NEmpty
           v-if="!loading && !loadError && albums.length === 0"
           class="albums-view__empty rounded-lg border border-border bg-card"
-          :description="t('albums.empty')"
+          :description="t(total === 0 ? 'albums.empty' : 'albums.emptyPage')"
         >
           <template #extra>
-            <NButton size="small" @click="router?.push('/upload')">{{
-              t("albums.upload")
-            }}</NButton>
+            <NButton v-if="total === 0" size="small" type="primary" @click="openForm(null)">
+              {{ t("albums.create") }}
+            </NButton>
+            <NButton v-else size="small" @click="changePage(1)">
+              {{ t("albums.firstPage") }}
+            </NButton>
           </template>
         </NEmpty>
         <div v-else class="albums-view__grid">

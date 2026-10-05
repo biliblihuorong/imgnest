@@ -183,3 +183,34 @@ describe("api client request", () => {
     expect((error as ApiError).status).toBe(0);
   });
 });
+
+it("preserves versioned search diagnostics and UTF16 spans in ApiError", async () => {
+  const data = {
+    diagnostics: [
+      {
+        code: "UNKNOWN_FIELD",
+        messageKey: "search.error.unknownField",
+        span: { start: 3, end: 6 },
+        args: { field: "foo" },
+      },
+    ],
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(jsonResponse({ code: 10001, message: "query invalid", data }, 400)),
+  );
+  await expect(request("/api/images?qv=1")).rejects.toMatchObject({
+    code: 10001,
+    status: 400,
+    data,
+  });
+  vi.unstubAllGlobals();
+});
+it("preserves abort identity rather than replacing cancellation with a network error", async () => {
+  const abort = new DOMException("cancelled", "AbortError");
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(abort));
+  await expect(request("/api/images", { signal: new AbortController().signal })).rejects.toBe(
+    abort,
+  );
+  vi.unstubAllGlobals();
+});

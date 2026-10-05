@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
+	"github.com/biliblihuorong/imgnest/internal/searchquery"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -99,6 +100,8 @@ func (r *ImageRepository) ReserveUpload(ctx context.Context, req model.UploadRes
 		if err := checkQuota(tx, user, image.ChargedBytes); err != nil {
 			return err
 		}
+		filenameSearch := searchquery.Normalize(image.OriginName)
+		image.FilenameSearch = &filenameSearch
 		if err := tx.Create(&image).Error; err != nil {
 			if errors.Is(err, gorm.ErrDuplicatedKey) {
 				return model.ErrPathConflict
@@ -198,6 +201,9 @@ func (r *ImageRepository) CommitUpload(ctx context.Context, key, op string, exif
 			return model.ErrInvalidInput
 		}
 		exif.ImageID = image.ID
+		camera := searchquery.Normalize(strings.TrimSpace(exif.Make + " " + exif.Model))
+		lens := searchquery.Normalize(exif.Lens)
+		exif.CameraSearch, exif.LensSearch = &camera, &lens
 		if err := tx.Create(&exif).Error; err != nil {
 			return err
 		}
@@ -318,6 +324,9 @@ func (r *ImageRepository) FindExif(ctx context.Context, key string) (model.Image
 // explicit ordering, byte-size bounds, an upload-time window and an EXIF
 // make/model/lens match.
 func (r *ImageRepository) List(ctx context.Context, filter model.ImageListFilter, page, size int) ([]model.Image, int64, error) {
+	if filter.Search != nil {
+		return r.listSearch(ctx, filter, page, size)
+	}
 	if page < 1 || size < 1 || size > 200 {
 		return nil, 0, fmt.Errorf("list images: %w", model.ErrInvalidInput)
 	}

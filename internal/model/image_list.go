@@ -10,6 +10,7 @@ import "time"
 // created_at in UTC. Keyword matches file names only, Exif matches
 // make/model/lens only, and the unified Q matches either (OR).
 type ImageListFilter struct {
+	Search  *ImageSearchFilter
 	UserID  uint64
 	Admin   bool
 	Trash   bool

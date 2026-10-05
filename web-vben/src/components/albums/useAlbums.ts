@@ -25,7 +25,14 @@ export function useAlbums() {
     loadError.value = null;
     albums.value = [];
     try {
-      const data = await listAlbums({ page: page.value, size: ALBUM_PAGE_SIZE });
+      let data = await listAlbums({ page: page.value, size: ALBUM_PAGE_SIZE });
+      if (disposed || current !== requestId) return;
+      // A deletion in another tab can make this page disappear. Retry only
+      // once and retain the same generation so newer navigation always wins.
+      const lastPage = Math.max(1, Math.ceil(data.total / ALBUM_PAGE_SIZE));
+      if (data.items.length === 0 && data.page > lastPage) {
+        data = await listAlbums({ page: lastPage, size: ALBUM_PAGE_SIZE });
+      }
       if (disposed || current !== requestId) return;
       albums.value = data.items;
       total.value = data.total;

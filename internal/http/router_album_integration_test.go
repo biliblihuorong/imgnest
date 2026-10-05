@@ -66,7 +66,7 @@ func newAlbumHTTPFixture(t *testing.T) *albumHTTPFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens, err := service.NewTokenService(ctx, tokenRepo, userRepo, time.Now)
+	tokens, err := service.NewTokenService(ctx, tokenRepo, userRepo, settings, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}

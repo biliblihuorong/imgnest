@@ -4,14 +4,14 @@ import { NDialogProvider, NMessageProvider } from "naive-ui";
 import { h } from "vue";
 import { i18n } from "@vben/locales";
 import { listAlbums } from "@/api/albums";
-import { listImages } from "@/api/images";
+import { searchImages } from "@/api/images";
 import { makeAlbum } from "@/components/albums/fixtures";
 import { makeImage } from "@/components/images/fixtures";
 import ImageLibrary from "@/components/images/ImageLibrary.vue";
 import ImagesView from "./ImagesView.vue";
 
 vi.mock("@/api/images", () => ({
-  listImages: vi.fn(),
+  searchImages: vi.fn(),
   setImageVisibility: vi.fn(),
   deleteImage: vi.fn(),
   getImageExif: vi.fn(),
@@ -25,9 +25,10 @@ vi.mock("@/api/images", () => ({
 
 vi.mock("@/api/albums", () => ({
   listAlbums: vi.fn(),
+  suggestAlbums: vi.fn(),
 }));
 
-const listImagesMock = vi.mocked(listImages);
+const searchImagesMock = vi.mocked(searchImages);
 const listAlbumsMock = vi.mocked(listAlbums);
 
 enableAutoUnmount(afterEach);
@@ -38,11 +39,18 @@ function mountView() {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  listImagesMock.mockResolvedValue({
+  searchImagesMock.mockResolvedValue({
     items: [
       makeImage({ id: 1, name: "a.png", size: 2048 }),
       makeImage({ id: 2, name: "b.jpg", is_public: true }),
     ],
+    search: {
+      appliedVersion: 1,
+      canonicalQ: "",
+      tz: "UTC",
+      authorizedAlbums: [],
+      appliedRange: { afterUtc: null, beforeUtc: null },
+    },
     total: 42,
     page: 1,
     size: 20,

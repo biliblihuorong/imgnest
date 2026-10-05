@@ -191,24 +191,28 @@ type ImageView struct {
 // newest|oldest|largest|smallest, MinSize/MaxSize bound the original byte
 // size and From/To bound the upload time.
 type ImageQuery struct {
-	Page, Size   int
-	Trash, Admin bool
-	AlbumID      *uint64
-	Keyword      string
-	Q            string
-	Order        string
-	MinSize      int64
-	MaxSize      int64
-	From, To     *time.Time
-	Exif         string
+	QueryVersion  int
+	Timezone      string
+	LockedAlbumID *uint64
+	Page, Size    int
+	Trash, Admin  bool
+	AlbumID       *uint64
+	Keyword       string
+	Q             string
+	Order         string
+	MinSize       int64
+	MaxSize       int64
+	From, To      *time.Time
+	Exif          string
 }
 
 // ImagePage is the native image-list response.
 type ImagePage struct {
-	Items []ImageView `json:"items"`
-	Total int64       `json:"total"`
-	Page  int         `json:"page"`
-	Size  int         `json:"size"`
+	Search *SearchMetadata `json:"search,omitempty"`
+	Items  []ImageView     `json:"items"`
+	Total  int64           `json:"total"`
+	Page   int             `json:"page"`
+	Size   int             `json:"size"`
 }
 
 // GalleryItem is one public gallery entry: an image view plus the uploader's

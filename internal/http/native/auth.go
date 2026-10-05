@@ -196,12 +196,16 @@ func (h *Handler) profile(c *gin.Context) {
 	// Only display_name has a request shape; unknown fields are rejected by
 	// the decoder, so user_id, role, group, or email cannot be smuggled in.
 	var in struct {
-		DisplayName string `json:"display_name"`
+		DisplayName *string `json:"display_name"`
 	}
 	if !decode(c, &in) {
 		return
 	}
-	user, err := h.users.UpdateDisplayName(c.Request.Context(), identity(c).User.ID, in.DisplayName)
+	if in.DisplayName == nil {
+		fail(c, service.ErrInvalidInput)
+		return
+	}
+	user, err := h.users.UpdateDisplayName(c.Request.Context(), identity(c).User.ID, *in.DisplayName)
 	if err != nil {
 		fail(c, err)
 		return

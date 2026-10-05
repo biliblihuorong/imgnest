@@ -49,3 +49,22 @@ func TestPatchProfileMapsServiceErrors(t *testing.T) {
 	resp := request(t, router, http.MethodPatch, "/api/auth/profile", `{"display_name":"x"}`, testBearer)
 	expectCode(t, resp, 400, 10001)
 }
+
+func TestPatchProfileRequiresPresentNonNullString(t *testing.T) {
+	for _, body := range []string{`{}`, `null`, `{"display_name":null}`, `{"display_name":42}`, `{"display_name":false}`} {
+		t.Run(body, func(t *testing.T) {
+			router, users, _, _ := routerFixture(t)
+			resp := request(t, router, http.MethodPatch, "/api/auth/profile", body, testBearer)
+			expectCode(t, resp, 400, 10001)
+			if users.gotProfileID != 0 {
+				t.Fatal("malformed profile request reached service")
+			}
+		})
+	}
+	router, users, _, _ := routerFixture(t)
+	resp := request(t, router, http.MethodPatch, "/api/auth/profile", `{"display_name":""}`, testBearer)
+	expectCode(t, resp, 200, 0)
+	if users.gotProfileID != 7 || users.gotProfileName != "" {
+		t.Fatal("explicit empty display name must remain a valid clear")
+	}
+}

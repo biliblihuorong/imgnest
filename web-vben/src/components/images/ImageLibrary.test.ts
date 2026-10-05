@@ -1,15 +1,6 @@
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  NDatePicker,
-  NDialogProvider,
-  NDropdown,
-  NInput,
-  NInputNumber,
-  NMessageProvider,
-  NPagination,
-  NSelect,
-} from "naive-ui";
+import { NDialogProvider, NDropdown, NMessageProvider, NPagination, NSelect } from "naive-ui";
 import { h } from "vue";
 import { i18n } from "@vben/locales";
 import { listAlbums } from "@/api/albums";
@@ -19,20 +10,19 @@ import {
   batchPermission,
   deleteImage,
   getImageExif,
-  listImages,
+  searchImages,
   setImageVisibility,
-  type ListParams,
+  type ImageSearchParams,
 } from "@/api/images";
 import { makeAlbum } from "@/components/albums/fixtures";
 import { fetchProtectedThumbnail } from "@/api/thumbnails";
 import ImageCard from "@/components/images/ImageCard.vue";
 import ImageDetailDrawer from "@/components/images/ImageDetailDrawer.vue";
 import { makeExif, makeImage } from "@/components/images/fixtures";
-import { ALBUM_FILTER_ALL } from "@/components/images/useImageLibrary";
 import ImageLibrary from "./ImageLibrary.vue";
 
 vi.mock("@/api/images", () => ({
-  listImages: vi.fn(),
+  searchImages: vi.fn(),
   setImageVisibility: vi.fn(),
   deleteImage: vi.fn(),
   getImageExif: vi.fn(),
@@ -46,13 +36,14 @@ vi.mock("@/api/images", () => ({
 
 vi.mock("@/api/albums", () => ({
   listAlbums: vi.fn(),
+  suggestAlbums: vi.fn().mockResolvedValue({ items: [], hasMore: false }),
 }));
 
 vi.mock("@/api/thumbnails", () => ({
   fetchProtectedThumbnail: vi.fn(),
 }));
 
-const listImagesMock = vi.mocked(listImages);
+const searchImagesMock = vi.mocked(searchImages);
 const setImageVisibilityMock = vi.mocked(setImageVisibility);
 const deleteImageMock = vi.mocked(deleteImage);
 const getImageExifMock = vi.mocked(getImageExif);
@@ -66,25 +57,14 @@ const fetchProtectedThumbnailMock = vi.mocked(fetchProtectedThumbnail);
 enableAutoUnmount(afterEach);
 
 /** load() 总是携带完整参数对象（缺省过滤键为 undefined）。 */
-function params(overrides: Partial<ListParams> = {}): ListParams {
-  return {
-    album_id: undefined,
-    q: undefined,
-    order: undefined,
-    min_size: undefined,
-    max_size: undefined,
-    from: undefined,
-    to: undefined,
-    ...overrides,
-  };
+function params(overrides: Partial<ImageSearchParams> = {}): ImageSearchParams {
+  return { qv: 1, q: "", tz: "UTC", page: 1, size: 20, ...overrides };
 }
 
 function mountLibrary(props: Record<string, unknown> = {}) {
-  return mount(
-    () =>
-      h(NMessageProvider, () => h(NDialogProvider, () => h(ImageLibrary, props))),
-    { attachTo: document.body },
-  );
+  return mount(() => h(NMessageProvider, () => h(NDialogProvider, () => h(ImageLibrary, props))), {
+    attachTo: document.body,
+  });
 }
 
 function findButton(wrapper: Awaited<ReturnType<typeof mountLibrary>>, text: string) {
@@ -105,21 +85,38 @@ function bodyButton(text: string): HTMLButtonElement {
   return button;
 }
 
+function searchMetadata(q = "") {
+  return {
+    appliedVersion: 1 as const,
+    canonicalQ: q,
+    tz: "UTC",
+    authorizedAlbums: [],
+    appliedRange: { afterUtc: null, beforeUtc: null },
+  };
+}
+
+async function submitQuery(wrapper: ReturnType<typeof mountLibrary>, raw: string) {
+  await wrapper.get(".unified-search__input").setValue(raw);
+  await wrapper.get(".unified-search__form").trigger("submit");
+  await flushPromises();
+}
+
 function batchItemOk(id: number) {
   return { id, status: 200, code: 0, message: "ok", data: null };
 }
 
 beforeEach(() => {
   vi.resetAllMocks();
-  listImagesMock.mockResolvedValue({
+  searchImagesMock.mockImplementation(async (p) => ({
     items: [
       makeImage({ id: 1, name: "a.png", size: 2048 }),
       makeImage({ id: 2, name: "b.jpg", is_public: true }),
     ],
     total: 42,
-    page: 1,
-    size: 20,
-  });
+    page: p.page,
+    size: p.size,
+    search: searchMetadata(p.q),
+  }));
   listAlbumsMock.mockResolvedValue({
     items: [makeAlbum({ id: 7, name: "旅行" }), makeAlbum({ id: 8, name: "工作" })],
     total: 2,
@@ -128,151 +125,92 @@ beforeEach(() => {
   });
   URL.createObjectURL = vi.fn().mockReturnValue("blob:library-thumb");
   URL.revokeObjectURL = vi.fn();
-  fetchProtectedThumbnailMock.mockResolvedValue(
-    new Blob(["image"], { type: "image/webp" }),
-  );
+  fetchProtectedThumbnailMock.mockResolvedValue(new Blob(["image"], { type: "image/webp" }));
 });
 
 describe("ImageLibrary", () => {
-  it("挂载后按 page=1&size=20 加载并渲染网格与总数", async () => {
-    const wrapper = await mountLibrary();
+  it("mounts a versioned search and retains image grid and count", async () => {
+    const wrapper = mountLibrary();
     await flushPromises();
-
-    expect(listImagesMock).toHaveBeenCalledWith(params({ page: 1, size: 20 }));
-    expect(wrapper.text()).toContain("共 42 张图片");
-    expect(wrapper.text()).toContain("a.png");
-    expect(wrapper.text()).toContain("2.0 KB");
+    expect(searchImagesMock).toHaveBeenCalledWith(
+      params({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+      expect.any(AbortSignal),
+      undefined,
+    );
+    expect(wrapper.text()).toContain("共 42 张匹配图片");
     expect(wrapper.findAllComponents(ImageCard)).toHaveLength(2);
   });
-
-  it("列表为空时显示空状态", async () => {
-    listImagesMock.mockResolvedValue({ items: [], total: 0, page: 1, size: 20 });
-    const wrapper = await mountLibrary();
+  it("shows real empty results separately from errors", async () => {
+    searchImagesMock.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      size: 20,
+      search: searchMetadata(),
+    });
+    const wrapper = mountLibrary();
     await flushPromises();
-
     expect(wrapper.text()).toContain("还没有图片");
   });
-
-  it("翻页时携带新的 page 参数", async () => {
-    const wrapper = await mountLibrary();
+  it("pagination retains the versioned query and resets on size changes", async () => {
+    const wrapper = mountLibrary();
     await flushPromises();
-
-    wrapper.findComponent(NPagination).vm.$emit("update:page", 2);
+    wrapper.findComponent(NPagination).vm.$emit("update:page", 3);
     await flushPromises();
-
-    expect(listImagesMock).toHaveBeenLastCalledWith(params({ page: 2, size: 20 }));
-  });
-
-  it("修改每页条数时从第 1 页重新加载", async () => {
-    const wrapper = await mountLibrary();
+    expect(searchImagesMock).toHaveBeenLastCalledWith(
+      params({ page: 3 }),
+      expect.any(AbortSignal),
+      undefined,
+    );
+    await wrapper.findComponent(NSelect).vm.$emit("update:value", 50);
     await flushPromises();
-
-    // NSelect 顺序：相册筛选(0)、排序(1)、每页条数(2)
-    const selects = wrapper.findAllComponents(NSelect);
-    expect(selects.length).toBe(3);
-    await selects[2]!.vm.$emit("update:value", 50);
-    await flushPromises();
-
-    expect(listImagesMock).toHaveBeenLastCalledWith(params({ page: 1, size: 50 }));
-  });
-
-  it("相册筛选：显式「全部」不传 album_id，未归类传 0，指定相册传 id", async () => {
-    const wrapper = await mountLibrary();
-    await flushPromises();
-
-    const selects = wrapper.findAllComponents(NSelect);
-    await selects[0]!.vm.$emit("update:value", 0);
-    await flushPromises();
-    expect(listImagesMock).toHaveBeenLastCalledWith(params({ page: 1, size: 20, album_id: 0 }));
-
-    await selects[0]!.vm.$emit("update:value", 7);
-    await flushPromises();
-    expect(listImagesMock).toHaveBeenLastCalledWith(params({ page: 1, size: 20, album_id: 7 }));
-
-    await selects[0]!.vm.$emit("update:value", ALBUM_FILTER_ALL);
-    await flushPromises();
-    expect(listImagesMock).toHaveBeenLastCalledWith(params({ page: 1, size: 20 }));
-  });
-
-  it("排序切换携带 order 参数并回到第 1 页", async () => {
-    const wrapper = await mountLibrary();
-    await flushPromises();
-
-    const selects = wrapper.findAllComponents(NSelect);
-    await selects[1]!.vm.$emit("update:value", "largest");
-    await flushPromises();
-
-    expect(listImagesMock).toHaveBeenLastCalledWith(
-      params({ page: 1, size: 20, order: "largest" }),
+    expect(searchImagesMock).toHaveBeenLastCalledWith(
+      params({ page: 1, size: 50 }),
+      expect.any(AbortSignal),
+      undefined,
     );
   });
-
-  it("大小范围过滤换算为字节", async () => {
-    const wrapper = await mountLibrary();
+  it("the single draft supports album, format, camera, size, date, visibility and sort", async () => {
+    const wrapper = mountLibrary();
     await flushPromises();
-
-    const numbers = wrapper.findAllComponents(NInputNumber);
-    await numbers[0]!.vm.$emit("update:value", 1);
-    await numbers[1]!.vm.$emit("update:value", 5);
-    await flushPromises();
-
-    expect(listImagesMock).toHaveBeenLastCalledWith(
-      params({ page: 1, size: 20, min_size: 1024 * 1024, max_size: 5 * 1024 * 1024 }),
+    expect(wrapper.findAllComponents(NSelect)).toHaveLength(1);
+    await submitQuery(
+      wrapper,
+      "album:#7 format:jpeg camera:Canon minsize:1MB maxsize:5MB after:2026-10-01 before:2026-11-01 visibility:private order:utmost",
+    );
+    expect(searchImagesMock).toHaveBeenLastCalledWith(
+      params({
+        q: "album:#7 format:jpeg camera:Canon minsize:1MB maxsize:5MB after:2026-10-01 before:2026-11-01 visibility:private order:utmost",
+      }),
+      expect.any(AbortSignal),
+      undefined,
     );
   });
-
-  it("时间范围过滤序列化为 ISO 字符串", async () => {
-    const wrapper = await mountLibrary();
+  it("typing remains local and clear submits an empty query", async () => {
+    const wrapper = mountLibrary();
     await flushPromises();
-
-    const from = Date.UTC(2026, 9, 1, 0, 0, 0);
-    const to = Date.UTC(2026, 9, 4, 23, 59, 59);
-    wrapper.findComponent(NDatePicker)
-      .vm.$emit("update:value", [from, to] as [number, number]);
+    await wrapper.get(".unified-search__input").setValue("vacation");
     await flushPromises();
-
-    expect(listImagesMock).toHaveBeenLastCalledWith(
-      params({ page: 1, size: 20, from: new Date(from).toISOString(), to: new Date(to).toISOString() }),
+    expect(searchImagesMock).toHaveBeenCalledTimes(1);
+    await submitQuery(wrapper, "vacation");
+    expect(searchImagesMock).toHaveBeenCalledTimes(2);
+    await findButton(wrapper, "清空").trigger("click");
+    await flushPromises();
+    expect(searchImagesMock).toHaveBeenLastCalledWith(params(), expect.any(AbortSignal), undefined);
+  });
+  it("fixed album remains a visibly separate scope even when clearing query", async () => {
+    const wrapper = mountLibrary({ lockedAlbumId: 7, lockedAlbumName: "旅行" });
+    await flushPromises();
+    expect(searchImagesMock).toHaveBeenCalledWith(
+      params({ tz: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+      expect.any(AbortSignal),
+      7,
     );
-  });
-
-  it("统一搜索防抖后携带 q 重查", async () => {
-    const wrapper = await mountLibrary();
+    expect(wrapper.get('[data-testid="fixed-album-scope"]').text()).toContain("旅行");
+    await submitQuery(wrapper, "album:#8");
+    await findButton(wrapper, "清空").trigger("click");
     await flushPromises();
-    expect(listImagesMock).toHaveBeenCalledTimes(1);
-
-    const inputs = wrapper.findAllComponents(NInput);
-    await inputs[0]!.vm.$emit("update:value", "vacation");
-    await new Promise((resolve) => setTimeout(resolve, 450));
-    await flushPromises();
-
-    expect(listImagesMock).toHaveBeenLastCalledWith(params({ page: 1, size: 20, q: "vacation" }));
-  });
-
-  it("有筛选时显示清除按钮，点击恢复默认参数", async () => {
-    const wrapper = await mountLibrary();
-    await flushPromises();
-
-    const selects = wrapper.findAllComponents(NSelect);
-    await selects[1]!.vm.$emit("update:value", "smallest");
-    await flushPromises();
-    expect(listImagesMock).toHaveBeenLastCalledWith(
-      params({ page: 1, size: 20, order: "smallest" }),
-    );
-
-    await findButton(wrapper, "清除筛选").trigger("click");
-    await flushPromises();
-
-    expect(listImagesMock).toHaveBeenLastCalledWith(params({ page: 1, size: 20 }));
-  });
-
-  it("锁定相册模式：固定 album_id 且隐藏相册筛选", async () => {
-    const wrapper = await mountLibrary({ lockedAlbumId: 7 });
-    await flushPromises();
-
-    expect(listImagesMock).toHaveBeenCalledWith(params({ page: 1, size: 20, album_id: 7 }));
-    const selects = wrapper.findAllComponents(NSelect);
-    expect(selects.length).toBe(2);
+    expect(searchImagesMock).toHaveBeenLastCalledWith(params(), expect.any(AbortSignal), 7);
   });
 
   it("可见性切换成功：调用 PATCH 并更新列表项", async () => {
@@ -280,6 +218,13 @@ describe("ImageLibrary", () => {
     const wrapper = await mountLibrary();
     await flushPromises();
 
+    searchImagesMock.mockResolvedValueOnce({
+      items: [makeImage({ id: 1, is_public: true }), makeImage({ id: 2, is_public: true })],
+      total: 42,
+      page: 1,
+      size: 20,
+      search: searchMetadata(),
+    });
     wrapper.findAllComponents(ImageCard)[0].vm.$emit("toggle", true);
     await flushPromises();
 
@@ -305,13 +250,13 @@ describe("ImageLibrary", () => {
     deleteImageMock.mockResolvedValue(null);
     const wrapper = await mountLibrary();
     await flushPromises();
-    expect(listImagesMock).toHaveBeenCalledTimes(1);
+    expect(searchImagesMock).toHaveBeenCalledTimes(1);
 
     wrapper.findAllComponents(ImageCard)[0].vm.$emit("remove");
     await flushPromises();
 
     expect(deleteImageMock).toHaveBeenCalledWith(1);
-    expect(listImagesMock).toHaveBeenCalledTimes(2);
+    expect(searchImagesMock).toHaveBeenCalledTimes(2);
     expect(document.body.textContent).toContain("已移入回收站");
   });
 
@@ -404,19 +349,13 @@ describe("ImageLibrary", () => {
     expect(listAlbumsMock).toHaveBeenCalledWith({ page: 1, size: 100 });
   });
 
-  it("相册筛选切换后回到第 1 页并清空多选", async () => {
-    const wrapper = await mountLibrary();
+  it("submitting a new query clears page-local selections", async () => {
+    const wrapper = mountLibrary();
     await flushPromises();
-
-    await wrapper.findAllComponents(ImageCard)[0].vm.$emit("select", true);
+    await wrapper.findComponent(ImageCard).vm.$emit("select", true);
     await flushPromises();
     expect(wrapper.text()).toContain("已选 1 张");
-
-    const selects = wrapper.findAllComponents(NSelect);
-    await selects[0]!.vm.$emit("update:value", 7);
-    await flushPromises();
-
-    expect(listImagesMock).toHaveBeenLastCalledWith(params({ page: 1, size: 20, album_id: 7 }));
+    await submitQuery(wrapper, "album:#7");
     expect(wrapper.text()).not.toContain("已选 1 张");
   });
 
@@ -432,15 +371,15 @@ describe("ImageLibrary", () => {
     expect(wrapper.text()).toContain("已选 2 张");
 
     const selects = wrapper.findAllComponents(NSelect);
-    expect(selects.length).toBe(4);
-    await selects[3]!.vm.$emit("update:value", 7);
+    expect(selects.length).toBe(2);
+    await selects[1]!.vm.$emit("update:value", 7);
     await flushPromises();
 
     await findButton(wrapper, "移动到相册").trigger("click");
     await flushPromises();
 
     expect(batchAlbumsMock).toHaveBeenCalledWith([1, 2], 7);
-    expect(listImagesMock).toHaveBeenCalledTimes(2);
+    expect(searchImagesMock).toHaveBeenCalledTimes(2);
     expect(wrapper.text()).not.toContain("已选 2 张");
     expect(document.body.textContent).toContain("移动成功 2 张");
   });
@@ -470,7 +409,7 @@ describe("ImageLibrary", () => {
     await cards[0].vm.$emit("select", true);
     await cards[1].vm.$emit("select", true);
     const selects = wrapper.findAllComponents(NSelect);
-    await selects[3]!.vm.$emit("update:value", 8);
+    await selects[1]!.vm.$emit("update:value", 8);
     await flushPromises();
 
     await findButton(wrapper, "移动到相册").trigger("click");
@@ -478,7 +417,7 @@ describe("ImageLibrary", () => {
 
     expect(document.body.textContent).toContain("移动成功 1 张");
     expect(document.body.textContent).toContain("移动失败（ID 1）：记录不存在或已被删除");
-    expect(listImagesMock).toHaveBeenCalledTimes(2);
+    expect(searchImagesMock).toHaveBeenCalledTimes(2);
     expect(wrapper.text()).not.toContain("已选 2 张");
   });
 
@@ -553,14 +492,14 @@ describe("ImageLibrary", () => {
     await flushPromises();
     i18n.global.locale.value = "en-US";
     await flushPromises();
-    expect(wrapper.text()).toContain("42 images");
+    expect(wrapper.text()).toContain("42 matching images");
     expect(wrapper.text()).toContain("20 per page");
-    expect(wrapper.text()).not.toContain("共 42 张图片");
+    expect(wrapper.text()).not.toContain("共 42 张匹配图片");
   });
 
   it("ignores an old page result after newer navigation", async () => {
-    let resolveOld!: (value: Awaited<ReturnType<typeof listImages>>) => void;
-    listImagesMock.mockImplementationOnce(
+    let resolveOld!: (value: Awaited<ReturnType<typeof searchImages>>) => void;
+    searchImagesMock.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveOld = resolve;
@@ -569,7 +508,13 @@ describe("ImageLibrary", () => {
     const wrapper = mountLibrary();
     wrapper.findComponent(NPagination).vm.$emit("update:page", 2);
     await flushPromises();
-    resolveOld({ items: [makeImage({ id: 99, name: "stale.png" })], total: 1, page: 1, size: 20 });
+    resolveOld({
+      items: [makeImage({ id: 99, name: "stale.png" })],
+      total: 1,
+      page: 1,
+      size: 20,
+      search: searchMetadata(),
+    });
     await flushPromises();
     expect(wrapper.text()).not.toContain("stale.png");
     expect(wrapper.text()).toContain("a.png");
@@ -599,10 +544,12 @@ describe("ImageLibrary", () => {
   it("does not keep previous-page images actionable when the new page fails and offers retry", async () => {
     const wrapper = mountLibrary();
     await flushPromises();
-    listImagesMock.mockRejectedValueOnce(new Error("offline"));
+    searchImagesMock.mockRejectedValueOnce(new Error("offline"));
     wrapper.findComponent(NPagination).vm.$emit("update:page", 2);
     await flushPromises();
-    expect(wrapper.findAllComponents(ImageCard)).toHaveLength(0);
+    expect(wrapper.findAllComponents(ImageCard)).toHaveLength(2);
+    expect(wrapper.findComponent(ImageCard).props("busy")).toBe(true);
+    expect(wrapper.text()).toContain("显示上次成功结果");
     expect(wrapper.find(".n-alert").text()).toContain("图片列表加载失败");
     const retry = wrapper.findAll("button").find((button) => button.text() === "重试");
     expect(retry).toBeDefined();
@@ -636,4 +583,27 @@ it("drawer renders a large preview above the metadata", async () => {
   expect(wrapper.findComponent(ImageDetailDrawer).exists()).toBe(true);
   expect(document.querySelector(".drawer-preview")).not.toBeNull();
   wrapper.unmount();
+});
+
+it("single visibility mutation reloads applied filters and count without applying an unsent draft", async () => {
+  const wrapper = mountLibrary();
+  await flushPromises();
+  await submitQuery(wrapper, "visibility:public");
+  await wrapper.get(".unified-search__input").setValue("camera:unsent");
+  setImageVisibilityMock.mockResolvedValue(makeImage({ id: 1, is_public: false }));
+  searchImagesMock.mockResolvedValueOnce({
+    items: [],
+    total: 0,
+    page: 1,
+    size: 20,
+    search: searchMetadata("visibility:public"),
+  });
+  wrapper.findComponent(ImageCard).vm.$emit("toggle", false);
+  await flushPromises();
+  expect(searchImagesMock.mock.calls.at(-1)?.[0].q).toBe("visibility:public");
+  expect(wrapper.findAllComponents(ImageCard)).toHaveLength(0);
+  expect(wrapper.text()).toContain("共 0 张匹配图片");
+  expect(wrapper.get<HTMLInputElement>(".unified-search__input").element.value).toBe(
+    "camera:unsent",
+  );
 });

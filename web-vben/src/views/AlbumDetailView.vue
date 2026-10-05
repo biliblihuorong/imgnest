@@ -14,7 +14,10 @@ const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
 
-const albumId = computed(() => Number(route.params.id));
+const albumId = computed(() => {
+  const value = route.params.id;
+  return typeof value === "string" && /^[1-9][0-9]*$/.test(value) ? value : "";
+});
 const albumName = computed(() => {
   const name = route.query.name;
   return typeof name === "string" && name.trim() !== "" ? name : t("albums.detailFallback");
@@ -35,7 +38,12 @@ function backToAlbums(): void {
         <h1 class="album-detail-view__title" :title="albumName">{{ albumName }}</h1>
       </div>
     </template>
-    <ImageLibrary v-if="albumId > 0" :locked-album-id="albumId" />
+    <ImageLibrary
+      v-if="albumId"
+      :key="albumId"
+      :locked-album-id="albumId"
+      :locked-album-name="albumName"
+    />
   </Page>
 </template>
 

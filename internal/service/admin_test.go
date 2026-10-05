@@ -57,6 +57,44 @@ func (f *adminUsersFake) SetUserGroup(_ context.Context, id, group uint64) error
 	return nil
 }
 
+func (f *adminUsersFake) CreateAdminUser(_ context.Context, _ uint64, user model.User) (model.User, error) {
+	for id := range f.users {
+		if id >= user.ID {
+			user.ID = id + 1
+		}
+	}
+	f.users[user.ID] = user
+	return user, nil
+}
+func (f *adminUsersFake) UpdateAdminUser(ctx context.Context, _ uint64, id uint64, changes model.UserChanges) (model.User, error) {
+	user, err := f.FindUserByID(ctx, id)
+	if err != nil {
+		return model.User{}, err
+	}
+	if changes.Username != nil {
+		user.Username = *changes.Username
+	}
+	if changes.Email != nil {
+		user.Email = *changes.Email
+	}
+	if changes.DisplayName != nil {
+		user.DisplayName = *changes.DisplayName
+	}
+	if changes.Role != nil {
+		user.Role = *changes.Role
+	}
+	if changes.Status != nil {
+		user.Status = *changes.Status
+		f.statusChanges = append(f.statusChanges, adminStatusChange{id: id, status: *changes.Status})
+	}
+	if changes.GroupID != nil {
+		user.GroupID = *changes.GroupID
+		f.groupChanges = append(f.groupChanges, adminGroupChange{id: id, group: *changes.GroupID})
+	}
+	f.users[id] = user
+	return user, nil
+}
+
 type adminGroupsFake struct {
 	groups   map[uint64]model.Group
 	bindings map[uint64][]uint64

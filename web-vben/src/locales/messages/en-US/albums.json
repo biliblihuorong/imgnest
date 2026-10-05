@@ -4,6 +4,8 @@
   "total": "{count} albums",
   "create": "New album",
   "empty": "No albums yet",
+  "emptyPage": "No albums on this page",
+  "firstPage": "Back to first page",
   "upload": "Go to upload",
   "retry": "Retry",
   "loadFailed": "Could not load albums. Please try again.",

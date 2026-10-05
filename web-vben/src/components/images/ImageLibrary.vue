@@ -3,12 +3,9 @@ import { useI18n } from "@vben/locales";
 import {
   NAlert,
   NButton,
-  NDatePicker,
   NDropdown,
   NEmpty,
   NImageGroup,
-  NInput,
-  NInputNumber,
   NPagination,
   NPopconfirm,
   NSelect,
@@ -20,7 +17,8 @@ import {
 import { computed, nextTick, ref } from "vue";
 import ImageCard from "./ImageCard.vue";
 import ImageDetailDrawer from "./ImageDetailDrawer.vue";
-import { useImageLibrary, ALBUM_FILTER_ALL } from "./useImageLibrary";
+import { useImageLibrary } from "./useImageLibrary";
+import UnifiedImageSearch from "./UnifiedImageSearch.vue";
 import { buildLinkText, resolveImageLink } from "@/components/upload/linkText";
 import type { ImageView } from "@/api/images";
 import { copyText } from "@/lib/clipboard";
@@ -30,7 +28,7 @@ import { formatApiError } from "@/locales/errors";
  * 「我的图片」与相册详情共用的图片库：筛选/搜索工具栏、多选批量、
  * 卡片网格、灯箱大图与自定义右键菜单。lockedAlbumId 锁定相册时隐藏相册筛选。
  */
-const props = defineProps<{ lockedAlbumId?: number }>();
+const props = defineProps<{ lockedAlbumId?: number | string; lockedAlbumName?: string }>();
 
 const { t } = useI18n();
 const message = useMessage();
@@ -61,7 +59,11 @@ const menuFormats: { value: "url" | "markdown" | "html" | "bbcode"; label: strin
   { value: "bbcode", label: "BBCode" },
 ];
 
-const menuVersions: { value: "original" | "webp" | "thumbnail"; label: string; linkKey: "original" | "webp" | "thumbnail_url" }[] = [
+const menuVersions: {
+  value: "original" | "webp" | "thumbnail";
+  label: string;
+  linkKey: "original" | "webp" | "thumbnail_url";
+}[] = [
   { value: "original", label: t("user.upload.original"), linkKey: "original" },
   { value: "webp", label: t("user.upload.webp"), linkKey: "webp" },
   { value: "thumbnail", label: t("user.upload.thumbnail"), linkKey: "thumbnail_url" },
@@ -140,36 +142,15 @@ function onMenuSelect(key: string | number): void {
 const emptyText = computed(() =>
   lib.hasActiveFilters.value
     ? t("user.images.filteredEmpty")
-    : t(
-        props.lockedAlbumId !== undefined || lib.albumFilter.value !== null
-          ? "user.images.albumEmpty"
-          : "user.images.empty",
-      ),
+    : t(props.lockedAlbumId !== undefined ? "user.images.albumEmpty" : "user.images.empty"),
 );
 </script>
 
 <template>
   <div class="image-library">
     <div class="image-library__toolbar">
-      <span class="image-library__total">{{ t("user.images.total", { count: lib.total.value }) }}</span>
+      <span class="image-library__total">{{ t("search.total", { count: lib.total.value }) }}</span>
       <div class="image-library__filters">
-        <NSelect
-          v-if="props.lockedAlbumId === undefined"
-          class="image-library__album"
-          size="small"
-          :value="lib.albumFilter.value ?? ALBUM_FILTER_ALL"
-          :options="lib.albumFilterOptions.value"
-          :aria-label="t('user.images.albumFilter')"
-          @update:value="lib.handleAlbumFilterChange"
-        />
-        <NSelect
-          class="image-library__order"
-          size="small"
-          :value="lib.order.value"
-          :options="lib.orderOptions.value"
-          :aria-label="t('user.images.order')"
-          @update:value="lib.order.value = $event"
-        />
         <NSelect
           class="image-library__size"
           size="small"
@@ -187,56 +168,20 @@ const emptyText = computed(() =>
         >
       </div>
     </div>
-    <div class="image-library__advanced">
-      <NInput
-        v-model:value="lib.search.value"
-        class="image-library__search"
-        size="small"
-        clearable
-        :placeholder="t('user.images.searchPlaceholder')"
-        :aria-label="t('user.images.search')"
-      />
-      <div class="image-library__size-range" :aria-label="t('user.images.sizeRange')">
-        <NInputNumber
-          v-model:value="lib.minSizeMb.value"
-          size="small"
-          :min="0"
-          :show-button="false"
-          :placeholder="t('user.images.minSize')"
-          :aria-label="t('user.images.minSize')"
-          clearable
-        />
-        <span class="image-library__size-sep">–</span>
-        <NInputNumber
-          v-model:value="lib.maxSizeMb.value"
-          size="small"
-          :min="0"
-          :show-button="false"
-          :placeholder="t('user.images.maxSize')"
-          :aria-label="t('user.images.maxSize')"
-          clearable
-        />
-        <span class="image-library__size-unit">MB</span>
-      </div>
-      <NDatePicker
-        v-model:value="lib.dateRange.value"
-        type="datetimerange"
-        size="small"
-        clearable
-        :start-placeholder="t('user.images.dateFrom')"
-        :end-placeholder="t('user.images.dateTo')"
-        :aria-label="t('user.images.dateRange')"
-      />
-      <NButton
-        v-if="lib.hasActiveFilters.value"
-        size="small"
-        quaternary
-        :disabled="lib.loading.value"
-        @click="lib.resetFilters"
-      >
-        {{ t("user.images.clearFilters") }}
-      </NButton>
-    </div>
+    <UnifiedImageSearch
+      v-model="lib.draftRaw.value"
+      :timezone="lib.timezone.value"
+      :authorized-albums="lib.metadata.value?.authorizedAlbums ?? []"
+      :locked-album-id="lockedAlbumId"
+      :locked-album-name="lockedAlbumName"
+      :diagnostics="lib.diagnostics.value"
+      :submitted="lib.submitted.value"
+      :unapplied="lib.unapplied.value"
+      :stale-results="lib.staleResults.value"
+      :loading="lib.loading.value"
+      @submit="lib.submit"
+      @clear="lib.resetFilters"
+    />
 
     <div v-if="lib.selectedIds.value.length > 0" class="image-library__batchbar">
       <span class="image-library__batchbar-count">{{
@@ -250,7 +195,12 @@ const emptyText = computed(() =>
         :placeholder="t('user.images.targetAlbum')"
         :disabled="lib.batchLoading.value"
       />
-      <NButton size="small" type="primary" :loading="lib.batchLoading.value" @click="lib.moveSelected">
+      <NButton
+        size="small"
+        type="primary"
+        :loading="lib.batchLoading.value"
+        @click="lib.moveSelected"
+      >
         {{ t("user.images.moveAlbum") }}
       </NButton>
       <NPopconfirm
@@ -271,26 +221,46 @@ const emptyText = computed(() =>
       <NButton size="small" :disabled="lib.batchLoading.value" @click="lib.batchVisibility(false)">
         {{ t("user.images.makePrivate") }}
       </NButton>
-      <NButton size="small" quaternary :disabled="lib.batchLoading.value" @click="lib.clearSelection">
+      <NButton
+        size="small"
+        quaternary
+        :disabled="lib.batchLoading.value"
+        @click="lib.clearSelection"
+      >
         {{ t("user.common.cancel") }}
       </NButton>
     </div>
 
     <NAlert v-if="lib.loadError.value" type="error" class="image-library__error">
       {{ formatApiError(lib.loadError.value, "user.images.listError") }}
-      <NButton text :disabled="lib.loading.value" @click="lib.load">{{
+      <NButton text :disabled="lib.loading.value" @click="lib.retry">{{
         t("user.common.retry")
       }}</NButton>
     </NAlert>
-    <NSpin v-else :show="lib.loading.value">
-      <NEmpty v-if="!lib.loading.value && lib.images.value.length === 0" class="image-library__empty" :description="emptyText" />
+    <NSpin :show="lib.loading.value">
+      <NEmpty
+        v-if="
+          !lib.loading.value &&
+          !lib.loadError.value &&
+          lib.diagnostics.value.length === 0 &&
+          lib.images.value.length === 0
+        "
+        class="image-library__empty"
+        :description="emptyText"
+      />
       <NImageGroup v-else>
         <div class="image-library__grid">
           <ImageCard
             v-for="image in lib.images.value"
             :key="image.id"
             :image="image"
-            :busy="lib.loading.value || lib.batchLoading.value || lib.busyIds.has(image.id)"
+            :busy="
+              lib.loading.value ||
+              !!lib.loadError.value ||
+              lib.staleResults.value ||
+              lib.batchLoading.value ||
+              lib.busyIds.has(image.id)
+            "
             selectable
             :selected="lib.selectedIds.value.includes(image.id)"
             :album-options="lib.cardMoveOptions.value"
@@ -306,6 +276,8 @@ const emptyText = computed(() =>
     </NSpin>
     <div class="image-library__pagination">
       <NPagination
+        :disabled="lib.loading.value || !!lib.loadError.value || lib.diagnostics.value.length > 0"
+        :page-slot="5"
         :page="lib.page.value"
         :item-count="lib.total.value"
         :page-size="lib.size.value"
@@ -357,41 +329,6 @@ const emptyText = computed(() =>
   width: 120px;
 }
 
-.image-library__album {
-  width: 180px;
-}
-
-.image-library__order {
-  width: 130px;
-}
-
-.image-library__advanced {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.image-library__search {
-  width: 240px;
-}
-
-.image-library__size-range {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.image-library__size-range :deep(.n-input) {
-  width: 90px;
-}
-
-.image-library__size-unit {
-  font-size: 12px;
-  color: hsl(var(--muted-foreground));
-}
-
 .image-library__batchbar {
   position: sticky;
   top: 0;
@@ -430,5 +367,10 @@ const emptyText = computed(() =>
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+  max-width: 100%;
+}
+.image-library__pagination :deep(.n-pagination) {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 </style>

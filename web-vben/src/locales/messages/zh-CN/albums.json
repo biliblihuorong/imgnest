@@ -4,6 +4,8 @@
   "total": "共 {count} 个相册",
   "create": "新建相册",
   "empty": "还没有相册",
+  "emptyPage": "本页没有相册",
+  "firstPage": "返回第一页",
   "upload": "去上传页",
   "retry": "重试",
   "loadFailed": "相册列表加载失败，请重试",

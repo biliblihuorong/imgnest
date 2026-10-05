@@ -204,3 +204,20 @@ describe("purgeImages", () => {
     });
   });
 });
+
+import { searchImages } from "./images";
+it("versioned empty search always sends qv,q,tz and supports abort", async () => {
+  const signal = new AbortController().signal;
+  await searchImages({ qv: 1, q: "", tz: "Asia/Shanghai", page: 1, size: 20 }, signal);
+  expect(requestMock).toHaveBeenCalledWith(
+    "/api/images?qv=1&q=&tz=Asia%2FShanghai&page=1&size=20",
+    { signal },
+  );
+});
+it("fixed album scope uses a separate endpoint and query is encoded exactly once", async () => {
+  await searchImages({ qv: 1, q: '"100%_" album:#42', tz: "UTC", page: 2, size: 50 }, undefined, 7);
+  const url = new URL(String(requestMock.mock.calls[0]?.[0]), "http://localhost");
+  expect(url.pathname).toBe("/api/albums/7/images");
+  expect(url.searchParams.get("q")).toBe('"100%_" album:#42');
+  expect(url.searchParams.has("album_id")).toBe(false);
+});

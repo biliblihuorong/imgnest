@@ -590,12 +590,24 @@ paths:
         `keyword`, `order`, `min_size`/`max_size`, `from`/`to` and `exif`
         parameters narrow the same owner-scoped page; inverted size bounds or
         time windows answer 400/10001.
+        With `qv=1`, `q` (including an empty string) and a valid IANA `tz`
+        are required. The query uses the unified-search v1.1 grammar; old
+        filtering parameters cannot be mixed into this mode. The server
+        resolves authorized album names, validates the complete query, applies
+        every predicate before counting/pagination, and returns `data.search`.
+        Ordinary terms match the original displayed filename only; camera,
+        format, visibility, album, size, date and sorting use explicit fields.
+        Dates refer to upload created_at with inclusive after and exclusive
+        before boundaries. Unsupported versions or invalid mixed protocols
+        never silently fall back to the legacy search.
       security: [{bearerAuth: []}]
       parameters:
         - $ref: '#/components/parameters/ImagePageNumber'
         - $ref: '#/components/parameters/ImagePageSize'
         - $ref: '#/components/parameters/ImageAlbumFilter'
         - $ref: '#/components/parameters/ImageUnifiedSearch'
+        - $ref: '#/components/parameters/ImageQueryVersion'
+        - $ref: '#/components/parameters/ImageQueryTimezone'
         - $ref: '#/components/parameters/ImageKeywordFilter'
         - $ref: '#/components/parameters/ImageOrder'
         - $ref: '#/components/parameters/ImageMinSize'
@@ -609,6 +621,10 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ImagePageEnvelope'}
+        '400':
+          $ref: '#/components/responses/SearchInvalid'
+        '422':
+          $ref: '#/components/responses/SearchAlbumUnavailable'
         default:
           $ref: '#/components/responses/ImageFailure'
   /api/images/{id}:
@@ -807,6 +823,65 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AlbumEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/albums/suggestions:
+    get:
+      operationId: suggestSearchAlbums
+      tags: [Albums]
+      summary: Suggest albums within the caller's authorized search scope
+      security: [{bearerAuth: []}]
+      description: |
+        Returns only string IDs, names and a hasMore flag. Suggestions do not
+        replace exact server-side name resolution when executing a search.
+        An optional scope_album_id restricts suggestions to one owner-verified
+        album, matching the fixed boundary of the album-detail image list.
+      parameters:
+        - {name: keyword, in: query, schema: {type: string, maxLength: 200}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 100000, default: 1}}
+        - {name: size, in: query, schema: {type: integer, minimum: 1, maximum: 20, default: 20}}
+        - {name: scope_album_id, in: query, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
+      responses:
+        '200':
+          description: Stable authorized album suggestions.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AlbumSuggestionsEnvelope'}
+        '400':
+          $ref: '#/components/responses/SearchInvalid'
+        '422':
+          $ref: '#/components/responses/SearchAlbumUnavailable'
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/albums/{id}/images:
+    get:
+      operationId: searchAlbumImages
+      tags: [Images, Albums]
+      summary: Search inside one fixed owner-verified album
+      description: |
+        Requires unified-search qv=1. The path album is a fixed server-enforced
+        boundary independent of q, and cannot be removed by clearing or
+        changing the query. Unknown and inaccessible albums share the same
+        ALBUM_NOT_AVAILABLE diagnostic. Query album conditions may only narrow
+        this boundary and never select images outside it.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
+        - $ref: '#/components/parameters/ImageQueryVersion'
+        - $ref: '#/components/parameters/ImageUnifiedSearch'
+        - $ref: '#/components/parameters/ImageQueryTimezone'
+        - $ref: '#/components/parameters/ImagePageNumber'
+        - $ref: '#/components/parameters/ImagePageSize'
+      responses:
+        '200':
+          description: Search result within the fixed album, including search metadata.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImagePageEnvelope'}
+        '400':
+          $ref: '#/components/responses/SearchInvalid'
+        '422':
+          $ref: '#/components/responses/SearchAlbumUnavailable'
         default:
           $ref: '#/components/responses/ImageFailure'
   /api/albums/{id}:
@@ -1200,6 +1275,44 @@ paths:
         '403':
           $ref: '#/components/responses/LskyDisabled'
   /api/admin/users:
+    post:
+      operationId: adminCreateUser
+      tags: [Admin]
+      summary: Create an account with an initial password
+      description: |
+        Administrator-only creation is independent of the public registration
+        switch. The initial password follows the existing 12–72 UTF-8 byte
+        policy and is stored only as a bcrypt hash. No password, hash or token
+        is returned. The group must be an existing non-guest group. Username
+        and normalized email remain unique; display_name is optional and
+        non-unique. No invitation or activation email is sent.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminUserCreate'}
+      responses:
+        '201':
+          description: The created safe account view.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminUserEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Username or email already exists.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '500':
+          $ref: '#/components/responses/InternalError'
     get:
       operationId: adminListUsers
       tags: [Admin]
@@ -1230,14 +1343,17 @@ paths:
     patch:
       operationId: adminPatchUser
       tags: [Admin]
-      summary: Change an account's status or group
+      summary: Edit an account's identity, profile, role, status or group
       description: |
-        Requires the administrator role. `status` accepts only `enabled` and
-        `disabled`; disabling an account revokes every one of its bearer
-        credentials in the same transaction as the status flip. An
-        administrator cannot disable their own account. `group_id` must name
-        an existing non-guest group. There is no way to change a role through
-        this endpoint.
+        Requires the administrator role and only changes explicitly provided
+        fields. Effective username, email, role, status or group changes revoke
+        all of the account's bearer credentials atomically. Display-name-only
+        edits and unchanged values preserve sessions. An administrator cannot
+        disable their own account; concurrent changes cannot disable or demote
+        the last enabled administrator. group_id must name a non-guest group.
+        Username and normalized email remain unique. Password changes are not
+        accepted here; used_bytes, IDs, avatar settings and timestamps are also
+        server-owned. Self-service username/email remain read-only.
       security: [{bearerAuth: []}]
       parameters:
         - {$ref: '#/components/parameters/ImageID'}
@@ -1260,6 +1376,11 @@ paths:
           $ref: '#/components/responses/AdminForbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Username or email already exists.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '500':
           $ref: '#/components/responses/InternalError'
   /api/admin/groups:
@@ -1846,8 +1967,18 @@ components:
     ImageUnifiedSearch:
       name: q
       in: query
-      description: Unified search needle matched case-insensitively against the file name OR the stored EXIF make/model/lens, up to 200 bytes.
-      schema: {type: string, maxLength: 200}
+      description: With qv=1, required unified-search grammar input (empty allowed), at most 4096 UTF-8 bytes. Without qv, the legacy filename/path/EXIF OR needle remains limited to 200 bytes.
+      schema: {type: string, maxLength: 4096}
+    ImageQueryVersion:
+      name: qv
+      in: query
+      description: Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–100000 and size is one of 20, 50, 100.
+      schema: {type: integer, enum: [1]}
+    ImageQueryTimezone:
+      name: tz
+      in: query
+      description: Required with qv=1; valid IANA time zone used for upload-date boundaries, independent of display language.
+      schema: {type: string, example: Asia/Shanghai}
     ImageKeywordFilter:
       name: keyword
       in: query
@@ -2024,11 +2155,27 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/CaptchaAdminView'}
+    AdminUserCreate:
+      type: object
+      additionalProperties: false
+      required: [username, email, password, role, status, group_id]
+      properties:
+        username: {type: string, minLength: 3, maxLength: 64, description: Trimmed unique username.}
+        email: {type: string, format: email, description: Trimmed and lowercased unique plain email address.}
+        password: {$ref: '#/components/schemas/Password'}
+        display_name: {type: string, maxLength: 64, default: '', description: Optional non-unique display name; blank falls back to username.}
+        role: {type: string, enum: [admin, user]}
+        status: {type: string, enum: [enabled, disabled]}
+        group_id: {$ref: '#/components/schemas/ID'}
     AdminUserPatch:
       type: object
       additionalProperties: false
-      minProperties: 1
+      description: Only provided fields change; an empty object is a no-op that preserves sessions.
       properties:
+        username: {type: string, minLength: 3, maxLength: 64}
+        email: {type: string, format: email}
+        display_name: {type: string, maxLength: 64}
+        role: {type: string, enum: [admin, user]}
         status: {type: string, enum: [enabled, disabled]}
         group_id: {$ref: '#/components/schemas/ID'}
     AdminUserPage:
@@ -2401,6 +2548,77 @@ components:
         deleted_at: {$ref: '#/components/schemas/NullableTimestamp'}
         purge_at: {$ref: '#/components/schemas/NullableTimestamp'}
         created_at: {$ref: '#/components/schemas/Timestamp'}
+    SearchAlbum:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {type: string, pattern: '^[1-9][0-9]*$', description: Decimal ID string preserved without JavaScript number conversion.}
+        name: {type: string}
+    SearchMetadata:
+      type: object
+      additionalProperties: false
+      required: [appliedVersion, canonicalQ, tz, authorizedAlbums, appliedRange]
+      properties:
+        appliedVersion: {type: integer, enum: [1]}
+        canonicalQ: {type: string, description: Canonical query with resolved stable album IDs.}
+        tz: {type: string}
+        authorizedAlbums: {type: array, items: {$ref: '#/components/schemas/SearchAlbum'}}
+        appliedRange:
+          type: object
+          additionalProperties: false
+          required: [afterUtc, beforeUtc]
+          properties:
+            afterUtc: {$ref: '#/components/schemas/NullableTimestamp'}
+            beforeUtc: {$ref: '#/components/schemas/NullableTimestamp'}
+    SearchDiagnostic:
+      type: object
+      additionalProperties: false
+      required: [code, messageKey, span, args]
+      properties:
+        code:
+          type: string
+          enum: [UNKNOWN_FIELD, MISSING_VALUE, UNCLOSED_QUOTE, INVALID_ESCAPE, UNEXPECTED_CHARACTER, EMPTY_LIST_ITEM, INVALID_ENUM, INVALID_DATE, INVALID_SIZE, DUPLICATE_FIELD, RANGE_CONFLICT, QUERY_TOO_COMPLEX, INVALID_TIMEZONE, ALBUM_NOT_AVAILABLE, ALBUM_AMBIGUOUS, DATE_NOT_REPRESENTABLE, CONTROL_CHARACTER, UNSUPPORTED_QUERY_VERSION, MIXED_QUERY_PROTOCOL, INVALID_PARAMETER, INVALID_PAGINATION]
+        messageKey: {type: string}
+        span:
+          type: object
+          additionalProperties: false
+          required: [start, end]
+          description: Half-open source range in original JavaScript UTF-16 code units.
+          properties:
+            start: {type: integer, minimum: 0}
+            end: {type: integer, minimum: 0}
+        args: {type: object, additionalProperties: true, description: Localizable diagnostic arguments; any candidates are authorized albums only.}
+    SearchErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, description: Existing numeric native error code, never a diagnostic string.}
+        message: {type: string}
+        data:
+          type: object
+          additionalProperties: false
+          required: [diagnostics]
+          properties:
+            diagnostics:
+              type: array
+              minItems: 1
+              maxItems: 5
+              items: {$ref: '#/components/schemas/SearchDiagnostic'}
+    AlbumSuggestions:
+      type: object
+      additionalProperties: false
+      required: [items, hasMore]
+      properties:
+        items: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/SearchAlbum'}}
+        hasMore: {type: boolean}
+    AlbumSuggestionsEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/AlbumSuggestions'}
     ImagePage:
       type: object
       additionalProperties: false
@@ -2410,6 +2628,8 @@ components:
         total: {type: integer, format: int64, minimum: 0}
         page: {type: integer, minimum: 1}
         size: {type: integer, minimum: 1, maximum: 100}
+        search:
+          $ref: '#/components/schemas/SearchMetadata'
     AlbumView:
       type: object
       additionalProperties: false
@@ -3115,6 +3335,16 @@ components:
         data:
           $ref: '#/components/schemas/NullData'
   responses:
+    SearchInvalid:
+      description: Invalid unified-search syntax, parameters, version, complexity or mixed protocol. No partial query is executed.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/SearchErrorEnvelope'}
+    SearchAlbumUnavailable:
+      description: An album is unavailable in the authorized scope or its exact name is ambiguous. Missing and inaccessible resources are indistinguishable.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/SearchErrorEnvelope'}
     CaptchaAdmin:
       description: Safe administrator snapshot after a successful read or mutation.
       content:

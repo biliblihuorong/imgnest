@@ -50,6 +50,9 @@ func (s *ImageService) imageByID(ctx context.Context, subject TokenSubject, id u
 // keyword/order/size/time/EXIF fields are optional narrowings mapped onto the
 // repository filter after validation.
 func (s *ImageService) List(ctx context.Context, subject TokenSubject, query ImageQuery) (ImagePage, error) {
+	if query.QueryVersion != 0 {
+		return s.listSearch(ctx, subject, query)
+	}
 	actor, err := s.actor(ctx, subject)
 	if err != nil {
 		return ImagePage{}, err

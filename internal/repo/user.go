@@ -54,10 +54,8 @@ func (r *UserRepository) FindUserByID(ctx context.Context, id uint64) (model.Use
 func (r *UserRepository) BootstrapAdmin(ctx context.Context, user model.User) (model.User, error) {
 	user.Role = model.UserRoleAdmin
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if tx.Name() == "postgres" {
-			if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(current_schema()), 1229801282)").Error; err != nil {
-				return err
-			}
+		if err := lockAdminAccounts(tx); err != nil {
+			return err
 		}
 		// SQLite transactions are BEGIN IMMEDIATE through the connection DSN.
 		var admins int64

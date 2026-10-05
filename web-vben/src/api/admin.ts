@@ -11,6 +11,7 @@
  */
 import { request } from "./client";
 import type { ImagePage } from "./images";
+import type { components } from "./schema";
 
 /** 用户角色（与 openapi UserView.role 枚举一致）。 */
 export type UserRole = "admin" | "user";
@@ -34,11 +35,14 @@ export interface AdminUserView {
   avatar_config_version: number;
 }
 
-/** PATCH /api/admin/users/{id} 的请求体。 */
-export interface AdminUserPatch {
-  status?: UserStatus;
-  group_id?: number;
-}
+/** POST /api/admin/users 的请求体；初始密码仅在创建时提交。 */
+export type AdminUserCreate = Omit<components["schemas"]["AdminUserCreate"], "display_name"> & {
+  // OpenAPI defaults become required in generated types, but request omission uses that default.
+  display_name?: components["schemas"]["AdminUserCreate"]["display_name"];
+};
+
+/** PATCH 不允许重置密码；只提交实际变更的账户字段。 */
+export type AdminUserPatch = components["schemas"]["AdminUserPatch"];
 
 /** listUsers 的过滤参数。 */
 export interface AdminUserListParams {
@@ -245,7 +249,16 @@ export function listUsers(params: AdminUserListParams = {}): Promise<AdminUserPa
   );
 }
 
-/** 修改用户状态/所属组；返回更新后的 AdminUserView。 */
+/** 创建账户；响应包含资料与服务端计算的头像，不包含密码。 */
+export function createUser(body: AdminUserCreate): Promise<AdminUserView> {
+  return request<AdminUserView>("/api/admin/users", {
+    method: "POST",
+    headers: { ...JSON_HEADERS },
+    body: JSON.stringify(body),
+  });
+}
+
+/** 编辑账户；身份、权限、状态或组别实际变化后服务端吊销该用户的全部令牌。 */
 export function patchUser(id: number, patch: AdminUserPatch): Promise<AdminUserView> {
   return request<AdminUserView>(`/api/admin/users/${id}`, {
     method: "PATCH",

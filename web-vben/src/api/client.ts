@@ -12,12 +12,14 @@ export const TOKEN_STORAGE_KEY = "imgnest.token";
 export class ApiError extends Error {
   readonly code: number;
   readonly status: number;
+  readonly data: unknown;
 
-  constructor(code: number, message: string, status: number) {
+  constructor(code: number, message: string, status: number, data?: unknown) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -60,14 +62,18 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
       headers.set("Authorization", `Bearer ${token}`);
     }
     response = await fetch(path, { ...init, headers });
-  } catch {
+  } catch (error) {
+    if (init.signal?.aborted || (error instanceof DOMException && error.name === "AbortError"))
+      throw error;
     throw new ApiError(-1, "网络错误", 0);
   }
 
   let envelope: Envelope;
   try {
     envelope = (await response.json()) as Envelope;
-  } catch {
+  } catch (error) {
+    if (init.signal?.aborted || (error instanceof DOMException && error.name === "AbortError"))
+      throw error;
     throw new ApiError(-1, "网络错误", 0);
   }
 
@@ -76,7 +82,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 
   if (code !== 0) {
     notifyUnauthorized(code, token, init.signal);
-    throw new ApiError(code, message, response.status);
+    throw new ApiError(code, message, response.status, envelope.data);
   }
   return envelope.data as T;
 }

@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import * as admin from "../src/api/admin";
-import { createAlbum, deleteAlbum, listAlbums, updateAlbum } from "../src/api/albums";
+import {
+  createAlbum,
+  deleteAlbum,
+  listAlbums,
+  suggestAlbums,
+  updateAlbum,
+} from "../src/api/albums";
 import { changePassword, login, logout, me, register } from "../src/api/auth";
 import { fetchCaptcha, getCaptchaSettings } from "../src/api/captcha";
 import { ApiError, request, setUnauthorizedHandler, TOKEN_STORAGE_KEY } from "../src/api/client";
@@ -18,6 +24,7 @@ import {
   listTrash,
   purgeImages,
   restoreImages,
+  searchImages,
   setImageVisibility,
 } from "../src/api/images";
 import type { ImageView } from "../src/api/images";
@@ -291,6 +298,56 @@ describe("frontend API modules → real Go HTTP → SQLite/local storage", () =>
     expect(preview.size > 0).toBe(true);
   });
 
+  it("executes versioned search and scoped suggestions through the real frontend API modules", async () => {
+    const query = {
+      qv: 1 as const,
+      q: `extension:png is:private album:#${albumA}`,
+      tz: "UTC",
+      page: 1,
+      size: 20,
+    };
+    const results = await searchImages(query);
+    expect(results.total).toBe(2);
+    expect(new Set(results.items.map(({ id }) => id))).toEqual(new Set([imageA.id, imageB.id]));
+    expect(results.search).toMatchObject({
+      appliedVersion: 1,
+      canonicalQ: `format:png album:#${albumA} visibility:private`,
+      tz: "UTC",
+      authorizedAlbums: [{ id: String(albumA) }],
+      appliedRange: { afterUtc: null, beforeUtc: null },
+    });
+    expectSafe(results);
+    const one = await searchImages({ ...query, q: `real-0-${fixture.nonce} format:png` });
+    expect(one.total).toBe(1);
+    expect(one.items.map(({ id }) => id)).toEqual([imageA.id]);
+    const scoped = await searchImages({ ...query, q: "" }, undefined, String(albumA));
+    expect(scoped.total).toBe(2);
+    const empty = await searchImages({ ...query, q: "" }, undefined, String(albumB));
+    expect(empty).toMatchObject({ items: [], total: 0 });
+    const suggestions = await suggestAlbums("", 1, undefined, String(albumA));
+    expect(suggestions.items.map(({ id }) => id)).toEqual([String(albumA)]);
+    expect(suggestions.hasMore).toBe(false);
+    expectSafe(suggestions);
+    const unavailable = await searchImages(
+      { ...query, q: `album:#${albumB}` },
+      undefined,
+      String(albumA),
+    ).catch((error: unknown) => error);
+    expect(unavailable).toBeInstanceOf(ApiError);
+    if (!(unavailable instanceof ApiError)) throw new Error("Expected scoped search error");
+    expect(unavailable.status).toBe(422);
+    expect(unavailable.data).toMatchObject({ diagnostics: [{ code: "ALBUM_NOT_AVAILABLE" }] });
+    const invalid = await searchImages({ ...query, q: "format:" }).catch((error: unknown) => error);
+    expect(invalid).toBeInstanceOf(ApiError);
+    if (!(invalid instanceof ApiError)) throw new Error("Expected syntax error");
+    expect(invalid.status).toBe(400);
+    expect(invalid.data).toMatchObject({
+      diagnostics: [{ code: "MISSING_VALUE", span: { start: 7, end: 7 } }],
+    });
+    useToken(adminToken);
+    await expectApiError(searchImages({ ...query, q: `album:#${albumA}` }), 422, 10001);
+  });
+
   it("moves images with mixed 207 results, clears covers, and preserves images when deleting albums", async () => {
     const moved = await batchAlbums([imageA.id, missingID], albumB);
     expect(moved.map(({ id, status, code }) => ({ id, status, code }))).toEqual([
@@ -397,5 +454,51 @@ describe("frontend API modules → real Go HTTP → SQLite/local storage", () =>
     expect(await fetchDashboardMetric("globalImages", { id: adminID, role: "admin" })).toBe(0);
     expect(await fetchDashboardMetric("accounts", { id: adminID, role: "admin" })).toBe(2);
     setUnauthorizedHandler(null);
+  });
+
+  it("creates and edits an isolated account through the actual administrator API wrappers", async () => {
+    useToken(adminToken);
+    const group = (await admin.listGroups()).find(({ is_guest }) => !is_guest);
+    if (!group) throw new Error("Missing fixture account group");
+    const created = await admin.createUser({
+      username: `created-${fixture.nonce}`,
+      email: `created-${fixture.nonce}@imgnest.invalid`,
+      password: fixture.nextPassword,
+      display_name: "测试昵称",
+      role: "user",
+      status: "disabled",
+      group_id: group.id,
+    });
+    expectSafe(created);
+    expect(created).toMatchObject({
+      display_name: "测试昵称",
+      role: "user",
+      status: "disabled",
+      group_id: group.id,
+    });
+    const updated = await admin.patchUser(created.id, {
+      username: `edited-${fixture.nonce}`,
+      email: `edited-${fixture.nonce}@imgnest.invalid`,
+      display_name: "修改后的昵称",
+      role: "user",
+      status: "enabled",
+      group_id: group.id,
+    });
+    expectSafe(updated);
+    expect(updated).toMatchObject({
+      username: `edited-${fixture.nonce}`,
+      email: `edited-${fixture.nonce}@imgnest.invalid`,
+      display_name: "修改后的昵称",
+      status: "enabled",
+    });
+    expect(
+      (await admin.listUsers({ keyword: updated.username })).items.map(({ id }) => id),
+    ).toEqual([created.id]);
+    await expectApiError(admin.patchUser(created.id, { email: fixture.adminEmail }), 409, 30002);
+    expect((await admin.listUsers({ keyword: updated.username })).items[0]?.email).toBe(
+      updated.email,
+    );
+    await expectApiError(admin.patchUser(adminID, { status: "disabled" }), 403, 20003);
+    expect((await me()).id).toBe(adminID);
   });
 });

@@ -1,7 +1,9 @@
 package native
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -14,6 +16,7 @@ import (
 // AdminService is the management-console business API consumed by the
 // /api/admin routes; it shares the persistence layer with the other services.
 type AdminService interface {
+	CreateUser(context.Context, uint64, service.AdminUserInput) (service.UserView, error)
 	ListUsers(context.Context, int, int, string) (service.AdminUserPage, error)
 	PatchUser(context.Context, uint64, uint64, service.AdminUserPatch) (service.UserView, error)
 	ListGroups(context.Context) ([]service.GroupView, error)
@@ -53,6 +56,7 @@ func (h *Handler) RegisterAdminRoutes(ctx context.Context, router gin.IRouter, a
 	handler := &adminHandler{auth: h, admin: admin, images: images}
 	adminGroup := router.Group("/api/admin", h.authenticate, handler.requireAdmin)
 	adminGroup.GET("/users", handler.listUsers)
+	adminGroup.POST("/users", handler.createUser)
 	adminGroup.PATCH("/users/:id", handler.patchUser)
 	adminGroup.GET("/groups", handler.listGroups)
 	adminGroup.POST("/groups", handler.createGroup)
@@ -133,13 +137,58 @@ func (a *adminHandler) listUsers(c *gin.Context) {
 	respond(c, 200, result)
 }
 
+func (a *adminHandler) createUser(c *gin.Context) {
+	var input service.AdminUserInput
+	if !decodeAdminAccount(c, &input) {
+		return
+	}
+	user, err := a.admin.CreateUser(c.Request.Context(), identity(c).User.ID, input)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	respond(c, 201, user)
+}
+
+// Account fields are never nullable. Decode the bounded object first so null
+// cannot silently become a missing pointer or an empty scalar, then enforce
+// the explicit request DTO's allowlist with DisallowUnknownFields.
+func decodeAdminAccount(c *gin.Context, target any) bool {
+	var fields map[string]json.RawMessage
+	if !decode(c, &fields) {
+		return false
+	}
+	if fields == nil {
+		fail(c, service.ErrInvalidInput)
+		return false
+	}
+	for _, value := range fields {
+		if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			fail(c, service.ErrInvalidInput)
+			return false
+		}
+	}
+	body, err := json.Marshal(fields)
+	if err != nil {
+		fail(c, service.ErrInvalidInput)
+		return false
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		fail(c, service.ErrInvalidInput)
+		return false
+	}
+	return true
+}
+
 func (a *adminHandler) patchUser(c *gin.Context) {
 	id, ok := adminID(c)
 	if !ok {
 		return
 	}
 	var patch service.AdminUserPatch
-	if !decode(c, &patch) {
+	if !decodeAdminAccount(c, &patch) {
 		return
 	}
 	user, err := a.admin.PatchUser(c.Request.Context(), identity(c).User.ID, id, patch)

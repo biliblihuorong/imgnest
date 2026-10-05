@@ -43,7 +43,7 @@ pnpm exec prettier --check e2e/real-api.config.ts e2e/real-api.setup.ts e2e/real
 
 ## 实际覆盖
 
-11 个顺序阶段共用一个一次性数据库，第一项失败即停止依赖它的后续阶段：
+13 个顺序阶段共用一个一次性数据库，第一项失败即停止依赖它的后续阶段：
 
 1. 验证码关闭配置、真实管理员/普通用户登录与注册、安全用户视图、localStorage Bearer 读取
 2. 真实 400/401/404/429 和非 JSON 错误映射；20002 不触发凭证失效回调，20001 会触发；第四次登录验证原生限流，未修改限流
@@ -57,7 +57,12 @@ pnpm exec prettier --check e2e/real-api.config.ts e2e/real-api.setup.ts e2e/real
 10. 仅清除随机测试图片，批量删除/purge、列表和配额归零、已清理预览返回 404
 11. 退出吊销当前 web Token、正确改密吊销该普通用户全部剩余 Token，管理员会话继续有效
 
-测试结束后另以 Python 只读查询 SQLite，确认两名生成账户、迁移自带的禁用 `id=0` guest 锚点、唯一剩余管理员 Token、不含 Token 明文、零图片/EXIF/相册/配额、无外键错误；遍历临时对象目录确认无残留文件。它不通过直接写库伪造任何业务状态。
+新增检查插入对应阶段：
+
+- 真实 searchImages/suggestAlbums 模块验证 qv=1、别名规范化、过滤结果/总数、固定相册范围、相册建议与结构化语法/范围错误
+- 真实管理员 createUser/patchUser 模块验证创建、身份与昵称编辑、唯一性回滚、自我停用保护和安全响应；仅操作第三个临时测试账号
+
+测试结束后另以 Python 只读查询 SQLite，确认三名生成账户、迁移自带的禁用 `id=0` guest 锚点、唯一剩余管理员 Token、不含 Token 明文、零图片/EXIF/相册/配额、无外键错误；遍历临时对象目录确认无残留文件。它不通过直接写库伪造任何业务状态。
 
 ## 环境与验收边界
 
@@ -67,4 +72,4 @@ Vitest 使用 jsdom 的真实 `localStorage`、`FormData`、`File` 和 XMLHttpRe
 
 本组仅覆盖 SQLite/local storage 和验证码关闭路径；不代表 PostgreSQL 驱动/并发、S3/MinIO、真实 Turnstile 供应商、Docker 或多架构验收通过。
 
-2026-10-05 实跑：11/11 阶段通过，107 次原生 fetch 网络请求与 3 次真实 XHR 上传；SQLite/对象核对、无凭证日志、优雅退出和临时目录清理均通过。运行时二进制 SHA-256 为 `651467b0a420d81baa6bf85396e1549c2790053384d88701ad29e8ee6916a0c9`。独立 TypeScript、ESLint、Prettier 检查通过；实际输出以本地结果文件为准。
+2026-10-05 本轮实跑：13/13 阶段通过，123 次原生 fetch 网络请求与 3 次真实 XHR 上传；SQLite/对象核对、无凭证日志、优雅退出和临时目录清理均通过。运行时二进制 SHA-256 为 `5f663f9741113d7e45fc5579709914aa00f9facffdf48ca0e61f755c31b1d268`。独立 TypeScript、ESLint、Prettier 检查通过；实际输出以本地结果文件为准。

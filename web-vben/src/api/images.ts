@@ -178,3 +178,29 @@ export function batchPermission(ids: number[], isPublic: boolean): Promise<Image
 export function batchAlbums(ids: number[], albumId: number): Promise<ImageBatchItem[]> {
   return postBatch({ action: "album", ids, album_id: albumId });
 }
+
+/** Versioned search always sends q, even when empty; fixed album scope uses a separate endpoint. */
+export interface ImageSearchParams {
+  qv: 1;
+  q: string;
+  tz: string;
+  page: number;
+  size: number;
+}
+export type ImageSearchMetadata = components["schemas"]["SearchMetadata"];
+export type ImageSearchPage = ImagePage & { search: ImageSearchMetadata };
+export function searchImages(
+  params: ImageSearchParams,
+  signal?: AbortSignal,
+  albumId?: number | string,
+): Promise<ImageSearchPage> {
+  const query = new URLSearchParams({
+    qv: "1",
+    q: params.q,
+    tz: params.tz,
+    page: String(params.page),
+    size: String(params.size),
+  });
+  const path = albumId === undefined ? "/api/images" : `/api/albums/${albumId}/images`;
+  return request<ImageSearchPage>(`${path}?${query}`, { signal });
+}
