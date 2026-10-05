@@ -31,7 +31,7 @@
 - 续做 worker 修复 4 个真 bug：links.html 引号过度转义（`\u0026` 系 wire 编码、解码后与蓝空一致，黄金按值锁定）；PG 相册列表列重复 500；二次 preflight 丢 strategy_id；ImageView.Path 暴露进 native DTO（改 `json:"-"`）。
 - 独立审查 P2：v1 删除路由补黄金契约测试（已修）。P3 记录：上传 429 分支无专项测试；v1 上传每次 3 遍 Preflight（冗余但正确）；PatchUser 双字段两个事务（部分成功窗口）；GroupsView 非整 MB 容量编辑往返截断；StoragesView「换凭证需重建」文案与后端能力不符（PATCH 已支持 config 轮换）；限流器单实例内存态（多副本部署前需外置）。
 - 游客组未绑 default_policy_id 时，v1 游客上传报笼统的「上传失败，请稍后再试」（组无可用规则）；管理 UI 建组强制必选默认规则，真实管理员不会遇到。
-- IAB webview 自动化怪癖：合成提交实际成功（token 签发、localStorage 写入）但 SPA 内 `router.push` 未生效，且伴随一次「网络错误」告警；整页加载全部正常，vitest 守卫/跳转 7 用例全绿。判定为自动化环境特有，待用户在真实浏览器做一次登录确认。
+- 昨晚走查中出现的「登录后未跳转」复测结论（2026-10-05）：**非产品缺陷**。带 router 级插桩的干净环境 E2E 三场景全过——登录→push /upload（守卫放行、afterEach ok、零错误零告警）、带有效 token 硬刷新 /login 被守卫立即弹回 /upload、双击提交单次干净导航。当晚异常归因于插桩污染的长效页面（页面外 raw fetch 登录、合成双事件）叠加 Docker 守护进程中途崩溃重启；观察到的「token 已存储但显示网络错误」与双提交竞态一致，产品路径（auth.login 存 token → push → 守卫放行）代码与 vitest 守卫用例均正确。
 - v1 `date` 为 UTC（非服务器时区）；`permission` 缺省=私有（部分 Lsky 版本默认公开，openapi 已注明）；FE admin 类型手写（openapi /api/admin 段已落地，后续可 gen:api 切换派生）。
 - `tasks/backfill` 存量补处理、相册原生 CRUD/封面、画廊 → M5；多副本限流、arm64 镜像 → M5/M6。
 
