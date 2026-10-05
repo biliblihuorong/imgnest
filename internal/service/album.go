@@ -71,10 +71,10 @@ type AlbumView struct {
 
 // AlbumPage is a paginated album listing.
 type AlbumPage struct {
-	Items []AlbumView
-	Total int64
-	Page  int
-	Size  int
+	Items []AlbumView `json:"items"`
+	Total int64       `json:"total"`
+	Page  int         `json:"page"`
+	Size  int         `json:"size"`
 }
 
 // AlbumService implements album ownership, covers and detachment rules shared

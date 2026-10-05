@@ -116,6 +116,29 @@ func TestAlbumListMappingAndDefaults(t *testing.T) {
 	}
 }
 
+// AlbumPage must serialize with the native lowercase paging contract; the
+// frontend AlbumPage type and openapi schema depend on these exact keys.
+func TestAlbumPageJSONUsesLowercaseKeys(t *testing.T) {
+	raw, err := json.Marshal(AlbumPage{Items: []AlbumView{}, Total: 1, Page: 1, Size: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"items", "total", "page", "size"} {
+		if _, ok := decoded[key]; !ok {
+			t.Fatalf("album page JSON missing %q: %s", key, raw)
+		}
+	}
+	for _, key := range []string{"Items", "Total", "Page", "Size"} {
+		if _, ok := decoded[key]; ok {
+			t.Fatalf("album page JSON has capitalized key %q: %s", key, raw)
+		}
+	}
+}
+
 func TestAlbumCreateValidatesAndBuildsCover(t *testing.T) {
 	repo := &albumRepoStub{}
 	cover := &albumImageStub{image: model.Image{ID: 5, Key: "coverkey", HasThumb: true}}
