@@ -48,6 +48,7 @@ async function mountLoginView(options: MountOptions = {}) {
   siteApiMock.fetchSite.mockResolvedValue({
     site_name: "测试图床",
     register_enabled: registerEnabled,
+    gallery_enabled: false,
   });
 
   const router = createRouter({

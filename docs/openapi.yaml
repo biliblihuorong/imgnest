@@ -2161,7 +2161,7 @@ components:
     SiteView:
       type: object
       additionalProperties: false
-      required: [site_name, register_enabled]
+      required: [site_name, register_enabled, gallery_enabled]
       properties:
         site_name:
           type: string
@@ -2171,6 +2171,9 @@ components:
         register_enabled:
           type: boolean
           description: Whether self-service registration currently accepts new users.
+        gallery_enabled:
+          type: boolean
+          description: Whether the public gallery is open; when false the gallery API returns empty pages.
     PolicySummary:
       type: object
       additionalProperties: false

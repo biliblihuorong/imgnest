@@ -36,7 +36,7 @@ export const ADMIN_ROUTER_NAMES = {
   adminImages: "admin-images",
 } as const;
 
-const PUBLIC_PATHS = new Set<string>(["/login", "/register"]);
+const PUBLIC_PATHS = new Set<string>(["/login", "/register", "/gallery"]);
 
 /**
  * admin 子树守卫（挂在 /admin 父路由的 beforeEnter 上，进入子树即触发）：
@@ -94,6 +94,16 @@ export function setupRouter(): Router {
         path: "/tokens",
         name: ROUTER_NAMES.tokens,
         component: () => import("@/views/TokensView.vue"),
+      },
+      {
+        path: "/albums",
+        name: "albums",
+        component: () => import("@/views/AlbumsView.vue"),
+      },
+      {
+        path: "/gallery",
+        name: "gallery",
+        component: () => import("@/views/GalleryView.vue"),
       },
       {
         path: "/forbidden",

@@ -1535,6 +1535,8 @@ export interface components {
             site_name: string;
             /** @description Whether self-service registration currently accepts new users. */
             register_enabled: boolean;
+            /** @description Whether the public gallery is open; when false the gallery API returns empty pages. */
+            gallery_enabled: boolean;
         };
         PolicySummary: {
             id: components["schemas"]["ID"];

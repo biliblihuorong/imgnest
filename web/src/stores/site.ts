@@ -4,6 +4,7 @@ import { fetchSite } from "@/api/site";
 interface SiteState {
   siteName: string;
   registerEnabled: boolean;
+  galleryEnabled: boolean;
   loaded: boolean;
 }
 
@@ -11,6 +12,7 @@ export const useSiteStore = defineStore("site", {
   state: (): SiteState => ({
     siteName: "ImgNest",
     registerEnabled: false,
+    galleryEnabled: false,
     loaded: false,
   }),
   actions: {
@@ -23,6 +25,7 @@ export const useSiteStore = defineStore("site", {
         const site = await fetchSite();
         this.siteName = site.site_name;
         this.registerEnabled = site.register_enabled;
+        this.galleryEnabled = site.gallery_enabled;
         this.loaded = true;
       } catch {
         // 拉取失败不抛错，保持默认值
