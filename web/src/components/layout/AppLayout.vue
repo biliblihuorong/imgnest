@@ -21,11 +21,18 @@ const site = useSiteStore();
 
 void site.ensureLoaded();
 
-const menuOptions: MenuOption[] = [
-  { label: "上传", key: "/upload" },
-  { label: "图片", key: "/images" },
-  { label: "Token", key: "/tokens" },
-];
+/** 菜单动态：站点开启公开画廊时插入「画廊」入口（登录与匿名均显示）。 */
+const menuOptions = computed<MenuOption[]>(() => {
+  const options: MenuOption[] = [
+    { label: "上传", key: "/upload" },
+    { label: "图片", key: "/images" },
+  ];
+  if (site.galleryEnabled) {
+    options.push({ label: "画廊", key: "/gallery" });
+  }
+  options.push({ label: "Token", key: "/tokens" });
+  return options;
+});
 
 const activeMenuKey = computed(() => route.path);
 
@@ -38,6 +45,11 @@ const userOptions = computed<DropdownOption[]>(() => [
 
 function onMenuSelect(key: string | number): void {
   void router.push(String(key));
+}
+
+/** 匿名态入口：未登录时右侧显示「登录」，点击去登录页。 */
+function goLogin(): void {
+  void router.push("/login");
 }
 
 async function onUserSelect(key: string | number): Promise<void> {
@@ -65,9 +77,15 @@ async function onUserSelect(key: string | number): Promise<void> {
           :options="menuOptions"
           @update:value="onMenuSelect"
         />
-        <NDropdown trigger="click" :options="userOptions" @select="onUserSelect">
+        <NDropdown
+          v-if="auth.user"
+          trigger="click"
+          :options="userOptions"
+          @select="onUserSelect"
+        >
           <NButton quaternary>{{ auth.user?.username ?? "账户" }}</NButton>
         </NDropdown>
+        <NButton v-else quaternary type="primary" @click="goLogin">登录</NButton>
       </div>
     </NLayoutHeader>
     <NLayoutContent content-style="padding: 24px;">
