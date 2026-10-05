@@ -24,6 +24,7 @@ export const ROUTER_NAMES = {
   upload: "upload",
   images: "images",
   tokens: "tokens",
+  accountSettings: "account-settings",
 } as const;
 
 /** admin 子树命名路由；独立于 ROUTER_NAMES，保持既有用户端五键不变。 */
@@ -108,9 +109,21 @@ export function setupRouter(): Router {
         meta: { title: "common.nav.tokens" },
       },
       {
+        path: "/account/settings",
+        name: ROUTER_NAMES.accountSettings,
+        component: () => import("@/views/AccountSettingsView.vue"),
+        meta: { title: "account.settingsTitle" },
+      },
+      {
         path: "/albums",
         name: "albums",
         component: () => import("@/views/AlbumsView.vue"),
+        meta: { title: "common.nav.albums" },
+      },
+      {
+        path: "/albums/:id(\\d+)",
+        name: "album-detail",
+        component: () => import("@/views/AlbumDetailView.vue"),
         meta: { title: "common.nav.albums" },
       },
       {

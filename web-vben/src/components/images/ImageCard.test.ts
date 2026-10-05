@@ -53,13 +53,25 @@ describe("ImageCard", () => {
     expect(wrapper.text()).toContain("无缩略图");
   });
 
-  it("点击缩略图与名称触发 open", async () => {
+  it("缩略图 NImage 挂 WebP 大图（由外层分组预览翻页），点名称触发 open", async () => {
+    const wrapper = mountCard();
+    await flushPromises();
+
+    const image = wrapper.find(".image-card__thumb .n-image");
+    expect(image.exists()).toBe(true);
+    expect(wrapper.find(".image-card__name").trigger("click"));
+
+    expect(wrapper.emitted("open")).toHaveLength(1);
+  });
+
+  it("整卡右键发出 menu 并携带原始事件", async () => {
     const wrapper = mountCard();
 
-    await wrapper.find(".image-card__thumb").trigger("click");
-    await wrapper.find(".image-card__name").trigger("click");
+    await wrapper.find(".image-card").trigger("contextmenu");
 
-    expect(wrapper.emitted("open")).toHaveLength(2);
+    const menu = wrapper.emitted("menu");
+    expect(menu).toHaveLength(1);
+    expect(menu?.[0]?.[0]).toBeInstanceOf(MouseEvent);
   });
 
   it("点击开关发出 toggle，受控值保持不变（回滚由父级处理）", async () => {

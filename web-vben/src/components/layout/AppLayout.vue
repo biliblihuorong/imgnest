@@ -7,8 +7,8 @@ import { useRouter } from "vue-router";
 import { computed, shallowRef } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import { useSiteStore } from "@/stores/site";
+import { useUserAvatar } from "@/components/account/useUserAvatar";
 import logo from "@/assets/imgnest-mark.svg";
-import avatar from "@/assets/account-avatar.svg";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -16,8 +16,10 @@ const auth = useAuthStore();
 const site = useSiteStore();
 const loggingOut = shallowRef(false);
 void site.ensureLoaded();
+const avatarUrl = useUserAvatar(computed(() => auth.user));
 
 const accountMenus = computed(() => [
+  { text: t("account.profileNav"), handler: () => router.push("/account/settings") },
   { text: t("common.nav.tokens"), handler: () => router.push("/tokens") },
   ...(auth.user?.role === "admin"
     ? [{ text: t("common.nav.admin"), handler: () => router.push("/admin/users") }]
@@ -45,8 +47,8 @@ async function logout(): Promise<void> {
     :logo-src="logo"
     :logo-src-dark="logo"
     :logo-text="site.siteName"
-    :avatar="avatar"
-    :text="auth.user?.username ?? t('common.account')"
+    :avatar="avatarUrl"
+    :text="auth.user?.display_name || auth.user?.username || t('common.account')"
     @logout="logout"
     @clear-preferences-and-logout="logout"
     @click-logo="router.push(auth.user ? landingPath(auth.user.role) : '/gallery')"
@@ -54,9 +56,9 @@ async function logout(): Promise<void> {
     <template #user-dropdown>
       <UserDropdown
         v-if="auth.user"
-        :avatar="avatar"
+        :avatar="avatarUrl"
         :avatar-dot="false"
-        :text="auth.user?.username ?? t('common.account')"
+        :text="auth.user?.display_name || auth.user?.username || t('common.account')"
         :description="auth.user?.email ?? ''"
         :tag-text="auth.user?.role === 'admin' ? t('common.administrator') : t('common.user')"
         :menus="accountMenus"

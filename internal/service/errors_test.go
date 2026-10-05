@@ -19,6 +19,7 @@ func TestServiceConstructorsValidateDependencies(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	); !errors.Is(err, service.ErrInvalidInput) {
 		t.Fatalf("nil token-service dependencies error=%v", err)
 	}
@@ -29,6 +30,7 @@ func TestServiceConstructorsValidateDependencies(t *testing.T) {
 	}
 	if _, err := service.NewTokenService(
 		ctx,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -55,6 +57,10 @@ func (settings failingSettings) GalleryEnabled(context.Context) (bool, error) {
 	return false, settings.err
 }
 
+func (settings failingSettings) AvatarConfig(context.Context) (model.AvatarConfig, error) {
+	return model.AvatarConfig{Provider: model.DefaultAvatarProvider}, settings.err
+}
+
 type unavailableUsers struct{ service.UserRepository }
 
 type groupFailure struct{ err error }
@@ -73,6 +79,10 @@ func (settings groupFailure) SiteName(context.Context) (string, error) {
 
 func (settings groupFailure) GalleryEnabled(context.Context) (bool, error) {
 	return false, nil
+}
+
+func (settings groupFailure) AvatarConfig(context.Context) (model.AvatarConfig, error) {
+	return model.AvatarConfig{Provider: model.DefaultAvatarProvider}, nil
 }
 
 func TestInvalidRegistrationStopsBeforeGroupLookup(t *testing.T) {
@@ -158,6 +168,7 @@ func TestTokenListUserLookupFailureIsPreserved(t *testing.T) {
 		t.Context(),
 		touchFailure{},
 		userLookupFailure{err: want},
+		failingSettings{},
 		func() time.Time { return time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC) },
 	)
 	if err != nil {
@@ -191,6 +202,7 @@ func TestCanceledServiceOperationsStopBeforePersistence(t *testing.T) {
 		t.Context(),
 		touchFailure{},
 		unavailableUsers{},
+		failingSettings{},
 		func() time.Time { return time.Time{} },
 	)
 	if err != nil {

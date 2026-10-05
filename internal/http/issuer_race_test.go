@@ -118,7 +118,7 @@ func newRaceFixture(t *testing.T, driver string) *raceFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens, err := service.NewTokenService(t.Context(), tokensRepo, usersRepo, time.Now)
+	tokens, err := service.NewTokenService(t.Context(), tokensRepo, usersRepo, settings, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,6 +142,7 @@ type httpapiUserService interface {
 	Register(context.Context, service.RegisterInput) (service.UserView, error)
 	VerifyCredentials(context.Context, string, string) (verifiedCredential, error)
 	ChangePassword(context.Context, uint64, string, string) error
+	UpdateDisplayName(context.Context, uint64, string) (service.UserView, error)
 	Site(context.Context) (service.SiteView, error)
 }
 

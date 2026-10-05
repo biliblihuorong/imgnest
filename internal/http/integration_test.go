@@ -104,7 +104,7 @@ func TestRealDatabaseHTTPAuthLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			tokens, err := service.NewTokenService(t.Context(), tokenRepo, userRepo, time.Now)
+			tokens, err := service.NewTokenService(t.Context(), tokenRepo, userRepo, settings, time.Now)
 			if err != nil {
 				t.Fatal(err)
 			}

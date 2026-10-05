@@ -7,6 +7,7 @@ import (
 	"net/mail"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
@@ -15,6 +16,10 @@ import (
 
 const passwordCost = 12
 
+// maxDisplayNameRunes bounds the self-chosen profile name in Unicode
+// characters, not bytes.
+const maxDisplayNameRunes = 64
+
 // UserRepository provides account persistence and atomic credential changes.
 type UserRepository interface {
 	CreateUser(ctx context.Context, user model.User) (model.User, error)
@@ -22,6 +27,9 @@ type UserRepository interface {
 	FindUserByID(ctx context.Context, id uint64) (model.User, error)
 	BootstrapAdmin(ctx context.Context, user model.User) (model.User, error)
 	UpdatePasswordAndRevokeTokens(ctx context.Context, userID uint64, expectedHash, nextHash string) error
+	// UpdateDisplayName replaces the optional profile name and returns the
+	// refreshed account.
+	UpdateDisplayName(ctx context.Context, userID uint64, displayName string) (model.User, error)
 }
 
 // RegisterInput contains the user-controlled registration fields plus the
@@ -35,16 +43,28 @@ type RegisterInput struct {
 	IP string
 }
 
-// UserView exposes account attributes without credential hashes.
+// UserView exposes account attributes without credential hashes. Avatar
+// fields are derived server-side from the site-wide provider configuration;
+// the avatar address never carries the mailbox in plain text.
 type UserView struct {
-	ID        uint64    `json:"id"`
-	GroupID   uint64    `json:"group_id"`
-	Username  string    `json:"username"`
-	Email     string    `json:"email"`
-	Role      string    `json:"role"`
-	Status    string    `json:"status"`
-	UsedBytes int64     `json:"used_bytes"`
-	CreatedAt time.Time `json:"created_at"`
+	ID uint64 `json:"id"`
+	// DisplayName is the optional self-chosen profile name; clients fall back
+	// to the username when it is empty.
+	DisplayName string    `json:"display_name"`
+	GroupID     uint64    `json:"group_id"`
+	Username    string    `json:"username"`
+	Email       string    `json:"email"`
+	Role        string    `json:"role"`
+	Status      string    `json:"status"`
+	UsedBytes   int64     `json:"used_bytes"`
+	CreatedAt   time.Time `json:"created_at"`
+	// AvatarProvider is the site-wide avatar source that produced avatar_url.
+	AvatarProvider string `json:"avatar_provider"`
+	// AvatarURL is the HTTPS avatar address derived from the email hash; null
+	// means the account has no usable avatar and clients show the local default.
+	AvatarURL *string `json:"avatar_url"`
+	// AvatarConfigVersion lets clients notice avatar configuration updates.
+	AvatarConfigVersion int64 `json:"avatar_config_version"`
 }
 
 // TokenSubject is opaque authorization proof produced only by successful authentication.
@@ -97,7 +117,7 @@ func (s *UserService) Register(ctx context.Context, input RegisterInput) (UserVi
 	if err != nil {
 		return UserView{}, fmt.Errorf("create user: %w", err)
 	}
-	return userView(created), nil
+	return s.decoratedView(ctx, created)
 }
 
 // VerifyCredentials returns an enabled user and opaque proof after password verification.
@@ -128,8 +148,12 @@ func (s *UserService) VerifyCredentials(ctx context.Context, email, password str
 	if err := ctx.Err(); err != nil {
 		return VerifiedCredentials{}, fmt.Errorf("verify credentials: %w", err)
 	}
+	view, err := s.decoratedView(ctx, user)
+	if err != nil {
+		return VerifiedCredentials{}, err
+	}
 	return VerifiedCredentials{
-		User: userView(user), Subject: TokenSubject{userID: user.ID, passwordHash: user.PasswordHash},
+		User: view, Subject: TokenSubject{userID: user.ID, passwordHash: user.PasswordHash},
 	}, nil
 }
 
@@ -146,7 +170,7 @@ func (s *UserService) InitAdmin(ctx context.Context, input RegisterInput) (UserV
 	if err != nil {
 		return UserView{}, fmt.Errorf("bootstrap administrator: %w", err)
 	}
-	return userView(created), nil
+	return s.decoratedView(ctx, created)
 }
 
 // ChangePassword checks the current password and revokes all account tokens atomically.
@@ -176,6 +200,50 @@ func (s *UserService) ChangePassword(ctx context.Context, userID uint64, current
 		user.PasswordHash,
 		next,
 	)
+}
+
+// UpdateDisplayName saves the optional profile name from the authenticated
+// identity and returns the refreshed view. Surrounding whitespace is trimmed;
+// an empty value clears the custom name so clients fall back to the username.
+// Only the display name is user-serviceable here: email, role, group, and
+// status have no self-service request shape at all.
+func (s *UserService) UpdateDisplayName(ctx context.Context, userID uint64, displayName string) (UserView, error) {
+	if err := ctx.Err(); err != nil {
+		return UserView{}, fmt.Errorf("update display name: %w", err)
+	}
+	name := strings.TrimSpace(displayName)
+	if name != "" && (!utf8.ValidString(name) || containsControlRune(name) || utf8.RuneCountInString(name) > maxDisplayNameRunes) {
+		return UserView{}, ErrInvalidInput
+	}
+	if userID == 0 {
+		return UserView{}, ErrInvalidInput
+	}
+	user, err := s.users.UpdateDisplayName(ctx, userID, name)
+	if err != nil {
+		return UserView{}, fmt.Errorf("update display name: %w", err)
+	}
+	return s.decoratedView(ctx, user)
+}
+
+// decoratedView builds the user view and derives its avatar fields from the
+// site-wide provider configuration. No external avatar service is contacted.
+func (s *UserService) decoratedView(ctx context.Context, user model.User) (UserView, error) {
+	config, err := s.settings.AvatarConfig(ctx)
+	if err != nil {
+		return UserView{}, fmt.Errorf("read avatar config: %w", err)
+	}
+	view := userView(user)
+	applyAvatar(&view, config)
+	return view, nil
+}
+
+func containsControlRune(value string) bool {
+	for _, char := range value {
+		if unicode.IsControl(char) {
+			return true
+		}
+	}
+	return false
 }
 
 // ResetPassword replaces a password and revokes all account tokens atomically.
@@ -276,7 +344,8 @@ func validCredentialPassword(password string) bool {
 
 func userView(user model.User) UserView {
 	return UserView{
-		ID: user.ID, GroupID: user.GroupID, Username: user.Username, Email: user.Email,
-		Role: user.Role, Status: user.Status, UsedBytes: user.UsedBytes, CreatedAt: user.CreatedAt.UTC(),
+		ID: user.ID, GroupID: user.GroupID, Username: user.Username, DisplayName: user.DisplayName,
+		Email: user.Email, Role: user.Role, Status: user.Status, UsedBytes: user.UsedBytes,
+		CreatedAt: user.CreatedAt.UTC(),
 	}
 }

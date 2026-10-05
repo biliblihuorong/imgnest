@@ -22,11 +22,27 @@ export interface PageParams {
 }
 
 /**
- * 图片列表参数：分页 + 相册过滤。
+ * 图片列表参数：分页 + 相册/关键词/排序/大小/时间/EXIF 过滤。
  * album_id 缺省（undefined）=全部；显式 0=未归类（不属于任何相册）。
  */
 export interface ListParams extends PageParams {
   album_id?: number;
+  /** 统一搜索：文件名 OR 相机品牌/型号/镜头，大小写不敏感子串。 */
+  q?: string;
+  /** 文件名（显示名或存储路径+扩展名）大小写不敏感的子串匹配。 */
+  keyword?: string;
+  /** 排序；缺省=newest。 */
+  order?: "newest" | "oldest" | "largest" | "smallest";
+  /** 原图字节数下限（含）；0/缺省=不限。 */
+  min_size?: number;
+  /** 原图字节数上限（含）；0/缺省=不限。 */
+  max_size?: number;
+  /** 上传时间下限（含，RFC3339）。 */
+  from?: string;
+  /** 上传时间上限（含，RFC3339）。 */
+  to?: string;
+  /** EXIF 相机品牌/型号/镜头的子串匹配（仅对存有元数据的图片）。 */
+  exif?: string;
 }
 
 function pageQuery(params: ListParams): string {
@@ -40,6 +56,30 @@ function pageQuery(params: ListParams): string {
   // 显式 0 必须序列化（0=未归类），只有 undefined 才省略
   if (params.album_id !== undefined) {
     search.set("album_id", String(params.album_id));
+  }
+  if (params.q) {
+    search.set("q", params.q);
+  }
+  if (params.keyword) {
+    search.set("keyword", params.keyword);
+  }
+  if (params.order) {
+    search.set("order", params.order);
+  }
+  if (params.min_size) {
+    search.set("min_size", String(params.min_size));
+  }
+  if (params.max_size) {
+    search.set("max_size", String(params.max_size));
+  }
+  if (params.from) {
+    search.set("from", params.from);
+  }
+  if (params.to) {
+    search.set("to", params.to);
+  }
+  if (params.exif) {
+    search.set("exif", params.exif);
   }
   const query = search.toString();
   return query ? `?${query}` : "";

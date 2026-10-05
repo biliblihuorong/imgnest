@@ -303,7 +303,6 @@ const columns = computed<DataTableColumns<GroupView>>(() => [
             h(
               NPopconfirm,
               {
-                to: false,
                 positiveText: t("admin.common.confirmDelete"),
                 negativeText: t("admin.common.cancel"),
                 onPositiveClick: () => handleDelete(row),

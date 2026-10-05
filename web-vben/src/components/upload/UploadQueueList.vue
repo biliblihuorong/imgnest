@@ -1,16 +1,25 @@
 <script setup lang="ts">
 import { useI18n } from "@vben/locales";
 import { ApiError } from "@/api/client";
+import type { ImageView } from "@/api/upload";
 import { formatApiError } from "@/locales/errors";
 import { formatBytes } from "@/lib/format";
 import { NButton, NEmpty, NProgress, NTag } from "naive-ui";
 import UploadResultActions from "./UploadResultActions.vue";
+import type { LinkFormat, LinkVersion } from "./linkText";
 import type { UploadQueueItem, UploadQueueState } from "./types";
 
 defineProps<{ items: UploadQueueItem[]; busy?: boolean }>();
+// 透传队列头部的全局链接格式/版本选择（真正的持有者是上传页）。
+const format = defineModel<LinkFormat>("format", { required: true });
+const version = defineModel<LinkVersion>("version", { required: true });
 const { t } = useI18n();
 
-const emit = defineEmits<{ retry: [item: UploadQueueItem] }>();
+const emit = defineEmits<{
+  retry: [item: UploadQueueItem];
+  /** 打开该成功项的完整复制抽屉（版本×格式矩阵）。 */
+  detail: [image: ImageView];
+}>();
 
 const STATE_TAG_TYPE: Record<UploadQueueState, "default" | "info" | "success" | "error"> = {
   queued: "default",
@@ -72,7 +81,13 @@ function progressPercent(item: UploadQueueItem): number {
           >{{ t("user.common.retry") }}</NButton
         >
       </div>
-      <UploadResultActions v-if="item.state === 'success' && item.image" :image="item.image" />
+      <UploadResultActions
+        v-if="item.state === 'success' && item.image"
+        v-model:format="format"
+        v-model:version="version"
+        :image="item.image"
+        @detail="emit('detail', item.image!)"
+      />
     </li>
   </ul>
 </template>

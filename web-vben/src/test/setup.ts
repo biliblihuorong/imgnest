@@ -24,3 +24,8 @@ config.global.plugins.push(i18n);
 beforeEach(() => {
   i18n.global.locale.value = "zh-CN";
 });
+
+// jsdom 未实现滚动 API；上传页入队后会调用 scrollIntoView
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}

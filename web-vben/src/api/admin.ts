@@ -17,9 +17,10 @@ export type UserRole = "admin" | "user";
 /** 用户状态。 */
 export type UserStatus = "enabled" | "disabled";
 
-/** 管理端用户视图：契约 AdminUserView。 */
+/** 管理端用户视图：契约 AdminUserView（含个人资料与头像扩展字段）。 */
 export interface AdminUserView {
   id: number;
+  display_name: string;
   username: string;
   email: string;
   role: UserRole;
@@ -28,6 +29,9 @@ export interface AdminUserView {
   /** 已用容量（字节）。 */
   used_bytes: number;
   created_at: string;
+  avatar_provider: AvatarProvider;
+  avatar_url: string | null;
+  avatar_config_version: number;
 }
 
 /** PATCH /api/admin/users/{id} 的请求体。 */
@@ -181,7 +185,10 @@ export interface PolicyPreviewResult {
   error: string;
 }
 
-/** 管理端站点设置：契约 settings 八字段。 */
+/** 站点头像服务商（与 openapi AdminSettings.avatar_provider 枚举一致）。 */
+export type AvatarProvider = "weavatar" | "gravatar";
+
+/** 管理端站点设置：契约 settings 九字段。 */
 export interface AdminSettings {
   site_name: string;
   registration_enabled: boolean;
@@ -193,6 +200,8 @@ export interface AdminSettings {
   api_enabled: boolean;
   guest_group_id: number;
   default_group_id: number;
+  /** 全站头像服务商；普通用户不可选择。 */
+  avatar_provider: AvatarProvider;
 }
 
 /** listAdminImages 的过滤参数。 */

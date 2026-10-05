@@ -92,7 +92,6 @@ const columns = computed<DataTableColumns<TokenView>>(() => [
       h(
         NPopconfirm,
         {
-          to: false,
           positiveText: t("account.confirmRevoke"),
           negativeText: t("account.cancel"),
           onPositiveClick: () => revoke(row),

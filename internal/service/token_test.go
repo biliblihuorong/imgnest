@@ -21,6 +21,7 @@ func newTokenService(t *testing.T, fixture *authFixture, now *time.Time) *servic
 		t.Context(),
 		fixture.tokens,
 		fixture.users,
+		fixture.settings,
 		func() time.Time { return *now },
 	)
 	if err != nil {
@@ -491,6 +492,7 @@ func TestAuthenticatePropagatesTouchFailure(t *testing.T) {
 		t.Context(),
 		touchFailure{TokenRepository: fixture.tokens, err: want},
 		fixture.users,
+		fixture.settings,
 		func() time.Time { return now },
 	)
 	if err != nil {

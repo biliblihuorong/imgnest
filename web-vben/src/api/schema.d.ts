@@ -259,6 +259,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update the authenticated user's display name
+         * @description The user is always taken from the bearer token; the body accepts only
+         *     `display_name`. Surrounding whitespace is trimmed server-side, an
+         *     empty value clears the custom name so clients fall back to the
+         *     username, and at most 64 Unicode characters are stored. Rejected with
+         *     400 for unknown fields, control characters, or an overlong name.
+         */
+        patch: operations["updateProfile"];
+        trace?: never;
+    };
     "/api/auth/logout": {
         parameters: {
             query?: never;
@@ -394,7 +418,10 @@ export interface paths {
          *     parameter means every image regardless of album, an explicit `0`
          *     selects only unassigned images, and a positive value selects the
          *     images of that album after verifying the album belongs to the caller
-         *     (a foreign album answers 403/20003, a missing one 404/10001).
+         *     (a foreign album answers 403/20003, a missing one 404/10001). The
+         *     `keyword`, `order`, `min_size`/`max_size`, `from`/`to` and `exif`
+         *     parameters narrow the same owner-scoped page; inverted size bounds or
+         *     time windows answer 400/10001.
          */
         get: operations["listImages"];
         put?: never;
@@ -1497,6 +1524,11 @@ export interface components {
              */
             guest_group_id: number;
             default_group_id: components["schemas"]["ID"];
+            /**
+             * @description Site-wide external avatar source; defaults to weavatar.
+             * @enum {string}
+             */
+            avatar_provider: "weavatar" | "gravatar";
         };
         AdminSettingsPatch: {
             site_name?: string;
@@ -1508,6 +1540,8 @@ export interface components {
             /** Format: int64 */
             guest_group_id?: number;
             default_group_id?: components["schemas"]["ID"];
+            /** @enum {string} */
+            avatar_provider?: "weavatar" | "gravatar";
         };
         AdminUserPageEnvelope: {
             /** @enum {integer} */
@@ -1866,6 +1900,10 @@ export interface components {
             current_password: components["schemas"]["CredentialPassword"];
             new_password: components["schemas"]["Password"];
         };
+        ProfileRequest: {
+            /** @description Trimmed server-side; empty clears the custom name. */
+            display_name: string;
+        };
         CreateTokenRequest: {
             /**
              * @description Token name; it must contain a non-whitespace character.
@@ -1883,6 +1921,11 @@ export interface components {
         };
         UserView: {
             id: components["schemas"]["ID"];
+            /**
+             * @description Optional self-chosen profile name; empty means clients fall back
+             *     to the username. Plain text only; control characters are rejected.
+             */
+            display_name: string;
             group_id: components["schemas"]["ID"];
             username: string;
             /** Format: email */
@@ -1897,6 +1940,22 @@ export interface components {
              */
             used_bytes: number;
             created_at: components["schemas"]["Timestamp"];
+            /**
+             * @description Site-wide avatar source that produced avatar_url.
+             * @enum {string}
+             */
+            avatar_provider: "weavatar" | "gravatar";
+            /**
+             * @description HTTPS avatar address derived from the SHA-256 of the normalized
+             *     account email; null means clients show the local default image.
+             *     Computed server-side without contacting the avatar service.
+             */
+            avatar_url: string | null;
+            /**
+             * Format: int64
+             * @description Site avatar configuration version; clients compare it to notice provider changes.
+             */
+            avatar_config_version: number;
         };
         TokenView: {
             id: components["schemas"]["ID"];
@@ -2425,6 +2484,22 @@ export interface components {
         AlbumID: components["schemas"]["ID"];
         /** @description Absent means no album filter; 0 selects unassigned images; a positive value selects one owner-verified album. */
         ImageAlbumFilter: number;
+        /** @description Unified search needle matched case-insensitively against the file name OR the stored EXIF make/model/lens, up to 200 bytes. */
+        ImageUnifiedSearch: string;
+        /** @description Case-insensitive substring match on the stored file name (display name or stored path plus extension), up to 200 bytes. */
+        ImageKeywordFilter: string;
+        /** @description Sort for the page; the default matches the previous behavior (newest). */
+        ImageOrder: "newest" | "oldest" | "largest" | "smallest";
+        /** @description Inclusive lower bound of the stored original size in bytes; absent or 0 means unbounded. */
+        ImageMinSize: number;
+        /** @description Inclusive upper bound of the stored original size in bytes; absent or 0 means unbounded. */
+        ImageMaxSize: number;
+        /** @description Inclusive lower bound of the upload time (RFC3339). */
+        ImageFromTime: string;
+        /** @description Inclusive upper bound of the upload time (RFC3339). */
+        ImageToTime: string;
+        /** @description Case-insensitive substring match on the stored EXIF make, model or lens (only where metadata exists), up to 200 bytes. */
+        ImageExifFilter: string;
         ImagePageNumber: number;
         ImagePageSize: number;
     };
@@ -2690,6 +2765,33 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    updateProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description The refreshed user view with recomputed avatar fields. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     logout: {
         parameters: {
             query?: never;
@@ -2900,6 +3002,22 @@ export interface operations {
                 size?: components["parameters"]["ImagePageSize"];
                 /** @description Absent means no album filter; 0 selects unassigned images; a positive value selects one owner-verified album. */
                 album_id?: components["parameters"]["ImageAlbumFilter"];
+                /** @description Unified search needle matched case-insensitively against the file name OR the stored EXIF make/model/lens, up to 200 bytes. */
+                q?: components["parameters"]["ImageUnifiedSearch"];
+                /** @description Case-insensitive substring match on the stored file name (display name or stored path plus extension), up to 200 bytes. */
+                keyword?: components["parameters"]["ImageKeywordFilter"];
+                /** @description Sort for the page; the default matches the previous behavior (newest). */
+                order?: components["parameters"]["ImageOrder"];
+                /** @description Inclusive lower bound of the stored original size in bytes; absent or 0 means unbounded. */
+                min_size?: components["parameters"]["ImageMinSize"];
+                /** @description Inclusive upper bound of the stored original size in bytes; absent or 0 means unbounded. */
+                max_size?: components["parameters"]["ImageMaxSize"];
+                /** @description Inclusive lower bound of the upload time (RFC3339). */
+                from?: components["parameters"]["ImageFromTime"];
+                /** @description Inclusive upper bound of the upload time (RFC3339). */
+                to?: components["parameters"]["ImageToTime"];
+                /** @description Case-insensitive substring match on the stored EXIF make, model or lens (only where metadata exists), up to 200 bytes. */
+                exif?: components["parameters"]["ImageExifFilter"];
             };
             header?: never;
             path?: never;
@@ -4074,7 +4192,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description All eight settings with documented defaults for unset keys. */
+            /** @description All nine settings with documented defaults for unset keys. */
             200: {
                 headers: {
                     [name: string]: unknown;

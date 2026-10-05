@@ -101,11 +101,11 @@ async function startUpload(wrapper: VueWrapper): Promise<void> {
   await flushPromises();
 }
 
-/** 按 NRadio 文本选中复制格式（native input）。 */
-async function selectRadio(actions: VueWrapper, label: string): Promise<void> {
-  const radio = actions.findAll(".n-radio").find((node) => node.text().trim() === label);
+/** 按文本选中队列头部的全局复制格式/版本分段按钮（NRadioButton，native input）。 */
+async function selectSegmented(wrapper: VueWrapper, label: string): Promise<void> {
+  const radio = wrapper.findAll(".n-radio-button").find((node) => node.text().trim() === label);
   if (!radio) {
-    throw new Error(`radio ${label} not found`);
+    throw new Error(`segmented option ${label} not found`);
   }
   await radio.find("input").setValue(true);
 }
@@ -203,11 +203,19 @@ describe("UploadView", () => {
     const actions = wrapper.findComponent(UploadResultActions);
     expect(actions.exists()).toBe(true);
 
+    // 快捷复制跟随全局默认：WebP + URL
     await findButton(actions, "复制").trigger("click");
     await flushPromises();
-    expect(writeText).toHaveBeenCalledWith(image.links.original);
+    expect(writeText).toHaveBeenCalledWith(image.links.webp);
 
-    await selectRadio(actions, "Markdown");
+    // 头部全局切换到 Markdown，行内复制立即跟随
+    await selectSegmented(wrapper, "Markdown");
+    await findButton(actions, "复制").trigger("click");
+    await flushPromises();
+    expect(writeText).toHaveBeenLastCalledWith(`![a.png](${image.links.webp})`);
+
+    // 头部全局切回原图（格式仍是 Markdown），行内复制跟随
+    await selectSegmented(wrapper, "原图");
     await findButton(actions, "复制").trigger("click");
     await flushPromises();
     expect(writeText).toHaveBeenLastCalledWith(`![a.png](${image.links.original})`);

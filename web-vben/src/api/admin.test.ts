@@ -47,6 +47,10 @@ const userFixture: AdminUserView = {
   group_id: 1,
   used_bytes: 1024,
   created_at: "2026-10-04T00:00:00Z",
+  display_name: "",
+  avatar_provider: "weavatar" as const,
+  avatar_url: null,
+  avatar_config_version: 0,
 };
 
 const groupFixture: GroupView = {
@@ -105,6 +109,7 @@ const settingsFixture: AdminSettings = {
   api_enabled: true,
   guest_group_id: 2,
   default_group_id: 1,
+  avatar_provider: "weavatar" as const,
 };
 
 const JSON_HEADERS = { "Content-Type": "application/json" };

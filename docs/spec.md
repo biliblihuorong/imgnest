@@ -283,7 +283,7 @@ CDN 缓存不在本程序处理范围内。
 
 | 分组 | 接口 | 权限 |
 | --- | --- | --- |
-| 认证 | `POST /api/auth/login`、`POST /api/auth/register`、`POST /api/auth/logout`、`GET /api/auth/me` | 公开 / 登录 |
+| 认证 | `POST /api/auth/login`、`POST /api/auth/register`、`POST /api/auth/logout`、`GET /api/auth/me`、`PATCH /api/auth/profile` | 公开 / 登录 |
 | 上传 | `POST /api/upload`（可一次多文件） | 登录或游客 |
 | 图片 | `GET /api/images`、`PATCH /api/images/{id}`、`POST /api/images/batch`（删除/移动/改权限） | 本人 |
 | EXIF | `GET /api/images/{id}/exif`（含 GPS 与全量 `raw`） | 本人 / 管理员 |
@@ -300,6 +300,13 @@ CDN 缓存不在本程序处理范围内。
 - HTTP 状态码同时语义化（400/401/403/404/413/429/500），蓝空接口除外（蓝空客户端只看 `status`）。
 - 时间一律 RFC 3339；ID 对外用图片 `key`，不暴露自增 ID 给公开接口。
 - 接口文档用 OpenAPI 3 描述，放 `docs/openapi.yaml`，前端类型由它生成。
+
+### 7.3 个人资料与站点头像
+
+- `UserView` 在安全字段之外带 `display_name`（可选显示名，空串回退 `username`，trim 后 ≤64 字符、拒绝控制字符、纯文本）与 `avatar_provider`（只允许 `weavatar`/`gravatar`）、`avatar_url`（服务端按邮箱 SHA-256 计算的 HTTPS 地址，`d=404`，不含邮箱原文；邮箱缺失时为 null）、`avatar_config_version`（配置版本）。`GET /api/auth/me`、登录、注册与管理端用户视图保持一致；URL 计算只做规范化与哈希，核心接口不等待外部头像服务。
+- `PATCH /api/auth/profile` 只接受 `display_name`，身份取自 bearer token；请求解码拒绝未知字段，角色、邮箱、组别没有自助修改入口。
+- 站点头像服务商是 `settings` 表的 `avatar_provider` 键，默认 `weavatar`，经 `GET/PUT /api/admin/settings` 管理；损坏或未知值安全回退默认，不连接未知域名。
+- 头像匹配对邮箱仅做「trim + 小写 + SHA-256」，不删除加号后缀与点号；浏览器侧 `referrerpolicy=no-referrer`，加载失败或超时（5 秒）回退本地默认头像，不循环重试；外部头像服务故障不影响登录与 `/api/auth/me`。蓝空兼容 `/api/v1/profile` 的 `avatar` 字段维持空串语义不变。
 
 ## 8. 工程规范
 

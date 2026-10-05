@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from "@vben/locales";
 import { NButton, NImage, NPopconfirm, NTag } from "naive-ui";
+import { useRouter } from "vue-router";
 import type { AlbumView } from "@/api/albums";
 import { formatDateTime } from "@/components/images/time";
 import { useProtectedThumbnail } from "@/components/images/useProtectedThumbnail";
@@ -8,12 +9,18 @@ import { useProtectedThumbnail } from "@/components/images/useProtectedThumbnail
 const props = defineProps<{ album: AlbumView; busy?: boolean }>();
 const emit = defineEmits<{ edit: []; remove: [] }>();
 const { t } = useI18n();
+const router = useRouter();
 const { thumbnailUrl, failed } = useProtectedThumbnail(() => props.album.cover_thumb_url);
+
+/** 点封面/名称进入相册详情（与「我的图片」共用同一套图片库）。 */
+function openDetail(): void {
+  void router.push({ name: "album-detail", params: { id: String(props.album.id) }, query: { name: props.album.name } });
+}
 </script>
 
 <template>
   <article class="album-card rounded-lg border border-border bg-card">
-    <div class="album-card__cover bg-muted">
+    <div class="album-card__cover bg-muted" role="button" tabindex="0" :aria-label="album.name" @click="openDetail" @keydown.enter.prevent="openDetail">
       <NImage
         v-if="thumbnailUrl && !failed"
         :src="thumbnailUrl"
@@ -44,7 +51,7 @@ const { thumbnailUrl, failed } = useProtectedThumbnail(() => props.album.cover_t
       </div>
     </div>
     <div class="album-card__body">
-      <div class="album-card__name" :title="album.name">{{ album.name }}</div>
+      <div class="album-card__name" :title="album.name" role="button" tabindex="0" @click="openDetail" @keydown.enter.prevent="openDetail">{{ album.name }}</div>
       <div class="album-card__meta text-muted-foreground">
         <NTag size="small" :bordered="false" :type="album.is_public ? 'success' : 'default'">
           {{ t(album.is_public ? "albums.public" : "albums.private") }}
@@ -90,6 +97,7 @@ const { thumbnailUrl, failed } = useProtectedThumbnail(() => props.album.cover_t
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  cursor: pointer;
 }
 .album-card__cover :deep(.n-image),
 .album-card__cover :deep(.n-image img) {
@@ -115,6 +123,7 @@ const { thumbnailUrl, failed } = useProtectedThumbnail(() => props.album.cover_t
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
 }
 .album-card__meta {
   display: flex;

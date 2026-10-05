@@ -78,6 +78,11 @@ func (s *ProvisionService) CreateStorage(ctx context.Context, input StorageInput
 		return StorageView{}, err
 	}
 	name := strings.TrimSpace(input.Name)
+	// The OpenAPI contract declares config optional; an omitted object is an
+	// empty one, and the driver decides whether its keys are required.
+	if len(input.Config) == 0 {
+		input.Config = json.RawMessage("{}")
+	}
 	base, err := url.Parse(input.BaseURL)
 	if name == "" || utf8.RuneCountInString(name) > 64 || !utf8.ValidString(name) || err != nil || base.Host == "" || (base.Scheme != "http" && base.Scheme != "https") || base.User != nil || base.RawQuery != "" || base.Fragment != "" || !json.Valid(input.Config) || len(input.Config) > 64<<10 {
 		return StorageView{}, ErrInvalidInput

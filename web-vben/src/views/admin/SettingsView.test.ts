@@ -39,6 +39,7 @@ const settingsFixture: AdminSettings = {
   trash_days: 7,
   guest_group_id: 3,
   default_group_id: 1,
+  avatar_provider: "weavatar",
 };
 
 function makeGroup(overrides: Partial<GroupView> = {}): GroupView {
@@ -74,7 +75,7 @@ beforeEach(() => {
 });
 
 describe("SettingsView", () => {
-  it("加载后八字段填充表单，组选项含「未设置（0）」", async () => {
+  it("加载后九字段填充表单，组选项含「未设置（0）」", async () => {
     const wrapper = await mountView();
 
     expect(adminApiMock.getSettings).toHaveBeenCalledTimes(1);
@@ -87,16 +88,22 @@ describe("SettingsView", () => {
 
     expect(wrapper.findComponent(NInputNumber).props("value")).toBe(7);
 
+    // 下拉顺序：游客组 / 默认组 / 头像服务商
     const selects = wrapper.findAllComponents(NSelect);
-    expect(selects.map((item) => item.props("value"))).toEqual([3, 1]);
-    for (const select of selects) {
+    expect(selects.map((item) => item.props("value"))).toEqual([3, 1, "weavatar"]);
+    for (const select of selects.slice(0, 2)) {
       expect(select.props("options")).toEqual(
         expect.arrayContaining([expect.objectContaining({ label: "未设置（0）", value: 0 })]),
       );
     }
+    // 头像服务商固定两项，不提供自由输入或更多供应商。
+    expect(selects[2].props("options")).toEqual([
+      { label: "WeAvatar（默认）", value: "weavatar" },
+      { label: "Gravatar", value: "gravatar" },
+    ]);
   });
 
-  it("保存时调用 putSettings 传全量八字段，成功后回读刷新", async () => {
+  it("保存时调用 putSettings 传全量九字段，成功后回读刷新", async () => {
     // 初次加载返回旧值，保存成功后的回读返回已更新的值（模拟服务端已持久化）
     adminApiMock.getSettings
       .mockResolvedValueOnce({ ...settingsFixture })
@@ -123,6 +130,7 @@ describe("SettingsView", () => {
       trash_days: 7,
       guest_group_id: 3,
       default_group_id: 1,
+      avatar_provider: "weavatar",
     });
     expect(adminApiMock.getSettings).toHaveBeenCalledTimes(2);
     expect(document.body.textContent).toContain("站点设置已保存");

@@ -1,6 +1,22 @@
 {
   "title": "Tokens & security",
-  "description": "Manage API credentials, browser sessions, and your account password.",
+  "description": "Manage API credentials and browser sessions; change your password and profile under Account settings.",
+  "settingsTitle": "Account settings",
+  "profileNav": "Account settings",
+  "profile": {
+    "description": "Review account details, change your display name and password.",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "Leave empty to show your username",
+    "displayNameHint": "Up to 64 characters; empty shows your username.",
+    "tooLong": "Display name must be at most 64 characters",
+    "username": "Username",
+    "email": "Email",
+    "avatarAlt": "Current avatar",
+    "avatarNote": "Your avatar comes from the site-wide avatar service matched by account email; the local default is shown when it is missing or fails to load. Your raw email address is never sent to the avatar service.",
+    "save": "Save profile",
+    "saved": "Profile updated",
+    "error": "Unable to save your profile. Try again later."
+  },
   "refresh": "Refresh tokens",
   "retry": "Retry",
   "createTitle": "Create API token",

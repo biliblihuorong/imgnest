@@ -28,6 +28,9 @@ type UserService interface {
 	Register(context.Context, service.RegisterInput) (service.UserView, error)
 	VerifyCredentials(context.Context, string, string) (service.VerifiedCredentials, error)
 	ChangePassword(context.Context, uint64, string, string) error
+	// UpdateDisplayName saves the authenticated user's optional profile name;
+	// the identity always comes from the bearer token, never the body.
+	UpdateDisplayName(context.Context, uint64, string) (service.UserView, error)
 	Site(context.Context) (service.SiteView, error)
 }
 
@@ -77,6 +80,7 @@ func (h *Handler) RegisterRoutes(ctx context.Context, router gin.IRouter) error 
 	router.GET("/api/auth/captcha", h.publicCaptcha)
 	protected := router.Group("/api", h.authenticate)
 	protected.GET("/auth/me", h.me)
+	protected.PATCH("/auth/profile", h.profile)
 	protected.POST("/auth/logout", h.logout)
 	protected.PATCH("/auth/password", h.password)
 	protected.GET("/tokens", h.listTokens)
@@ -188,6 +192,22 @@ func (h *Handler) login(c *gin.Context) {
 	respond(c, 200, gin.H{"token": issued.Token, "user": user.User, "expires_at": issued.Info.ExpiresAt})
 }
 func (h *Handler) me(c *gin.Context) { respond(c, 200, identity(c).User) }
+func (h *Handler) profile(c *gin.Context) {
+	// Only display_name has a request shape; unknown fields are rejected by
+	// the decoder, so user_id, role, group, or email cannot be smuggled in.
+	var in struct {
+		DisplayName string `json:"display_name"`
+	}
+	if !decode(c, &in) {
+		return
+	}
+	user, err := h.users.UpdateDisplayName(c.Request.Context(), identity(c).User.ID, in.DisplayName)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	respond(c, 200, user)
+}
 func (h *Handler) logout(c *gin.Context) {
 	id := identity(c)
 	if err := h.tokens.Revoke(c.Request.Context(), id.User.ID, id.TokenID); err != nil {

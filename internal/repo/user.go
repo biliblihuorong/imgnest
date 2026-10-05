@@ -78,6 +78,31 @@ func (r *UserRepository) BootstrapAdmin(ctx context.Context, user model.User) (m
 	return user, nil
 }
 
+// UpdateDisplayName replaces the optional profile name and returns the
+// refreshed account; an empty value clears the custom display name.
+func (r *UserRepository) UpdateDisplayName(
+	ctx context.Context,
+	userID uint64,
+	displayName string,
+) (model.User, error) {
+	if err := checkRecordID(ctx, userID); err != nil {
+		return model.User{}, fmt.Errorf("update display name: %w", err)
+	}
+	var user model.User
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", userID).
+			Update("display_name", displayName).Error; err != nil {
+			return err
+		}
+		return tx.First(&user, "id = ?", userID).Error
+	})
+	if err != nil {
+		return model.User{}, repositoryError("update display name", err)
+	}
+	return user, nil
+}
+
 // UpdatePasswordAndRevokeTokens replaces an enabled user's credential only when
 // expectedHash still matches, revoking all tokens in the same transaction.
 func (r *UserRepository) UpdatePasswordAndRevokeTokens(

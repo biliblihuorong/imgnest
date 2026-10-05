@@ -31,7 +31,8 @@ const canSubmit = computed(
   () => captchaReady.value && email.value.trim().length > 0 && password.value.length > 0,
 );
 
-void site.ensureLoaded();
+// 登录/注册入口每次都强制刷新站点配置，后台切换注册开关后无需整页刷新。
+void site.refresh();
 onBeforeUnmount(() => {
   disposed = true;
   submission?.abort();
@@ -114,6 +115,10 @@ async function onSubmit(): Promise<void> {
         {{ t("common.login") }}
       </NButton>
     </NForm>
+    <p v-if="site.registerEnabled" class="login-footer">
+      {{ t("common.auth.toRegisterHint") }}
+      <RouterLink to="/register">{{ t("common.auth.toRegister") }}</RouterLink>
+    </p>
   </main>
 </template>
 

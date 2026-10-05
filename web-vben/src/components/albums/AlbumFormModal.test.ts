@@ -166,7 +166,7 @@ describe("AlbumFormModal", () => {
       ],
       total: 2,
       page: 1,
-      size: 12,
+      size: 24,
     });
     createAlbumMock.mockResolvedValue(makeAlbum({ id: 1 }));
     const wrapper = mountModal();
@@ -174,7 +174,7 @@ describe("AlbumFormModal", () => {
     await bodyButton("从我的图片选择").click();
     await flushPromises();
 
-    expect(listImagesMock).toHaveBeenCalledWith({ page: 1, size: 12 });
+    expect(listImagesMock).toHaveBeenCalledWith({ page: 1, size: 24 });
     const items = document.body.querySelectorAll(".album-form__picker-item");
     expect(items).toHaveLength(2);
 
@@ -197,7 +197,7 @@ describe("AlbumFormModal", () => {
       items: [makeImage({ id: 7, name: "a.png", local_thumb_url: "/t/a.webp" })],
       total: 1,
       page: 1,
-      size: 12,
+      size: 24,
     });
     createAlbumMock.mockResolvedValue(makeAlbum({ id: 1 }));
     const wrapper = mountModal();
@@ -312,7 +312,7 @@ describe("AlbumFormModal", () => {
       items: [makeImage({ id: 2, name: "Current choice" })],
       total: 1,
       page: 1,
-      size: 12,
+      size: 24,
     });
     bodyButton("从我的图片选择").click();
     await flushPromises();
@@ -320,7 +320,7 @@ describe("AlbumFormModal", () => {
       items: [makeImage({ id: 1, name: "Stale choice" })],
       total: 1,
       page: 1,
-      size: 12,
+      size: 24,
     });
     await flushPromises();
     expect(document.body.querySelector(".album-form__picker-item")?.getAttribute("title")).toBe(
@@ -336,7 +336,7 @@ describe("AlbumFormModal", () => {
       ],
       total: 1,
       page: 1,
-      size: 12,
+      size: 24,
     });
     mountModal();
     bodyButton("从我的图片选择").click();

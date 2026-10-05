@@ -245,6 +245,9 @@ func (f *adminSettingsFake) UpdateSettings(_ context.Context, values map[string]
 	f.written = append(f.written, values)
 	return nil
 }
+func (f *adminSettingsFake) AvatarConfig(context.Context) (model.AvatarConfig, error) {
+	return model.AvatarConfig{Provider: model.DefaultAvatarProvider}, nil
+}
 
 type adminCodecFake struct {
 	drivers []string
@@ -906,7 +909,7 @@ func TestAdminSettingsDefaultsAndRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	expected := AdminSettingsView{
-		SiteName: DefaultSiteName, TrashDays: 7, APIEnabled: true,
+		SiteName: DefaultSiteName, TrashDays: 7, APIEnabled: true, AvatarProvider: model.DefaultAvatarProvider,
 	}
 	if view != expected {
 		t.Fatalf("defaults view=%+v want %+v", view, expected)

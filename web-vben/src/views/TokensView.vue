@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
-import { NButton, NCard } from "naive-ui";
+import { NButton } from "naive-ui";
 import { computed, onMounted, shallowRef } from "vue";
 import { listTokens, type TokenView } from "@/api/tokens";
-import ChangePasswordCard from "@/components/account/ChangePasswordCard.vue";
 import CreateTokenCard from "@/components/account/CreateTokenCard.vue";
 import TokenListCard from "@/components/account/TokenListCard.vue";
 import TokenIntegrationHelp from "@/components/account/TokenIntegrationHelp.vue";
@@ -68,10 +67,6 @@ onMounted(() => {
       <CreateTokenCard @saved="loadTokens" />
       <TokenListCard :tokens="tokens" :loading="loading" :error="errorText" @refresh="loadTokens" />
       <TokenIntegrationHelp />
-      <NCard :title="t('account.securityTitle')" :bordered="false">
-        <p class="tokens-view__security-hint">{{ t("account.securityHint") }}</p>
-        <ChangePasswordCard />
-      </NCard>
     </div>
   </Page>
 </template>
@@ -88,10 +83,5 @@ onMounted(() => {
 }
 .tokens-view__content > * {
   min-width: 0;
-}
-.tokens-view__security-hint {
-  margin: 0 0 20px;
-  color: hsl(var(--muted-foreground));
-  font-size: 13px;
 }
 </style>

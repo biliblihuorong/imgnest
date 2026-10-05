@@ -19,6 +19,10 @@ const admin: UserView = {
   group_id: 1,
   used_bytes: 0,
   created_at: "2026-10-05T00:00:00Z",
+  display_name: "",
+  avatar_provider: "weavatar",
+  avatar_url: "https://weavatar.com/avatar/abc?s=160&d=404",
+  avatar_config_version: 0,
 };
 let stop: (() => void) | undefined;
 beforeEach(() => localStorage.clear());

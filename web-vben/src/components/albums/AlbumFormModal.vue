@@ -177,7 +177,7 @@ async function submit(): Promise<void> {
               ? t("albums.coverImage", { id: model.cover_image_id })
               : t("albums.coverUnset")
           }}</span>
-          <NButton size="small" :disabled="saving" @click="pickerShow = !pickerShow">{{
+          <NButton size="small" :disabled="saving" @click="pickerShow = true">{{
             t("albums.chooseCover")
           }}</NButton>
           <NButton
@@ -194,7 +194,10 @@ async function submit(): Promise<void> {
         v-if="pickerShow && show"
         :selected="model.cover_image_id"
         :disabled="saving"
-        @select="model.cover_image_id = $event"
+        @select="
+          model.cover_image_id = $event;
+          pickerShow = false;
+        "
       />
     </NForm>
     <template #footer>

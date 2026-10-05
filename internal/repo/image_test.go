@@ -153,7 +153,7 @@ func TestImageReservationCommitAndCleanup(t *testing.T) {
 		if err != nil || byID.Key != image.Key {
 			t.Fatalf("numeric lookup failed: %v", err)
 		}
-		listed, total, err := f.images.List(t.Context(), f.user.ID, false, false, 1, 10, nil)
+		listed, total, err := f.images.List(t.Context(), model.ImageListFilter{UserID: f.user.ID}, 1, 10)
 		if err != nil || total != 1 || len(listed) != 1 {
 			t.Fatalf("active page count=%d total=%d error=%v", len(listed), total, err)
 		}

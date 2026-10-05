@@ -16,14 +16,6 @@ vi.mock("@/api/tokens", () => ({
   revokeToken: vi.fn(),
 }));
 
-vi.mock("@/api/auth", () => ({
-  login: vi.fn(),
-  register: vi.fn(),
-  logout: vi.fn(),
-  me: vi.fn(),
-  changePassword: vi.fn(),
-}));
-
 const tokensApiMock = vi.mocked(tokensApi);
 
 const webToken: TokenView = {
@@ -269,13 +261,15 @@ describe("TokensView", () => {
     await revokeButton?.trigger("click");
     await flushPromises();
 
-    // 仅弹出确认框，尚未调用 DELETE
+    // 仅弹出确认框（teleport 到 body），尚未调用 DELETE
     expect(tokensApiMock.revokeToken).not.toHaveBeenCalled();
-    expect(wrapper.text()).toContain("吊销后该 Token 立即失效");
+    expect(document.body.textContent).toContain("吊销后该 Token 立即失效");
 
-    const confirmButton = wrapper.findAll("button").find((button) => button.text() === "确认吊销");
+    const confirmButton = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "确认吊销",
+    );
     expect(confirmButton).toBeTruthy();
-    await confirmButton?.trigger("click");
+    confirmButton!.click();
     await flushPromises();
 
     expect(tokensApiMock.revokeToken).toHaveBeenCalledWith(apiToken.id);
@@ -368,16 +362,18 @@ describe("TokensView", () => {
     const open = () => wrapper.findAll("button").find((button) => button.text() === "吊销")!;
     await open().trigger("click");
     await flushPromises();
-    await wrapper
-      .findAll("button")
-      .find((button) => button.text() === "取消")!
-      .trigger("click");
+    const cancel = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "取消",
+    )!;
+    await cancel.click();
     await flushPromises();
     expect(tokensApiMock.revokeToken).not.toHaveBeenCalled();
     await open().trigger("click");
     await flushPromises();
-    const confirm = wrapper.findAll("button").find((button) => button.text() === "确认吊销")!;
-    await Promise.all([confirm.trigger("click"), confirm.trigger("click")]);
+    const confirm = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "确认吊销",
+    )!;
+    await Promise.all([confirm.click(), confirm.click()]);
     await flushPromises();
     expect(tokensApiMock.revokeToken).toHaveBeenCalledTimes(1);
     complete(null);

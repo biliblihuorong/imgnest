@@ -86,7 +86,7 @@ func newV1Fixture(t *testing.T, driver string) *v1Fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens, err := service.NewTokenService(ctx, tokenRepo, userRepo, func() time.Time { return fixedNow })
+	tokens, err := service.NewTokenService(ctx, tokenRepo, userRepo, settingsRepo, func() time.Time { return fixedNow })
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -13,7 +13,10 @@ const (
 
 // User stores account credentials and authorization attributes.
 type User struct {
-	ID           uint64 `gorm:"primaryKey"`
+	ID uint64 `gorm:"primaryKey"`
+	// DisplayName is the optional self-chosen profile name; an empty value
+	// means clients fall back to the username.
+	DisplayName  string
 	GroupID      uint64
 	Username     string
 	Email        string

@@ -101,6 +101,9 @@
     "editSecretHint": "该存储为 S3 存储，密钥创建后不可查看、也不在此回显；如需更换凭证，请删除后重新创建。",
     "namePlaceholder": "例如：main",
     "urlPlaceholder": "例如：https://cdn.example.com",
+    "root": "存储路径",
+    "rootPlaceholder": "例如：data/images",
+    "rootRequired": "请输入存储路径",
     "endpointPlaceholder": "例如：https://s3.us-east-1.amazonaws.com",
     "regionPlaceholder": "例如：us-east-1（部分实现可留空）",
     "bucketPlaceholder": "例如：imgnest",
@@ -209,7 +212,11 @@
     "guestGroupHint": "游客上传使用该组的容量、限流与策略；0 表示未设置。",
     "defaultGroup": "默认用户组",
     "defaultGroupPlaceholder": "选择默认用户组",
-    "defaultGroupHint": "新注册用户默认加入该组；0 表示未设置。"
+    "defaultGroupHint": "新注册用户默认加入该组；0 表示未设置。",
+    "avatarProvider": "头像服务",
+    "avatarProviderHint": "全站用户头像的来源；WeAvatar 为默认，可切换为 Gravatar。普通用户不能更改。",
+    "avatarWeavatar": "WeAvatar（默认）",
+    "avatarGravatar": "Gravatar"
   },
   "images": {
     "title": "全站图片",

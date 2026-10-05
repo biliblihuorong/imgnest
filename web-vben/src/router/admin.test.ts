@@ -54,6 +54,10 @@ const adminUser: UserView = {
   email: "root@imgnest.local",
   role: "admin",
   status: "enabled",
+  display_name: "",
+  avatar_provider: "weavatar" as const,
+  avatar_url: null,
+  avatar_config_version: 0,
   used_bytes: 0,
   created_at: "2026-10-04T00:00:00Z",
 };

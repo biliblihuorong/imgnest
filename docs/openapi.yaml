@@ -327,6 +327,38 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/auth/profile:
+    patch:
+      operationId: updateProfile
+      tags: [Authentication]
+      summary: Update the authenticated user's display name
+      description: |
+        The user is always taken from the bearer token; the body accepts only
+        `display_name`. Surrounding whitespace is trimmed server-side, an
+        empty value clears the custom name so clients fall back to the
+        username, and at most 64 Unicode characters are stored. Rejected with
+        400 for unknown fields, control characters, or an overlong name.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileRequest'
+      responses:
+        '200':
+          description: The refreshed user view with recomputed avatar fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/auth/logout:
     post:
       operationId: logout
@@ -554,12 +586,23 @@ paths:
         parameter means every image regardless of album, an explicit `0`
         selects only unassigned images, and a positive value selects the
         images of that album after verifying the album belongs to the caller
-        (a foreign album answers 403/20003, a missing one 404/10001).
+        (a foreign album answers 403/20003, a missing one 404/10001). The
+        `keyword`, `order`, `min_size`/`max_size`, `from`/`to` and `exif`
+        parameters narrow the same owner-scoped page; inverted size bounds or
+        time windows answer 400/10001.
       security: [{bearerAuth: []}]
       parameters:
         - $ref: '#/components/parameters/ImagePageNumber'
         - $ref: '#/components/parameters/ImagePageSize'
         - $ref: '#/components/parameters/ImageAlbumFilter'
+        - $ref: '#/components/parameters/ImageUnifiedSearch'
+        - $ref: '#/components/parameters/ImageKeywordFilter'
+        - $ref: '#/components/parameters/ImageOrder'
+        - $ref: '#/components/parameters/ImageMinSize'
+        - $ref: '#/components/parameters/ImageMaxSize'
+        - $ref: '#/components/parameters/ImageFromTime'
+        - $ref: '#/components/parameters/ImageToTime'
+        - $ref: '#/components/parameters/ImageExifFilter'
       responses:
         '200':
           description: Image page without EXIF, source IP, or storage credentials.
@@ -1641,7 +1684,7 @@ paths:
       security: [{bearerAuth: []}]
       responses:
         '200':
-          description: All eight settings with documented defaults for unset keys.
+          description: All nine settings with documented defaults for unset keys.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AdminSettingsEnvelope'}
@@ -1800,6 +1843,46 @@ components:
       in: query
       description: Absent means no album filter; 0 selects unassigned images; a positive value selects one owner-verified album.
       schema: {type: integer, format: int64, minimum: 0}
+    ImageUnifiedSearch:
+      name: q
+      in: query
+      description: Unified search needle matched case-insensitively against the file name OR the stored EXIF make/model/lens, up to 200 bytes.
+      schema: {type: string, maxLength: 200}
+    ImageKeywordFilter:
+      name: keyword
+      in: query
+      description: Case-insensitive substring match on the stored file name (display name or stored path plus extension), up to 200 bytes.
+      schema: {type: string, maxLength: 200}
+    ImageOrder:
+      name: order
+      in: query
+      description: Sort for the page; the default matches the previous behavior (newest).
+      schema: {type: string, enum: [newest, oldest, largest, smallest], default: newest}
+    ImageMinSize:
+      name: min_size
+      in: query
+      description: Inclusive lower bound of the stored original size in bytes; absent or 0 means unbounded.
+      schema: {type: integer, format: int64, minimum: 0}
+    ImageMaxSize:
+      name: max_size
+      in: query
+      description: Inclusive upper bound of the stored original size in bytes; absent or 0 means unbounded.
+      schema: {type: integer, format: int64, minimum: 0}
+    ImageFromTime:
+      name: from
+      in: query
+      description: Inclusive lower bound of the upload time (RFC3339).
+      schema: {type: string, format: date-time}
+    ImageToTime:
+      name: to
+      in: query
+      description: Inclusive upper bound of the upload time (RFC3339).
+      schema: {type: string, format: date-time}
+    ImageExifFilter:
+      name: exif
+      in: query
+      description: Case-insensitive substring match on the stored EXIF make, model or lens (only where metadata exists), up to 200 bytes.
+      schema: {type: string, maxLength: 200}
     ImagePageNumber:
       name: page
       in: query
@@ -2148,7 +2231,7 @@ components:
     AdminSettings:
       type: object
       additionalProperties: false
-      required: [site_name, registration_enabled, guest_upload_enabled, gallery_enabled, trash_days, api_enabled, guest_group_id, default_group_id]
+      required: [site_name, registration_enabled, guest_upload_enabled, gallery_enabled, trash_days, api_enabled, guest_group_id, default_group_id, avatar_provider]
       properties:
         site_name: {type: string, minLength: 1, maxLength: 100}
         registration_enabled: {type: boolean}
@@ -2158,6 +2241,10 @@ components:
         api_enabled: {type: boolean, description: Master switch of the Lsky-compatible /api/v1 layer.}
         guest_group_id: {type: integer, format: int64, minimum: 0, description: Zero selects the is_guest group.}
         default_group_id: {$ref: '#/components/schemas/ID'}
+        avatar_provider:
+          type: string
+          enum: [weavatar, gravatar]
+          description: Site-wide external avatar source; defaults to weavatar.
     AdminSettingsPatch:
       type: object
       additionalProperties: false
@@ -2171,6 +2258,7 @@ components:
         api_enabled: {type: boolean}
         guest_group_id: {type: integer, format: int64, minimum: 0}
         default_group_id: {$ref: '#/components/schemas/ID'}
+        avatar_provider: {type: string, enum: [weavatar, gravatar]}
     AdminUserPageEnvelope:
       type: object
       additionalProperties: false
@@ -2581,6 +2669,15 @@ components:
           $ref: '#/components/schemas/CredentialPassword'
         new_password:
           $ref: '#/components/schemas/Password'
+    ProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [display_name]
+      properties:
+        display_name:
+          type: string
+          maxLength: 64
+          description: Trimmed server-side; empty clears the custom name.
     CreateTokenRequest:
       type: object
       additionalProperties: false
@@ -2603,10 +2700,16 @@ components:
     UserView:
       type: object
       additionalProperties: false
-      required: [id, group_id, username, email, role, status, used_bytes, created_at]
+      required: [id, display_name, group_id, username, email, role, status, used_bytes, created_at, avatar_provider, avatar_url, avatar_config_version]
       properties:
         id:
           $ref: '#/components/schemas/ID'
+        display_name:
+          type: string
+          maxLength: 64
+          description: |
+            Optional self-chosen profile name; empty means clients fall back
+            to the username. Plain text only; control characters are rejected.
         group_id:
           $ref: '#/components/schemas/ID'
         username:
@@ -2629,6 +2732,22 @@ components:
           description: Storage usage in bytes.
         created_at:
           $ref: '#/components/schemas/Timestamp'
+        avatar_provider:
+          type: string
+          enum: [weavatar, gravatar]
+          description: Site-wide avatar source that produced avatar_url.
+        avatar_url:
+          type: string
+          nullable: true
+          description: |
+            HTTPS avatar address derived from the SHA-256 of the normalized
+            account email; null means clients show the local default image.
+            Computed server-side without contacting the avatar service.
+        avatar_config_version:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Site avatar configuration version; clients compare it to notice provider changes.
     TokenView:
       type: object
       additionalProperties: false

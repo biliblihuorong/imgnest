@@ -235,6 +235,7 @@ const form = reactive({
   name: "",
   driver: "local" as StorageDriver,
   base_url: "",
+  root: "data/images",
   endpoint: "",
   region: "",
   bucket: "",
@@ -247,6 +248,7 @@ function resetForm(): void {
   form.name = "";
   form.driver = "local";
   form.base_url = "";
+  form.root = "data/images";
   form.endpoint = "";
   form.region = "";
   form.bucket = "";
@@ -297,22 +299,41 @@ function requiredIfS3(key: string): FormItemRule {
   };
 }
 
+/** 仅在 driver=local 时必填：local 驱动要求显式存储路径。 */
+function requiredIfLocal(key: string): FormItemRule {
+  return {
+    required: true,
+    trigger: ["blur", "input"],
+    renderMessage: () => t(key),
+    validator: (_rule: FormItemRule, value: string): boolean | Error => {
+      if (form.driver !== "local") {
+        return true;
+      }
+      return typeof value === "string" && value.trim().length > 0 ? true : new Error(t(key));
+    },
+  };
+}
+
 const rules = computed<FormRules>(() => ({
   name: [requiredRule("admin.storages.nameRequired")],
   base_url: [requiredRule("admin.storages.baseUrlRequired")],
+  root: [requiredIfLocal("admin.storages.rootRequired")],
   endpoint: [requiredIfS3("admin.storages.endpointRequired")],
   bucket: [requiredIfS3("admin.storages.bucketRequired")],
   accessKeyId: [requiredIfS3("admin.storages.accessKeyRequired")],
   secretAccessKey: [requiredIfS3("admin.storages.secretKeyRequired")],
 }));
 
-/** 组装创建请求体：config 仅在 s3 驱动下提交；local 不携带 config。 */
+/** 组装创建请求体：local 携带存储路径，S3 携带加密前的凭证配置。 */
 function buildCreateBody(): StorageInput {
   const body: StorageInput = {
     name: form.name.trim(),
     driver: form.driver,
     base_url: form.base_url.trim(),
   };
+  if (form.driver === "local") {
+    body.config = { root: form.root.trim() };
+  }
   if (form.driver === "s3") {
     body.config = {
       endpoint: form.endpoint.trim(),
@@ -448,6 +469,17 @@ function closeTestResult(show: boolean): void {
           <NInput
             v-model:value="form.base_url"
             :placeholder="t('admin.storages.urlPlaceholder')"
+            :disabled="submitting"
+          />
+        </NFormItem>
+        <NFormItem
+          v-if="formMode === 'create' && form.driver === 'local'"
+          :label="t('admin.storages.root')"
+          path="root"
+        >
+          <NInput
+            v-model:value="form.root"
+            :placeholder="t('admin.storages.rootPlaceholder')"
             :disabled="submitting"
           />
         </NFormItem>

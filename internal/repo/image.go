@@ -313,38 +313,104 @@ func (r *ImageRepository) FindExif(ctx context.Context, key string) (model.Image
 
 // List pages active or trashed records and excludes pending uploads. The
 // album filter distinguishes absence (no filter), zero (unassigned, meaning
-// a NULL or zero album reference) and a positive album ID.
-func (r *ImageRepository) List(ctx context.Context, userID uint64, admin, trash bool, page, size int, albumID *uint64) ([]model.Image, int64, error) {
+// a NULL or zero album reference) and a positive album ID. The remaining
+// filter fields mirror the native query surface: keyword on file name,
+// explicit ordering, byte-size bounds, an upload-time window and an EXIF
+// make/model/lens match.
+func (r *ImageRepository) List(ctx context.Context, filter model.ImageListFilter, page, size int) ([]model.Image, int64, error) {
 	if page < 1 || size < 1 || size > 200 {
 		return nil, 0, fmt.Errorf("list images: %w", model.ErrInvalidInput)
 	}
 	if page-1 > math.MaxInt/size {
 		return nil, 0, fmt.Errorf("list images: %w", model.ErrInvalidInput)
 	}
+	if filter.MinSize < 0 || filter.MaxSize < 0 || (filter.MinSize > 0 && filter.MaxSize > 0 && filter.MinSize > filter.MaxSize) {
+		return nil, 0, fmt.Errorf("list images: %w", model.ErrInvalidInput)
+	}
+	if filter.From != nil && filter.To != nil && filter.From.After(*filter.To) {
+		return nil, 0, fmt.Errorf("list images: %w", model.ErrInvalidInput)
+	}
 	state := model.ImageStateActive
-	if trash {
+	if filter.Trash {
 		state = model.ImageStateTrash
 	}
 	query := r.db.WithContext(ctx).Model(&model.Image{}).Where("state = ?", state)
-	if !admin {
-		query = query.Where("user_id = ?", userID)
+	if !filter.Admin {
+		query = query.Where("user_id = ?", filter.UserID)
 	}
-	if albumID != nil {
-		if *albumID == 0 {
+	if filter.AlbumID != nil {
+		if *filter.AlbumID == 0 {
 			query = query.Where("album_id IS NULL OR album_id = 0")
 		} else {
-			query = query.Where("album_id = ?", *albumID)
+			query = query.Where("album_id = ?", *filter.AlbumID)
 		}
+	}
+	if filter.Keyword != "" {
+		pattern := "%" + escapeLike(filter.Keyword) + "%"
+		// LOWER on both sides keeps the match case-insensitive on PostgreSQL,
+		// where LIKE is case-sensitive unlike SQLite.
+		query = query.Where(
+			"(LOWER(origin_name) LIKE LOWER(?) ESCAPE '\\' OR LOWER(path || '.' || ext) LIKE LOWER(?) ESCAPE '\\')",
+			pattern, pattern,
+		)
+	}
+	if filter.Q != "" {
+		// Unified search: one needle across file names and camera metadata (OR).
+		pattern := "%" + escapeLike(filter.Q) + "%"
+		query = query.Where(
+			"(LOWER(origin_name) LIKE LOWER(?) ESCAPE '\\' OR LOWER(path || '.' || ext) LIKE LOWER(?) ESCAPE '\\'"+
+				" OR EXISTS (SELECT 1 FROM image_exif WHERE image_exif.image_id = images.id"+
+				" AND (LOWER(image_exif.make) LIKE LOWER(?) ESCAPE '\\'"+
+				" OR LOWER(image_exif.model) LIKE LOWER(?) ESCAPE '\\'"+
+				" OR LOWER(image_exif.lens) LIKE LOWER(?) ESCAPE '\\')))",
+			pattern, pattern, pattern, pattern, pattern,
+		)
+	}
+	if filter.MinSize > 0 {
+		query = query.Where("size >= ?", filter.MinSize)
+	}
+	if filter.MaxSize > 0 {
+		query = query.Where("size <= ?", filter.MaxSize)
+	}
+	if filter.From != nil {
+		query = query.Where("created_at >= ?", filter.From.UTC())
+	}
+	if filter.To != nil {
+		query = query.Where("created_at <= ?", filter.To.UTC())
+	}
+	if filter.Exif != "" {
+		pattern := "%" + escapeLike(filter.Exif) + "%"
+		query = query.Where(
+			"EXISTS (SELECT 1 FROM image_exif WHERE image_exif.image_id = images.id"+
+				" AND (LOWER(image_exif.make) LIKE LOWER(?) ESCAPE '\\'"+
+				" OR LOWER(image_exif.model) LIKE LOWER(?) ESCAPE '\\'"+
+				" OR LOWER(image_exif.lens) LIKE LOWER(?) ESCAPE '\\'))",
+			pattern, pattern, pattern,
+		)
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, repositoryError("count images", err)
 	}
 	images := []model.Image{}
-	if err := query.Order("id DESC").Limit(size).Offset((page - 1) * size).Find(&images).Error; err != nil {
+	if err := query.Order(imageListOrder(filter.Order)).Limit(size).Offset((page - 1) * size).Find(&images).Error; err != nil {
 		return nil, 0, repositoryError("list images", err)
 	}
 	return images, total, nil
+}
+
+// imageListOrder maps the native listing order names; the default is newest.
+func imageListOrder(order string) string {
+	switch order {
+	case "oldest":
+		return "created_at ASC, id ASC"
+	case "largest":
+		return "size DESC, id DESC"
+	case "smallest":
+		return "size ASC, id ASC"
+	default:
+		return "created_at DESC, id DESC"
+	}
 }
 
 // PendingOperations lists unfinished work for the trusted single-instance recovery loop.

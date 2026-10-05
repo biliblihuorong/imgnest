@@ -76,6 +76,10 @@ describe("direct registration and CAPTCHA", () => {
       status: "enabled",
       used_bytes: 0,
       created_at: "2026-10-05T00:00:00Z",
+      display_name: "",
+      avatar_provider: "weavatar" as const,
+      avatar_url: null,
+      avatar_config_version: 0,
     });
     const { wrapper, router } = await renderView();
     await fill(wrapper);
@@ -172,6 +176,10 @@ describe("direct registration and CAPTCHA", () => {
       status: "enabled",
       used_bytes: 0,
       created_at: "2026-10-05T00:00:00Z",
+      display_name: "",
+      avatar_provider: "weavatar" as const,
+      avatar_url: null,
+      avatar_config_version: 0,
     });
     await flushPromises();
     expect(router.currentRoute.value.path).toBe("/gallery");

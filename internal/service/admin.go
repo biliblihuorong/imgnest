@@ -62,6 +62,9 @@ type AdminPolicyRepository interface {
 type AdminSettingsRepository interface {
 	ReadSettings(context.Context) (map[string]json.RawMessage, error)
 	UpdateSettings(context.Context, map[string]json.RawMessage) error
+	// AvatarConfig returns the site-wide avatar provider selection used to
+	// decorate the user views the console returns.
+	AvatarConfig(context.Context) (model.AvatarConfig, error)
 }
 
 // AdminDependencies contains only the capabilities the console needs.
@@ -210,6 +213,9 @@ type AdminSettingsView struct {
 	APIEnabled          bool   `json:"api_enabled"`
 	GuestGroupID        uint64 `json:"guest_group_id"`
 	DefaultGroupID      uint64 `json:"default_group_id"`
+	// AvatarProvider is the site-wide external avatar source; users cannot
+	// change it and only the two supported enums are ever stored or returned.
+	AvatarProvider string `json:"avatar_provider"`
 }
 
 // SettingsPatch changes only the settings keys present in the request.
@@ -222,6 +228,7 @@ type SettingsPatch struct {
 	APIEnabled          *bool   `json:"api_enabled,omitempty"`
 	GuestGroupID        *uint64 `json:"guest_group_id,omitempty"`
 	DefaultGroupID      *uint64 `json:"default_group_id,omitempty"`
+	AvatarProvider      *string `json:"avatar_provider,omitempty"`
 }
 
 func containsID(values []uint64, id uint64) bool {

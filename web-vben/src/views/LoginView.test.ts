@@ -39,6 +39,10 @@ const userFixture: UserView = {
   status: "enabled",
   used_bytes: 0,
   created_at: "2026-10-04T00:00:00Z",
+  display_name: "",
+  avatar_provider: "weavatar",
+  avatar_url: "https://weavatar.com/avatar/abc?s=160&d=404",
+  avatar_config_version: 0,
 };
 
 interface MountOptions {
@@ -151,10 +155,10 @@ describe("LoginView", () => {
     expect(wrapper.find("a[href='/register']").exists()).toBe(false);
   });
 
-  it("即使开放注册，登录页也不展示创建账号入口", async () => {
+  it("registerEnabled=true 时展示注册入口", async () => {
     const { wrapper } = await mountLoginView({ registerEnabled: true });
 
-    expect(wrapper.find("a[href='/register']").exists()).toBe(false);
+    expect(wrapper.find("a[href='/register']").exists()).toBe(true);
   });
 
   it("管理员无 deep link 时进入概览", async () => {

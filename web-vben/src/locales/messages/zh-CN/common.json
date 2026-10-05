@@ -41,6 +41,8 @@
     "mismatch": "两次输入的密码不一致",
     "registered": "注册成功，请登录",
     "backLogin": "返回登录",
+    "toRegisterHint": "还没有账号？",
+    "toRegister": "注册账号",
     "closed": "未开放注册",
     "closedDescription": "当前站点未开放注册，请联系管理员。"
   },

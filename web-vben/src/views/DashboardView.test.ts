@@ -18,6 +18,10 @@ const user = {
   status: "enabled" as const,
   used_bytes: 99,
   created_at: "2026-01-01T00:00:00Z",
+  display_name: "",
+  avatar_provider: "weavatar" as const,
+  avatar_url: null,
+  avatar_config_version: 0,
 };
 async function mountView(role: "user" | "admin" = "user") {
   const pinia = createPinia();

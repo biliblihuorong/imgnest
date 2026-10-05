@@ -39,5 +39,10 @@
   "submitCreate": "创建",
   "created": "相册已创建",
   "updated": "相册已更新",
-  "saveFailed": "保存相册失败，请重试"
+  "saveFailed": "保存相册失败，请重试",
+  "backToList": "返回相册列表",
+  "detailFallback": "相册详情",
+  "pickerTitle": "从我的图片选择封面",
+  "pickerSearch": "搜索图片",
+  "pickerSearchPlaceholder": "搜索文件名…"
 }

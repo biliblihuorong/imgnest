@@ -39,5 +39,10 @@
   "submitCreate": "Create",
   "created": "Album created",
   "updated": "Album updated",
-  "saveFailed": "Could not save the album. Please try again."
+  "saveFailed": "Could not save the album. Please try again.",
+  "backToList": "Back to albums",
+  "detailFallback": "Album detail",
+  "pickerTitle": "Choose a cover from your images",
+  "pickerSearch": "Search images",
+  "pickerSearchPlaceholder": "Search by filename…"
 }

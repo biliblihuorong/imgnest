@@ -1,10 +1,10 @@
-import { flushPromises, mount } from "@vue/test-utils";
-import { defineComponent, h } from "vue";
+import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
+import { defineComponent, h, ref } from "vue";
 import { NMessageProvider } from "naive-ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ImageView } from "@/api/upload";
 import UploadResultActions from "./UploadResultActions.vue";
-import { buildLinkText } from "./linkText";
+import { buildLinkText, resolveImageLink, type LinkFormat, type LinkVersion } from "./linkText";
 
 function makeImage(partialLinks: Partial<ImageView["links"]> = {}): ImageView {
   return {
@@ -45,20 +45,35 @@ function makeImage(partialLinks: Partial<ImageView["links"]> = {}): ImageView {
   };
 }
 
-function mountActions(image: ImageView) {
-  const host = defineComponent({
-    render: () => h(NMessageProvider, () => [h(UploadResultActions, { image })]),
-  });
-  return mount(host);
+interface MountOptions {
+  format?: LinkFormat;
+  version?: LinkVersion;
 }
 
-/** 按 NRadio 文本找单选框并选中（native input，setValue 触发 change）。 */
-async function selectRadio(actions: ReturnType<typeof mountActions>, label: string): Promise<void> {
-  const radio = actions.findAll(".n-radio").find((node) => node.text().trim() === label);
-  if (!radio) {
-    throw new Error(`radio ${label} not found`);
-  }
-  await radio.find("input").setValue(true);
+/** 受控挂载：format/version 由宿主持有，模拟队列头部的全局选择。 */
+function mountActions(image: ImageView, options: MountOptions = {}) {
+  const format = ref<LinkFormat>(options.format ?? "url");
+  const version = ref<LinkVersion>(options.version ?? "webp");
+  const host = defineComponent({
+    setup() {
+      return () =>
+        h(NMessageProvider, () => [
+          h(UploadResultActions, {
+            image,
+            format: format.value,
+            "onUpdate:format": (value: LinkFormat) => {
+              format.value = value;
+            },
+            version: version.value,
+            "onUpdate:version": (value: LinkVersion) => {
+              version.value = value;
+            },
+          }),
+        ]);
+    },
+  });
+  const wrapper = mount(host);
+  return { wrapper, format, version };
 }
 
 describe("buildLinkText", () => {
@@ -69,6 +84,17 @@ describe("buildLinkText", () => {
       `<img src="https://x/a.png" alt="a.png" />`,
     );
     expect(buildLinkText("bbcode", "a.png", "https://x/a.png")).toBe("[img]https://x/a.png[/img]");
+  });
+});
+
+describe("resolveImageLink", () => {
+  it("按版本取链接，选中版本缺失时回退 links.url", () => {
+    const full = makeImage();
+    expect(resolveImageLink(full, "original")).toBe(full.links.original);
+    expect(resolveImageLink(full, "webp")).toBe(full.links.webp);
+    expect(resolveImageLink(full, "thumbnail")).toBe(full.links.thumbnail_url);
+    const bare = makeImage({ original: "", webp: "", thumbnail_url: "" });
+    expect(resolveImageLink(bare, "webp")).toBe(bare.links.url);
   });
 });
 
@@ -84,91 +110,81 @@ describe("UploadResultActions", () => {
     vi.unstubAllGlobals();
   });
 
-  async function copy(actions: ReturnType<typeof mountActions>): Promise<void> {
-    const button = actions.findAll("button").find((node) => node.text() === "复制");
+  async function copy(wrapper: VueWrapper): Promise<void> {
+    const button = wrapper.findAll("button").find((node) => node.text() === "复制");
     if (!button) {
       throw new Error("copy button not found");
     }
     await button.trigger("click");
   }
 
-  it("默认复制原图 URL", async () => {
+  it("行内展示文件名与当前全局版本链接（默认 WebP）", () => {
     const image = makeImage();
-    const actions = mountActions(image);
+    const { wrapper } = mountActions(image, { format: "url", version: "webp" });
 
-    await copy(actions);
-
-    expect(writeText).toHaveBeenCalledWith(image.links.original);
+    expect(wrapper.text()).toContain("a.png");
+    expect(wrapper.find(".upload-result__link").text()).toBe(image.links.webp);
   });
 
-  it("切换 WebP 后复制 WebP 链接", async () => {
+  it("复制按钮按当前全局格式/版本复制", async () => {
     const image = makeImage();
-    const actions = mountActions(image);
+    const { wrapper } = mountActions(image, { format: "url", version: "webp" });
 
-    await selectRadio(actions, "WebP");
-    await copy(actions);
-
+    await copy(wrapper);
     expect(writeText).toHaveBeenCalledWith(image.links.webp);
+
+    wrapper.unmount();
+    const markdown = mountActions(image, { format: "markdown", version: "original" });
+    await copy(markdown.wrapper);
+    expect(writeText).toHaveBeenLastCalledWith(`![a.png](${image.links.original})`);
+    markdown.wrapper.unmount();
   });
 
-  it("切换 Markdown 后拼接 ![name](link)", async () => {
-    const image = makeImage();
-    const actions = mountActions(image);
-
-    await selectRadio(actions, "Markdown");
-    await copy(actions);
-
-    expect(writeText).toHaveBeenCalledWith(`![a.png](${image.links.original})`);
-  });
-
-  it("切换 HTML / BBCode 后拼接对应格式", async () => {
-    const image = makeImage();
-    const actions = mountActions(image);
-
-    await selectRadio(actions, "HTML");
-    await copy(actions);
-    expect(writeText).toHaveBeenLastCalledWith(`<img src="${image.links.original}" alt="a.png" />`);
-
-    await selectRadio(actions, "BBCode");
-    await copy(actions);
-    expect(writeText).toHaveBeenLastCalledWith(`[img]${image.links.original}[/img]`);
-  });
-
-  it("links.webp 为空时 WebP 选项禁用，缺省仍是原图", async () => {
-    const image = makeImage({ webp: "", thumbnail_url: "" });
-    const actions = mountActions(image);
-
-    await copy(actions);
-    expect(writeText).toHaveBeenCalledWith(image.links.original);
-
-    const webpRadio = actions.findAll(".n-radio").find((node) => node.text().trim() === "WebP");
-    expect(webpRadio).toBeDefined();
-    expect((webpRadio?.find("input").element as HTMLInputElement).disabled).toBe(true);
-  });
-
-  it("原图为空时缺省选 WebP", async () => {
-    const image = makeImage({ original: "" });
-    const actions = mountActions(image);
-
-    await copy(actions);
-
-    expect(writeText).toHaveBeenCalledWith(image.links.webp);
-  });
-
-  it("选中版本缺失时回退到 links.url", async () => {
+  it("选中版本缺失时链接与复制回退 links.url", async () => {
     const image = makeImage({ original: "", webp: "", thumbnail_url: "" });
-    const actions = mountActions(image);
+    const { wrapper } = mountActions(image, { format: "url", version: "webp" });
 
-    await copy(actions);
-
+    expect(wrapper.find(".upload-result__link").text()).toBe(image.links.url);
+    await copy(wrapper);
     expect(writeText).toHaveBeenCalledWith(image.links.url);
+  });
+
+  it("点击链接区域或「全部版本」发出 detail 打开抽屉", async () => {
+    const image = makeImage();
+    const host = defineComponent({
+      setup() {
+        const format = ref<LinkFormat>("url");
+        const version = ref<LinkVersion>("webp");
+        return () =>
+          h(NMessageProvider, () => [
+            h(UploadResultActions, {
+              image,
+              format: format.value,
+              "onUpdate:format": (value: LinkFormat) => {
+                format.value = value;
+              },
+              version: version.value,
+              "onUpdate:version": (value: LinkVersion) => {
+                version.value = value;
+              },
+            }),
+          ]);
+      },
+    });
+    const wrapper = mount(host);
+    const actions = wrapper.findComponent(UploadResultActions);
+
+    await actions.find(".upload-result__main").trigger("click");
+    await actions.find("button").trigger("click");
+
+    expect(actions.emitted("detail")).toHaveLength(2);
   });
 
   it("剪贴板写入失败时不抛出", async () => {
     writeText.mockRejectedValue(new Error("denied"));
-    const actions = mountActions(makeImage());
+    const { wrapper } = mountActions(makeImage());
 
-    await copy(actions);
+    await copy(wrapper);
 
     expect(writeText).toHaveBeenCalledTimes(1);
   });
@@ -177,25 +193,12 @@ describe("UploadResultActions", () => {
 it("does not send repeated clipboard writes while copying", async () => {
   const writeText = vi.fn().mockReturnValue(new Promise(() => {}));
   vi.stubGlobal("navigator", { userAgent: "vitest", clipboard: { writeText } });
-  const wrapper = mountActions(makeImage());
-  const button = wrapper.find("button");
+  const { wrapper } = mountActions(makeImage());
+  const button = [...wrapper.findAll("button")].find((node) => node.text() === "复制")!;
   await button.trigger("click");
   await button.trigger("click");
   await flushPromises();
   expect(writeText).toHaveBeenCalledTimes(1);
   wrapper.unmount();
   vi.unstubAllGlobals();
-});
-it("keeps each upload result radio group independent", () => {
-  const wrapper = mount(() =>
-    h(NMessageProvider, () => [
-      h(UploadResultActions, { image: makeImage() }),
-      h(UploadResultActions, { image: makeImage() }),
-    ]),
-  );
-  const [first, second] = wrapper.findAllComponents(UploadResultActions);
-  expect(first!.find("input[type=radio]").attributes("name")).not.toBe(
-    second!.find("input[type=radio]").attributes("name"),
-  );
-  wrapper.unmount();
 });

@@ -21,6 +21,10 @@ export const useSiteStore = defineStore("site", {
       if (this.loaded) {
         return;
       }
+      await this.refresh();
+    },
+    /** 无论是否加载过都重新拉取站点信息，供登录/注册页等低频入口保持最新开关。 */
+    async refresh(): Promise<void> {
       try {
         const site = await fetchSite();
         this.siteName = site.site_name;

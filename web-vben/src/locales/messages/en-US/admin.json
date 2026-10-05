@@ -101,6 +101,9 @@
     "editSecretHint": "S3 credentials cannot be viewed or displayed after creation. To replace credentials, delete and recreate this storage.",
     "namePlaceholder": "e.g. main",
     "urlPlaceholder": "e.g. https://cdn.example.com",
+    "root": "Storage root",
+    "rootPlaceholder": "For example: data/images",
+    "rootRequired": "Enter the storage root directory",
     "endpointPlaceholder": "e.g. https://s3.us-east-1.amazonaws.com",
     "regionPlaceholder": "e.g. us-east-1 (optional for some providers)",
     "bucketPlaceholder": "e.g. imgnest",
@@ -209,7 +212,11 @@
     "guestGroupHint": "Guest uploads use this group’s capacity, rate limits, and policies. 0 means not set.",
     "defaultGroup": "Default user group",
     "defaultGroupPlaceholder": "Select a default group",
-    "defaultGroupHint": "New users join this group by default. 0 means not set."
+    "defaultGroupHint": "New users join this group by default. 0 means not set.",
+    "avatarProvider": "Avatar service",
+    "avatarProviderHint": "Avatar source for all users; WeAvatar is the default and can be switched to Gravatar. Ordinary users cannot change it.",
+    "avatarWeavatar": "WeAvatar (default)",
+    "avatarGravatar": "Gravatar"
   },
   "images": {
     "title": "All images",

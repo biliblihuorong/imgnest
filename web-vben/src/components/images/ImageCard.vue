@@ -32,7 +32,10 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  /** 打开元数据抽屉（点文件名或「详情」入口）。 */
   open: [];
+  /** 自定义右键菜单（携带原始事件定位）。 */
+  menu: [event: MouseEvent];
   toggle: [isPublic: boolean];
   remove: [];
   select: [checked: boolean];
@@ -44,6 +47,10 @@ const { thumbnailUrl, failed: thumbFailed } = useProtectedThumbnail(
 );
 const thumbUrl = computed(() => (thumbFailed.value ? "" : thumbnailUrl.value));
 const extText = computed(() => props.image.ext.replace(/^\./, "").toUpperCase());
+/** 灯箱大图：WebP 优先；由外层 NImageGroup 提供翻页与键盘左右切换。 */
+const previewSrc = computed(
+  () => props.image.links.webp || props.image.links.original || props.image.links.url,
+);
 
 function onThumbError(): void {
   thumbFailed.value = true;
@@ -55,7 +62,7 @@ function onMoveSelect(key: string | number): void {
 </script>
 
 <template>
-  <div class="image-card">
+  <div class="image-card" @contextmenu.prevent="emit('menu', $event)">
     <div v-if="selectable" class="image-card__check" @click.stop>
       <NCheckbox
         size="small"
@@ -65,19 +72,11 @@ function onMoveSelect(key: string | number): void {
         @update:checked="emit('select', $event)"
       />
     </div>
-    <div
-      class="image-card__thumb"
-      role="button"
-      tabindex="0"
-      :aria-label="image.name"
-      @keydown.enter.prevent="emit('open')"
-      @keydown.space.prevent="emit('open')"
-      @click="emit('open')"
-    >
+    <div class="image-card__thumb" :title="t('user.images.previewHint')">
       <NImage
         v-if="thumbUrl"
         :src="thumbUrl"
-        preview-disabled
+        :preview-src="previewSrc"
         object-fit="cover"
         :img-props="{ alt: image.name, onError: onThumbError }"
       />

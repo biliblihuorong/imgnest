@@ -21,9 +21,15 @@ func (s *AdminService) ListUsers(ctx context.Context, page, size int, keyword st
 	if err != nil {
 		return AdminUserPage{}, fmt.Errorf("list admin users: %w", err)
 	}
+	config, err := s.deps.Settings.AvatarConfig(ctx)
+	if err != nil {
+		return AdminUserPage{}, fmt.Errorf("read avatar config: %w", err)
+	}
 	items := make([]UserView, 0, len(rows))
 	for _, user := range rows {
-		items = append(items, userView(user))
+		view := userView(user)
+		applyAvatar(&view, config)
+		items = append(items, view)
 	}
 	return AdminUserPage{Items: items, Total: total, Page: page, Size: size}, nil
 }
@@ -78,7 +84,13 @@ func (s *AdminService) PatchUser(ctx context.Context, callerID, targetID uint64,
 	if err != nil {
 		return UserView{}, fmt.Errorf("find patched user: %w", err)
 	}
-	return userView(user), nil
+	view := userView(user)
+	config, err := s.deps.Settings.AvatarConfig(ctx)
+	if err != nil {
+		return UserView{}, fmt.Errorf("read avatar config: %w", err)
+	}
+	applyAvatar(&view, config)
+	return view, nil
 }
 
 func (s *AdminService) groupView(group model.Group, counts map[uint64]int64, bindings map[uint64][]uint64) GroupView {

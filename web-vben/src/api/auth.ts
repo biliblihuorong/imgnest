@@ -55,3 +55,12 @@ export function changePassword(currentPassword: string, newPassword: string): Pr
     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   });
 }
+
+/** 保存显示名称；服务端 trim，空串表示清除并回退用户名。返回刷新后的用户视图。 */
+export function updateDisplayName(displayName: string): Promise<UserView> {
+  return request<UserView>("/api/auth/profile", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ display_name: displayName }),
+  });
+}

@@ -1,6 +1,22 @@
 {
   "title": "Token 与安全",
-  "description": "管理 API 调用凭证、浏览器会话和账户密码。",
+  "description": "管理 API 调用凭证和浏览器会话；密码与资料在「个人设置」中修改。",
+  "settingsTitle": "个人设置",
+  "profileNav": "个人设置",
+  "profile": {
+    "description": "查看账户信息、修改显示名称和登录密码。",
+    "displayName": "显示名称",
+    "displayNamePlaceholder": "留空则显示用户名",
+    "displayNameHint": "最多 64 个字符；留空时对外显示用户名。",
+    "tooLong": "显示名称最长 64 个字符",
+    "username": "用户名",
+    "email": "邮箱",
+    "avatarAlt": "当前头像",
+    "avatarNote": "头像由站点统一配置的头像服务按账户邮箱匹配提供；缺失或加载失败时使用默认头像。邮箱原文不会发送给头像服务。",
+    "save": "保存资料",
+    "saved": "资料已更新",
+    "error": "保存资料失败，请稍后重试"
+  },
   "refresh": "刷新列表",
   "retry": "重试",
   "createTitle": "创建 API Token",

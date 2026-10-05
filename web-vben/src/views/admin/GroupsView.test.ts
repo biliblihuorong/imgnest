@@ -235,9 +235,11 @@ describe("GroupsView", () => {
     // 仅弹出确认框，尚未调用 DELETE
     expect(adminApiMock.deleteGroup).not.toHaveBeenCalled();
 
-    const confirmButton = wrapper.findAll("button").find((button) => button.text() === "确认删除");
+    const confirmButton = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "确认删除",
+    );
     expect(confirmButton).toBeTruthy();
-    await confirmButton?.trigger("click");
+    confirmButton!.click();
     await flushPromises();
 
     expect(adminApiMock.deleteGroup).toHaveBeenCalledWith(1);
@@ -253,8 +255,10 @@ describe("GroupsView", () => {
     await deleteButton?.trigger("click");
     await flushPromises();
 
-    const confirmButton = wrapper.findAll("button").find((button) => button.text() === "确认删除");
-    await confirmButton?.trigger("click");
+    const confirmButton = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "确认删除",
+    );
+    confirmButton!.click();
     await flushPromises();
 
     expect(adminApiMock.deleteGroup).toHaveBeenCalledWith(1);
@@ -270,8 +274,10 @@ describe("GroupsView", () => {
     await deleteButton?.trigger("click");
     await flushPromises();
 
-    const confirmButton = wrapper.findAll("button").find((button) => button.text() === "确认删除");
-    await confirmButton?.trigger("click");
+    const confirmButton = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "确认删除",
+    );
+    confirmButton!.click();
     await flushPromises();
 
     expect(document.body.textContent).toContain("删除失败");

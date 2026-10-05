@@ -36,6 +36,10 @@ function makeUser(overrides: Partial<AdminUserView> = {}): AdminUserView {
     group_id: 1,
     used_bytes: 1536,
     created_at: "2026-09-01T08:00:00Z",
+    display_name: "",
+    avatar_provider: "weavatar" as const,
+    avatar_url: null,
+    avatar_config_version: 0,
     ...overrides,
   };
 }

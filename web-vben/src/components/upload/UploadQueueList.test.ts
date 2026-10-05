@@ -1,11 +1,12 @@
 import { i18n } from "@vben/locales";
 import { flushPromises, mount } from "@vue/test-utils";
-import { defineComponent, h } from "vue";
+import { defineComponent, h, ref } from "vue";
 import { NMessageProvider } from "naive-ui";
 import { describe, expect, it } from "vitest";
 import type { ImageView } from "@/api/upload";
 import UploadQueueList from "./UploadQueueList.vue";
 import UploadResultActions from "./UploadResultActions.vue";
+import type { LinkFormat, LinkVersion } from "./linkText";
 import type { UploadQueueItem } from "./types";
 
 const image: ImageView = {
@@ -62,7 +63,24 @@ function makeItem(partial: Partial<UploadQueueItem>): UploadQueueItem {
 // 成功项内嵌 UploadResultActions，其 useMessage 需要 NMessageProvider 祖先
 function mountList(items: UploadQueueItem[]) {
   const host = defineComponent({
-    render: () => h(NMessageProvider, () => [h(UploadQueueList, { items })]),
+    setup() {
+      const format = ref<LinkFormat>("url");
+      const version = ref<LinkVersion>("webp");
+      return () =>
+        h(NMessageProvider, () => [
+          h(UploadQueueList, {
+            items,
+            format: format.value,
+            "onUpdate:format": (value: LinkFormat) => {
+              format.value = value;
+            },
+            version: version.value,
+            "onUpdate:version": (value: LinkVersion) => {
+              version.value = value;
+            },
+          }),
+        ]);
+    },
   });
   return mount(host);
 }

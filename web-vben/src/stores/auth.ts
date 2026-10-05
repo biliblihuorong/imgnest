@@ -85,6 +85,12 @@ export const useAuthStore = defineStore("auth", {
         if (this.token === restoredToken && this.sessionGeneration === generation) this.clear();
       }
     },
+    /** 用服务端返回的最新用户视图覆盖当前会话用户；仅供本人资料更新使用。 */
+    setUser(user: UserView): void {
+      if (this.token && this.user?.id === user.id) {
+        this.user = user;
+      }
+    },
     /** 清空登录态（401 回调与 logout 共用；不发起任何请求）。 */
     clear(): void {
       this.sessionGeneration++;

@@ -39,7 +39,8 @@ const errorMessage = computed(() =>
 const loadingSite = ref(false);
 async function loadSite(): Promise<void> {
   loadingSite.value = true;
-  await site.ensureLoaded();
+  // 强制刷新：后台刚开启注册时直达 /register 也要立即放行。
+  await site.refresh();
   loadingSite.value = false;
 }
 

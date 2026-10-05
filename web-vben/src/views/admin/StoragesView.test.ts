@@ -186,7 +186,7 @@ describe("StoragesView", () => {
     expect(document.body.textContent).toContain("该存储仍被上传规则引用，无法删除");
   });
 
-  it("local 存储创建：提交体不含 config", async () => {
+  it("local 存储创建：提交体携带存储路径 config", async () => {
     createStorageMock.mockResolvedValue(localFixture);
     const wrapper = mountView();
     await flushPromises();
@@ -194,6 +194,13 @@ describe("StoragesView", () => {
     await openCreateModal(wrapper);
     await setNativeInput("input[placeholder='例如：main']", "local-main");
     await setNativeInput("input[placeholder='例如：https://cdn.example.com']", "http://x");
+    // 存储路径有默认值；清空后应被校验拦截。
+    await setNativeInput("input[placeholder='例如：data/images']", "");
+    await bodyButton("创建").click();
+    await flushPromises();
+    expect(createStorageMock).not.toHaveBeenCalled();
+
+    await setNativeInput("input[placeholder='例如：data/images']", "data/uploads");
     await bodyButton("创建").click();
     await flushPromises();
 
@@ -201,6 +208,7 @@ describe("StoragesView", () => {
       name: "local-main",
       driver: "local",
       base_url: "http://x",
+      config: { root: "data/uploads" },
     });
   });
 

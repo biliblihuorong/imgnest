@@ -13,12 +13,12 @@ import {
   UserRoundPen,
 } from "@vben/icons";
 import { useAccessStore, useTabbarStore, useUserStore } from "@vben/stores";
-import { markRaw, watch } from "vue";
+import { computed, markRaw, watch } from "vue";
 import { $t, i18n } from "@vben/locales";
 import { useSiteStore } from "@/stores/site";
 import { landingPath } from "@/router/landing";
 import { useAuthStore } from "@/stores/auth";
-import avatar from "@/assets/account-avatar.svg";
+import { useUserAvatar } from "@/components/account/useUserAvatar";
 import { workspaceMenus, type WorkspaceMenu } from "./navigation";
 
 const icons: Record<string, Component> = {
@@ -52,11 +52,20 @@ export function connectVbenSession(pinia: Pinia, router: Router): () => void {
   const access = useAccessStore(pinia);
   const userStore = useUserStore(pinia);
   const tabbar = useTabbarStore(pinia);
+  // 与 AppLayout 共用同一头像数据源：本地占位 → 远程加载成功后替换。
+  const avatarUrl = useUserAvatar(computed(() => auth.user));
   let previousIdentity: string | undefined;
 
   return watch(
-    () => [auth.user, Boolean(auth.token), site.galleryEnabled, i18n.global.locale.value] as const,
-    ([user, hasToken, galleryEnabled]) => {
+    () =>
+      [
+        auth.user,
+        Boolean(auth.token),
+        site.galleryEnabled,
+        i18n.global.locale.value,
+        avatarUrl.value,
+      ] as const,
+    ([user, hasToken, galleryEnabled, , avatar]) => {
       const current = hasToken ? user : null;
       const identity = current ? `${current.id}:${current.role}` : "anonymous";
       if (previousIdentity !== undefined && previousIdentity !== identity) {
@@ -98,7 +107,7 @@ export function connectVbenSession(pinia: Pinia, router: Router): () => void {
           ? {
               userId: String(current.id),
               username: current.username,
-              realName: current.username,
+              realName: current.display_name || current.username,
               avatar,
               roles: [current.role],
               homePath: landingPath(current.role),

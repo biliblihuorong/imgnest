@@ -9,6 +9,7 @@ import {
   NDrawer,
   NDrawerContent,
   NEmpty,
+  NImage,
   NTag,
   useMessage,
 } from "naive-ui";
@@ -46,6 +47,13 @@ const hasGps = computed(
   () => exif.value !== null && (exif.value.gps_lat !== null || exif.value.gps_lng !== null),
 );
 const rawText = computed(() => (exif.value ? JSON.stringify(exif.value.raw, null, 2) : ""));
+
+/** 抽屉顶部大图：WebP 优先，点击进入全屏灯箱。 */
+const previewSrc = computed(() => {
+  const image = props.image;
+  if (!image) return "";
+  return image.links.webp || image.links.original || image.links.url;
+});
 
 watch(
   () => [props.show, props.image?.id] as const,
@@ -91,6 +99,13 @@ function handleClose(value: boolean): void {
   <NDrawer :show="props.show" width="min(520px, 100vw)" @update:show="handleClose">
     <NDrawerContent :title="props.image?.name ?? t('user.detail.title')" closable>
       <template v-if="props.image">
+        <NImage
+          class="drawer-preview"
+          :src="previewSrc"
+          :preview-src="previewSrc"
+          object-fit="contain"
+          :img-props="{ alt: props.image.name }"
+        />
         <NDescriptions bordered :column="1" size="small" label-placement="left">
           <NDescriptionsItem :label="t('user.common.name')">{{
             props.image.name
@@ -180,6 +195,19 @@ function handleClose(value: boolean): void {
 </template>
 
 <style scoped>
+.drawer-preview {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+  padding: 8px;
+  border-radius: 6px;
+  background: hsl(var(--muted) / 0.5);
+}
+
+.drawer-preview :deep(img) {
+  max-height: 320px;
+}
+
 .drawer-section {
   margin-top: 16px;
 }

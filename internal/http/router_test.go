@@ -24,6 +24,9 @@ const testBearer = "7|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 type usersStub struct {
 	err    error
 	panics bool
+	// gotProfile records the UpdateDisplayName arguments for assertions.
+	gotProfileID   uint64
+	gotProfileName string
 }
 
 func (s *usersStub) Register(_ context.Context, _ service.RegisterInput) (service.UserView, error) {
@@ -36,6 +39,16 @@ func (s *usersStub) VerifyCredentials(_ context.Context, _, _ string) (service.V
 	return service.VerifiedCredentials{User: testUser()}, s.err
 }
 func (s *usersStub) ChangePassword(_ context.Context, _ uint64, _, _ string) error { return s.err }
+func (s *usersStub) UpdateDisplayName(_ context.Context, id uint64, name string) (service.UserView, error) {
+	if s.err != nil {
+		return service.UserView{}, s.err
+	}
+	s.gotProfileID = id
+	s.gotProfileName = name
+	view := testUser()
+	view.DisplayName = name
+	return view, nil
+}
 func (s *usersStub) Site(_ context.Context) (service.SiteView, error) {
 	return service.SiteView{SiteName: "ImgNest", RegisterEnabled: true}, s.err
 }

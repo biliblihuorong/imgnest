@@ -1,74 +1,31 @@
 <script setup lang="ts">
 import { useI18n } from "@vben/locales";
-import { NButton, NRadio, NRadioGroup, useMessage } from "naive-ui";
-import { computed, onBeforeUnmount, ref, useId } from "vue";
+import { NButton, useMessage } from "naive-ui";
+import { computed, onBeforeUnmount, ref } from "vue";
 import type { ImageView } from "@/api/upload";
-import { buildLinkText, type LinkFormat } from "./linkText";
+import { copyText } from "@/lib/clipboard";
+import { buildLinkText, resolveImageLink, type LinkFormat, type LinkVersion } from "./linkText";
 
-type LinkVersion = "original" | "webp" | "thumbnail";
-
-interface VersionOption {
-  value: LinkVersion;
-  label: string;
-  link: string;
-  available: boolean;
-}
-
-const { t } = useI18n();
-
+/**
+ * 上传成功行的复制条：展示当前全局格式/版本下的链接文本，
+ * 「复制」一键复制；链接文本可点击打开完整版本×格式复制抽屉。
+ * 格式与版本由队列头部的全局控件统一持有。
+ */
 const props = defineProps<{ image: ImageView }>();
+const format = defineModel<LinkFormat>("format", { required: true });
+const version = defineModel<LinkVersion>("version", { required: true });
+const emit = defineEmits<{ detail: [] }>();
+const { t } = useI18n();
 const message = useMessage();
 
-const groupId = useId();
 const copying = ref(false);
 let active = true;
 onBeforeUnmount(() => {
   active = false;
 });
 
-const format = ref<LinkFormat>("url");
-const version = ref<LinkVersion>(initialVersion(props.image));
-
-function initialVersion(image: ImageView): LinkVersion {
-  // 默认选第一个可用的版本：原图 → WebP → 缩略图
-  if (image.links.original !== "") {
-    return "original";
-  }
-  if (image.links.webp !== "") {
-    return "webp";
-  }
-  return "thumbnail";
-}
-
-const versionOptions = computed<VersionOption[]>(() => [
-  {
-    value: "original",
-    label: t("user.upload.original"),
-    link: props.image.links.original,
-    available: props.image.links.original !== "",
-  },
-  {
-    value: "webp",
-    label: t("user.upload.webp"),
-    link: props.image.links.webp,
-    available: props.image.links.webp !== "",
-  },
-  {
-    value: "thumbnail",
-    label: t("user.upload.thumbnail"),
-    link: props.image.links.thumbnail_url,
-    available: props.image.links.thumbnail_url !== "",
-  },
-]);
-
-const currentLink = computed(() => {
-  const option = versionOptions.value.find((item) => item.value === version.value);
-  // 选中版本缺失时回退到首选可用链接
-  return option?.link || props.image.links.url;
-});
-
 const currentName = computed(() => props.image.name || props.image.key);
-
+const currentLink = computed(() => resolveImageLink(props.image, version.value));
 const copiedText = computed(() =>
   buildLinkText(format.value, currentName.value, currentLink.value),
 );
@@ -76,60 +33,78 @@ const copiedText = computed(() =>
 async function copy(): Promise<void> {
   if (copying.value) return;
   copying.value = true;
-  try {
-    await navigator.clipboard.writeText(copiedText.value);
-    if (active) message.success(() => t("user.upload.copied"));
-  } catch {
-    if (active) message.error(t("user.upload.copyError"));
-  } finally {
-    if (active) copying.value = false;
+  const ok = await copyText(copiedText.value);
+  if (active) {
+    if (ok) message.success(() => t("user.upload.copied"));
+    else message.error(t("user.upload.copyError"));
+    copying.value = false;
   }
 }
 </script>
 
 <template>
   <div class="upload-result">
-    <NRadioGroup v-model:value="format" :name="`${groupId}-format`" size="small">
-      <NRadio value="url">URL</NRadio>
-      <NRadio value="markdown">Markdown</NRadio>
-      <NRadio value="html">HTML</NRadio>
-      <NRadio value="bbcode">BBCode</NRadio>
-    </NRadioGroup>
-    <NRadioGroup v-model:value="version" :name="`${groupId}-version`" size="small">
-      <NRadio
-        v-for="option in versionOptions"
-        :key="option.value"
-        :value="option.value"
-        :disabled="!option.available"
+    <div class="upload-result__main" role="button" tabindex="0" @click="emit('detail')" @keydown.enter.prevent="emit('detail')">
+      <span class="upload-result__name" :title="currentName">{{ currentName }}</span>
+      <span class="upload-result__link" :title="currentLink">{{ currentLink }}</span>
+    </div>
+    <div class="upload-result__actions">
+      <NButton size="tiny" quaternary type="primary" @click="emit('detail')">
+        {{ t("user.upload.allVersions") }}
+      </NButton>
+      <NButton
+        size="small"
+        type="primary"
+        secondary
+        :loading="copying"
+        :disabled="copying"
+        @click="copy"
+        >{{ t("user.upload.copy") }}</NButton
       >
-        {{ option.label }}
-      </NRadio>
-    </NRadioGroup>
-    <NButton
-      size="small"
-      type="primary"
-      secondary
-      :loading="copying"
-      :disabled="copying"
-      @click="copy"
-      >{{ t("user.upload.copy") }}</NButton
-    >
+    </div>
   </div>
 </template>
 
 <style scoped>
 .upload-result {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px 16px;
+  gap: 12px;
   padding: 8px 12px;
   border-radius: 6px;
   background-color: hsl(var(--muted) / 0.5);
 }
-.upload-result :deep(.n-radio-group) {
+
+.upload-result__main {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 0;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.upload-result__name {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upload-result__link {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upload-result__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 </style>

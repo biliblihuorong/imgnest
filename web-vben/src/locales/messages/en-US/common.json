@@ -41,6 +41,8 @@
     "mismatch": "Passwords do not match",
     "registered": "Account created. Please sign in.",
     "backLogin": "Back to sign in",
+    "toRegisterHint": "No account yet?",
+    "toRegister": "Create one",
     "closed": "Registration closed",
     "closedDescription": "Registration is closed. Please contact the administrator."
   },

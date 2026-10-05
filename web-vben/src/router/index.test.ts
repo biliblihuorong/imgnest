@@ -90,8 +90,9 @@ describe("router 守卫", () => {
     expect(router.currentRoute.value.query.redirect).toBe("/upload");
   });
 
-  it("ROUTER_NAMES 暴露五个命名路由", () => {
+  it("ROUTER_NAMES 暴露六个命名路由", () => {
     expect(Object.keys(ROUTER_NAMES).sort()).toEqual([
+      "accountSettings",
       "images",
       "login",
       "register",

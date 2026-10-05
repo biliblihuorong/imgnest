@@ -49,7 +49,14 @@ const model = reactive<AdminSettings>({
   trash_days: 7,
   guest_group_id: 0,
   default_group_id: 0,
+  avatar_provider: "weavatar",
 });
+
+/** 头像服务商固定两项；不提供自由 URL 或更多供应商。 */
+const avatarProviderOptions = computed(() => [
+  { label: t("admin.settings.avatarWeavatar"), value: "weavatar" },
+  { label: t("admin.settings.avatarGravatar"), value: "gravatar" },
+]);
 
 /** 用户组选项 + 「未设置（0）」哨兵项（0 = 后端未配置该组）。 */
 const groupOptions = computed(() => [
@@ -255,6 +262,18 @@ async function save(): Promise<void> {
               :disabled="controlsDisabled"
             />
             <p class="field-hint">{{ t("admin.settings.defaultGroupHint") }}</p>
+          </div>
+        </NFormItem>
+        <NFormItem :label="t('admin.settings.avatarProvider')" path="avatar_provider">
+          <div class="field">
+            <NSelect
+              v-model:value="model.avatar_provider"
+              class="field-control"
+              :options="avatarProviderOptions"
+              :placeholder="t('admin.settings.avatarProvider')"
+              :disabled="controlsDisabled"
+            />
+            <p class="field-hint">{{ t("admin.settings.avatarProviderHint") }}</p>
           </div>
         </NFormItem>
       </NForm>
