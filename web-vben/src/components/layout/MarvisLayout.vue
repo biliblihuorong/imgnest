@@ -6,6 +6,7 @@ import { computed, onBeforeUnmount, shallowRef, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useSiteStore } from "@/stores/site";
 import MarvisCommandPalette from "./marvis/MarvisCommandPalette.vue";
+import MarvisSettingsModal from "./marvis/MarvisSettingsModal.vue";
 import MarvisSidebar from "./marvis/MarvisSidebar.vue";
 import SidebarAlbums from "./marvis/SidebarAlbums.vue";
 import { useViewportBelow } from "./marvis/useNarrowViewport";
@@ -21,6 +22,7 @@ void site.ensureLoaded();
 const narrow = useViewportBelow(769);
 const drawerOpen = shallowRef(false);
 const paletteOpen = shallowRef(false);
+const settingsOpen = shallowRef(false);
 const collapsed = computed(() => !narrow.value && preferences.sidebar.collapsed);
 
 watch(narrow, (value) => {
@@ -57,11 +59,13 @@ onBeforeUnmount(stopAfterEach);
       :collapsed="collapsed"
       @navigate="drawerOpen = false"
       @open-search="((drawerOpen = false), (paletteOpen = true))"
+      @open-settings="((drawerOpen = false), (settingsOpen = true))"
       @logout="logout"
     >
       <template #albums><SidebarAlbums @navigate="drawerOpen = false" /></template>
     </MarvisSidebar>
     <MarvisCommandPalette v-model:show="paletteOpen" />
+    <MarvisSettingsModal v-model:show="settingsOpen" />
     <main class="mv-main">
       <RouterView />
     </main>

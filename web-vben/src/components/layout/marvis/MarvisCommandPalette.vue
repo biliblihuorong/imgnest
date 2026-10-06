@@ -16,6 +16,7 @@ import {
   useSearchSuggestions,
   type SearchSuggestion,
 } from "@/components/images/useSearchSuggestions";
+import MarvisDialog from "./MarvisDialog.vue";
 import { menuIcons } from "@/integrations/vben/menuIcons";
 import { workspaceMenus, type WorkspaceMenu } from "@/integrations/vben/navigation";
 import { useAuthStore } from "@/stores/auth";
@@ -31,7 +32,6 @@ const router = useRouter();
 const auth = useAuthStore();
 const site = useSiteStore();
 const input = useTemplateRef<HTMLInputElement>("input");
-const dialog = useTemplateRef<HTMLElement>("dialog");
 
 const raw = shallowRef("");
 const caret = shallowRef(0);
@@ -54,22 +54,12 @@ const pages = computed<WorkspaceMenu[]>(() => {
   return needle ? leaves.filter((menu) => t(menu.name).toLowerCase().includes(needle)) : leaves;
 });
 
-let returnTo: HTMLElement | null = null;
-watch(show, async (open) => {
+watch(show, (open) => {
   if (open) {
-    returnTo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     raw.value = "";
     caret.value = 0;
     composing.value = false;
-    await nextTick();
-    input.value?.focus();
-    return;
-  }
-  focused.value = false;
-  const target = returnTo;
-  returnTo = null;
-  await nextTick();
-  if (target?.isConnected) target.focus();
+  } else focused.value = false;
 });
 
 function onShortcut(event: KeyboardEvent): void {
@@ -84,21 +74,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onShortcut));
 watch(signedIn, (value) => {
   if (!value) show.value = false;
 });
-
-/** 弹窗内循环 Tab 焦点，不让焦点落到被遮住的页面上。 */
-function trapTab(event: KeyboardEvent): void {
-  const focusable = dialog.value?.querySelectorAll<HTMLElement>("input, button");
-  if (!focusable || focusable.length === 0) return;
-  const first = focusable[0]!;
-  const last = focusable[focusable.length - 1]!;
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
-}
 
 function capture(): void {
   caret.value = input.value?.selectionStart ?? raw.value.length;
@@ -138,11 +113,11 @@ async function open(menu: WorkspaceMenu): Promise<void> {
 }
 function onKey(event: KeyboardEvent): void {
   if (composing.value || event.isComposing || event.keyCode === 229) return;
-  if (event.key === "Escape") {
+  // 有补全时 Esc 只收起补全；否则冒泡给 MarvisDialog 关闭弹窗。
+  if (event.key === "Escape" && suggestions.visible.value) {
     event.preventDefault();
     event.stopPropagation();
-    if (suggestions.visible.value) suggestions.close();
-    else show.value = false;
+    suggestions.close();
     return;
   }
   if (["ArrowDown", "ArrowUp"].includes(event.key) && suggestions.items.value.length > 0) {
@@ -162,100 +137,76 @@ function onKey(event: KeyboardEvent): void {
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="show" class="mv-palette-overlay" @mousedown.self="show = false">
-      <div
-        ref="dialog"
-        class="mv-palette"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="t('shell.search')"
-        @keydown.tab="trapTab"
-        @keydown.esc="show = false"
-      >
-        <div class="mv-palette__input">
-          <Search class="mv-palette__icon" />
-          <input
-            ref="input"
-            data-testid="palette-input"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            :value="raw"
-            :placeholder="t('shell.palette.placeholder')"
-            :aria-label="t('shell.palette.placeholder')"
-            @input="update"
-            @keydown="onKey"
-            @keyup="capture"
-            @click="capture"
-            @focus="focused = true"
-            @blur="focused = false"
-            @compositionstart="composing = true"
-            @compositionend="compositionEnd"
-          />
-          <kbd>Esc</kbd>
-        </div>
-        <div class="mv-palette__list">
-          <template v-if="suggestions.visible.value && suggestions.items.value.length > 0">
-            <div class="mv-palette__heading">{{ t("shell.palette.conditions") }}</div>
-            <button
-              v-for="(item, index) in suggestions.items.value"
-              :key="item.label"
-              type="button"
-              class="mv-palette__row"
-              :class="{ 'is-selected': index === suggestions.selected.value }"
-              data-testid="palette-suggestion"
-              @mousedown.prevent
-              @click="choose(item)"
-            >
-              <code>{{ item.label }}</code>
-            </button>
-          </template>
+  <MarvisDialog v-model:show="show" :label="t('shell.search')" align="top">
+    <div class="mv-palette">
+      <div class="mv-palette__input">
+        <Search class="mv-palette__icon" />
+        <input
+          ref="input"
+          data-testid="palette-input"
+          data-autofocus
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          :value="raw"
+          :placeholder="t('shell.palette.placeholder')"
+          :aria-label="t('shell.palette.placeholder')"
+          @input="update"
+          @keydown="onKey"
+          @keyup="capture"
+          @click="capture"
+          @focus="focused = true"
+          @blur="focused = false"
+          @compositionstart="composing = true"
+          @compositionend="compositionEnd"
+        />
+        <kbd>Esc</kbd>
+      </div>
+      <div class="mv-palette__list">
+        <template v-if="suggestions.visible.value && suggestions.items.value.length > 0">
+          <div class="mv-palette__heading">{{ t("shell.palette.conditions") }}</div>
           <button
+            v-for="(item, index) in suggestions.items.value"
+            :key="item.label"
             type="button"
             class="mv-palette__row"
-            data-testid="palette-submit"
-            @click="submit"
+            :class="{ 'is-selected': index === suggestions.selected.value }"
+            data-testid="palette-suggestion"
+            @mousedown.prevent
+            @click="choose(item)"
           >
-            <Search class="mv-palette__icon" />
-            <span>{{
-              raw.trim()
-                ? t("shell.palette.searchFor", { query: raw.trim() })
-                : t("shell.palette.openImages")
-            }}</span>
-            <kbd>Enter</kbd>
+            <code>{{ item.label }}</code>
           </button>
-          <template v-if="pages.length > 0">
-            <div class="mv-palette__heading">{{ t("shell.palette.pages") }}</div>
-            <button
-              v-for="menu in pages"
-              :key="menu.path"
-              type="button"
-              class="mv-palette__row"
-              data-testid="palette-page"
-              @click="open(menu)"
-            >
-              <component :is="menuIcons[menu.icon]" class="mv-palette__icon" />
-              <span>{{ t(menu.name) }}</span>
-            </button>
-          </template>
-        </div>
+        </template>
+        <button type="button" class="mv-palette__row" data-testid="palette-submit" @click="submit">
+          <Search class="mv-palette__icon" />
+          <span>{{
+            raw.trim()
+              ? t("shell.palette.searchFor", { query: raw.trim() })
+              : t("shell.palette.openImages")
+          }}</span>
+          <kbd>Enter</kbd>
+        </button>
+        <template v-if="pages.length > 0">
+          <div class="mv-palette__heading">{{ t("shell.palette.pages") }}</div>
+          <button
+            v-for="menu in pages"
+            :key="menu.path"
+            type="button"
+            class="mv-palette__row"
+            data-testid="palette-page"
+            @click="open(menu)"
+          >
+            <component :is="menuIcons[menu.icon]" class="mv-palette__icon" />
+            <span>{{ t(menu.name) }}</span>
+          </button>
+        </template>
       </div>
     </div>
-  </Teleport>
+  </MarvisDialog>
 </template>
 
 <style scoped>
-.mv-palette-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 3000;
-  display: grid;
-  place-items: start center;
-  padding-top: 12vh;
-  background: hsl(var(--overlay));
-  backdrop-filter: blur(3px);
-}
 .mv-palette {
   width: min(560px, 92vw);
   overflow: hidden;

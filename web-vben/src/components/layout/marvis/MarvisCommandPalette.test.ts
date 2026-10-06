@@ -167,7 +167,7 @@ it("closes when the backdrop is pressed and keeps Tab inside the dialog", async 
   await press(input()!, { key: "Tab", shiftKey: true });
   expect(document.activeElement).toBe(last);
   document.body
-    .querySelector(".mv-palette-overlay")!
+    .querySelector(".mv-dialog-overlay")!
     .dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
   await flushPromises();
   closed();

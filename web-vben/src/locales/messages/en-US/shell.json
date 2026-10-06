@@ -21,5 +21,36 @@
     "pages": "Pages",
     "searchFor": "Search my images for \"{query}\"",
     "openImages": "Open my images"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": "Appearance",
+    "account": "Account",
+    "tokens": "API tokens",
+    "close": "Close settings",
+    "tokensHint": "Tokens let tools such as PicGo and uPic upload for you. A token is shown in full only once, when it is created, so creating and revoking happen on their own page.",
+    "tokensLink": "Open token management"
+  },
+  "appearance": {
+    "layout": "Layout",
+    "layoutMarvis": "New layout",
+    "layoutMarvisHint": "Floating sidebar with a preview panel",
+    "layoutClassic": "Classic layout",
+    "layoutClassicHint": "The original header and tabs",
+    "mode": "Theme",
+    "modeLight": "Light",
+    "modeDark": "Dark",
+    "modeAuto": "System",
+    "accent": "Accent colour",
+    "accentOption": "Accent colour {index}",
+    "radius": "Corner radius",
+    "radiusSmall": "Small",
+    "radiusMedium": "Medium",
+    "radiusLarge": "Large",
+    "compactSidebar": "Compact sidebar",
+    "compactSidebarHint": "Show icons only",
+    "reset": "Restore default appearance",
+    "resetHint": "Accent colour and radius return to this layout's defaults",
+    "resetAction": "Restore"
   }
 }
