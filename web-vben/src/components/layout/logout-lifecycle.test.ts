@@ -4,7 +4,7 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/stores/auth";
 import { logout as logoutApi } from "@/api/auth";
-import AppLayout from "./AppLayout.vue";
+import AppLayout from "./ClassicLayout.vue";
 vi.mock("@vben/layouts", () => ({
   BasicLayout: {
     emits: ["logout"],
