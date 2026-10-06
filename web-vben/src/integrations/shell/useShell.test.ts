@@ -87,3 +87,12 @@ it("resetAppearance returns to the current shell defaults", () => {
   resetAppearance();
   expect(preferences.theme).toMatchObject(SHELL_DEFAULTS.marvis);
 });
+
+it("always replaces preferences.theme on a switch so Naive UI re-reads the shell's tokens", () => {
+  initShell();
+  updatePreferences({ theme: { colorPrimary: "hsl(160 84% 34%)", radius: "0.25" } });
+  const before = preferences.theme;
+  setShell("classic");
+  expect(preferences.theme).not.toBe(before);
+  expect(preferences.theme).toMatchObject({ colorPrimary: "hsl(160 84% 34%)", radius: "0.25" });
+});

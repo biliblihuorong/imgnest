@@ -2,7 +2,13 @@ import { mount } from "@vue/test-utils";
 import { preferences, updatePreferences } from "@vben/preferences";
 import { beforeEach, expect, it, vi } from "vitest";
 import { initShell, setShell, shell, SHELL_DEFAULTS } from "@/integrations/shell/useShell";
+import { loadLocaleMessages } from "@vben/locales";
 import AppearancePane, { ACCENT_PRESETS, RADIUS_PRESETS } from "./AppearancePane.vue";
+
+vi.mock("@vben/locales", async (original) => ({
+  ...(await original<typeof import("@vben/locales")>()),
+  loadLocaleMessages: vi.fn().mockResolvedValue(undefined),
+}));
 
 // jsdom 没有 matchMedia；Vben 在「跟随系统」模式下会读取它。
 vi.stubGlobal(
@@ -90,4 +96,15 @@ it("keeps a picked accent when the layout is switched from the pane", async () =
   await click("accent-3");
   await click("layout-classic");
   expect(preferences.theme.colorPrimary).toBe(ACCENT_PRESETS[3]);
+});
+
+it("switches the interface language like the classic header toggle", async () => {
+  updatePreferences({ app: { locale: "zh-CN" } });
+  const { click, pressed } = mountPane();
+  expect(pressed("locale-zh-CN")).toBe("true");
+  await click("locale-en-US");
+  expect(preferences.app.locale).toBe("en-US");
+  expect(loadLocaleMessages).toHaveBeenCalledWith("en-US");
+  expect(pressed("locale-en-US")).toBe("true");
+  updatePreferences({ app: { locale: "zh-CN" } });
 });

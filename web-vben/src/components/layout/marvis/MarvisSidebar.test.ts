@@ -57,7 +57,10 @@ it("shows only gallery and a login button to anonymous visitors", async () => {
   const { wrapper, links } = await mountSidebar({ gallery: true });
   expect(links()).toEqual(["/gallery"]);
   expect(wrapper.find('[data-testid="sidebar-login"]').exists()).toBe(true);
-  expect(wrapper.find('[data-testid="sidebar-settings"]').exists()).toBe(false);
+  // 匿名访客也要能切换深浅色、语言和布局。
+  expect(wrapper.find('[data-testid="sidebar-settings"]').exists()).toBe(true);
+  expect(wrapper.find('[data-testid="sidebar-logout"]').exists()).toBe(false);
+  expect(wrapper.find('[data-testid="sidebar-search"]').exists()).toBe(false);
 });
 
 it("marks the active route with aria-current", async () => {

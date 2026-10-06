@@ -64,7 +64,13 @@ watch(show, (open) => {
 
 function onShortcut(event: KeyboardEvent): void {
   if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
-  if (event.key.toLowerCase() !== "k" || !signedIn.value) return;
+  if (event.isComposing || event.key.toLowerCase() !== "k" || !signedIn.value) return;
+  // 已有别的模态层（相册表单、确认框、灯箱、设置弹窗等）时不在它上面/下面再开一层。
+  if (
+    !show.value &&
+    document.querySelector('[aria-modal="true"], .n-modal, .n-image-preview-container')
+  )
+    return;
   event.preventDefault();
   show.value = !show.value;
 }

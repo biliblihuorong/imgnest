@@ -41,7 +41,16 @@ const lib = useImageLibrary({ lockedAlbumId: props.lockedAlbumId });
 /* ---------------- 详情呈现：Marvis 宽屏用右侧面板，其余沿用抽屉 ---------------- */
 const wide = useViewportAtLeast(1040);
 const usePanel = computed(() => shell.value === "marvis" && wide.value);
-const panelImage = computed(() => (lib.drawerShow.value ? lib.drawerImage.value : null));
+/**
+ * 面板常驻，所以要跟着列表走：取列表里同 id 的最新副本；图片被删除、翻页或换了搜索条件后
+ * 不在列表里就清空。刷新进行中先保留原图，避免面板闪烁和重复请求 EXIF。
+ */
+const panelImage = computed(() => {
+  const shown = lib.drawerShow.value ? lib.drawerImage.value : null;
+  if (!shown) return null;
+  const current = lib.images.value.find((image) => image.id === shown.id);
+  return current ?? (lib.loading.value ? shown : null);
+});
 
 /* ---------------- 灯箱大图（NImageGroup 分组预览：左右箭头 + 键盘 ←/→） ---------------- */
 

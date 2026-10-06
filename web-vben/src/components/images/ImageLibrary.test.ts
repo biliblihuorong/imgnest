@@ -719,6 +719,48 @@ describe("ImageLibrary 详情面板（Marvis 宽屏）", () => {
     vi.unstubAllGlobals();
   });
 
+  it("clears the panel when the shown image is no longer in the list", async () => {
+    const wrapper = mountLibrary();
+    await flushPromises();
+    wrapper.findAllComponents(ImageCard)[0].vm.$emit("open");
+    await flushPromises();
+    expect(wrapper.findComponent(ImageDetailPanel).props("image")).toMatchObject({ id: 1 });
+    searchImagesMock.mockImplementation(async (p) => ({
+      items: [makeImage({ id: 2, name: "b.jpg", is_public: true })],
+      total: 1,
+      page: p.page,
+      size: p.size,
+      search: searchMetadata(p.q),
+    }));
+    deleteImageMock.mockResolvedValue(null);
+    wrapper.findAllComponents(ImageCard)[0].vm.$emit("remove");
+    await flushPromises();
+    expect(wrapper.findAllComponents(ImageCard)).toHaveLength(1);
+    expect(wrapper.findComponent(ImageDetailPanel).props("image")).toBeNull();
+  });
+
+  it("shows the refreshed copy of the image after it is updated in place", async () => {
+    setImageVisibilityMock.mockResolvedValue(makeImage({ id: 1, name: "a.png", is_public: true }));
+    const wrapper = mountLibrary();
+    await flushPromises();
+    wrapper.findAllComponents(ImageCard)[0].vm.$emit("open");
+    await flushPromises();
+    searchImagesMock.mockImplementation(async (p) => ({
+      items: [makeImage({ id: 1, name: "a.png", is_public: true })],
+      total: 1,
+      page: p.page,
+      size: p.size,
+      search: searchMetadata(p.q),
+    }));
+    wrapper.findAllComponents(ImageCard)[0].vm.$emit("toggle", true);
+    await flushPromises();
+    expect(wrapper.findComponent(ImageDetailPanel).props("image")).toMatchObject({
+      id: 1,
+      is_public: true,
+    });
+    expect(getImageExifMock).toHaveBeenCalledTimes(1);
+  });
+
   it("card click in drawer mode does not open details from the info area", async () => {
     wideViewport.value = false;
     const wrapper = mountLibrary();

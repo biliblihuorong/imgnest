@@ -4,7 +4,6 @@
   "brandBadge": "Images",
   "search": "Search images",
   "openMenu": "Open navigation",
-  "closeMenu": "Close navigation",
   "openSettings": "Settings",
   "logout": "Sign out",
   "login": "Sign in",
@@ -51,10 +50,13 @@
     "compactSidebarHint": "Show icons only",
     "reset": "Restore default appearance",
     "resetHint": "Accent colour and radius return to this layout's defaults",
-    "resetAction": "Restore"
+    "resetAction": "Restore",
+    "language": "Language"
   },
   "detailPanel": {
     "empty": "Click the info area under an image to see its details",
     "close": "Close details"
-  }
+  },
+  "layoutBothFailed": "The page layout could not be loaded. Check your connection and reload.",
+  "reload": "Reload"
 }

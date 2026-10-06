@@ -109,16 +109,28 @@ function goHome(): void {
         <span v-if="!collapsed" class="mv-footer__name" :title="user.email ?? ''">{{
           displayName
         }}</span>
-        <button
-          type="button"
-          class="mv-icon-btn"
-          data-testid="sidebar-settings"
-          :aria-label="t('shell.openSettings')"
-          :title="t('shell.openSettings')"
-          @click="emit('open-settings')"
-        >
-          <Settings class="mv-icon" />
-        </button>
+      </template>
+      <button
+        v-else
+        type="button"
+        class="mv-footer__login"
+        data-testid="sidebar-login"
+        @click="router.push('/login')"
+      >
+        {{ t("shell.login") }}
+      </button>
+      <!-- 匿名访客也能切换深浅色、语言和布局。 -->
+      <button
+        type="button"
+        class="mv-icon-btn"
+        data-testid="sidebar-settings"
+        :aria-label="t('shell.openSettings')"
+        :title="t('shell.openSettings')"
+        @click="emit('open-settings')"
+      >
+        <Settings class="mv-icon" />
+      </button>
+      <template v-if="user">
         <button
           type="button"
           class="mv-icon-btn"
@@ -130,15 +142,6 @@ function goHome(): void {
           <LogOut class="mv-icon" />
         </button>
       </template>
-      <button
-        v-else
-        type="button"
-        class="mv-footer__login"
-        data-testid="sidebar-login"
-        @click="router.push('/login')"
-      >
-        {{ t("shell.login") }}
-      </button>
     </div>
   </aside>
 </template>

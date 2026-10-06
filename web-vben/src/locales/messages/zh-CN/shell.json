@@ -4,7 +4,6 @@
   "brandBadge": "图床",
   "search": "搜索图片",
   "openMenu": "打开导航",
-  "closeMenu": "关闭导航",
   "openSettings": "设置",
   "logout": "退出登录",
   "login": "登录",
@@ -51,10 +50,13 @@
     "compactSidebarHint": "只显示图标",
     "reset": "恢复默认外观",
     "resetHint": "强调色和圆角回到当前布局的默认值",
-    "resetAction": "恢复"
+    "resetAction": "恢复",
+    "language": "语言"
   },
   "detailPanel": {
     "empty": "点击图片下方的信息区查看详情",
     "close": "关闭详情"
-  }
+  },
+  "layoutBothFailed": "页面布局加载失败，请检查网络后重新加载。",
+  "reload": "重新加载"
 }

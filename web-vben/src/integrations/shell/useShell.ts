@@ -46,7 +46,9 @@ function followShell(from: Shell, to: Shell): void {
     theme.colorPrimary = SHELL_DEFAULTS[to].colorPrimary;
   if (preferences.theme.radius === SHELL_DEFAULTS[from].radius)
     theme.radius = SHELL_DEFAULTS[to].radius;
-  if (Object.keys(theme).length > 0) updatePreferences({ theme });
+  // 即使两项都是用户自选（theme 为空）也要写一次：Vben 每次更新都会替换 preferences.theme，
+  // Naive UI 的 token 同步靠它触发，才能重新读取新外壳的底色与边框色。
+  updatePreferences({ theme });
 }
 
 /** 读存储 → 写 <html data-shell>；首次启动时把未自选的外观对齐到默认外壳。可重复调用。 */

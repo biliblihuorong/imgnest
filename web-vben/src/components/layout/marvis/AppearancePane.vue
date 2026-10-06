@@ -14,7 +14,7 @@ export const RADIUS_PRESETS = ["0.25", "0.5", "0.75"] as const;
 </script>
 
 <script setup lang="ts">
-import { useI18n } from "@vben/locales";
+import { loadLocaleMessages, useI18n } from "@vben/locales";
 import { preferences, updatePreferences } from "@vben/preferences";
 import { resetAppearance, setShell, shell, type Shell } from "@/integrations/shell/useShell";
 
@@ -41,6 +41,18 @@ const modes = [
   { value: "dark", label: "shell.appearance.modeDark" },
   { value: "auto", label: "shell.appearance.modeAuto" },
 ] as const;
+// 语言名用各自的写法，不随界面语言翻译。
+const locales = [
+  { value: "zh-CN", label: "简体中文" },
+  { value: "en-US", label: "English" },
+] as const;
+
+/** 与经典布局顶栏的语言切换同一套写法。 */
+async function setLocale(locale: (typeof locales)[number]["value"]): Promise<void> {
+  updatePreferences({ app: { locale } });
+  await loadLocaleMessages(locale);
+}
+
 const radiusLabels = [
   "shell.appearance.radiusSmall",
   "shell.appearance.radiusMedium",
@@ -81,6 +93,23 @@ const radiusLabels = [
           @click="updatePreferences({ theme: { mode: mode.value } })"
         >
           {{ t(mode.label) }}
+        </button>
+      </div>
+    </div>
+
+    <div class="mv-appearance__row">
+      <span>{{ t("shell.appearance.language") }}</span>
+      <div class="mv-seg" role="group" :aria-label="t('shell.appearance.language')">
+        <button
+          v-for="locale in locales"
+          :key="locale.value"
+          type="button"
+          :lang="locale.value"
+          :data-testid="`locale-${locale.value}`"
+          :aria-pressed="preferences.app.locale === locale.value"
+          @click="setLocale(locale.value)"
+        >
+          {{ locale.label }}
         </button>
       </div>
     </div>

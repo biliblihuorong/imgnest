@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { LockKeyhole, Palette, UserRoundPen, X } from "@vben/icons";
 import { useI18n } from "@vben/locales";
-import { shallowRef, watch, type Component } from "vue";
+import { computed, shallowRef, watch, type Component } from "vue";
 import { useRouter } from "vue-router";
 import ChangePasswordCard from "@/components/account/ChangePasswordCard.vue";
 import ProfileCard from "@/components/account/ProfileCard.vue";
+import { useAuthStore } from "@/stores/auth";
 import AppearancePane from "./AppearancePane.vue";
 import MarvisDialog from "./MarvisDialog.vue";
 
@@ -12,14 +13,22 @@ import MarvisDialog from "./MarvisDialog.vue";
 const show = defineModel<boolean>("show", { default: false });
 const { t } = useI18n();
 const router = useRouter();
+const auth = useAuthStore();
 
 type Pane = "appearance" | "account" | "tokens";
-const panes: { key: Pane; label: string; icon: Component }[] = [
+const allPanes: { key: Pane; label: string; icon: Component }[] = [
   { key: "appearance", label: "shell.settings.appearance", icon: Palette },
   { key: "account", label: "shell.settings.account", icon: UserRoundPen },
   { key: "tokens", label: "shell.settings.tokens", icon: LockKeyhole },
 ];
+// 账号与 Token 需要登录；匿名访客只有外观。
+const panes = computed(() =>
+  auth.token && auth.user ? allPanes : allPanes.filter((pane) => pane.key === "appearance"),
+);
 const active = shallowRef<Pane>("appearance");
+watch(panes, (list) => {
+  if (!list.some((pane) => pane.key === active.value)) active.value = "appearance";
+});
 watch(show, (open) => {
   if (open) active.value = "appearance";
 });
@@ -50,7 +59,7 @@ async function openTokens(): Promise<void> {
       </div>
       <div class="mv-settings__content">
         <div class="mv-settings__head">
-          <span>{{ t(panes.find((pane) => pane.key === active)!.label) }}</span>
+          <span>{{ t(allPanes.find((pane) => pane.key === active)!.label) }}</span>
           <button
             type="button"
             class="mv-settings__close"

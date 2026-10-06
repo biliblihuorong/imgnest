@@ -172,3 +172,31 @@ it("closes when the backdrop is pressed and keeps Tab inside the dialog", async 
   await flushPromises();
   closed();
 });
+
+it("closes on Escape even when focus has left the dialog", async () => {
+  await mountPalette();
+  await press(window, { key: "k", ctrlKey: true });
+  input()!.blur();
+  expect(document.activeElement).toBe(document.body);
+  await press(document.body, { key: "Escape" });
+  closed();
+});
+
+it("does not open over another modal dialog", async () => {
+  await mountPalette();
+  const other = document.createElement("div");
+  other.setAttribute("role", "dialog");
+  other.setAttribute("aria-modal", "true");
+  document.body.appendChild(other);
+  await press(window, { key: "k", ctrlKey: true });
+  expect(isOpen()).toBe(false);
+  other.remove();
+  await press(window, { key: "k", ctrlKey: true });
+  expect(isOpen()).toBe(true);
+});
+
+it("ignores the shortcut during IME composition", async () => {
+  await mountPalette();
+  await press(window, { key: "k", ctrlKey: true, isComposing: true });
+  expect(isOpen()).toBe(false);
+});

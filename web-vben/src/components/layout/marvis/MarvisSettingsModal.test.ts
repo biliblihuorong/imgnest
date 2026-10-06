@@ -23,11 +23,13 @@ const stubs = {
 };
 const q = (id: string) => document.body.querySelector<HTMLElement>(`[data-testid="${id}"]`);
 
-async function mountModal() {
+async function mountModal(options: { anonymous?: boolean } = {}) {
   const pinia = createPinia();
   const auth = useAuthStore(pinia);
-  auth.token = "token";
-  auth.user = testUser("user");
+  if (!options.anonymous) {
+    auth.token = "token";
+    auth.user = testUser("user");
+  }
   const router = shellTestRouter();
   await router.push("/upload");
   const show = ref(true);
@@ -75,4 +77,11 @@ it("closes from the close button and reopens on the appearance pane", async () =
   show.value = true;
   await flushPromises();
   expect(q("pane-appearance")).not.toBeNull();
+});
+
+it("offers only appearance to anonymous visitors", async () => {
+  await mountModal({ anonymous: true });
+  expect(q("settings-tab-appearance")).not.toBeNull();
+  expect(q("settings-tab-account")).toBeNull();
+  expect(q("settings-tab-tokens")).toBeNull();
 });
