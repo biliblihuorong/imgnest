@@ -54,3 +54,28 @@
   --sidebar-deep: 240 7% 12%;
   --header: 240 7% 12%;
 }
+
+/* Naive UI 贴合：只调圆角与阴影，不改组件结构。 */
+:root[data-shell="marvis"] .mv-main .n-card {
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: var(--mv-shadow-sm);
+}
+
+:root[data-shell="marvis"] .n-dropdown-menu {
+  padding: 5px;
+  border-radius: 12px;
+  box-shadow: var(--mv-shadow-lg);
+}
+
+:root[data-shell="marvis"] .n-dropdown-option-body::before {
+  border-radius: 8px;
+}
+
+:root[data-shell="marvis"] .n-modal.n-card,
+:root[data-shell="marvis"] .n-dialog {
+  border-radius: 18px;
+}
+
+:root[data-shell="marvis"] .n-drawer {
+  box-shadow: var(--mv-shadow-lg);
+}
