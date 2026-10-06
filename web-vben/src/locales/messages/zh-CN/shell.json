@@ -52,5 +52,9 @@
     "reset": "恢复默认外观",
     "resetHint": "强调色和圆角回到当前布局的默认值",
     "resetAction": "恢复"
+  },
+  "detailPanel": {
+    "empty": "点击图片下方的信息区查看详情",
+    "close": "关闭详情"
   }
 }

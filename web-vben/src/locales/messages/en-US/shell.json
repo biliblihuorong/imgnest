@@ -52,5 +52,9 @@
     "reset": "Restore default appearance",
     "resetHint": "Accent colour and radius return to this layout's defaults",
     "resetAction": "Restore"
+  },
+  "detailPanel": {
+    "empty": "Click the info area under an image to see its details",
+    "close": "Close details"
   }
 }
