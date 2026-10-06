@@ -6,11 +6,13 @@ import { updatePreferences } from "@vben/preferences";
 import App from "./App.vue";
 import { setUnauthorizedHandler } from "./api/client";
 import { connectVbenSession } from "./integrations/vben/session";
+import { initShell } from "./integrations/shell/useShell";
 import { setupRouter } from "./router";
 import { useAuthStore } from "./stores/auth";
 import { useSiteStore } from "./stores/site";
 
 export async function bootstrap(): Promise<void> {
+  initShell();
   const app = createApp(App);
   const pinia = createPinia();
   app.use(pinia);
