@@ -14,5 +14,12 @@
     "loadFailed": "Could not load albums",
     "collapse": "Collapse albums",
     "expand": "Expand albums"
+  },
+  "palette": {
+    "placeholder": "Search images, or type a page name",
+    "conditions": "Search conditions",
+    "pages": "Pages",
+    "searchFor": "Search my images for \"{query}\"",
+    "openImages": "Open my images"
   }
 }

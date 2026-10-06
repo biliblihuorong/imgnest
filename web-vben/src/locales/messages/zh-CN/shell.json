@@ -14,5 +14,12 @@
     "loadFailed": "相册加载失败",
     "collapse": "收起相册",
     "expand": "展开相册"
+  },
+  "palette": {
+    "placeholder": "搜索图片，或输入页面名称",
+    "conditions": "搜索条件",
+    "pages": "页面",
+    "searchFor": "在我的图片中搜索「{query}」",
+    "openImages": "打开我的图片"
   }
 }

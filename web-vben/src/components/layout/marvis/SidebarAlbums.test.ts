@@ -116,9 +116,7 @@ it("does not request albums for anonymous visitors", async () => {
 
 it("ignores a stale response that resolves after a newer one", async () => {
   const resolvers: ((value: AlbumPage) => void)[] = [];
-  vi.mocked(listAlbums).mockImplementation(
-    () => new Promise((resolve) => resolvers.push(resolve)),
-  );
+  vi.mocked(listAlbums).mockImplementation(() => new Promise((resolve) => resolvers.push(resolve)));
   const { auth, names } = await mountAlbums();
   auth.user = testUser("user", 2);
   await flushPromises();
