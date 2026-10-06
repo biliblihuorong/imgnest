@@ -1,0 +1,11 @@
+{
+  "title": "Public gallery",
+  "description": "Explore images shared by the community",
+  "total": "{count} public image | {count} public images",
+  "disabled": "The public gallery is not enabled",
+  "empty": "No public images yet. Shared images will appear here.",
+  "loadFailed": "Could not load the gallery",
+  "errorDescription": "The network or service is temporarily unavailable. Please try again.",
+  "retry": "Retry",
+  "uploader": "Uploaded by {name}"
+}

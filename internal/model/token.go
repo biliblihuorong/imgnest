@@ -12,6 +12,7 @@ const (
 type TokenGrant struct {
 	UserID               uint64
 	ExpectedPasswordHash string
+	ExpectedAccountState *AccountState
 	SourceTokenID        uint64
 	At                   time.Time
 }

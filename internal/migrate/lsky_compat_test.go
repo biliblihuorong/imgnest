@@ -72,8 +72,12 @@ func Test0003IsIdempotent(t *testing.T) {
 		if err := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM schema_migrations").Scan(&versions); err != nil {
 			t.Fatal(err)
 		}
-		if settings != 8 || anchors != 1 || versions != 3 {
-			t.Fatalf("settings=%d anchors=%d versions=%d, want 8/1/3", settings, anchors, versions)
+		scripts, err := manifest(driver)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if settings != 8 || anchors != 1 || versions != len(scripts) {
+			t.Fatalf("settings=%d anchors=%d versions=%d, want 8/1/%d", settings, anchors, versions, len(scripts))
 		}
 	})
 }

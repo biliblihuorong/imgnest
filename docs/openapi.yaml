@@ -86,6 +86,149 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/auth/captcha:
+    get:
+      operationId: getPublicCaptcha
+      tags: [Authentication]
+      summary: Read the active native authentication challenge configuration
+      description: |
+        Public and read-only. Returns exactly enabled, provider, site_key, and
+        version. Disabled configurations expose empty provider and site_key;
+        drafts, hostnames, secrets, and encrypted values are never returned.
+        A read failure is unavailable, never an implicit disabled configuration.
+      security: []
+      responses:
+        '200':
+          description: Active public configuration; absent settings default to disabled/version 0.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CaptchaPublicEnvelope'}
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
+  /api/admin/captcha:
+    get:
+      operationId: getAdminCaptcha
+      tags: [Admin]
+      summary: Read safe active and draft CAPTCHA configuration
+      description: |
+        Requires an enabled administrator, checked by both HTTP and service.
+        Neither plaintext nor encrypted secrets are returned. A configured secret
+        is indicated only by secret_configured. The existing general settings
+        endpoint does not expose or modify this configuration.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/CaptchaAdmin'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
+  /api/admin/captcha/draft:
+    put:
+      operationId: saveCaptchaDraft
+      tags: [Admin]
+      summary: Save a candidate without changing active protection
+      description: |
+        The whole settings snapshot is persisted using atomic compare-and-swap.
+        Every successful mutation increments version; use the latest top-level
+        version as expected_version. Saving invalidates both candidate tests.
+        Only Turnstile is supported. Known official test keys are rejected.
+        Omit secret to reuse the same provider's draft secret, or its active
+        secret if no draft exists. Empty secret is invalid. clear_secret=true
+        requires disabled protection and an omitted secret; it also discards
+        the retained active configuration. A new provider cannot reuse a secret.
+        Configuration requires the deployment's existing AES-GCM master key.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CaptchaDraftRequest'}
+      responses:
+        '200':
+          $ref: '#/components/responses/CaptchaAdmin'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/CaptchaConflict'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
+  /api/admin/captcha/test:
+    post:
+      operationId: testCaptchaDraft
+      tags: [Admin]
+      summary: Verify one candidate challenge before activation
+      description: |
+        Consumes a fresh provider token for action login or register. The returned
+        hostname must exactly match a configured hostname. Each successful test
+        is bound to the unchanged draft and expires after 15 minutes; both actions
+        must be tested. A concurrent draft edit cannot inherit an in-flight test.
+        Limited to three requests per minute per client IP before provider calls.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CaptchaTestRequest'}
+      responses:
+        '200':
+          $ref: '#/components/responses/CaptchaAdmin'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/CaptchaConflictOrNotReady'
+        '422':
+          $ref: '#/components/responses/CaptchaFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
+  /api/admin/captcha/activation:
+    post:
+      operationId: setCaptchaActivation
+      tags: [Admin]
+      summary: Atomically activate a tested candidate or disable protection
+      description: |
+        Enabling requires fresh successful login and register candidate tests,
+        a usable master key, and both compatibility acknowledgements. The first
+        acknowledges that unchanged legacy web cannot log in while protection is
+        enabled. The second acknowledges that /api/v1/tokens still accepts
+        passwords without CAPTCHA. No header or frontend parameter bypasses
+        native verification. Disabling requires the current version and admin
+        authentication; it retains configuration and existing sessions.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CaptchaActivationRequest'}
+      responses:
+        '200':
+          $ref: '#/components/responses/CaptchaAdmin'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/CaptchaConflictOrNotReady'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
   /api/auth/register:
     post:
       operationId: registerUser
@@ -95,7 +238,10 @@ paths:
         Registration must be enabled by the site administrator. The server
         assigns role `user` and the default group; clients cannot set role,
         group_id, or other account attributes. Limited to three requests
-        per minute per client IP, independently of the login limit.
+        per minute per client IP, independently of the login limit. The rate
+        limit runs before provider verification. When CAPTCHA is enabled,
+        captcha_token must pass the active provider for action register before
+        account creation. Closed registration does not consume a provider token.
       security: []
       requestBody:
         required: true
@@ -116,10 +262,14 @@ paths:
           $ref: '#/components/responses/RegistrationDisabled'
         '409':
           $ref: '#/components/responses/UserExists'
+        '422':
+          $ref: '#/components/responses/CaptchaFailed'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
   /api/auth/login:
     post:
       operationId: login
@@ -129,7 +279,10 @@ paths:
         A successful login issues a web token that expires in 24 hours.
         Copy the token from this response; it cannot be retrieved later.
         Limited to three requests per minute per client IP, independently
-        of the registration limit. Disabled users cannot log in.
+        of the registration limit. Disabled users cannot log in. The rate limit
+        runs before provider verification. When CAPTCHA is enabled, captcha_token
+        must pass the active provider for action login before password checking
+        and token issuance. Failure never falls back to password-only login.
       security: []
       requestBody:
         required: true
@@ -148,10 +301,14 @@ paths:
           $ref: '#/components/responses/InvalidInput'
         '401':
           $ref: '#/components/responses/InvalidCredentials'
+        '422':
+          $ref: '#/components/responses/CaptchaFailed'
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
   /api/auth/me:
     get:
       operationId: getCurrentUser
@@ -166,6 +323,38 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/auth/profile:
+    patch:
+      operationId: updateProfile
+      tags: [Authentication]
+      summary: Update the authenticated user's display name
+      description: |
+        The user is always taken from the bearer token; the body accepts only
+        `display_name`. Surrounding whitespace is trimmed server-side, an
+        empty value clears the custom name so clients fall back to the
+        username, and at most 64 Unicode characters are stored. Rejected with
+        400 for unknown fields, control characters, or an overlong name.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileRequest'
+      responses:
+        '200':
+          description: The refreshed user view with recomputed avatar fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '500':
@@ -397,18 +586,45 @@ paths:
         parameter means every image regardless of album, an explicit `0`
         selects only unassigned images, and a positive value selects the
         images of that album after verifying the album belongs to the caller
-        (a foreign album answers 403/20003, a missing one 404/10001).
+        (a foreign album answers 403/20003, a missing one 404/10001). The
+        `keyword`, `order`, `min_size`/`max_size`, `from`/`to` and `exif`
+        parameters narrow the same owner-scoped page; inverted size bounds or
+        time windows answer 400/10001.
+        With `qv=1`, `q` (including an empty string) and a valid IANA `tz`
+        are required. The query uses the unified-search v1.1 grammar; old
+        filtering parameters cannot be mixed into this mode. The server
+        resolves authorized album names, validates the complete query, applies
+        every predicate before counting/pagination, and returns `data.search`.
+        Ordinary terms match the original displayed filename only; camera,
+        format, visibility, album, size, date and sorting use explicit fields.
+        Dates refer to upload created_at with inclusive after and exclusive
+        before boundaries. Unsupported versions or invalid mixed protocols
+        never silently fall back to the legacy search.
       security: [{bearerAuth: []}]
       parameters:
         - $ref: '#/components/parameters/ImagePageNumber'
         - $ref: '#/components/parameters/ImagePageSize'
         - $ref: '#/components/parameters/ImageAlbumFilter'
+        - $ref: '#/components/parameters/ImageUnifiedSearch'
+        - $ref: '#/components/parameters/ImageQueryVersion'
+        - $ref: '#/components/parameters/ImageQueryTimezone'
+        - $ref: '#/components/parameters/ImageKeywordFilter'
+        - $ref: '#/components/parameters/ImageOrder'
+        - $ref: '#/components/parameters/ImageMinSize'
+        - $ref: '#/components/parameters/ImageMaxSize'
+        - $ref: '#/components/parameters/ImageFromTime'
+        - $ref: '#/components/parameters/ImageToTime'
+        - $ref: '#/components/parameters/ImageExifFilter'
       responses:
         '200':
           description: Image page without EXIF, source IP, or storage credentials.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ImagePageEnvelope'}
+        '400':
+          $ref: '#/components/responses/SearchInvalid'
+        '422':
+          $ref: '#/components/responses/SearchAlbumUnavailable'
         default:
           $ref: '#/components/responses/ImageFailure'
   /api/images/{id}:
@@ -607,6 +823,65 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AlbumEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/albums/suggestions:
+    get:
+      operationId: suggestSearchAlbums
+      tags: [Albums]
+      summary: Suggest albums within the caller's authorized search scope
+      security: [{bearerAuth: []}]
+      description: |
+        Returns only string IDs, names and a hasMore flag. Suggestions do not
+        replace exact server-side name resolution when executing a search.
+        An optional scope_album_id restricts suggestions to one owner-verified
+        album, matching the fixed boundary of the album-detail image list.
+      parameters:
+        - {name: keyword, in: query, schema: {type: string, maxLength: 200}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 10000, default: 1}}
+        - {name: size, in: query, schema: {type: integer, minimum: 1, maximum: 20, default: 20}}
+        - {name: scope_album_id, in: query, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
+      responses:
+        '200':
+          description: Stable authorized album suggestions.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AlbumSuggestionsEnvelope'}
+        '400':
+          $ref: '#/components/responses/SearchInvalid'
+        '422':
+          $ref: '#/components/responses/SearchAlbumUnavailable'
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/albums/{id}/images:
+    get:
+      operationId: searchAlbumImages
+      tags: [Images, Albums]
+      summary: Search inside one fixed owner-verified album
+      description: |
+        Requires unified-search qv=1. The path album is a fixed server-enforced
+        boundary independent of q, and cannot be removed by clearing or
+        changing the query. Unknown and inaccessible albums share the same
+        ALBUM_NOT_AVAILABLE diagnostic. Query album conditions may only narrow
+        this boundary and never select images outside it.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
+        - $ref: '#/components/parameters/ImageQueryVersion'
+        - $ref: '#/components/parameters/ImageUnifiedSearch'
+        - $ref: '#/components/parameters/ImageQueryTimezone'
+        - $ref: '#/components/parameters/ImagePageNumber'
+        - $ref: '#/components/parameters/ImagePageSize'
+      responses:
+        '200':
+          description: Search result within the fixed album, including search metadata.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImagePageEnvelope'}
+        '400':
+          $ref: '#/components/responses/SearchInvalid'
+        '422':
+          $ref: '#/components/responses/SearchAlbumUnavailable'
         default:
           $ref: '#/components/responses/ImageFailure'
   /api/albums/{id}:
@@ -1000,6 +1275,44 @@ paths:
         '403':
           $ref: '#/components/responses/LskyDisabled'
   /api/admin/users:
+    post:
+      operationId: adminCreateUser
+      tags: [Admin]
+      summary: Create an account with an initial password
+      description: |
+        Administrator-only creation is independent of the public registration
+        switch. The initial password follows the existing 12–72 UTF-8 byte
+        policy and is stored only as a bcrypt hash. No password, hash or token
+        is returned. The group must be an existing non-guest group. Username
+        and normalized email remain unique; display_name is optional and
+        non-unique. No invitation or activation email is sent.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdminUserCreate'}
+      responses:
+        '201':
+          description: The created safe account view.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminUserEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Username or email already exists.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '500':
+          $ref: '#/components/responses/InternalError'
     get:
       operationId: adminListUsers
       tags: [Admin]
@@ -1030,14 +1343,17 @@ paths:
     patch:
       operationId: adminPatchUser
       tags: [Admin]
-      summary: Change an account's status or group
+      summary: Edit an account's identity, profile, role, status or group
       description: |
-        Requires the administrator role. `status` accepts only `enabled` and
-        `disabled`; disabling an account revokes every one of its bearer
-        credentials in the same transaction as the status flip. An
-        administrator cannot disable their own account. `group_id` must name
-        an existing non-guest group. There is no way to change a role through
-        this endpoint.
+        Requires the administrator role and only changes explicitly provided
+        fields. Effective username, email, role, status or group changes revoke
+        all of the account's bearer credentials atomically. Display-name-only
+        edits and unchanged values preserve sessions. An administrator cannot
+        disable their own account; concurrent changes cannot disable or demote
+        the last enabled administrator. group_id must name a non-guest group.
+        Username and normalized email remain unique. Password changes are not
+        accepted here; used_bytes, IDs, avatar settings and timestamps are also
+        server-owned. Self-service username/email remain read-only.
       security: [{bearerAuth: []}]
       parameters:
         - {$ref: '#/components/parameters/ImageID'}
@@ -1060,6 +1376,11 @@ paths:
           $ref: '#/components/responses/AdminForbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Username or email already exists.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '500':
           $ref: '#/components/responses/InternalError'
   /api/admin/groups:
@@ -1484,7 +1805,7 @@ paths:
       security: [{bearerAuth: []}]
       responses:
         '200':
-          description: All eight settings with documented defaults for unset keys.
+          description: All nine settings with documented defaults for unset keys.
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AdminSettingsEnvelope'}
@@ -1643,6 +1964,56 @@ components:
       in: query
       description: Absent means no album filter; 0 selects unassigned images; a positive value selects one owner-verified album.
       schema: {type: integer, format: int64, minimum: 0}
+    ImageUnifiedSearch:
+      name: q
+      in: query
+      description: With qv=1, required unified-search grammar input (empty allowed), at most 4096 UTF-8 bytes. Without qv, the legacy filename/path/EXIF OR needle remains limited to 200 bytes.
+      schema: {type: string, maxLength: 4096}
+    ImageQueryVersion:
+      name: qv
+      in: query
+      description: Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–10000 and size is one of 20, 50, 100.
+      schema: {type: integer, enum: [1]}
+    ImageQueryTimezone:
+      name: tz
+      in: query
+      description: Required with qv=1; valid IANA time zone used for upload-date boundaries, independent of display language.
+      schema: {type: string, example: Asia/Shanghai}
+    ImageKeywordFilter:
+      name: keyword
+      in: query
+      description: Case-insensitive substring match on the stored file name (display name or stored path plus extension), up to 200 bytes.
+      schema: {type: string, maxLength: 200}
+    ImageOrder:
+      name: order
+      in: query
+      description: Sort for the page; the default matches the previous behavior (newest).
+      schema: {type: string, enum: [newest, oldest, largest, smallest], default: newest}
+    ImageMinSize:
+      name: min_size
+      in: query
+      description: Inclusive lower bound of the stored original size in bytes; absent or 0 means unbounded.
+      schema: {type: integer, format: int64, minimum: 0}
+    ImageMaxSize:
+      name: max_size
+      in: query
+      description: Inclusive upper bound of the stored original size in bytes; absent or 0 means unbounded.
+      schema: {type: integer, format: int64, minimum: 0}
+    ImageFromTime:
+      name: from
+      in: query
+      description: Inclusive lower bound of the upload time (RFC3339).
+      schema: {type: string, format: date-time}
+    ImageToTime:
+      name: to
+      in: query
+      description: Inclusive upper bound of the upload time (RFC3339).
+      schema: {type: string, format: date-time}
+    ImageExifFilter:
+      name: exif
+      in: query
+      description: Case-insensitive substring match on the stored EXIF make, model or lens (only where metadata exists), up to 200 bytes.
+      schema: {type: string, maxLength: 200}
     ImagePageNumber:
       name: page
       in: query
@@ -1673,11 +2044,138 @@ components:
         alphanumeric characters. Expired or revoked tokens and tokens
         owned by disabled users are rejected with 401/code 20001.
   schemas:
+    CaptchaVersion:
+      type: integer
+      format: int64
+      minimum: 0
+      maximum: 9007199254740991
+      description: Monotonically increasing snapshot version; safe to represent as a JavaScript integer.
+    CaptchaToken:
+      type: string
+      maxLength: 2048
+      writeOnly: true
+      description: Single-use provider token; required when native CAPTCHA is enabled. Never retained or echoed.
+    CaptchaPublicView:
+      type: object
+      additionalProperties: false
+      required: [enabled, provider, site_key, version]
+      properties:
+        enabled: {type: boolean}
+        provider: {type: string, enum: ['', turnstile]}
+        site_key: {type: string}
+        version: {$ref: '#/components/schemas/CaptchaVersion'}
+    CaptchaConfigView:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required: [provider, site_key, hostnames, secret_configured, version]
+      properties:
+        provider: {type: string, enum: [turnstile]}
+        site_key: {type: string}
+        hostnames: {type: array, items: {type: string}}
+        secret_configured: {type: boolean}
+        version: {$ref: '#/components/schemas/CaptchaVersion'}
+    CaptchaDraftView:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required: [provider, site_key, hostnames, secret_configured, version, tested, tested_actions]
+      properties:
+        provider: {type: string, enum: [turnstile]}
+        site_key: {type: string}
+        hostnames: {type: array, items: {type: string}}
+        secret_configured: {type: boolean}
+        version: {$ref: '#/components/schemas/CaptchaVersion'}
+        tested: {type: boolean, description: Both candidate actions passed within the last 15 minutes.}
+        tested_actions:
+          type: array
+          items: {type: string, enum: [login, register]}
+          description: Fresh successful actions, in login then register order; empty array if none.
+    CaptchaAdminView:
+      type: object
+      additionalProperties: false
+      required: [version, enabled, active, draft, configuration_available]
+      properties:
+        version: {$ref: '#/components/schemas/CaptchaVersion'}
+        enabled: {type: boolean}
+        active: {$ref: '#/components/schemas/CaptchaConfigView'}
+        draft: {$ref: '#/components/schemas/CaptchaDraftView'}
+        configuration_available:
+          type: boolean
+          description: The deployment has a configured master key; existing secret decryption may still fail.
+    CaptchaDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, provider, site_key, hostnames]
+      properties:
+        expected_version: {$ref: '#/components/schemas/CaptchaVersion'}
+        provider: {type: string, enum: [turnstile]}
+        site_key: {type: string, minLength: 1, maxLength: 256, pattern: '^[a-zA-Z0-9_-]+$'}
+        hostnames:
+          type: array
+          minItems: 1
+          maxItems: 10
+          uniqueItems: true
+          items: {type: string, maxLength: 253}
+          description: Lowercase fully qualified DNS hostnames, exact matches only; no URL, port, IP, wildcard, or trailing dot.
+        secret:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          pattern: '^[a-zA-Z0-9_-]+$'
+          writeOnly: true
+          description: Omit to reuse; null or an empty string is not a new secret. Never returned.
+        clear_secret: {type: boolean, default: false}
+    CaptchaTestRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, captcha_token, action]
+      properties:
+        expected_version: {$ref: '#/components/schemas/CaptchaVersion'}
+        captcha_token: {$ref: '#/components/schemas/CaptchaToken'}
+        action: {type: string, enum: [login, register]}
+    CaptchaActivationRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, enabled, acknowledge_legacy_incompatibility, acknowledge_v1_unprotected]
+      properties:
+        expected_version: {$ref: '#/components/schemas/CaptchaVersion'}
+        enabled: {type: boolean}
+        acknowledge_legacy_incompatibility: {type: boolean}
+        acknowledge_v1_unprotected: {type: boolean}
+    CaptchaPublicEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/CaptchaPublicView'}
+    CaptchaAdminEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/CaptchaAdminView'}
+    AdminUserCreate:
+      type: object
+      additionalProperties: false
+      required: [username, email, password, role, status, group_id]
+      properties:
+        username: {type: string, minLength: 3, maxLength: 64, description: Trimmed unique username.}
+        email: {type: string, format: email, description: Trimmed and lowercased unique plain email address.}
+        password: {$ref: '#/components/schemas/Password'}
+        display_name: {type: string, maxLength: 64, default: '', description: Optional non-unique display name; blank falls back to username.}
+        role: {type: string, enum: [admin, user]}
+        status: {type: string, enum: [enabled, disabled]}
+        group_id: {$ref: '#/components/schemas/ID'}
     AdminUserPatch:
       type: object
       additionalProperties: false
-      minProperties: 1
+      description: Only provided fields change; an empty object is a no-op that preserves sessions.
       properties:
+        username: {type: string, minLength: 3, maxLength: 64}
+        email: {type: string, format: email}
+        display_name: {type: string, maxLength: 64}
+        role: {type: string, enum: [admin, user]}
         status: {type: string, enum: [enabled, disabled]}
         group_id: {$ref: '#/components/schemas/ID'}
     AdminUserPage:
@@ -1880,7 +2378,7 @@ components:
     AdminSettings:
       type: object
       additionalProperties: false
-      required: [site_name, registration_enabled, guest_upload_enabled, gallery_enabled, trash_days, api_enabled, guest_group_id, default_group_id]
+      required: [site_name, registration_enabled, guest_upload_enabled, gallery_enabled, trash_days, api_enabled, guest_group_id, default_group_id, avatar_provider]
       properties:
         site_name: {type: string, minLength: 1, maxLength: 100}
         registration_enabled: {type: boolean}
@@ -1890,6 +2388,10 @@ components:
         api_enabled: {type: boolean, description: Master switch of the Lsky-compatible /api/v1 layer.}
         guest_group_id: {type: integer, format: int64, minimum: 0, description: Zero selects the is_guest group.}
         default_group_id: {$ref: '#/components/schemas/ID'}
+        avatar_provider:
+          type: string
+          enum: [weavatar, gravatar]
+          description: Site-wide external avatar source; defaults to weavatar.
     AdminSettingsPatch:
       type: object
       additionalProperties: false
@@ -1903,6 +2405,7 @@ components:
         api_enabled: {type: boolean}
         guest_group_id: {type: integer, format: int64, minimum: 0}
         default_group_id: {$ref: '#/components/schemas/ID'}
+        avatar_provider: {type: string, enum: [weavatar, gravatar]}
     AdminUserPageEnvelope:
       type: object
       additionalProperties: false
@@ -2045,6 +2548,77 @@ components:
         deleted_at: {$ref: '#/components/schemas/NullableTimestamp'}
         purge_at: {$ref: '#/components/schemas/NullableTimestamp'}
         created_at: {$ref: '#/components/schemas/Timestamp'}
+    SearchAlbum:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {type: string, pattern: '^[1-9][0-9]*$', description: Decimal ID string preserved without JavaScript number conversion.}
+        name: {type: string}
+    SearchMetadata:
+      type: object
+      additionalProperties: false
+      required: [appliedVersion, canonicalQ, tz, authorizedAlbums, appliedRange]
+      properties:
+        appliedVersion: {type: integer, enum: [1]}
+        canonicalQ: {type: string, description: Canonical query with resolved stable album IDs.}
+        tz: {type: string}
+        authorizedAlbums: {type: array, items: {$ref: '#/components/schemas/SearchAlbum'}}
+        appliedRange:
+          type: object
+          additionalProperties: false
+          required: [afterUtc, beforeUtc]
+          properties:
+            afterUtc: {$ref: '#/components/schemas/NullableTimestamp'}
+            beforeUtc: {$ref: '#/components/schemas/NullableTimestamp'}
+    SearchDiagnostic:
+      type: object
+      additionalProperties: false
+      required: [code, messageKey, span, args]
+      properties:
+        code:
+          type: string
+          enum: [UNKNOWN_FIELD, MISSING_VALUE, UNCLOSED_QUOTE, INVALID_ESCAPE, UNEXPECTED_CHARACTER, EMPTY_LIST_ITEM, INVALID_ENUM, INVALID_DATE, INVALID_SIZE, DUPLICATE_FIELD, RANGE_CONFLICT, QUERY_TOO_COMPLEX, INVALID_TIMEZONE, ALBUM_NOT_AVAILABLE, ALBUM_AMBIGUOUS, DATE_NOT_REPRESENTABLE, CONTROL_CHARACTER, UNSUPPORTED_QUERY_VERSION, MIXED_QUERY_PROTOCOL, INVALID_PARAMETER, INVALID_PAGINATION]
+        messageKey: {type: string}
+        span:
+          type: object
+          additionalProperties: false
+          required: [start, end]
+          description: Half-open source range in original JavaScript UTF-16 code units.
+          properties:
+            start: {type: integer, minimum: 0}
+            end: {type: integer, minimum: 0}
+        args: {type: object, additionalProperties: true, description: Localizable diagnostic arguments; any candidates are authorized albums only.}
+    SearchErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, description: Existing numeric native error code, never a diagnostic string.}
+        message: {type: string}
+        data:
+          type: object
+          additionalProperties: false
+          required: [diagnostics]
+          properties:
+            diagnostics:
+              type: array
+              minItems: 1
+              maxItems: 5
+              items: {$ref: '#/components/schemas/SearchDiagnostic'}
+    AlbumSuggestions:
+      type: object
+      additionalProperties: false
+      required: [items, hasMore]
+      properties:
+        items: {type: array, maxItems: 20, items: {$ref: '#/components/schemas/SearchAlbum'}}
+        hasMore: {type: boolean}
+    AlbumSuggestionsEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/AlbumSuggestions'}
     ImagePage:
       type: object
       additionalProperties: false
@@ -2054,6 +2628,8 @@ components:
         total: {type: integer, format: int64, minimum: 0}
         page: {type: integer, minimum: 1}
         size: {type: integer, minimum: 1, maximum: 100}
+        search:
+          $ref: '#/components/schemas/SearchMetadata'
     AlbumView:
       type: object
       additionalProperties: false
@@ -2291,6 +2867,8 @@ components:
           $ref: '#/components/schemas/EmailInput'
         password:
           $ref: '#/components/schemas/Password'
+        captcha_token:
+          $ref: '#/components/schemas/CaptchaToken'
     LoginRequest:
       type: object
       additionalProperties: false
@@ -2300,6 +2878,8 @@ components:
           $ref: '#/components/schemas/EmailInput'
         password:
           $ref: '#/components/schemas/CredentialPassword'
+        captcha_token:
+          $ref: '#/components/schemas/CaptchaToken'
     PasswordRequest:
       type: object
       additionalProperties: false
@@ -2309,6 +2889,15 @@ components:
           $ref: '#/components/schemas/CredentialPassword'
         new_password:
           $ref: '#/components/schemas/Password'
+    ProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [display_name]
+      properties:
+        display_name:
+          type: string
+          maxLength: 64
+          description: Trimmed server-side; empty clears the custom name.
     CreateTokenRequest:
       type: object
       additionalProperties: false
@@ -2331,10 +2920,16 @@ components:
     UserView:
       type: object
       additionalProperties: false
-      required: [id, group_id, username, email, role, status, used_bytes, created_at]
+      required: [id, display_name, group_id, username, email, role, status, used_bytes, created_at, avatar_provider, avatar_url, avatar_config_version]
       properties:
         id:
           $ref: '#/components/schemas/ID'
+        display_name:
+          type: string
+          maxLength: 64
+          description: |
+            Optional self-chosen profile name; empty means clients fall back
+            to the username. Plain text only; control characters are rejected.
         group_id:
           $ref: '#/components/schemas/ID'
         username:
@@ -2357,6 +2952,22 @@ components:
           description: Storage usage in bytes.
         created_at:
           $ref: '#/components/schemas/Timestamp'
+        avatar_provider:
+          type: string
+          enum: [weavatar, gravatar]
+          description: Site-wide avatar source that produced avatar_url.
+        avatar_url:
+          type: string
+          nullable: true
+          description: |
+            HTTPS avatar address derived from the SHA-256 of the normalized
+            account email; null means clients show the local default image.
+            Computed server-side without contacting the avatar service.
+        avatar_config_version:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Site avatar configuration version; clients compare it to notice provider changes.
     TokenView:
       type: object
       additionalProperties: false
@@ -2717,13 +3328,48 @@ components:
       properties:
         code:
           type: integer
-          enum: [10001, 10002, 10004, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 50001, 50002, 50003]
+          enum: [10001, 10002, 10004, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 30010, 30011, 30012, 50001, 50002, 50003, 50004]
         message:
           type: string
           description: Human-readable error message without technical or credential details.
         data:
           $ref: '#/components/schemas/NullData'
   responses:
+    SearchInvalid:
+      description: Invalid unified-search syntax, parameters, version, complexity or mixed protocol. No partial query is executed.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/SearchErrorEnvelope'}
+    SearchAlbumUnavailable:
+      description: An album is unavailable in the authorized scope or its exact name is ambiguous. Missing and inaccessible resources are indistinguishable.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/SearchErrorEnvelope'}
+    CaptchaAdmin:
+      description: Safe administrator snapshot after a successful read or mutation.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/CaptchaAdminEnvelope'}
+    CaptchaFailed:
+      description: Missing, oversized, expired, replayed, rejected, or action/hostname-mismatched challenge; code 30010. Obtain a fresh token.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    CaptchaConflict:
+      description: Stale expected_version or concurrent modification; code 30011. Reload before retrying.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    CaptchaConflictOrNotReady:
+      description: Code 30011 for stale/concurrent version; code 30012 for absent candidate, missing/faded candidate tests, or missing compatibility acknowledgements.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    CaptchaUnavailable:
+      description: Configuration storage, secret encryption/decryption, provider protocol, timeout, or provider service unavailable; code 50004. Protection stays enabled and no session is issued.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     LskyUnauthenticated:
       description: Missing, malformed, revoked or expired bearer token; never a silent downgrade to guest access.
       content:

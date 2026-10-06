@@ -118,7 +118,7 @@ func newRaceFixture(t *testing.T, driver string) *raceFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tokens, err := service.NewTokenService(t.Context(), tokensRepo, usersRepo, time.Now)
+	tokens, err := service.NewTokenService(t.Context(), tokensRepo, usersRepo, settings, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,6 +142,7 @@ type httpapiUserService interface {
 	Register(context.Context, service.RegisterInput) (service.UserView, error)
 	VerifyCredentials(context.Context, string, string) (verifiedCredential, error)
 	ChangePassword(context.Context, uint64, string, string) error
+	UpdateDisplayName(context.Context, uint64, string) (service.UserView, error)
 	Site(context.Context) (service.SiteView, error)
 }
 
@@ -253,7 +254,13 @@ func TestResetInvalidatesInFlightLogin(t *testing.T) {
 			go func() { router.ServeHTTP(response, r); close(finished) }()
 			select {
 			case <-paused.ready:
-			case <-time.After(3 * time.Second):
+			case <-finished:
+				close(paused.release)
+				t.Fatalf("login finished before password verification barrier: HTTP=%d", response.Code)
+			case <-time.After(15 * time.Second):
+				// Real cost-12 bcrypt can exceed three seconds under race
+				// instrumentation on constrained executors. Keep a bounded
+				// wait without weakening the reset/token ordering assertion.
 				close(paused.release)
 				t.Fatal("password verification barrier not reached")
 			}

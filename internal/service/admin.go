@@ -14,8 +14,8 @@ import (
 type AdminUserRepository interface {
 	FindUserByID(context.Context, uint64) (model.User, error)
 	ListUsers(context.Context, string, int, int) ([]model.User, int64, error)
-	SetUserStatus(context.Context, uint64, string) error
-	SetUserGroup(context.Context, uint64, uint64) error
+	CreateAdminUser(context.Context, uint64, model.User) (model.User, error)
+	UpdateAdminUser(context.Context, uint64, uint64, model.UserChanges) (model.User, error)
 }
 
 // AdminGroupRepository manages account groups, their rule bindings, and the
@@ -62,6 +62,9 @@ type AdminPolicyRepository interface {
 type AdminSettingsRepository interface {
 	ReadSettings(context.Context) (map[string]json.RawMessage, error)
 	UpdateSettings(context.Context, map[string]json.RawMessage) error
+	// AvatarConfig returns the site-wide avatar provider selection used to
+	// decorate the user views the console returns.
+	AvatarConfig(context.Context) (model.AvatarConfig, error)
 }
 
 // AdminDependencies contains only the capabilities the console needs.
@@ -106,11 +109,27 @@ type AdminUserPage struct {
 	Size  int        `json:"size"`
 }
 
-// AdminUserPatch carries the optional account changes; there is deliberately
-// no role field, so role escalation has no request shape at all.
+// AdminUserInput creates a managed account. Password is accepted only at
+// creation; existing credentials have their own lifecycle and cannot be edited.
+type AdminUserInput struct {
+	Username    string `json:"username"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	DisplayName string `json:"display_name,omitempty"`
+	Role        string `json:"role"`
+	Status      string `json:"status"`
+	GroupID     uint64 `json:"group_id"`
+}
+
+// AdminUserPatch carries only explicitly editable account attributes.
+// Pointer fields distinguish omission from a supplied empty display name.
 type AdminUserPatch struct {
-	Status  *string `json:"status,omitempty"`
-	GroupID *uint64 `json:"group_id,omitempty"`
+	Username    *string `json:"username,omitempty"`
+	Email       *string `json:"email,omitempty"`
+	DisplayName *string `json:"display_name,omitempty"`
+	Role        *string `json:"role,omitempty"`
+	Status      *string `json:"status,omitempty"`
+	GroupID     *uint64 `json:"group_id,omitempty"`
 }
 
 // GroupView is the console's group entry with live counters.
@@ -210,6 +229,9 @@ type AdminSettingsView struct {
 	APIEnabled          bool   `json:"api_enabled"`
 	GuestGroupID        uint64 `json:"guest_group_id"`
 	DefaultGroupID      uint64 `json:"default_group_id"`
+	// AvatarProvider is the site-wide external avatar source; users cannot
+	// change it and only the two supported enums are ever stored or returned.
+	AvatarProvider string `json:"avatar_provider"`
 }
 
 // SettingsPatch changes only the settings keys present in the request.
@@ -222,6 +244,7 @@ type SettingsPatch struct {
 	APIEnabled          *bool   `json:"api_enabled,omitempty"`
 	GuestGroupID        *uint64 `json:"guest_group_id,omitempty"`
 	DefaultGroupID      *uint64 `json:"default_group_id,omitempty"`
+	AvatarProvider      *string `json:"avatar_provider,omitempty"`
 }
 
 func containsID(values []uint64, id uint64) bool {

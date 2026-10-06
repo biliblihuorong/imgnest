@@ -3,6 +3,7 @@ package native
 import (
 	"context"
 	"github.com/biliblihuorong/imgnest/internal/model"
+	"github.com/biliblihuorong/imgnest/internal/searchquery"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 	"math"
@@ -52,11 +53,12 @@ func (h *Handler) RegisterImageRoutes(ctx context.Context, router gin.IRouter, i
 	if opts.Timeout == 0 {
 		opts.Timeout = 5 * time.Minute
 	}
-	image := &imageHandler{auth: h, images: images, options: opts, slots: make(chan struct{}, opts.MaxConcurrent)}
+	image := &imageHandler{auth: h, images: images, options: opts, slots: make(chan struct{}, opts.MaxConcurrent), searchSlots: make(chan struct{}, 4)}
 	protected := router.Group("/api", h.authenticate)
 	protected.POST("/upload", image.upload)
 	protected.GET("/policies", image.listPolicies)
 	protected.GET("/images", image.list)
+	protected.GET("/albums/:id/images", image.listAlbumSearch)
 	protected.GET("/images/:id", image.get)
 	protected.GET("/images/:id/exif", image.exif)
 	protected.PATCH("/images/:id", image.permission)
@@ -76,10 +78,11 @@ func (h *Handler) RegisterImageRoutes(ctx context.Context, router gin.IRouter, i
 }
 
 type imageHandler struct {
-	auth    *Handler
-	images  ImageService
-	options ImageOptions
-	slots   chan struct{}
+	auth        *Handler
+	images      ImageService
+	options     ImageOptions
+	slots       chan struct{}
+	searchSlots chan struct{}
 }
 type imageResult struct {
 	ID       uint64 `json:"id,omitempty"`
@@ -130,6 +133,14 @@ func (h *imageHandler) exif(c *gin.Context) {
 func (h *imageHandler) list(c *gin.Context)      { h.listImages(c, false) }
 func (h *imageHandler) listTrash(c *gin.Context) { h.listImages(c, true) }
 func (h *imageHandler) listImages(c *gin.Context, trash bool) {
+	if _, exists := c.Request.URL.Query()["qv"]; exists {
+		if trash {
+			failSearch(c, service.SearchDiagnostic("UNSUPPORTED_QUERY_VERSION", searchquery.Span{}, nil))
+			return
+		}
+		h.listSearch(c, nil)
+		return
+	}
 	page, size, ok := pageParams(c)
 	if !ok {
 		return
@@ -147,7 +158,21 @@ func (h *imageHandler) listImages(c *gin.Context, trash bool) {
 		}
 		albumFilter = &parsed
 	}
-	result, err := h.images.List(c.Request.Context(), identity(c).Subject, service.ImageQuery{Page: page, Size: size, Trash: trash, AlbumID: albumFilter})
+	query := service.ImageQuery{Page: page, Size: size, Trash: trash, AlbumID: albumFilter, Keyword: c.Query("keyword"), Q: c.Query("q"), Order: c.Query("order"), Exif: c.Query("exif")}
+	if len(query.Keyword) > 200 || len(query.Exif) > 200 || len(query.Q) > 200 {
+		fail(c, service.ErrInvalidInput)
+		return
+	}
+	var err error
+	if query.MinSize, query.MaxSize, err = sizeRangeParams(c); err != nil {
+		fail(c, err)
+		return
+	}
+	if query.From, query.To, err = timeRangeParams(c); err != nil {
+		fail(c, err)
+		return
+	}
+	result, err := h.images.List(c.Request.Context(), identity(c).Subject, query)
 	if err != nil {
 		fail(c, err)
 		return
@@ -156,6 +181,46 @@ func (h *imageHandler) listImages(c *gin.Context, trash bool) {
 		result.Items = []service.ImageView{}
 	}
 	respond(c, 200, result)
+}
+
+// sizeRangeParams parses the optional byte-size bounds; zero means unbounded.
+func sizeRangeParams(c *gin.Context) (int64, int64, error) {
+	var minSize, maxSize int64
+	if value, exists := c.GetQuery("min_size"); exists {
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || parsed < 0 {
+			return 0, 0, service.ErrInvalidInput
+		}
+		minSize = parsed
+	}
+	if value, exists := c.GetQuery("max_size"); exists {
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || parsed < 0 {
+			return 0, 0, service.ErrInvalidInput
+		}
+		maxSize = parsed
+	}
+	return minSize, maxSize, nil
+}
+
+// timeRangeParams parses the optional RFC3339 upload-time window.
+func timeRangeParams(c *gin.Context) (*time.Time, *time.Time, error) {
+	var from, to *time.Time
+	if value, exists := c.GetQuery("from"); exists {
+		parsed, err := time.Parse(time.RFC3339, value)
+		if err != nil {
+			return nil, nil, service.ErrInvalidInput
+		}
+		from = &parsed
+	}
+	if value, exists := c.GetQuery("to"); exists {
+		parsed, err := time.Parse(time.RFC3339, value)
+		if err != nil {
+			return nil, nil, service.ErrInvalidInput
+		}
+		to = &parsed
+	}
+	return from, to, nil
 }
 func (h *imageHandler) gallery(c *gin.Context) {
 	page, size, ok := pageParams(c)

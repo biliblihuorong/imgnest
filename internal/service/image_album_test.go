@@ -23,12 +23,17 @@ type albumImagesRepo struct {
 	setKey     string
 	setErr     error
 	listAlbum  *uint64
+	listFilter model.ImageListFilter
 	listResult []model.Image
 	listTotal  int64
 	gallery    []model.GalleryImage
 	galleryAll int64
 	galleryErr error
 }
+
+func (r *albumImagesRepo) listOrder() string { return r.listFilter.Order }
+
+func (r *albumImagesRepo) capturedFilter() model.ImageListFilter { return r.listFilter }
 
 func (r *albumImagesRepo) FindByID(_ context.Context, id uint64) (model.Image, error) {
 	if r.findErr != nil {
@@ -45,8 +50,9 @@ func (r *albumImagesRepo) SetAlbum(_ context.Context, key string, albumID uint64
 	return r.setErr
 }
 
-func (r *albumImagesRepo) List(_ context.Context, _ uint64, _, _ bool, _, _ int, albumID *uint64) ([]model.Image, int64, error) {
-	r.listAlbum = albumID
+func (r *albumImagesRepo) List(_ context.Context, filter model.ImageListFilter, _, _ int) ([]model.Image, int64, error) {
+	r.listAlbum = filter.AlbumID
+	r.listFilter = filter
 	return r.listResult, r.listTotal, nil
 }
 

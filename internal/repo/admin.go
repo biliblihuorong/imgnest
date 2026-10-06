@@ -62,50 +62,181 @@ func (r *AdminRepository) ListUsers(ctx context.Context, keyword string, page, s
 	return users, total, nil
 }
 
-// SetUserStatus changes an account's availability. Disabling an account
-// revokes every bearer credential in the same transaction, matching the
-// password-change semantics.
-func (r *AdminRepository) SetUserStatus(ctx context.Context, userID uint64, status string) error {
-	if status != model.UserStatusEnabled && status != model.UserStatusDisabled {
-		return fmt.Errorf("set user status: %w", model.ErrInvalidInput)
-	}
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := lockUser(ctx, tx, userID); err != nil {
-			return err
-		}
-		if err := tx.Model(&model.User{}).Where("id = ?", userID).Update("status", status).Error; err != nil {
-			return err
-		}
-		if status != model.UserStatusDisabled {
-			return nil
-		}
-		return tx.Where("user_id = ?", userID).Delete(&model.Token{}).Error
-	})
-	if err != nil {
-		return repositoryError("set user status", err)
+// lockAdminAccounts serializes admin membership changes across processes and
+// shares BootstrapAdmin's lock. Locking only the target row would allow two
+// administrators to remove each other concurrently. SQLite uses BEGIN IMMEDIATE.
+func lockAdminAccounts(tx *gorm.DB) error {
+	if tx.Name() == "postgres" {
+		return tx.Exec("SELECT pg_advisory_xact_lock(hashtext(current_schema()), 1229801282)").Error
 	}
 	return nil
 }
 
-// SetUserGroup moves an account to an existing group.
-func (r *AdminRepository) SetUserGroup(ctx context.Context, userID, groupID uint64) error {
-	if groupID == 0 {
-		return fmt.Errorf("set user group: %w", model.ErrInvalidInput)
+func requireEnabledAdmin(tx *gorm.DB, callerID uint64) error {
+	if callerID == 0 {
+		return model.ErrForbidden
 	}
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := lockUser(ctx, tx, userID); err != nil {
-			return err
-		}
-		var group model.Group
-		if err := tx.First(&group, "id = ?", groupID).Error; err != nil {
-			return err
-		}
-		return tx.Model(&model.User{}).Where("id = ?", userID).Update("group_id", groupID).Error
-	})
-	if err != nil {
-		return repositoryError("set user group", err)
+	var caller model.User
+	if err := tx.First(&caller, "id = ?", callerID).Error; err != nil {
+		return err
+	}
+	if caller.Role != model.UserRoleAdmin || caller.Status != model.UserStatusEnabled {
+		return model.ErrForbidden
 	}
 	return nil
+}
+
+func requireAccountGroup(tx *gorm.DB, groupID uint64) error {
+	if groupID == 0 {
+		return model.ErrInvalidInput
+	}
+	var group model.Group
+	if err := tx.First(&group, "id = ?", groupID).Error; err != nil {
+		return err
+	}
+	if group.IsGuest {
+		return model.ErrInvalidInput
+	}
+	return nil
+}
+
+// CreateAdminUser creates an account independently of public registration.
+// The actor and group are rechecked inside the transaction; uniqueness is
+// enforced by the database rather than a racy preflight existence check.
+func (r *AdminRepository) CreateAdminUser(ctx context.Context, callerID uint64, user model.User) (model.User, error) {
+	user = model.User{
+		Username: user.Username, Email: user.Email, PasswordHash: user.PasswordHash,
+		DisplayName: user.DisplayName, Role: user.Role, Status: user.Status, GroupID: user.GroupID,
+	}
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockAdminAccounts(tx); err != nil {
+			return err
+		}
+		if err := requireEnabledAdmin(tx, callerID); err != nil {
+			return err
+		}
+		if err := requireAccountGroup(tx, user.GroupID); err != nil {
+			return err
+		}
+		return tx.Create(&user).Error
+	})
+	if err != nil {
+		return model.User{}, userWriteError("create admin user", err)
+	}
+	return user, nil
+}
+
+// UpdateAdminUser applies all supplied fields and revokes affected credentials
+// atomically. Actor checks, self-disable and last-admin protection run under
+// the same membership lock, including concurrent role/status requests.
+func (r *AdminRepository) UpdateAdminUser(ctx context.Context, callerID, userID uint64, patch model.UserChanges) (model.User, error) {
+	if callerID == 0 {
+		return model.User{}, fmt.Errorf("update admin user: %w", model.ErrForbidden)
+	}
+	return r.updateAdminUser(ctx, callerID, userID, patch)
+}
+
+func (r *AdminRepository) updateAdminUser(ctx context.Context, callerID, userID uint64, patch model.UserChanges) (model.User, error) {
+	if userID == 0 {
+		return model.User{}, fmt.Errorf("update admin user: %w", model.ErrInvalidInput)
+	}
+	var user model.User
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockAdminAccounts(tx); err != nil {
+			return err
+		}
+		if callerID != 0 {
+			if err := requireEnabledAdmin(tx, callerID); err != nil {
+				return err
+			}
+		}
+		var err error
+		user, err = lockUser(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
+		next := user
+		updates := map[string]any{}
+		for _, field := range []struct {
+			name   string
+			value  *string
+			target *string
+		}{
+			{"username", patch.Username, &next.Username}, {"email", patch.Email, &next.Email},
+			{"display_name", patch.DisplayName, &next.DisplayName}, {"role", patch.Role, &next.Role},
+			{"status", patch.Status, &next.Status},
+		} {
+			if field.value != nil {
+				*field.target = *field.value
+				updates[field.name] = *field.value
+			}
+		}
+		if next.Role != model.UserRoleAdmin && next.Role != model.UserRoleUser {
+			return model.ErrInvalidInput
+		}
+		if next.Status != model.UserStatusEnabled && next.Status != model.UserStatusDisabled {
+			return model.ErrInvalidInput
+		}
+		if callerID == userID && next.Status == model.UserStatusDisabled {
+			return model.ErrForbidden
+		}
+		if patch.GroupID != nil {
+			if err := requireAccountGroup(tx, *patch.GroupID); err != nil {
+				return err
+			}
+			next.GroupID = *patch.GroupID
+			updates["group_id"] = *patch.GroupID
+		}
+		if user.Role == model.UserRoleAdmin && user.Status == model.UserStatusEnabled &&
+			(next.Role != model.UserRoleAdmin || next.Status != model.UserStatusEnabled) {
+			var remaining int64
+			if err := tx.Model(&model.User{}).Where("id <> ? AND id <> 0 AND role = ? AND status = ?", userID, model.UserRoleAdmin, model.UserStatusEnabled).Count(&remaining).Error; err != nil {
+				return err
+			}
+			if remaining == 0 {
+				return model.ErrForbidden
+			}
+		}
+		if len(updates) == 0 {
+			return nil
+		}
+		securityChanged := next.Username != user.Username || next.Email != user.Email ||
+			next.Role != user.Role || next.Status != user.Status || next.GroupID != user.GroupID
+		if securityChanged {
+			// A→B→A edits must not resurrect a proof verified before revocation.
+			// Both databases store signed BIGINTs; fail closed at exhaustion.
+			if user.AuthVersion >= math.MaxInt64 {
+				return model.ErrInvalidInput
+			}
+			updates["auth_version"] = gorm.Expr("auth_version + 1")
+		}
+		if err := tx.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+			return err
+		}
+		if securityChanged {
+			if err := tx.Where("user_id = ?", userID).Delete(&model.Token{}).Error; err != nil {
+				return err
+			}
+		}
+		return tx.First(&user, "id = ?", userID).Error
+	})
+	if err != nil {
+		return model.User{}, userWriteError("update admin user", err)
+	}
+	return user, nil
+}
+
+// SetUserStatus is the internal lifecycle operation; it shares the atomic
+// account mutation and last-enabled-administrator protections.
+func (r *AdminRepository) SetUserStatus(ctx context.Context, userID uint64, status string) error {
+	_, err := r.updateAdminUser(ctx, 0, userID, model.UserChanges{Status: &status})
+	return err
+}
+
+// SetUserGroup moves an account and invalidates its previous credentials.
+func (r *AdminRepository) SetUserGroup(ctx context.Context, userID, groupID uint64) error {
+	_, err := r.updateAdminUser(ctx, 0, userID, model.UserChanges{GroupID: &groupID})
+	return err
 }
 
 // FindGroup fetches one group by ID.

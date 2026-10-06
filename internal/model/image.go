@@ -38,6 +38,7 @@ type Image struct {
 	Key            string          `json:"key"`
 	Path           string          `json:"path"`
 	Ext            string          `json:"ext"`
+	FilenameSearch *string         `json:"-"`
 	OriginName     string          `json:"origin_name"`
 	MIME           string          `gorm:"column:mime" json:"mime"`
 	SrcMD5         string          `gorm:"column:src_md5" json:"src_md5"`

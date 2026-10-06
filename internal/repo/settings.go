@@ -110,6 +110,33 @@ func (r *SettingsRepository) GalleryEnabled(ctx context.Context) (bool, error) {
 	return *enabled, nil
 }
 
+// AvatarConfig returns the site-wide avatar provider with its configuration
+// version (the settings row's update time as Unix seconds). A missing key or
+// an unsupported stored value reads as the default provider with version 0 so
+// a corrupt setting degrades to the known default instead of failing every
+// authenticated request; unsupported providers are never contacted.
+func (r *SettingsRepository) AvatarConfig(ctx context.Context) (model.AvatarConfig, error) {
+	setting, found, err := r.findOptional(ctx, "avatar_provider")
+	if err != nil || !found {
+		return model.AvatarConfig{Provider: model.DefaultAvatarProvider}, err
+	}
+	var provider *string
+	if err := json.Unmarshal(setting.Value, &provider); err != nil {
+		return model.AvatarConfig{Provider: model.DefaultAvatarProvider}, nil
+	}
+	if !model.ValidAvatarProvider(deref(provider)) {
+		return model.AvatarConfig{Provider: model.DefaultAvatarProvider}, nil
+	}
+	return model.AvatarConfig{Provider: deref(provider), Version: setting.UpdatedAt.Unix()}, nil
+}
+
+func deref(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
 // ReadSettings returns every stored setting keyed by its settings key. Callers
 // apply their own defaults for absent keys.
 func (r *SettingsRepository) ReadSettings(ctx context.Context) (map[string]json.RawMessage, error) {

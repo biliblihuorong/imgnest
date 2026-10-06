@@ -1,0 +1,351 @@
+=== RUN   TestSearchPerformance
+    image_search_performance_test.go:46: runtime=go1.27.1 linux/amd64 CPUs=9; warm synthetic data, 21 measured iterations, page size 20
+=== RUN   TestSearchPerformance/10000
+=== RUN   TestSearchPerformance/10000/sqlite
+=== RUN   TestSearchPerformance/10000/sqlite/empty
+    image_search_performance_test.go:127: rows=10000 matched=9000 p50=1.483839ms p95=1.910838ms COUNT-p50=790.987µs COUNT-p95=1.021737ms
+    image_search_performance_test.go:163: count plan:
+        3 0 0SEARCH images USING COVERING INDEX idx_images_owner_state_created_id (user_id=? AND state=?)
+    image_search_performance_test.go:163: rows plan:
+        5 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=?)
+=== RUN   TestSearchPerformance/10000/sqlite/format-date
+    image_search_performance_test.go:127: rows=10000 matched=1998 p50=4.924134ms p95=6.568129ms COUNT-p50=3.659679ms COUNT-p95=5.587532ms
+    image_search_performance_test.go:163: count plan:
+        4 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=? AND created_at>?)
+    image_search_performance_test.go:163: rows plan:
+        5 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=? AND created_at>?)
+=== RUN   TestSearchPerformance/10000/sqlite/album
+    image_search_performance_test.go:127: rows=10000 matched=3000 p50=1.150767ms p95=1.714139ms COUNT-p50=358.889µs COUNT-p95=427.531µs
+    image_search_performance_test.go:163: count plan:
+        3 0 0SEARCH images USING COVERING INDEX idx_images_owner_album_state_created_id (user_id=? AND album_id=? AND state=?)
+    image_search_performance_test.go:163: rows plan:
+        5 0 0SEARCH images USING INDEX idx_images_owner_album_state_created_id (user_id=? AND album_id=? AND state=?)
+=== RUN   TestSearchPerformance/10000/sqlite/rare
+    image_search_performance_test.go:127: rows=10000 matched=1 p50=15.86378ms p95=22.430554ms COUNT-p50=7.907169ms COUNT-p95=10.936056ms
+    image_search_performance_test.go:163: count plan:
+        4 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=?)
+    image_search_performance_test.go:163: rows plan:
+        5 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=?)
+=== RUN   TestSearchPerformance/10000/sqlite/no-hit
+    image_search_performance_test.go:127: rows=10000 matched=0 p50=15.759237ms p95=16.508162ms COUNT-p50=7.812805ms COUNT-p95=8.922241ms
+    image_search_performance_test.go:163: count plan:
+        4 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=?)
+    image_search_performance_test.go:163: rows plan:
+        5 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=?)
+=== RUN   TestSearchPerformance/10000/postgres
+=== RUN   TestSearchPerformance/10000/postgres/empty
+    image_search_performance_test.go:127: rows=10000 matched=9000 p50=2.536993ms p95=2.968659ms COUNT-p50=2.019919ms COUNT-p95=2.440349ms
+    image_search_performance_test.go:163: count plan:
+        Aggregate  (cost=557.50..557.51 rows=1 width=8) (actual time=2.507..2.508 rows=1.00 loops=1)
+          Buffers: shared hit=385
+          ->  Seq Scan on images  (cost=0.00..535.00 rows=9000 width=0) (actual time=0.005..2.042 rows=9000.00 loops=1)
+                Filter: ((user_id = 1) AND (state = 'active'::text))
+                Rows Removed by Filter: 1000
+                Buffers: shared hit=385
+        Planning Time: 0.055 ms
+        Execution Time: 2.521 ms
+    image_search_performance_test.go:163: rows plan:
+        Limit  (cost=0.29..4.09 rows=20 width=206) (actual time=0.036..0.045 rows=20.00 loops=1)
+          Buffers: shared hit=29
+          ->  Index Scan Backward using idx_images_owner_state_created_id on images  (cost=0.29..1713.46 rows=9000 width=206) (actual time=0.035..0.043 rows=20.00 loops=1)
+                Index Cond: ((user_id = 1) AND (state = 'active'::text))
+                Index Searches: 1
+                Buffers: shared hit=29
+        Planning Time: 0.089 ms
+        Execution Time: 0.059 ms
+=== RUN   TestSearchPerformance/10000/postgres/format-date
+    image_search_performance_test.go:127: rows=10000 matched=1998 p50=2.242413ms p95=4.625043ms COUNT-p50=1.587362ms COUNT-p95=2.003526ms
+    image_search_performance_test.go:163: rows plan:
+        Limit  (cost=824.42..824.47 rows=20 width=206) (actual time=1.954..1.957 rows=20.00 loops=1)
+          Buffers: shared hit=430
+          ->  Sort  (cost=824.42..824.47 rows=22 width=206) (actual time=1.953..1.955 rows=20.00 loops=1)
+                Sort Key: created_at DESC, id DESC
+                Sort Method: top-N heapsort  Memory: 33kB
+                Buffers: shared hit=430
+                ->  Bitmap Heap Scan on images  (cost=236.52..823.93 rows=22 width=206) (actual time=0.347..1.443 rows=1998.00 loops=1)
+                      Recheck Cond: ((user_id = 1) AND (state = 'active'::text) AND (created_at >= '2026-10-15 00:00:00+08'::timestamp with time zone))
+                      Filter: (CASE mime WHEN 'image/jpeg'::text THEN 'jpg'::text WHEN 'image/png'::text THEN 'png'::text WHEN 'image/gif'::text THEN 'gif'::text WHEN 'image/webp'::text THEN 'webp'::text WHEN 'image/avif'::text THEN 'avif'::text WHEN 'image/bmp'::text THEN 'bmp'::text WHEN 'image/tiff'::text THEN 'tiff'::text WHEN 'image/svg+xml'::text THEN 'svg'::text WHEN 'image/heic'::text THEN 'heic'::text WHEN 'image/heif'::text THEN 'heif'::text ELSE 'unknown'::text END = 'png'::text)
+                      Rows Removed by Filter: 2501
+                      Heap Blocks: exact=385
+                      Buffers: shared hit=430
+                      ->  Bitmap Index Scan on idx_images_owner_state_created_id  (cost=0.00..236.51 rows=4498 width=0) (actual time=0.312..0.312 rows=5947.00 loops=1)
+                            Index Cond: ((user_id = 1) AND (state = 'active'::text) AND (created_at >= '2026-10-15 00:00:00+08'::timestamp with time zone))
+                            Index Searches: 1
+                            Buffers: shared hit=45
+        Planning Time: 0.185 ms
+        Execution Time: 1.979 ms
+    image_search_performance_test.go:163: count plan:
+        Aggregate  (cost=823.98..823.99 rows=1 width=8) (actual time=1.537..1.537 rows=1.00 loops=1)
+          Buffers: shared hit=430
+          ->  Bitmap Heap Scan on images  (cost=236.52..823.93 rows=22 width=0) (actual time=0.348..1.430 rows=1998.00 loops=1)
+                Recheck Cond: ((user_id = 1) AND (state = 'active'::text) AND (created_at >= '2026-10-15 00:00:00+08'::timestamp with time zone))
+                Filter: (CASE mime WHEN 'image/jpeg'::text THEN 'jpg'::text WHEN 'image/png'::text THEN 'png'::text WHEN 'image/gif'::text THEN 'gif'::text WHEN 'image/webp'::text THEN 'webp'::text WHEN 'image/avif'::text THEN 'avif'::text WHEN 'image/bmp'::text THEN 'bmp'::text WHEN 'image/tiff'::text THEN 'tiff'::text WHEN 'image/svg+xml'::text THEN 'svg'::text WHEN 'image/heic'::text THEN 'heic'::text WHEN 'image/heif'::text THEN 'heif'::text ELSE 'unknown'::text END = 'png'::text)
+                Rows Removed by Filter: 2501
+                Heap Blocks: exact=385
+                Buffers: shared hit=430
+                ->  Bitmap Index Scan on idx_images_owner_state_created_id  (cost=0.00..236.51 rows=4498 width=0) (actual time=0.312..0.312 rows=5947.00 loops=1)
+                      Index Cond: ((user_id = 1) AND (state = 'active'::text) AND (created_at >= '2026-10-15 00:00:00+08'::timestamp with time zone))
+                      Index Searches: 1
+                      Buffers: shared hit=45
+        Planning Time: 0.087 ms
+        Execution Time: 1.551 ms
+=== RUN   TestSearchPerformance/10000/postgres/album
+    image_search_performance_test.go:127: rows=10000 matched=3000 p50=1.105876ms p95=2.562694ms COUNT-p50=559.125µs COUNT-p95=1.803105ms
+    image_search_performance_test.go:163: count plan:
+        Aggregate  (cost=566.75..566.76 rows=1 width=8) (actual time=2.364..2.365 rows=1.00 loops=1)
+          Buffers: shared hit=385
+          ->  Seq Scan on images  (cost=0.00..560.00 rows=2700 width=0) (actual time=1.512..2.208 rows=3000.00 loops=1)
+                Filter: ((user_id = 1) AND (album_id = 1) AND (state = 'active'::text))
+                Rows Removed by Filter: 7000
+                Buffers: shared hit=385
+        Planning:
+          Buffers: shared hit=3
+        Planning Time: 0.078 ms
+        Execution Time: 2.377 ms
+    image_search_performance_test.go:163: rows plan:
+        Limit  (cost=0.29..10.03 rows=20 width=206) (actual time=0.019..0.026 rows=20.00 loops=1)
+          Buffers: shared hit=19
+          ->  Index Scan Backward using idx_images_owner_album_state_created_id on images  (cost=0.29..1316.12 rows=2700 width=206) (actual time=0.018..0.024 rows=20.00 loops=1)
+                Index Cond: ((user_id = 1) AND (album_id = 1) AND (state = 'active'::text))
+                Index Searches: 1
+                Buffers: shared hit=19
+        Planning Time: 0.094 ms
+        Execution Time: 0.039 ms
+=== RUN   TestSearchPerformance/10000/postgres/rare
+    image_search_performance_test.go:127: rows=10000 matched=1 p50=8.247256ms p95=10.775059ms COUNT-p50=3.007427ms COUNT-p95=4.516743ms
+    image_search_performance_test.go:163: count plan:
+        Aggregate  (cost=592.50..592.51 rows=1 width=8) (actual time=3.040..3.040 rows=1.00 loops=1)
+          Buffers: shared hit=385
+          ->  Seq Scan on images  (cost=0.00..585.00 rows=3000 width=0) (actual time=2.121..3.037 rows=1.00 loops=1)
+                Filter: ((user_id = 1) AND (state = 'active'::text) AND (strpos(filename_search, 'rare-needle'::text) > 0))
+                Rows Removed by Filter: 9999
+                Buffers: shared hit=385
+        Planning Time: 0.076 ms
+        Execution Time: 3.056 ms
+    image_search_performance_test.go:163: rows plan:
+        Limit  (cost=0.29..12.01 rows=20 width=206) (actual time=4.995..4.996 rows=1.00 loops=1)
+          Buffers: shared hit=9112
+          ->  Index Scan Backward using idx_images_owner_state_created_id on images  (cost=0.29..1758.46 rows=3000 width=206) (actual time=4.995..4.995 rows=1.00 loops=1)
+                Index Cond: ((user_id = 1) AND (state = 'active'::text))
+                Filter: (strpos(filename_search, 'rare-needle'::text) > 0)
+                Rows Removed by Filter: 8999
+                Index Searches: 1
+                Buffers: shared hit=9112
+        Planning Time: 0.098 ms
+        Execution Time: 5.010 ms
+=== RUN   TestSearchPerformance/10000/postgres/no-hit
+    image_search_performance_test.go:127: rows=10000 matched=0 p50=6.62641ms p95=9.332301ms COUNT-p50=2.808498ms COUNT-p95=3.906784ms
+    image_search_performance_test.go:163: count plan:
+        Aggregate  (cost=592.50..592.51 rows=1 width=8) (actual time=1.765..1.765 rows=1.00 loops=1)
+          Buffers: shared hit=385
+          ->  Seq Scan on images  (cost=0.00..585.00 rows=3000 width=0) (actual time=1.763..1.763 rows=0.00 loops=1)
+                Filter: ((user_id = 1) AND (state = 'active'::text) AND (strpos(filename_search, 'never-present'::text) > 0))
+                Rows Removed by Filter: 10000
+                Buffers: shared hit=385
+        Planning Time: 0.137 ms
+        Execution Time: 1.778 ms
+    image_search_performance_test.go:163: rows plan:
+        Limit  (cost=0.29..12.01 rows=20 width=206) (actual time=3.280..3.280 rows=0.00 loops=1)
+          Buffers: shared hit=9112
+          ->  Index Scan Backward using idx_images_owner_state_created_id on images  (cost=0.29..1758.46 rows=3000 width=206) (actual time=3.279..3.279 rows=0.00 loops=1)
+                Index Cond: ((user_id = 1) AND (state = 'active'::text))
+                Filter: (strpos(filename_search, 'never-present'::text) > 0)
+                Rows Removed by Filter: 9000
+                Index Searches: 1
+                Buffers: shared hit=9112
+        Planning Time: 0.072 ms
+        Execution Time: 3.291 ms
+=== RUN   TestSearchPerformance/100000
+=== RUN   TestSearchPerformance/100000/sqlite
+=== RUN   TestSearchPerformance/100000/sqlite/empty
+    image_search_performance_test.go:127: rows=100000 matched=90000 p50=9.365686ms p95=12.382265ms COUNT-p50=8.381123ms COUNT-p95=11.329813ms
+    image_search_performance_test.go:163: count plan:
+        3 0 0SEARCH images USING COVERING INDEX idx_images_owner_state_created_id (user_id=? AND state=?)
+    image_search_performance_test.go:163: rows plan:
+        5 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=?)
+=== RUN   TestSearchPerformance/100000/sqlite/format-date
+    image_search_performance_test.go:127: rows=100000 matched=19997 p50=85.58513ms p95=103.249037ms COUNT-p50=80.004918ms COUNT-p95=97.840337ms
+    image_search_performance_test.go:163: count plan:
+        4 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=? AND created_at>?)
+    image_search_performance_test.go:163: rows plan:
+        5 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=? AND created_at>?)
+=== RUN   TestSearchPerformance/100000/sqlite/album
+    image_search_performance_test.go:127: rows=100000 matched=30000 p50=4.404457ms p95=4.640095ms COUNT-p50=3.510579ms COUNT-p95=3.677815ms
+    image_search_performance_test.go:163: count plan:
+        3 0 0SEARCH images USING COVERING INDEX idx_images_owner_album_state_created_id (user_id=? AND album_id=? AND state=?)
+    image_search_performance_test.go:163: rows plan:
+        5 0 0SEARCH images USING INDEX idx_images_owner_album_state_created_id (user_id=? AND album_id=? AND state=?)
+=== RUN   TestSearchPerformance/100000/sqlite/rare
+    image_search_performance_test.go:127: rows=100000 matched=1 p50=347.508877ms p95=389.369512ms COUNT-p50=171.885567ms COUNT-p95=192.642722ms
+    image_search_performance_test.go:163: count plan:
+        4 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=?)
+    image_search_performance_test.go:163: rows plan:
+        5 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=?)
+=== RUN   TestSearchPerformance/100000/sqlite/no-hit
+    image_search_performance_test.go:127: rows=100000 matched=0 p50=345.81258ms p95=371.67081ms COUNT-p50=170.007457ms COUNT-p95=193.580809ms
+    image_search_performance_test.go:163: count plan:
+        4 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=?)
+    image_search_performance_test.go:163: rows plan:
+        5 0 0SEARCH images USING INDEX idx_images_owner_state_created_id (user_id=? AND state=?)
+=== RUN   TestSearchPerformance/100000/postgres
+=== RUN   TestSearchPerformance/100000/postgres/empty
+    image_search_performance_test.go:127: rows=100000 matched=90000 p50=27.37105ms p95=28.191596ms COUNT-p50=26.725684ms COUNT-p95=27.396724ms
+    image_search_performance_test.go:163: rows plan:
+        Limit  (cost=0.42..4.31 rows=20 width=208) (actual time=0.026..0.034 rows=20.00 loops=1)
+          Buffers: shared hit=28
+          ->  Index Scan Backward using idx_images_owner_state_created_id on images  (cost=0.42..17481.69 rows=89817 width=208) (actual time=0.025..0.033 rows=20.00 loops=1)
+                Index Cond: ((user_id = 1) AND (state = 'active'::text))
+                Index Searches: 1
+                Buffers: shared hit=28
+        Planning Time: 0.079 ms
+        Execution Time: 0.044 ms
+    image_search_performance_test.go:163: count plan:
+        Aggregate  (cost=5575.54..5575.55 rows=1 width=8) (actual time=24.852..24.853 rows=1.00 loops=1)
+          Buffers: shared hit=3851
+          ->  Seq Scan on images  (cost=0.00..5351.00 rows=89817 width=0) (actual time=0.007..21.102 rows=90000.00 loops=1)
+                Filter: ((user_id = 1) AND (state = 'active'::text))
+                Rows Removed by Filter: 10000
+                Buffers: shared hit=3851
+        Planning Time: 0.052 ms
+        Execution Time: 24.866 ms
+=== RUN   TestSearchPerformance/100000/postgres/format-date
+    image_search_performance_test.go:127: rows=100000 matched=19997 p50=18.674318ms p95=25.913482ms COUNT-p50=16.504407ms COUNT-p95=22.776864ms
+    image_search_performance_test.go:163: count plan:
+        Finalize Aggregate  (cost=6726.45..6726.46 rows=1 width=8) (actual time=15.118..20.311 rows=1.00 loops=1)
+          Buffers: shared hit=3851
+          ->  Gather  (cost=6726.23..6726.44 rows=2 width=8) (actual time=15.010..20.307 rows=3.00 loops=1)
+                Workers Planned: 2
+                Workers Launched: 2
+                Buffers: shared hit=3851
+                ->  Partial Aggregate  (cost=5726.23..5726.24 rows=1 width=8) (actual time=12.372..12.373 rows=1.00 loops=3)
+                      Buffers: shared hit=3851
+                      ->  Parallel Seq Scan on images  (cost=0.00..5726.00 rows=93 width=0) (actual time=0.015..12.070 rows=6665.67 loops=3)
+                            Filter: ((created_at >= '2026-10-15 00:00:00+08'::timestamp with time zone) AND (user_id = 1) AND (state = 'active'::text) AND (CASE mime WHEN 'image/jpeg'::text THEN 'jpg'::text WHEN 'image/png'::text THEN 'png'::text WHEN 'image/gif'::text THEN 'gif'::text WHEN 'image/webp'::text THEN 'webp'::text WHEN 'image/avif'::text THEN 'avif'::text WHEN 'image/bmp'::text THEN 'bmp'::text WHEN 'image/tiff'::text THEN 'tiff'::text WHEN 'image/svg+xml'::text THEN 'svg'::text WHEN 'image/heic'::text THEN 'heic'::text WHEN 'image/heif'::text THEN 'heif'::text ELSE 'unknown'::text END = 'png'::text))
+                            Rows Removed by Filter: 26668
+                            Buffers: shared hit=3851
+        Planning Time: 0.132 ms
+        Execution Time: 20.335 ms
+    image_search_performance_test.go:163: rows plan:
+        Limit  (cost=0.42..1380.60 rows=20 width=208) (actual time=1.608..1.619 rows=20.00 loops=1)
+          Buffers: shared hit=2832
+          ->  Index Scan Backward using idx_images_owner_state_created_id on images  (cost=0.42..15458.49 rows=224 width=208) (actual time=1.606..1.617 rows=20.00 loops=1)
+                Index Cond: ((user_id = 1) AND (state = 'active'::text) AND (created_at >= '2026-10-15 00:00:00+08'::timestamp with time zone))
+                Filter: (CASE mime WHEN 'image/jpeg'::text THEN 'jpg'::text WHEN 'image/png'::text THEN 'png'::text WHEN 'image/gif'::text THEN 'gif'::text WHEN 'image/webp'::text THEN 'webp'::text WHEN 'image/avif'::text THEN 'avif'::text WHEN 'image/bmp'::text THEN 'bmp'::text WHEN 'image/tiff'::text THEN 'tiff'::text WHEN 'image/svg+xml'::text THEN 'svg'::text WHEN 'image/heic'::text THEN 'heic'::text WHEN 'image/heif'::text THEN 'heif'::text ELSE 'unknown'::text END = 'png'::text)
+                Rows Removed by Filter: 2861
+                Index Searches: 1
+                Buffers: shared hit=2832
+        Planning Time: 0.140 ms
+        Execution Time: 1.635 ms
+=== RUN   TestSearchPerformance/100000/postgres/album
+    image_search_performance_test.go:127: rows=100000 matched=30000 p50=5.3418ms p95=15.966252ms COUNT-p50=4.829584ms COUNT-p95=15.147194ms
+    image_search_performance_test.go:163: count plan:
+        Finalize Aggregate  (cost=5608.12..5608.13 rows=1 width=8) (actual time=9.871..12.529 rows=1.00 loops=1)
+          Buffers: shared hit=3851
+          ->  Gather  (cost=5607.91..5608.12 rows=2 width=8) (actual time=9.831..12.525 rows=3.00 loops=1)
+                Workers Planned: 2
+                Workers Launched: 2
+                Buffers: shared hit=3851
+                ->  Partial Aggregate  (cost=4607.91..4607.92 rows=1 width=8) (actual time=7.925..7.926 rows=1.00 loops=3)
+                      Buffers: shared hit=3851
+                      ->  Parallel Seq Scan on images  (cost=0.00..4580.17 rows=11096 width=0) (actual time=4.994..7.498 rows=10000.00 loops=3)
+                            Filter: ((user_id = 1) AND (album_id = 1) AND (state = 'active'::text))
+                            Rows Removed by Filter: 23333
+                            Buffers: shared hit=3851
+        Planning:
+          Buffers: shared hit=3
+        Planning Time: 0.077 ms
+        Execution Time: 12.562 ms
+    image_search_performance_test.go:163: rows plan:
+        Limit  (cost=0.42..10.51 rows=20 width=208) (actual time=0.025..0.035 rows=20.00 loops=1)
+          Buffers: shared hit=20
+          ->  Index Scan Backward using idx_images_owner_album_state_created_id on images  (cost=0.42..13436.11 rows=26631 width=208) (actual time=0.024..0.033 rows=20.00 loops=1)
+                Index Cond: ((user_id = 1) AND (album_id = 1) AND (state = 'active'::text))
+                Index Searches: 1
+                Buffers: shared hit=20
+        Planning Time: 0.228 ms
+        Execution Time: 0.049 ms
+=== RUN   TestSearchPerformance/100000/postgres/rare
+    image_search_performance_test.go:127: rows=100000 matched=1 p50=65.833273ms p95=82.501992ms COUNT-p50=27.496187ms COUNT-p95=35.008442ms
+    image_search_performance_test.go:163: count plan:
+        Finalize Aggregate  (cost=5715.74..5715.75 rows=1 width=8) (actual time=12.451..15.624 rows=1.00 loops=1)
+          Buffers: shared hit=3851
+          ->  Gather  (cost=5715.52..5715.73 rows=2 width=8) (actual time=12.382..15.619 rows=3.00 loops=1)
+                Workers Planned: 2
+                Workers Launched: 2
+                Buffers: shared hit=3851
+                ->  Partial Aggregate  (cost=4715.52..4715.53 rows=1 width=8) (actual time=10.516..10.516 rows=1.00 loops=3)
+                      Buffers: shared hit=3851
+                      ->  Parallel Seq Scan on images  (cost=0.00..4684.33 rows=12475 width=0) (actual time=9.515..10.513 rows=0.33 loops=3)
+                            Filter: ((user_id = 1) AND (state = 'active'::text) AND (strpos(filename_search, 'rare-needle'::text) > 0))
+                            Rows Removed by Filter: 33333
+                            Buffers: shared hit=3851
+        Planning Time: 0.129 ms
+        Execution Time: 15.651 ms
+    image_search_performance_test.go:163: rows plan:
+        Limit  (cost=0.42..12.40 rows=20 width=208) (actual time=37.522..37.524 rows=1.00 loops=1)
+          Buffers: shared hit=86671
+          ->  Index Scan Backward using idx_images_owner_state_created_id on images  (cost=0.42..17930.77 rows=29939 width=208) (actual time=37.521..37.522 rows=1.00 loops=1)
+                Index Cond: ((user_id = 1) AND (state = 'active'::text))
+                Filter: (strpos(filename_search, 'rare-needle'::text) > 0)
+                Rows Removed by Filter: 89999
+                Index Searches: 1
+                Buffers: shared hit=86671
+        Planning Time: 0.130 ms
+        Execution Time: 37.541 ms
+=== RUN   TestSearchPerformance/100000/postgres/no-hit
+    image_search_performance_test.go:127: rows=100000 matched=0 p50=65.463708ms p95=69.372383ms COUNT-p50=27.930742ms COUNT-p95=30.273202ms
+    image_search_performance_test.go:163: count plan:
+        Finalize Aggregate  (cost=5715.74..5715.75 rows=1 width=8) (actual time=14.893..17.564 rows=1.00 loops=1)
+          Buffers: shared hit=3851
+          ->  Gather  (cost=5715.52..5715.73 rows=2 width=8) (actual time=14.810..17.557 rows=3.00 loops=1)
+                Workers Planned: 2
+                Workers Launched: 2
+                Buffers: shared hit=3851
+                ->  Partial Aggregate  (cost=4715.52..4715.53 rows=1 width=8) (actual time=12.800..12.800 rows=1.00 loops=3)
+                      Buffers: shared hit=3851
+                      ->  Parallel Seq Scan on images  (cost=0.00..4684.33 rows=12475 width=0) (actual time=12.797..12.797 rows=0.00 loops=3)
+                            Filter: ((user_id = 1) AND (state = 'active'::text) AND (strpos(filename_search, 'never-present'::text) > 0))
+                            Rows Removed by Filter: 33333
+                            Buffers: shared hit=3851
+        Planning Time: 0.116 ms
+        Execution Time: 17.591 ms
+    image_search_performance_test.go:163: rows plan:
+        Limit  (cost=0.42..12.40 rows=20 width=208) (actual time=36.692..36.693 rows=0.00 loops=1)
+          Buffers: shared hit=86671
+          ->  Index Scan Backward using idx_images_owner_state_created_id on images  (cost=0.42..17930.77 rows=29939 width=208) (actual time=36.691..36.692 rows=0.00 loops=1)
+                Index Cond: ((user_id = 1) AND (state = 'active'::text))
+                Filter: (strpos(filename_search, 'never-present'::text) > 0)
+                Rows Removed by Filter: 90000
+                Index Searches: 1
+                Buffers: shared hit=86671
+        Planning Time: 0.135 ms
+        Execution Time: 36.711 ms
+--- PASS: TestSearchPerformance (36.89s)
+    --- PASS: TestSearchPerformance/10000 (2.90s)
+        --- PASS: TestSearchPerformance/10000/sqlite (1.44s)
+            --- PASS: TestSearchPerformance/10000/sqlite/empty (0.03s)
+            --- PASS: TestSearchPerformance/10000/sqlite/format-date (0.11s)
+            --- PASS: TestSearchPerformance/10000/sqlite/album (0.03s)
+            --- PASS: TestSearchPerformance/10000/sqlite/rare (0.38s)
+            --- PASS: TestSearchPerformance/10000/sqlite/no-hit (0.33s)
+        --- PASS: TestSearchPerformance/10000/postgres (1.46s)
+            --- PASS: TestSearchPerformance/10000/postgres/empty (0.06s)
+            --- PASS: TestSearchPerformance/10000/postgres/format-date (0.07s)
+            --- PASS: TestSearchPerformance/10000/postgres/album (0.04s)
+            --- PASS: TestSearchPerformance/10000/postgres/rare (0.19s)
+            --- PASS: TestSearchPerformance/10000/postgres/no-hit (0.17s)
+    --- PASS: TestSearchPerformance/100000 (33.99s)
+        --- PASS: TestSearchPerformance/100000/sqlite (23.21s)
+            --- PASS: TestSearchPerformance/100000/sqlite/empty (0.22s)
+            --- PASS: TestSearchPerformance/100000/sqlite/format-date (1.94s)
+            --- PASS: TestSearchPerformance/100000/sqlite/album (0.10s)
+            --- PASS: TestSearchPerformance/100000/sqlite/rare (7.64s)
+            --- PASS: TestSearchPerformance/100000/sqlite/no-hit (7.61s)
+        --- PASS: TestSearchPerformance/100000/postgres (10.78s)
+            --- PASS: TestSearchPerformance/100000/postgres/empty (0.59s)
+            --- PASS: TestSearchPerformance/100000/postgres/format-date (0.47s)
+            --- PASS: TestSearchPerformance/100000/postgres/album (0.18s)
+            --- PASS: TestSearchPerformance/100000/postgres/rare (1.58s)
+            --- PASS: TestSearchPerformance/100000/postgres/no-hit (1.50s)
+PASS
+ok  	github.com/biliblihuorong/imgnest/internal/repo	36.902s

@@ -68,9 +68,10 @@ type Identity struct {
 
 // TokenService creates and verifies compatible bearer credentials.
 type TokenService struct {
-	tokens TokenRepository
-	users  UserRepository
-	now    func() time.Time
+	tokens   TokenRepository
+	users    UserRepository
+	settings SettingsRepository
+	now      func() time.Time
 }
 
 // NewTokenService constructs token operations with persistence and a clock.
@@ -78,16 +79,17 @@ func NewTokenService(
 	ctx context.Context,
 	tokens TokenRepository,
 	users UserRepository,
+	settings SettingsRepository,
 	now func() time.Time,
 ) (*TokenService, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("construct token service: %w", err)
 	}
-	missingRepository := tokens == nil || users == nil
+	missingRepository := tokens == nil || users == nil || settings == nil
 	if missingRepository || now == nil {
 		return nil, fmt.Errorf("token service dependencies: %w", ErrInvalidInput)
 	}
-	return &TokenService{tokens: tokens, users: users, now: now}, nil
+	return &TokenService{tokens: tokens, users: users, settings: settings, now: now}, nil
 }
 
 // Issue creates a credential only while the authenticated subject remains valid.
@@ -125,7 +127,7 @@ func (s *TokenService) Issue(ctx context.Context, subject TokenSubject, input To
 		TokenHash: hex.EncodeToString(digest[:]), Abilities: []string{"*"},
 		ExpiresAt: expires, CreatedAt: now, UpdatedAt: now,
 	}, model.TokenGrant{
-		ExpectedPasswordHash: subject.passwordHash, SourceTokenID: subject.sourceTokenID, At: now,
+		ExpectedPasswordHash: subject.passwordHash, ExpectedAccountState: subject.accountState, SourceTokenID: subject.sourceTokenID, At: now,
 	})
 	if err != nil {
 		if errors.Is(err, ErrUnauthenticated) && subject.sourceTokenID == 0 {
@@ -181,9 +183,15 @@ func (s *TokenService) Authenticate(ctx context.Context, raw string) (Identity, 
 		}
 		return Identity{}, fmt.Errorf("touch bearer token: %w", err)
 	}
+	view := userView(user)
+	config, err := s.settings.AvatarConfig(ctx)
+	if err != nil {
+		return Identity{}, fmt.Errorf("read avatar config: %w", err)
+	}
+	applyAvatar(&view, config)
 	return Identity{
-		User: userView(user), TokenID: token.ID, Kind: token.Kind,
-		Subject: TokenSubject{userID: user.ID, passwordHash: user.PasswordHash, sourceTokenID: token.ID},
+		User: view, TokenID: token.ID, Kind: token.Kind,
+		Subject: TokenSubject{userID: user.ID, passwordHash: user.PasswordHash, sourceTokenID: token.ID, accountState: accountState(user)},
 	}, nil
 }
 

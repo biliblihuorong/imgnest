@@ -21,6 +21,12 @@ func validateGrant(ctx context.Context, tx *gorm.DB, user model.User, grant mode
 	if user.Status != model.UserStatusEnabled || !currentHash {
 		return model.ErrUnauthenticated
 	}
+	if expected := grant.ExpectedAccountState; expected != nil {
+		if expected.AuthVersion != user.AuthVersion || expected.Username != user.Username || expected.Email != user.Email ||
+			expected.Role != user.Role || expected.Status != user.Status || expected.GroupID != user.GroupID {
+			return model.ErrUnauthenticated
+		}
+	}
 	if grant.SourceTokenID == 0 {
 		return nil
 	}

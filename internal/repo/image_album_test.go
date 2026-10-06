@@ -28,17 +28,17 @@ func TestImageListAlbumFilter(t *testing.T) {
 		loose := reserveAndCommit(t, fixture, "albumfilter-loose", "2026/01/albumfilter-loose")
 		outside := reserveAndCommit(t, fixture, "albumfilter-out", "2026/01/albumfilter-out")
 
-		all, total, err := fixture.images.List(t.Context(), fixture.user.ID, false, false, 1, 40, nil)
+		all, total, err := fixture.images.List(t.Context(), model.ImageListFilter{UserID: fixture.user.ID}, 1, 40)
 		if err != nil || total != 3 || len(all) != 3 {
 			t.Fatalf("unfiltered list total=%d len=%d err=%v", total, len(all), err)
 		}
 		album := blog.ID
-		filtered, total, err := fixture.images.List(t.Context(), fixture.user.ID, false, false, 1, 40, &album)
+		filtered, total, err := fixture.images.List(t.Context(), model.ImageListFilter{UserID: fixture.user.ID, AlbumID: &album}, 1, 40)
 		if err != nil || total != 1 || len(filtered) != 1 || filtered[0].ID != inside.ID {
 			t.Fatalf("album list total=%d items=%v err=%v", total, filtered, err)
 		}
 		unassigned := uint64(0)
-		unassignedRows, total, err := fixture.images.List(t.Context(), fixture.user.ID, false, false, 1, 40, &unassigned)
+		unassignedRows, total, err := fixture.images.List(t.Context(), model.ImageListFilter{UserID: fixture.user.ID, AlbumID: &unassigned}, 1, 40)
 		if err != nil || total != 2 || len(unassignedRows) != 2 {
 			t.Fatalf("unassigned list total=%d items=%d err=%v", total, len(unassignedRows), err)
 		}
@@ -50,7 +50,7 @@ func TestImageListAlbumFilter(t *testing.T) {
 			t.Fatalf("unassigned filter picked wrong rows: %v", seen)
 		}
 		missing := uint64(99999)
-		if _, total, err := fixture.images.List(t.Context(), fixture.user.ID, false, false, 1, 40, &missing); err != nil || total != 0 {
+		if _, total, err := fixture.images.List(t.Context(), model.ImageListFilter{UserID: fixture.user.ID, AlbumID: &missing}, 1, 40); err != nil || total != 0 {
 			t.Fatalf("missing album list total=%d err=%v", total, err)
 		}
 	})

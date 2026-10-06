@@ -1,0 +1,1263 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "T01",
+      "raw": "",
+      "canonical": "",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T02",
+      "raw": "暑假 海边",
+      "canonical": "\"暑假\" \"海边\"",
+      "ast": {
+        "version": 1,
+        "terms": [
+          "暑假",
+          "海边"
+        ],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T03",
+      "raw": "\"家庭 合照\"",
+      "canonical": "\"家庭 合照\"",
+      "ast": {
+        "version": 1,
+        "terms": [
+          "家庭 合照"
+        ],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T04",
+      "raw": "format:JPEG,png format:jpg",
+      "canonical": "format:jpg,png",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [
+            "jpg",
+            "png"
+          ],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T05",
+      "raw": "暑假 format:jpg,png album:\"暑假照片\" after:2026-10-01",
+      "canonical": "\"暑假\" format:jpg,png album:\"暑假照片\" after:2026-10-01",
+      "ast": {
+        "version": 1,
+        "terms": [
+          "暑假"
+        ],
+        "filters": {
+          "formats": [
+            "jpg",
+            "png"
+          ],
+          "albums": [
+            {
+              "kind": "name",
+              "value": "暑假照片"
+            }
+          ],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": "2026-10-01",
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T06",
+      "raw": ".jpg format:webp",
+      "canonical": "\".jpg\" format:webp",
+      "ast": {
+        "version": 1,
+        "terms": [
+          ".jpg"
+        ],
+        "filters": {
+          "formats": [
+            "webp"
+          ],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T07",
+      "raw": "album:\"A,B\"",
+      "canonical": "album:\"A,B\"",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [
+            {
+              "kind": "name",
+              "value": "A,B"
+            }
+          ],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T08",
+      "raw": "album:#42,#57 sort:oldest",
+      "canonical": "album:#42,#57 sort:oldest",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [
+            {
+              "kind": "id",
+              "value": "42"
+            },
+            {
+              "kind": "id",
+              "value": "57"
+            }
+          ],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "oldest"
+      }
+    },
+    {
+      "id": "T09",
+      "raw": "after:2026-10-01 before:2026-10-02",
+      "canonical": "after:2026-10-01 before:2026-10-02",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": "2026-10-01",
+          "before": "2026-10-02",
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T11",
+      "raw": "minsize:1MB maxsize:1MB",
+      "canonical": "minsize:1MB maxsize:1MB",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": "1000000",
+          "maxBytes": "1000000",
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T12",
+      "raw": "camera:\"Canon EOS\"",
+      "canonical": "camera:\"canon eos\"",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": "canon eos",
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T13",
+      "raw": "100%_",
+      "canonical": "\"100%_\"",
+      "ast": {
+        "version": 1,
+        "terms": [
+          "100%_"
+        ],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T14",
+      "raw": "visibility:public",
+      "canonical": "visibility:public",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "public"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T15",
+      "raw": "format:unknown",
+      "canonical": "format:unknown",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [
+            "unknown"
+          ],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T17",
+      "raw": "album:\"#42\"",
+      "canonical": "album:\"#42\"",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [
+            {
+              "kind": "name",
+              "value": "#42"
+            }
+          ],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T18",
+      "raw": "minsize:0.000001MB maxsize:0.000001MB",
+      "canonical": "minsize:0.000001MB maxsize:0.000001MB",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": "1",
+          "maxBytes": "1",
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T19",
+      "raw": "album:#42,unfiled",
+      "canonical": "album:unfiled,#42",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [
+            {
+              "kind": "unfiled"
+            },
+            {
+              "kind": "id",
+              "value": "42"
+            }
+          ],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T20",
+      "raw": "extension:JPEG format:png order:earliest",
+      "canonical": "format:jpg,png sort:oldest",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [
+            "jpg",
+            "png"
+          ],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "oldest"
+      }
+    },
+    {
+      "id": "T21",
+      "raw": "is:private order:created_at-asc",
+      "canonical": "visibility:private sort:oldest",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "private"
+        },
+        "sort": "oldest"
+      }
+    },
+    {
+      "id": "T22",
+      "raw": "order:created_at",
+      "canonical": "",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T22-size-desc",
+      "raw": "order:utmost",
+      "canonical": "sort:size-desc",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "size-desc"
+      }
+    },
+    {
+      "id": "T22-size-asc",
+      "raw": "order:least",
+      "canonical": "sort:size-asc",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "size-asc"
+      }
+    },
+    {
+      "id": "T23",
+      "raw": "$旅行",
+      "canonical": "\"$旅行\"",
+      "ast": {
+        "version": 1,
+        "terms": [
+          "$旅行"
+        ],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "T23-quoted",
+      "raw": "\"$旅行\"",
+      "canonical": "\"$旅行\"",
+      "ast": {
+        "version": 1,
+        "terms": [
+          "$旅行"
+        ],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "NFC-ASCII",
+      "raw": "Café CAFÉ café",
+      "canonical": "\"café\" \"cafÉ\"",
+      "ast": {
+        "version": 1,
+        "terms": [
+          "café",
+          "cafÉ"
+        ],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "Whitespace",
+      "raw": "a　b c\tD",
+      "canonical": "\"a\" \"b\" \"c\" \"d\"",
+      "ast": {
+        "version": 1,
+        "terms": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "Literal-operators",
+      "raw": "AND OR NOT",
+      "canonical": "\"and\" \"or\" \"not\"",
+      "ast": {
+        "version": 1,
+        "terms": [
+          "and",
+          "or",
+          "not"
+        ],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "Quoted-colon",
+      "raw": "\"a:b.png\"",
+      "canonical": "\"a:b.png\"",
+      "ast": {
+        "version": 1,
+        "terms": [
+          "a:b.png"
+        ],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "Quoted-escape",
+      "raw": "\"C:\\\\photos\\\\a.png\"",
+      "canonical": "\"c:\\\\photos\\\\a.png\"",
+      "ast": {
+        "version": 1,
+        "terms": [
+          "c:\\photos\\a.png"
+        ],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "Zero-size",
+      "raw": "minsize:0MB maxsize:0MB",
+      "canonical": "minsize:0MB maxsize:0MB",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": "0",
+          "maxBytes": "0",
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "Maximum-size",
+      "raw": "maxsize:1024000MB",
+      "canonical": "maxsize:1024000MB",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": "1024000000000",
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "Leap-date",
+      "raw": "after:2028-02-29",
+      "canonical": "after:2028-02-29",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": "2028-02-29",
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "Format-aliases",
+      "raw": "extension:TIF,HEIC,heif,jpeg",
+      "canonical": "format:jpg,tiff,heic,heif",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [
+            "jpg",
+            "tiff",
+            "heic",
+            "heif"
+          ],
+          "albums": [],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "Album-large-ID",
+      "raw": "album:#9007199254740993",
+      "canonical": "album:#9007199254740993",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [
+            {
+              "kind": "id",
+              "value": "9007199254740993"
+            }
+          ],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "Album-quoted-unfiled",
+      "raw": "album:\"unfiled\"",
+      "canonical": "album:\"unfiled\"",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [
+            {
+              "kind": "name",
+              "value": "unfiled"
+            }
+          ],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "E01-missing",
+      "raw": "format:",
+      "diagnostics": [
+        {
+          "code": "MISSING_VALUE",
+          "span": {
+            "start": 7,
+            "end": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "E01-trailing",
+      "raw": "format:jpg,",
+      "diagnostics": [
+        {
+          "code": "EMPTY_LIST_ITEM",
+          "span": {
+            "start": 11,
+            "end": 11
+          }
+        }
+      ]
+    },
+    {
+      "id": "E01-list-space",
+      "raw": "format:jpg, png",
+      "diagnostics": [
+        {
+          "code": "EMPTY_LIST_ITEM",
+          "span": {
+            "start": 11,
+            "end": 11
+          }
+        }
+      ]
+    },
+    {
+      "id": "E02-unknown",
+      "raw": "foo:bar",
+      "diagnostics": [
+        {
+          "code": "UNKNOWN_FIELD",
+          "span": {
+            "start": 0,
+            "end": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "E02-name",
+      "raw": "name:张三",
+      "diagnostics": [
+        {
+          "code": "UNKNOWN_FIELD",
+          "span": {
+            "start": 0,
+            "end": 4
+          }
+        }
+      ]
+    },
+    {
+      "id": "E02-sort",
+      "raw": "sort:random",
+      "diagnostics": [
+        {
+          "code": "INVALID_ENUM",
+          "span": {
+            "start": 5,
+            "end": 11
+          }
+        }
+      ]
+    },
+    {
+      "id": "E03-unclosed",
+      "raw": "album:\"未闭合",
+      "diagnostics": [
+        {
+          "code": "UNCLOSED_QUOTE",
+          "span": {
+            "start": 6,
+            "end": 10
+          }
+        }
+      ]
+    },
+    {
+      "id": "E03-escape",
+      "raw": "album:\"a\\q\"",
+      "diagnostics": [
+        {
+          "code": "INVALID_ESCAPE",
+          "span": {
+            "start": 8,
+            "end": 10
+          }
+        }
+      ]
+    },
+    {
+      "id": "E03-empty",
+      "raw": "album:\"\"",
+      "diagnostics": [
+        {
+          "code": "MISSING_VALUE",
+          "span": {
+            "start": 7,
+            "end": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "E04-duplicate",
+      "raw": "sort:newest sort:oldest",
+      "diagnostics": [
+        {
+          "code": "DUPLICATE_FIELD",
+          "span": {
+            "start": 12,
+            "end": 23
+          }
+        }
+      ]
+    },
+    {
+      "id": "E04-alias-duplicate",
+      "raw": "is:private visibility:private",
+      "diagnostics": [
+        {
+          "code": "DUPLICATE_FIELD",
+          "span": {
+            "start": 11,
+            "end": 29
+          }
+        }
+      ]
+    },
+    {
+      "id": "E05-0",
+      "raw": "after:2026-02-30",
+      "diagnostics": [
+        {
+          "code": "INVALID_DATE",
+          "span": {
+            "start": 6,
+            "end": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "E05-1",
+      "raw": "after:2026-1-01",
+      "diagnostics": [
+        {
+          "code": "INVALID_DATE",
+          "span": {
+            "start": 6,
+            "end": 15
+          }
+        }
+      ]
+    },
+    {
+      "id": "E05-2",
+      "raw": "after:1969-12-31",
+      "diagnostics": [
+        {
+          "code": "INVALID_DATE",
+          "span": {
+            "start": 6,
+            "end": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "E05-3",
+      "raw": "after:2026-02-29",
+      "diagnostics": [
+        {
+          "code": "INVALID_DATE",
+          "span": {
+            "start": 6,
+            "end": 16
+          }
+        }
+      ]
+    },
+    {
+      "id": "E06-date",
+      "raw": "after:2026-10-02 before:2026-10-02",
+      "diagnostics": [
+        {
+          "code": "RANGE_CONFLICT",
+          "span": {
+            "start": 0,
+            "end": 34
+          }
+        }
+      ]
+    },
+    {
+      "id": "E06-size",
+      "raw": "minsize:2MB maxsize:1MB",
+      "diagnostics": [
+        {
+          "code": "RANGE_CONFLICT",
+          "span": {
+            "start": 0,
+            "end": 23
+          }
+        }
+      ]
+    },
+    {
+      "id": "E07-0",
+      "raw": "minsize:1MiB",
+      "diagnostics": [
+        {
+          "code": "INVALID_SIZE",
+          "span": {
+            "start": 8,
+            "end": 12
+          }
+        }
+      ]
+    },
+    {
+      "id": "E07-1",
+      "raw": "minsize:1e3MB",
+      "diagnostics": [
+        {
+          "code": "INVALID_SIZE",
+          "span": {
+            "start": 8,
+            "end": 13
+          }
+        }
+      ]
+    },
+    {
+      "id": "E07-2",
+      "raw": "minsize:-1MB",
+      "diagnostics": [
+        {
+          "code": "INVALID_SIZE",
+          "span": {
+            "start": 8,
+            "end": 12
+          }
+        }
+      ]
+    },
+    {
+      "id": "E07-3",
+      "raw": "minsize:0.0000001MB",
+      "diagnostics": [
+        {
+          "code": "INVALID_SIZE",
+          "span": {
+            "start": 8,
+            "end": 19
+          }
+        }
+      ]
+    },
+    {
+      "id": "E11-UTF16",
+      "raw": "😀 foo:bar",
+      "diagnostics": [
+        {
+          "code": "UNKNOWN_FIELD",
+          "span": {
+            "start": 3,
+            "end": 6
+          }
+        }
+      ]
+    },
+    {
+      "id": "E11-combining",
+      "raw": "é name:张三",
+      "diagnostics": [
+        {
+          "code": "UNKNOWN_FIELD",
+          "span": {
+            "start": 3,
+            "end": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "E12-colon",
+      "raw": "a:b.png",
+      "diagnostics": [
+        {
+          "code": "UNKNOWN_FIELD",
+          "span": {
+            "start": 0,
+            "end": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "Album-hash-name",
+      "raw": "album:#trip",
+      "canonical": "album:\"#trip\"",
+      "ast": {
+        "version": 1,
+        "terms": [],
+        "filters": {
+          "formats": [],
+          "albums": [
+            {
+              "kind": "name",
+              "value": "#trip"
+            }
+          ],
+          "camera": null,
+          "minBytes": null,
+          "maxBytes": null,
+          "after": null,
+          "before": null,
+          "visibility": "all"
+        },
+        "sort": "newest"
+      }
+    },
+    {
+      "id": "Invalid-field-leading-digit",
+      "raw": "0x:foo",
+      "diagnostics": [
+        {
+          "code": "UNEXPECTED_CHARACTER",
+          "span": {
+            "start": 0,
+            "end": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "Fullwidth-field-colon",
+      "raw": "foo1：bar",
+      "diagnostics": [
+        {
+          "code": "UNEXPECTED_CHARACTER",
+          "span": {
+            "start": 4,
+            "end": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "Canonical-byte-budget",
+      "raw": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀 😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁😁 😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂 😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃😃 😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄 😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅😅 😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆😆 😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇😇",
+      "diagnostics": [
+        {
+          "code": "QUERY_TOO_COMPLEX",
+          "span": {
+            "start": 0,
+            "end": 2049
+          }
+        }
+      ]
+    },
+    {
+      "id": "Scalar-comma",
+      "raw": "camera:a,b",
+      "diagnostics": [
+        {
+          "code": "UNEXPECTED_CHARACTER",
+          "span": {
+            "start": 8,
+            "end": 9
+          }
+        }
+      ]
+    },
+    {
+      "id": "Bare-backslash",
+      "raw": "a\\b",
+      "diagnostics": [
+        {
+          "code": "INVALID_ESCAPE",
+          "span": {
+            "start": 1,
+            "end": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "Quoted-trailing-backslash",
+      "raw": "\"a\\",
+      "diagnostics": [
+        {
+          "code": "UNCLOSED_QUOTE",
+          "span": {
+            "start": 0,
+            "end": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "Empty-quoted-list-first",
+      "raw": "album:\"\",x",
+      "diagnostics": [
+        {
+          "code": "EMPTY_LIST_ITEM",
+          "span": {
+            "start": 7,
+            "end": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "Empty-quoted-list-last",
+      "raw": "album:x,\"\"",
+      "diagnostics": [
+        {
+          "code": "EMPTY_LIST_ITEM",
+          "span": {
+            "start": 9,
+            "end": 9
+          }
+        }
+      ]
+    },
+    {
+      "id": "Six-known-albums",
+      "raw": "album:#1,#2,#3,#4,#5,#6",
+      "diagnostics": [
+        {
+          "code": "QUERY_TOO_COMPLEX",
+          "span": {
+            "start": 21,
+            "end": 23
+          }
+        }
+      ]
+    },
+    {
+      "id": "Astral-invalid-escape",
+      "raw": "album:\"a\\😀\"",
+      "diagnostics": [
+        {
+          "code": "INVALID_ESCAPE",
+          "span": {
+            "start": 8,
+            "end": 11
+          }
+        }
+      ]
+    }
+  ]
+}

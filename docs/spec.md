@@ -283,7 +283,7 @@ CDN 缓存不在本程序处理范围内。
 
 | 分组 | 接口 | 权限 |
 | --- | --- | --- |
-| 认证 | `POST /api/auth/login`、`POST /api/auth/register`、`POST /api/auth/logout`、`GET /api/auth/me` | 公开 / 登录 |
+| 认证 | `POST /api/auth/login`、`POST /api/auth/register`、`POST /api/auth/logout`、`GET /api/auth/me`、`PATCH /api/auth/profile` | 公开 / 登录 |
 | 上传 | `POST /api/upload`（可一次多文件） | 登录或游客 |
 | 图片 | `GET /api/images`、`PATCH /api/images/{id}`、`POST /api/images/batch`（删除/移动/改权限） | 本人 |
 | EXIF | `GET /api/images/{id}/exif`（含 GPS 与全量 `raw`） | 本人 / 管理员 |
@@ -300,6 +300,23 @@ CDN 缓存不在本程序处理范围内。
 - HTTP 状态码同时语义化（400/401/403/404/413/429/500），蓝空接口除外（蓝空客户端只看 `status`）。
 - 时间一律 RFC 3339；ID 对外用图片 `key`，不暴露自增 ID 给公开接口。
 - 接口文档用 OpenAPI 3 描述，放 `docs/openapi.yaml`，前端类型由它生成。
+
+### 7.3 个人资料与站点头像
+
+- `UserView` 在安全字段之外带 `display_name`（可选显示名，空串回退 `username`，trim 后 ≤64 字符、拒绝控制字符、纯文本）与 `avatar_provider`（只允许 `weavatar`/`gravatar`）、`avatar_url`（服务端按邮箱 SHA-256 计算的 HTTPS 地址，`d=404`，不含邮箱原文；邮箱缺失时为 null）、`avatar_config_version`（配置版本）。`GET /api/auth/me`、登录、注册与管理端用户视图保持一致；URL 计算只做规范化与哈希，核心接口不等待外部头像服务。
+- `PATCH /api/auth/profile` 只接受 `display_name`，身份取自 bearer token；请求解码拒绝未知字段，角色、邮箱、组别没有自助修改入口。
+- 站点头像服务商是 `settings` 表的 `avatar_provider` 键，默认 `weavatar`，经 `GET/PUT /api/admin/settings` 管理；损坏或未知值安全回退默认，不连接未知域名。
+- 头像匹配对邮箱仅做「trim + 小写 + SHA-256」，不删除加号后缀与点号；浏览器侧 `referrerpolicy=no-referrer`，加载失败或超时（5 秒）回退本地默认头像，不循环重试；外部头像服务故障不影响登录与 `/api/auth/me`。注意：未加盐的邮箱 SHA-256 可被持有候选邮箱的第三方比对，且浏览器加载头像会向头像服务暴露访问者 IP；`avatar_url` 只出现在登录用户自己的 `/api/auth/me`、登录/注册响应与管理端用户视图中，不得进入画廊、公开接口或 `/api/v1`。`web-vben/index.html` 以 `<meta name="referrer" content="same-origin">` 保证真实 `<img>` 加载同样不向跨域头像服务发送 Referer。蓝空兼容 `/api/v1/profile` 的 `avatar` 字段维持空串语义不变。
+
+### 7.4 统一搜索与账户管理补全（2026-10-05）
+
+- 新版个人图片页与相册详情复用同一搜索组件。显式 `qv=1` 开启统一查询语法，`q`（可为空）、IANA `tz`、分页组成可恢复的 URL；无 `qv` 保持旧接口语义。完整协议见 [统一搜索](unified-search.md)。普通词只匹配展示的原文件名；相机、格式、相册、大小、上传日期、公开性和排序使用白名单字段。SQL 在授权范围内先筛选和 COUNT 后分页，不允许前端筛当前页或拉取全库。
+- 相册详情使用 `GET /api/albums/{id}/images`，路径相册是服务端核验的固定边界；查询、清空或标签删除不能扩大范围。`GET /api/albums/suggestions` 只提供授权的字符串 ID/名称与 `hasMore`；执行查询时仍需独立精确解析名称。
+- `POST /api/admin/users` 创建用户，`PATCH /api/admin/users/{id}` 允许管理员编辑 username、email、display_name、role、status、group_id。角色仍只有 admin/user，用户组继续控制额度和上传规则；没有新增逐用户权限体系。用户名和规范化邮箱保持唯一，昵称不唯一；容量、ID、注册时间和头像配置是服务端管理字段。
+- 创建用户的初始密码复用既有 12–72 UTF-8 字节校验与 bcrypt，不发送邀请邮件，不返回或记录明文密码。用户 PATCH 不接受 password。个人设置继续只改昵称和通过原接口改密，用户名/邮箱不可自助编辑；登录仍使用邮箱和密码。
+- 身份、角色、分组或状态发生实际变化时，事务性撤销该账号全部 web/API Token，并递增只在内部使用的持久化 auth_version（迁移 0006）；仅昵称变化或值未变时保留会话与版本。管理员不可停用自己，并发操作也不能停用或降级最后一个启用的管理员。登录证明固定鉴权版本，账户字段改回原值也不能使旧证明恢复有效。
+- `PATCH /api/auth/profile` 必须明确提供非 null 的 display_name 字符串；空串表示主动清空，缺失或 null 是参数错误。
+- 无相册时空态 CTA 打开新建相册表单；已有空相册、当前空页与筛选无结果各自表达，不引导用户错误创建重复相册。
 
 ## 8. 工程规范
 

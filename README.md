@@ -59,3 +59,9 @@ Windows：`./scripts/install-skills.ps1`（或加 `-Latest`）。两个项目自
 ## 许可证
 
 31 个开源 Skill 保留原许可证（MIT、Apache-2.0、CC-BY-SA-4.0），详见 `THIRD_PARTY_NOTICES.md`。
+
+## 可选的 Vben Naive 前端
+
+`web/` 保留 M5 原版前端；`web-vben/` 是独立的 Vben Naive 应用，覆盖用户和管理员页面，提供中英切换及实际数据概览。默认发布仍使用原版；`make release-vben` 构建带新版页面的二进制。新版应与本次包含验证码配置端点的后端一起构建，不能把新静态包直接当作旧后端的无条件替换。
+
+构建与切换见 [双前端说明](docs/planning/dual-frontend-build.md)，验证码启用和旧版兼容边界见 [验证码说明](docs/captcha.md)，本次检查通过项及未完成的浏览器验收见 [迁移验证说明](docs/planning/vben-validation.md)。

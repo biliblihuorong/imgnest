@@ -148,3 +148,59 @@ require (
 | MinIO | RELEASE.2025-10-15T17-29-55Z | 官方正式源码 tag；提交9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a，隔离测试专用 |
 
 M2 的实际 native 验证为 Go1.27.1 / vips8.18.6。原 imagor-base 禁用了 Magick，无法加载有效 BMP；开发 Dockerfile 使用官方 vips8.18.6 tarball（SHA256 `3c41e1d5458081bfa4a5bc54e116c46259c75c6760a18027764555632b9dda3e`）重编，保持版本并启用 Magick。构建工具来自镜像 Ubuntu noble：meson1.3.2-1ubuntu1、ninja-build1.11.1-2；它们不属于产品 Go 依赖。实际使用 jemalloc，关闭 libvips 操作缓存。M2 验收覆盖当前 Docker Linux amd64；arm64 发布镜像属于后续发布关口。
+
+## Vben Naive UI 迁移（2026-10-05）
+
+授权的前端框架迁移引入真实 Vben 5.8.0 源码工作区：官方仓库 `vbenjs/vue-vben-admin`，提交 `50f4ede309d4450c7dd417399cb8d5c02346d2d2`。源码、MIT 全文与逐文件上游 SHA-256 记录位于 `web-vben/vendor/vben/`。仅保留 24 个所需运行包及 Tailwind 构建插件，不包含上游应用、演示、后端或其他 UI 库应用。
+
+保留现有精确版本：Vue 3.5.43、Vue Router 5.3.1、Pinia 4.0.3、Naive UI 2.45.3、VueUse 15.0.0、Vite 8.3.2、TypeScript 6.0.3 与 Vitest 5.0.3。未降级上述依赖；`@vue/shared` 对齐 Vue，`@vueuse/integrations` 对齐既有 VueUse 15。新增 registry 依赖使用上游锁文件的精确版本（见下表），全部解析及间接版本以 `web-vben/pnpm-lock.yaml` 为准。
+
+| 新增依赖 | 精确版本 |
+| --- | --- |
+| `@ctrl/tinycolor` | 4.2.0 |
+| `@iconify/json` | 2.2.520 |
+| `@iconify/tailwind4` | 1.2.3 |
+| `@iconify/vue` | 5.0.1 |
+| `@intlify/core-base` | 11.4.10 |
+| `@lucide/vue` | 1.34.0 |
+| `@tailwindcss/typography` | 0.5.20 |
+| `@tailwindcss/vite` | 4.3.3 |
+| `@tanstack/store` | 0.11.1 |
+| `@tanstack/vue-form` | 1.33.5 |
+| `@tanstack/vue-store` | 0.11.1 |
+| `@types/json-bigint` | 1.0.4 |
+| `@types/lodash.clonedeep` | 4.5.9 |
+| `@types/nprogress` | 0.2.3 |
+| `@types/qrcode` | 1.5.6 |
+| `@types/qs` | 6.15.1 |
+| `@types/sortablejs` | 1.15.9 |
+| `@vue/shared` | 3.5.43 |
+| `@vueuse/integrations` | 15.0.0 |
+| `class-variance-authority` | 0.7.1 |
+| `clsx` | 2.1.1 |
+| `dayjs` | 1.11.23 |
+| `defu` | 6.1.7 |
+| `es-toolkit` | 1.51.0 |
+| `json-bigint` | 1.0.0 |
+| `lodash.clonedeep` | 4.5.0 |
+| `nprogress` | 0.2.0 |
+| `pinia-plugin-persistedstate` | 4.7.1 |
+| `qrcode` | 1.5.4 |
+| `qs` | 6.15.3 |
+| `reka-ui` | 2.10.4 |
+| `sass` | 1.103.1 |
+| `secure-ls` | 2.0.0 |
+| `sortablejs` | 1.15.7 |
+| `tailwind-merge` | 3.6.0 |
+| `tailwindcss` | 4.3.3 |
+| `theme-colors` | 0.1.0 |
+| `tippy.js` | 6.3.7 |
+| `tw-animate-css` | 1.4.0 |
+| `vue-i18n` | 11.4.10 |
+| `vue-json-pretty` | 2.6.0 |
+| `vue-tippy` | 6.7.1 |
+| `watermark-js-plus` | 1.6.6 |
+| `zod` | 4.4.3 |
+| `zod-defaults` | 0.2.3 |
+
+Vben 的 layout、menu、tabs 与通用控件来自 vendored 源码；业务表格、弹窗、表单继续使用 Naive UI。Vben 样式采用其原生 Tailwind 4 + Reka/shadcn 内核，保留上游 design tokens 与明暗主题。新版输出独立位于 `web-vben/dist`，legacy 的 `web/dist` 与 package/lock/config保持实际M5基线不变。独立工作区不包含旧前端；默认Go构建仍使用legacy，`-tags=vben`选择新版。详见双前端构建说明。

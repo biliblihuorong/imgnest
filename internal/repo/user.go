@@ -54,10 +54,8 @@ func (r *UserRepository) FindUserByID(ctx context.Context, id uint64) (model.Use
 func (r *UserRepository) BootstrapAdmin(ctx context.Context, user model.User) (model.User, error) {
 	user.Role = model.UserRoleAdmin
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if tx.Name() == "postgres" {
-			if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(current_schema()), 1229801282)").Error; err != nil {
-				return err
-			}
+		if err := lockAdminAccounts(tx); err != nil {
+			return err
 		}
 		// SQLite transactions are BEGIN IMMEDIATE through the connection DSN.
 		var admins int64
@@ -74,6 +72,31 @@ func (r *UserRepository) BootstrapAdmin(ctx context.Context, user model.User) (m
 	}
 	if err != nil {
 		return model.User{}, userWriteError("bootstrap admin", err)
+	}
+	return user, nil
+}
+
+// UpdateDisplayName replaces the optional profile name and returns the
+// refreshed account; an empty value clears the custom display name.
+func (r *UserRepository) UpdateDisplayName(
+	ctx context.Context,
+	userID uint64,
+	displayName string,
+) (model.User, error) {
+	if err := checkRecordID(ctx, userID); err != nil {
+		return model.User{}, fmt.Errorf("update display name: %w", err)
+	}
+	var user model.User
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", userID).
+			Update("display_name", displayName).Error; err != nil {
+			return err
+		}
+		return tx.First(&user, "id = ?", userID).Error
+	})
+	if err != nil {
+		return model.User{}, repositoryError("update display name", err)
 	}
 	return user, nil
 }

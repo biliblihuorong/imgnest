@@ -16,3 +16,12 @@ coverage.out
 /web/dist/*
 !/web/dist/.gitkeep
 /web/coverage/
+/web-vben/node_modules/
+/web-vben/**/node_modules/
+/web-vben/dist/*
+!/web-vben/dist/.gitkeep
+/web-vben/coverage/
+
+/web-vben/e2e/results/
+
+/.review/

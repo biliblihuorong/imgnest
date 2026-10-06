@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/biliblihuorong/imgnest/internal/model"
 )
 
 // Settings bounds mirror the repository reader for trash retention.
@@ -24,7 +26,7 @@ func (s *AdminService) GetSettings(ctx context.Context) (AdminSettingsView, erro
 	if err != nil {
 		return AdminSettingsView{}, fmt.Errorf("read admin settings: %w", err)
 	}
-	view := AdminSettingsView{SiteName: DefaultSiteName, TrashDays: 7, APIEnabled: true}
+	view := AdminSettingsView{SiteName: DefaultSiteName, TrashDays: 7, APIEnabled: true, AvatarProvider: model.DefaultAvatarProvider}
 	if value, ok := values["site_name"]; ok {
 		if err := decodeSetting(value, &view.SiteName); err != nil {
 			return AdminSettingsView{}, fmt.Errorf("decode site name: %w", ErrInvalidInput)
@@ -57,6 +59,18 @@ func (s *AdminService) GetSettings(ctx context.Context) (AdminSettingsView, erro
 			if err := decodeSetting(value, target); err != nil {
 				return AdminSettingsView{}, fmt.Errorf("decode %s: %w", key, ErrInvalidInput)
 			}
+		}
+	}
+	if value, ok := values["avatar_provider"]; ok {
+		var provider string
+		if err := decodeSetting(value, &provider); err != nil {
+			return AdminSettingsView{}, fmt.Errorf("decode avatar provider: %w", ErrInvalidInput)
+		}
+		// A corrupt or unsupported stored value degrades to the default
+		// provider instead of failing the whole settings read; unknown hosts
+		// are never contacted.
+		if model.ValidAvatarProvider(provider) {
+			view.AvatarProvider = provider
 		}
 	}
 	return view, nil
@@ -104,6 +118,16 @@ func (s *AdminService) PutSettings(ctx context.Context, patch SettingsPatch) (Ad
 			return AdminSettingsView{}, ErrInvalidInput
 		}
 		writes["trash_days"] = encoded
+	}
+	if patch.AvatarProvider != nil {
+		if !model.ValidAvatarProvider(*patch.AvatarProvider) {
+			return AdminSettingsView{}, ErrInvalidInput
+		}
+		encoded, err := json.Marshal(*patch.AvatarProvider)
+		if err != nil {
+			return AdminSettingsView{}, ErrInvalidInput
+		}
+		writes["avatar_provider"] = encoded
 	}
 	if patch.GuestGroupID != nil && *patch.GuestGroupID != 0 {
 		if _, err := s.deps.Groups.FindGroup(ctx, *patch.GuestGroupID); err != nil {

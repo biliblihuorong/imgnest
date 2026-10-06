@@ -1,0 +1,57 @@
+{
+  "bytes": "{value} {unit}",
+  "title": "概览",
+  "description": "查看当前账户的图片、相册与存储用量。",
+  "personal": "我的资源",
+  "sitewide": "全站概况",
+  "quickLinks": "快捷入口",
+  "refresh": "刷新数据",
+  "retry": "重试",
+  "loading": "正在加载",
+  "unavailable": "暂不可用",
+  "loadError": "暂时无法加载此数据",
+  "metrics": {
+    "storage": {
+      "title": "已用存储",
+      "description": "账户当前计入用量的存储空间。"
+    },
+    "images": {
+      "title": "我的图片",
+      "description": "当前账户未删除的图片总数。"
+    },
+    "albums": {
+      "title": "我的相册",
+      "description": "当前账户的相册总数。"
+    },
+    "trash": {
+      "title": "回收站",
+      "description": "当前账户等待恢复或清理的图片。"
+    },
+    "globalImages": {
+      "title": "全站图片",
+      "description": "所有账户未删除的图片总数。"
+    },
+    "accounts": {
+      "title": "账户总数",
+      "description": "全站账户总数，包含停用账户。"
+    }
+  },
+  "links": {
+    "upload": {
+      "title": "上传图片",
+      "description": "添加图片并获取分享链接"
+    },
+    "images": {
+      "title": "图片库",
+      "description": "浏览与管理我的图片"
+    },
+    "albums": {
+      "title": "相册",
+      "description": "整理图片与相册"
+    },
+    "tokens": {
+      "title": "Token 与安全",
+      "description": "管理客户端凭证与密码"
+    }
+  }
+}

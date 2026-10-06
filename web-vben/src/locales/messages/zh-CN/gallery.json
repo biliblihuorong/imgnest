@@ -1,0 +1,11 @@
+{
+  "title": "公开画廊",
+  "description": "浏览社区分享的公开图片",
+  "total": "共 {count} 张公开图片",
+  "disabled": "站点未开放公开画廊",
+  "empty": "暂无公开图片，公开的图片会展示在这里",
+  "loadFailed": "画廊加载失败",
+  "errorDescription": "网络异常或服务暂时不可用，请稍后重试。",
+  "retry": "重试",
+  "uploader": "上传者：{name}"
+}

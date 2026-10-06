@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "types": ["vitest/globals"] },
+  "include": ["real-api.config.ts", "real-api.setup.ts", "real-api.test.ts"]
+}

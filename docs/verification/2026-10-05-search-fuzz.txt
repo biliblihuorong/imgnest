@@ -1,0 +1,10 @@
+fuzz: elapsed: 0s, gathering baseline coverage: 0/8 completed
+fuzz: elapsed: 0s, gathering baseline coverage: 8/8 completed, now fuzzing with 2 workers
+fuzz: elapsed: 3s, execs: 73994 (24660/sec), new interesting: 97 (total: 105)
+fuzz: elapsed: 6s, execs: 99429 (8480/sec), new interesting: 104 (total: 112)
+fuzz: elapsed: 9s, execs: 99429 (0/sec), new interesting: 104 (total: 112)
+fuzz: elapsed: 12s, execs: 99429 (0/sec), new interesting: 104 (total: 112)
+fuzz: elapsed: 15s, execs: 99429 (0/sec), new interesting: 104 (total: 112)
+fuzz: elapsed: 16s, execs: 99429 (0/sec), new interesting: 104 (total: 112)
+PASS
+ok  	github.com/biliblihuorong/imgnest/internal/searchquery	16.033s

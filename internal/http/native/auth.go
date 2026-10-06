@@ -28,6 +28,9 @@ type UserService interface {
 	Register(context.Context, service.RegisterInput) (service.UserView, error)
 	VerifyCredentials(context.Context, string, string) (service.VerifiedCredentials, error)
 	ChangePassword(context.Context, uint64, string, string) error
+	// UpdateDisplayName saves the authenticated user's optional profile name;
+	// the identity always comes from the bearer token, never the body.
+	UpdateDisplayName(context.Context, uint64, string) (service.UserView, error)
 	Site(context.Context) (service.SiteView, error)
 }
 
@@ -41,11 +44,12 @@ type TokenService interface {
 
 // Handler binds native endpoint behavior to the shared services.
 type Handler struct {
-	users  UserService
-	tokens TokenService
-	now    func() time.Time
-	mu     sync.Mutex
-	limits map[string]window
+	users   UserService
+	captcha CaptchaService
+	tokens  TokenService
+	now     func() time.Time
+	mu      sync.Mutex
+	limits  map[string]window
 }
 type window struct {
 	until time.Time
@@ -73,8 +77,10 @@ func (h *Handler) RegisterRoutes(ctx context.Context, router gin.IRouter) error 
 	router.POST("/api/auth/register", h.rateLimit, h.register)
 	router.POST("/api/auth/login", h.rateLimit, h.login)
 	router.GET("/api/site", h.site)
+	router.GET("/api/auth/captcha", h.publicCaptcha)
 	protected := router.Group("/api", h.authenticate)
 	protected.GET("/auth/me", h.me)
+	protected.PATCH("/auth/profile", h.profile)
 	protected.POST("/auth/logout", h.logout)
 	protected.PATCH("/auth/password", h.password)
 	protected.GET("/tokens", h.listTokens)
@@ -130,11 +136,26 @@ func (h *Handler) register(c *gin.Context) {
 	// The client address is server-derived and must never be part of the
 	// decoded request shape.
 	var input struct {
-		Username string `json:"username"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Username     string `json:"username"`
+		Email        string `json:"email"`
+		Password     string `json:"password"`
+		CaptchaToken string `json:"captcha_token,omitempty"`
 	}
 	if !decode(c, &input) {
+		return
+	}
+	if h.captcha != nil {
+		site, err := h.users.Site(c.Request.Context())
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		if !site.RegisterEnabled {
+			fail(c, service.ErrRegistrationDisabled)
+			return
+		}
+	}
+	if !h.verifyCaptcha(c, input.CaptchaToken, "register") {
 		return
 	}
 	user, err := h.users.Register(c.Request.Context(), service.RegisterInput{
@@ -148,10 +169,14 @@ func (h *Handler) register(c *gin.Context) {
 }
 func (h *Handler) login(c *gin.Context) {
 	var in struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email        string `json:"email"`
+		Password     string `json:"password"`
+		CaptchaToken string `json:"captcha_token,omitempty"`
 	}
 	if !decode(c, &in) {
+		return
+	}
+	if !h.verifyCaptcha(c, in.CaptchaToken, "login") {
 		return
 	}
 	user, err := h.users.VerifyCredentials(c.Request.Context(), in.Email, in.Password)
@@ -167,6 +192,26 @@ func (h *Handler) login(c *gin.Context) {
 	respond(c, 200, gin.H{"token": issued.Token, "user": user.User, "expires_at": issued.Info.ExpiresAt})
 }
 func (h *Handler) me(c *gin.Context) { respond(c, 200, identity(c).User) }
+func (h *Handler) profile(c *gin.Context) {
+	// Only display_name has a request shape; unknown fields are rejected by
+	// the decoder, so user_id, role, group, or email cannot be smuggled in.
+	var in struct {
+		DisplayName *string `json:"display_name"`
+	}
+	if !decode(c, &in) {
+		return
+	}
+	if in.DisplayName == nil {
+		fail(c, service.ErrInvalidInput)
+		return
+	}
+	user, err := h.users.UpdateDisplayName(c.Request.Context(), identity(c).User.ID, *in.DisplayName)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	respond(c, 200, user)
+}
 func (h *Handler) logout(c *gin.Context) {
 	id := identity(c)
 	if err := h.tokens.Revoke(c.Request.Context(), id.User.ID, id.TokenID); err != nil {
@@ -214,6 +259,14 @@ func fail(c *gin.Context, err error) {
 func errorResponse(err error) (int, Response) {
 	status, code, message := 500, 50001, "internal error"
 	switch {
+	case errors.Is(err, service.ErrCaptchaFailed):
+		status, code, message = 422, 30010, "complete a new captcha challenge and try again"
+	case errors.Is(err, service.ErrCaptchaConflict):
+		status, code, message = 409, 30011, "captcha configuration changed; reload and try again"
+	case errors.Is(err, service.ErrCaptchaNotReady):
+		status, code, message = 409, 30012, "captcha candidate tests and compatibility acknowledgements required"
+	case errors.Is(err, service.ErrCaptchaUnavailable):
+		status, code, message = 503, 50004, "captcha temporarily unavailable; try again later"
 	case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
 		status, code, message = 408, 10004, "request timed out or canceled"
 	case errors.Is(err, errUploadTooLarge):

@@ -65,3 +65,30 @@ func TestProvisionEncryptedConfigAndPolicyValidation(t *testing.T) {
 		}
 	}
 }
+
+// A create request without config follows the optional OpenAPI field: it is
+// stored as an empty object instead of being rejected as invalid JSON.
+func TestProvisionAbsentConfigBecomesEmptyObject(t *testing.T) {
+	_, _, policy, local, _ := uploadFixture(t, "png")
+	codec, err := secret.NewCodec(t.Context(), base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{2}, 32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stores := &provisionRepo{}
+	setup, err := NewProvisionService(t.Context(), stores, policy, uploadDriverProvider{driver: local}, codec, TemplateValidatorFunc(pathtpl.Validate))
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := setup.CreateStorage(t.Context(), StorageInput{
+		Name: "local", Driver: "local", BaseURL: "http://images.test",
+	})
+	if err != nil {
+		t.Fatalf("absent config rejected: %v", err)
+	}
+	if string(stores.rows[0].Config) != "{}" {
+		t.Fatalf("stored config=%s, want {}", stores.rows[0].Config)
+	}
+	if view.ID != stores.rows[0].ID {
+		t.Fatal("view does not match the persisted storage")
+	}
+}

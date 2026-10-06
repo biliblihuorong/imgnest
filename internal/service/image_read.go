@@ -46,8 +46,13 @@ func (s *ImageService) imageByID(ctx context.Context, subject TokenSubject, id u
 
 // List paginates the actor's active images or trash, with explicit administrator scope.
 // A positive album filter is verified to belong to the actor first; a foreign
-// album rejects with ErrForbidden exactly like direct image access.
+// album rejects with ErrForbidden exactly like direct image access. The
+// keyword/order/size/time/EXIF fields are optional narrowings mapped onto the
+// repository filter after validation.
 func (s *ImageService) List(ctx context.Context, subject TokenSubject, query ImageQuery) (ImagePage, error) {
+	if query.QueryVersion != 0 {
+		return s.listSearch(ctx, subject, query)
+	}
 	actor, err := s.actor(ctx, subject)
 	if err != nil {
 		return ImagePage{}, err
@@ -64,6 +69,20 @@ func (s *ImageService) List(ctx context.Context, subject TokenSubject, query Ima
 	if query.Page < 1 || query.Page > 1000000 || query.Size < 1 || query.Size > 100 {
 		return ImagePage{}, ErrInvalidInput
 	}
+	switch query.Order {
+	case "", "newest", "oldest", "largest", "smallest":
+	default:
+		return ImagePage{}, ErrInvalidInput
+	}
+	if query.MinSize < 0 || query.MaxSize < 0 || (query.MinSize > 0 && query.MaxSize > 0 && query.MinSize > query.MaxSize) {
+		return ImagePage{}, ErrInvalidInput
+	}
+	if query.From != nil && query.To != nil && query.From.After(*query.To) {
+		return ImagePage{}, ErrInvalidInput
+	}
+	if len(query.Keyword) > 200 || len(query.Exif) > 200 || len(query.Q) > 200 {
+		return ImagePage{}, ErrInvalidInput
+	}
 	if query.AlbumID != nil && *query.AlbumID > 0 && !query.Admin {
 		albums, err := s.albumStore()
 		if err != nil {
@@ -73,7 +92,21 @@ func (s *ImageService) List(ctx context.Context, subject TokenSubject, query Ima
 			return ImagePage{}, fmt.Errorf("list album images: %w", err)
 		}
 	}
-	images, total, err := s.deps.Images.List(ctx, actor.ID, query.Admin, query.Trash, query.Page, query.Size, query.AlbumID)
+	filter := model.ImageListFilter{
+		UserID:  actor.ID,
+		Admin:   query.Admin,
+		Trash:   query.Trash,
+		AlbumID: query.AlbumID,
+		Keyword: query.Keyword,
+		Q:       query.Q,
+		Order:   query.Order,
+		MinSize: query.MinSize,
+		MaxSize: query.MaxSize,
+		From:    query.From,
+		To:      query.To,
+		Exif:    query.Exif,
+	}
+	images, total, err := s.deps.Images.List(ctx, filter, query.Page, query.Size)
 	if err != nil {
 		return ImagePage{}, fmt.Errorf("list images: %w", err)
 	}

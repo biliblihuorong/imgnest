@@ -135,8 +135,12 @@ func TestConcurrentMigrations(t *testing.T) {
 		if err := db.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 			t.Fatal(err)
 		}
-		if count != 3 {
-			t.Fatalf("concurrent migrations recorded %d versions, want 3", count)
+		scripts, err := manifest(driver)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != len(scripts) {
+			t.Fatalf("concurrent migrations recorded %d versions, want %d", count, len(scripts))
 		}
 	})
 }

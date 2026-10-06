@@ -24,7 +24,7 @@ type ImageRepository interface {
 	FindByID(context.Context, uint64) (model.Image, error)
 	FindByPath(context.Context, uint64, string) (model.Image, error)
 	FindExif(context.Context, string) (model.ImageExif, error)
-	List(context.Context, uint64, bool, bool, int, int, *uint64) ([]model.Image, int64, error)
+	List(context.Context, model.ImageListFilter, int, int) ([]model.Image, int64, error)
 	SetAlbum(context.Context, string, uint64, model.TokenGrant) error
 	SetPublic(context.Context, string, bool, model.TokenGrant) error
 	BeginTrash(context.Context, string, string, model.TokenGrant, int) (model.Image, error)
@@ -186,19 +186,33 @@ type ImageView struct {
 
 // ImageQuery limits one owner's active images or recycle bin. AlbumID nil
 // means "no album filter"; zero selects unassigned images; a positive value
-// selects one owner-verified album.
+// selects one owner-verified album. Keyword narrows by file name, Exif by
+// make/model/lens, and the unified Q matches either (OR). Order is
+// newest|oldest|largest|smallest, MinSize/MaxSize bound the original byte
+// size and From/To bound the upload time.
 type ImageQuery struct {
-	Page, Size   int
-	Trash, Admin bool
-	AlbumID      *uint64
+	QueryVersion  int
+	Timezone      string
+	LockedAlbumID *uint64
+	Page, Size    int
+	Trash, Admin  bool
+	AlbumID       *uint64
+	Keyword       string
+	Q             string
+	Order         string
+	MinSize       int64
+	MaxSize       int64
+	From, To      *time.Time
+	Exif          string
 }
 
 // ImagePage is the native image-list response.
 type ImagePage struct {
-	Items []ImageView `json:"items"`
-	Total int64       `json:"total"`
-	Page  int         `json:"page"`
-	Size  int         `json:"size"`
+	Search *SearchMetadata `json:"search,omitempty"`
+	Items  []ImageView     `json:"items"`
+	Total  int64           `json:"total"`
+	Page   int             `json:"page"`
+	Size   int             `json:"size"`
 }
 
 // GalleryItem is one public gallery entry: an image view plus the uploader's

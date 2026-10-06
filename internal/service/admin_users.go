@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ListUsers pages every real account with an optional username/email keyword.
@@ -21,18 +22,68 @@ func (s *AdminService) ListUsers(ctx context.Context, page, size int, keyword st
 	if err != nil {
 		return AdminUserPage{}, fmt.Errorf("list admin users: %w", err)
 	}
+	config, err := s.deps.Settings.AvatarConfig(ctx)
+	if err != nil {
+		return AdminUserPage{}, fmt.Errorf("read avatar config: %w", err)
+	}
 	items := make([]UserView, 0, len(rows))
 	for _, user := range rows {
-		items = append(items, userView(user))
+		view := userView(user)
+		applyAvatar(&view, config)
+		items = append(items, view)
 	}
 	return AdminUserPage{Items: items, Total: total, Page: page, Size: size}, nil
 }
 
-// PatchUser changes an account's status or group. Disabling an account
-// revokes all of its bearer credentials (the repository does this in the
-// same transaction as the status flip, matching password-change semantics).
-// Administrators cannot disable themselves, and there is no way to change a
-// role through this API at all.
+// CreateUser provisions an account without enabling public registration.
+// It uses the same credential/identity validation and bcrypt cost as signup.
+func (s *AdminService) CreateUser(ctx context.Context, callerID uint64, input AdminUserInput) (UserView, error) {
+	if err := ctx.Err(); err != nil {
+		return UserView{}, fmt.Errorf("create admin user: %w", err)
+	}
+	if callerID == 0 || !validPassword(input.Password) || !validAccountRole(input.Role) || !validAccountStatus(input.Status) {
+		return UserView{}, ErrInvalidInput
+	}
+	username, err := normalizeUsername(input.Username)
+	if err != nil {
+		return UserView{}, err
+	}
+	email, err := normalizeEmail(input.Email)
+	if err != nil {
+		return UserView{}, err
+	}
+	name, err := normalizeDisplayName(input.DisplayName)
+	if err != nil {
+		return UserView{}, err
+	}
+	if err := s.validateAccountGroup(ctx, input.GroupID); err != nil {
+		return UserView{}, err
+	}
+	// Resolve decoration before writing, so a settings read failure cannot
+	// produce an ambiguous successful create followed by a failed response.
+	config, err := s.deps.Settings.AvatarConfig(ctx)
+	if err != nil {
+		return UserView{}, fmt.Errorf("read avatar config: %w", err)
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), passwordCost)
+	if err != nil {
+		return UserView{}, fmt.Errorf("hash account password: %w", err)
+	}
+	created, err := s.deps.Users.CreateAdminUser(ctx, callerID, model.User{
+		Username: username, Email: email, PasswordHash: string(hash), DisplayName: name,
+		Role: input.Role, Status: input.Status, GroupID: input.GroupID,
+	})
+	if err != nil {
+		return UserView{}, fmt.Errorf("create admin user: %w", err)
+	}
+	view := userView(created)
+	applyAvatar(&view, config)
+	return view, nil
+}
+
+// PatchUser validates the allowlisted changes before committing them together.
+// The repository locks and rechecks actor, group, self-disable, and last-admin
+// rules, and revokes credentials only when identity or authorization changes.
 func (s *AdminService) PatchUser(ctx context.Context, callerID, targetID uint64, patch AdminUserPatch) (UserView, error) {
 	if err := ctx.Err(); err != nil {
 		return UserView{}, fmt.Errorf("patch admin user: %w", err)
@@ -40,45 +91,71 @@ func (s *AdminService) PatchUser(ctx context.Context, callerID, targetID uint64,
 	if callerID == 0 || targetID == 0 {
 		return UserView{}, ErrInvalidInput
 	}
-	status := ""
-	if patch.Status != nil {
-		status = *patch.Status
-		if status != model.UserStatusEnabled && status != model.UserStatusDisabled {
-			return UserView{}, ErrInvalidInput
+	changes := model.UserChanges{Role: patch.Role, Status: patch.Status, GroupID: patch.GroupID}
+	for _, field := range []struct {
+		value     *string
+		target    **string
+		normalize func(string) (string, error)
+	}{
+		{patch.Username, &changes.Username, normalizeUsername},
+		{patch.Email, &changes.Email, normalizeEmail},
+		{patch.DisplayName, &changes.DisplayName, normalizeDisplayName},
+	} {
+		if field.value != nil {
+			value, err := field.normalize(*field.value)
+			if err != nil {
+				return UserView{}, err
+			}
+			*field.target = &value
 		}
 	}
-	if patch.GroupID != nil {
-		if *patch.GroupID == 0 {
-			return UserView{}, ErrInvalidInput
-		}
-		group, err := s.deps.Groups.FindGroup(ctx, *patch.GroupID)
-		if err != nil {
-			return UserView{}, fmt.Errorf("find target group: %w", err)
-		}
-		// Real accounts never join the anonymous group; guest quotas are
-		// governed by the guest settings instead.
-		if group.IsGuest {
-			return UserView{}, ErrInvalidInput
-		}
+	if patch.Role != nil && !validAccountRole(*patch.Role) {
+		return UserView{}, ErrInvalidInput
 	}
-	if patch.Status != nil && status == model.UserStatusDisabled && callerID == targetID {
+	if patch.Status != nil && !validAccountStatus(*patch.Status) {
+		return UserView{}, ErrInvalidInput
+	}
+	if patch.Status != nil && *patch.Status == model.UserStatusDisabled && callerID == targetID {
 		return UserView{}, ErrForbidden
 	}
-	if patch.Status != nil {
-		if err := s.deps.Users.SetUserStatus(ctx, targetID, status); err != nil {
-			return UserView{}, fmt.Errorf("set user status: %w", err)
-		}
-	}
 	if patch.GroupID != nil {
-		if err := s.deps.Users.SetUserGroup(ctx, targetID, *patch.GroupID); err != nil {
-			return UserView{}, fmt.Errorf("set user group: %w", err)
+		if err := s.validateAccountGroup(ctx, *patch.GroupID); err != nil {
+			return UserView{}, err
 		}
 	}
-	user, err := s.deps.Users.FindUserByID(ctx, targetID)
+	config, err := s.deps.Settings.AvatarConfig(ctx)
 	if err != nil {
-		return UserView{}, fmt.Errorf("find patched user: %w", err)
+		return UserView{}, fmt.Errorf("read avatar config: %w", err)
 	}
-	return userView(user), nil
+	user, err := s.deps.Users.UpdateAdminUser(ctx, callerID, targetID, changes)
+	if err != nil {
+		return UserView{}, fmt.Errorf("patch admin user: %w", err)
+	}
+	view := userView(user)
+	applyAvatar(&view, config)
+	return view, nil
+}
+
+func validAccountRole(role string) bool {
+	return role == model.UserRoleAdmin || role == model.UserRoleUser
+}
+
+func validAccountStatus(status string) bool {
+	return status == model.UserStatusEnabled || status == model.UserStatusDisabled
+}
+
+func (s *AdminService) validateAccountGroup(ctx context.Context, id uint64) error {
+	if id == 0 {
+		return ErrInvalidInput
+	}
+	group, err := s.deps.Groups.FindGroup(ctx, id)
+	if err != nil {
+		return fmt.Errorf("find target group: %w", err)
+	}
+	if group.IsGuest {
+		return ErrInvalidInput
+	}
+	return nil
 }
 
 func (s *AdminService) groupView(group model.Group, counts map[uint64]int64, bindings map[uint64][]uint64) GroupView {

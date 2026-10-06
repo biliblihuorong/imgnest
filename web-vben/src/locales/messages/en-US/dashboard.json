@@ -1,0 +1,57 @@
+{
+  "bytes": "{value} {unit}",
+  "title": "Dashboard",
+  "description": "Your current images, albums, and storage usage.",
+  "personal": "Your resources",
+  "sitewide": "Site overview",
+  "quickLinks": "Quick links",
+  "refresh": "Refresh data",
+  "retry": "Retry",
+  "loading": "Loading",
+  "unavailable": "Unavailable",
+  "loadError": "This metric is temporarily unavailable",
+  "metrics": {
+    "storage": {
+      "title": "Storage used",
+      "description": "Storage bytes currently recorded for your account."
+    },
+    "images": {
+      "title": "Your images",
+      "description": "Your active images, excluding the trash."
+    },
+    "albums": {
+      "title": "Your albums",
+      "description": "The total number of albums in your account."
+    },
+    "trash": {
+      "title": "Trash",
+      "description": "Your images awaiting restoration or removal."
+    },
+    "globalImages": {
+      "title": "Sitewide images",
+      "description": "Active images across all accounts."
+    },
+    "accounts": {
+      "title": "Total accounts",
+      "description": "All site accounts, including disabled accounts."
+    }
+  },
+  "links": {
+    "upload": {
+      "title": "Upload images",
+      "description": "Add images and get shareable links"
+    },
+    "images": {
+      "title": "Image library",
+      "description": "Browse and manage your images"
+    },
+    "albums": {
+      "title": "Albums",
+      "description": "Organize your image collections"
+    },
+    "tokens": {
+      "title": "Tokens & security",
+      "description": "Manage client credentials and passwords"
+    }
+  }
+}
