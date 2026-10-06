@@ -29,6 +29,10 @@ const props = defineProps<{
   selected?: boolean;
   /** 「移动到相册」下拉选项（key=相册 id，0=移出相册）；为空不显示移动入口。 */
   albumOptions?: DropdownOption[];
+  /** 详情面板正在显示这张图时高亮卡片。 */
+  active?: boolean;
+  /** 点击卡片信息区（非控件）也打开详情；仅右侧面板模式使用。 */
+  selectOnClick?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -56,13 +60,25 @@ function onThumbError(): void {
   thumbFailed.value = true;
 }
 
+/** 信息区点击：控件与文件名各自处理自己的点击，这里只接空白与元数据区域。 */
+function onBodyClick(event: MouseEvent): void {
+  if (!props.selectOnClick) return;
+  const target = event.target as HTMLElement;
+  if (target.closest("button, a, .n-switch, .n-checkbox, .n-tag, .image-card__name")) return;
+  emit("open");
+}
+
 function onMoveSelect(key: string | number): void {
   if (!props.busy) emit("move", Number(key));
 }
 </script>
 
 <template>
-  <div class="image-card" @contextmenu.prevent="emit('menu', $event)">
+  <div
+    class="image-card"
+    :class="{ 'image-card--active': active }"
+    @contextmenu.prevent="emit('menu', $event)"
+  >
     <div v-if="selectable" class="image-card__check" @click.stop>
       <NCheckbox
         size="small"
@@ -85,7 +101,7 @@ function onMoveSelect(key: string | number): void {
         <span class="image-card__hint">{{ t("user.images.noThumbnail") }}</span>
       </div>
     </div>
-    <div class="image-card__body">
+    <div class="image-card__body" @click="onBodyClick">
       <div class="image-card__name" :title="image.name" @click="emit('open')">
         {{ image.name }}
       </div>
@@ -145,6 +161,11 @@ function onMoveSelect(key: string | number): void {
   border-radius: 8px;
   overflow: hidden;
   background: transparent;
+}
+
+.image-card--active {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 1px hsl(var(--primary));
 }
 
 .image-card__check {

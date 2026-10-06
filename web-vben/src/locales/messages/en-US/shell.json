@@ -1,0 +1,62 @@
+{
+  "switchToMarvis": "Switch to the new layout",
+  "layoutLoadFailed": "The layout failed to load, so the other one is shown",
+  "brandBadge": "Images",
+  "search": "Search images",
+  "openMenu": "Open navigation",
+  "openSettings": "Settings",
+  "logout": "Sign out",
+  "login": "Sign in",
+  "albums": {
+    "create": "New album",
+    "all": "All albums",
+    "loadFailed": "Could not load albums",
+    "collapse": "Collapse albums",
+    "expand": "Expand albums"
+  },
+  "palette": {
+    "placeholder": "Search images, or type a page name",
+    "conditions": "Search conditions",
+    "pages": "Pages",
+    "searchFor": "Search my images for \"{query}\"",
+    "openImages": "Open my images"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": "Appearance",
+    "account": "Account",
+    "tokens": "API tokens",
+    "close": "Close settings",
+    "tokensHint": "Tokens let tools such as PicGo and uPic upload for you. A token is shown in full only once, when it is created, so creating and revoking happen on their own page.",
+    "tokensLink": "Open token management"
+  },
+  "appearance": {
+    "layout": "Layout",
+    "layoutMarvis": "New layout",
+    "layoutMarvisHint": "Floating sidebar with a preview panel",
+    "layoutClassic": "Classic layout",
+    "layoutClassicHint": "The original header and tabs",
+    "mode": "Theme",
+    "modeLight": "Light",
+    "modeDark": "Dark",
+    "modeAuto": "System",
+    "accent": "Accent colour",
+    "accentOption": "Accent colour {index}",
+    "radius": "Corner radius",
+    "radiusSmall": "Small",
+    "radiusMedium": "Medium",
+    "radiusLarge": "Large",
+    "compactSidebar": "Compact sidebar",
+    "compactSidebarHint": "Show icons only",
+    "reset": "Restore default appearance",
+    "resetHint": "Accent colour and radius return to this layout's defaults",
+    "resetAction": "Restore",
+    "language": "Language"
+  },
+  "detailPanel": {
+    "empty": "Click the info area under an image to see its details",
+    "close": "Close details"
+  },
+  "layoutBothFailed": "The page layout could not be loaded. Check your connection and reload.",
+  "reload": "Reload"
+}

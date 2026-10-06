@@ -1,0 +1,62 @@
+{
+  "switchToMarvis": "切换到新版布局",
+  "layoutLoadFailed": "布局加载失败，已切换到另一套布局",
+  "brandBadge": "图床",
+  "search": "搜索图片",
+  "openMenu": "打开导航",
+  "openSettings": "设置",
+  "logout": "退出登录",
+  "login": "登录",
+  "albums": {
+    "create": "新建相册",
+    "all": "全部相册",
+    "loadFailed": "相册加载失败",
+    "collapse": "收起相册",
+    "expand": "展开相册"
+  },
+  "palette": {
+    "placeholder": "搜索图片，或输入页面名称",
+    "conditions": "搜索条件",
+    "pages": "页面",
+    "searchFor": "在我的图片中搜索「{query}」",
+    "openImages": "打开我的图片"
+  },
+  "settings": {
+    "title": "设置",
+    "appearance": "外观",
+    "account": "账号",
+    "tokens": "API Token",
+    "close": "关闭设置",
+    "tokensHint": "Token 用于 PicGo、uPic 等工具上传。明文只在创建时显示一次，所以创建和撤销都在专门的页面完成。",
+    "tokensLink": "打开 Token 管理"
+  },
+  "appearance": {
+    "layout": "布局",
+    "layoutMarvis": "新版布局",
+    "layoutMarvisHint": "漂浮侧栏，右侧预览面板",
+    "layoutClassic": "经典布局",
+    "layoutClassicHint": "顶栏加标签页的原布局",
+    "mode": "深浅色",
+    "modeLight": "浅色",
+    "modeDark": "深色",
+    "modeAuto": "跟随系统",
+    "accent": "强调色",
+    "accentOption": "强调色 {index}",
+    "radius": "圆角",
+    "radiusSmall": "小",
+    "radiusMedium": "中",
+    "radiusLarge": "大",
+    "compactSidebar": "紧凑侧栏",
+    "compactSidebarHint": "只显示图标",
+    "reset": "恢复默认外观",
+    "resetHint": "强调色和圆角回到当前布局的默认值",
+    "resetAction": "恢复",
+    "language": "语言"
+  },
+  "detailPanel": {
+    "empty": "点击图片下方的信息区查看详情",
+    "close": "关闭详情"
+  },
+  "layoutBothFailed": "页面布局加载失败，请检查网络后重新加载。",
+  "reload": "重新加载"
+}

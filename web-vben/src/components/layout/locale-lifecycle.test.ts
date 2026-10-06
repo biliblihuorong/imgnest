@@ -5,7 +5,7 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import { expect, it, vi } from "vitest";
 import { i18n, useI18n } from "@vben/locales";
 import { updatePreferences } from "@vben/preferences";
-import AppLayout from "./AppLayout.vue";
+import AppLayout from "./ClassicLayout.vue";
 
 vi.mock("@/api/site", () => ({
   fetchSite: vi

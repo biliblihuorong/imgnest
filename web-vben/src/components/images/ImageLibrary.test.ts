@@ -1,7 +1,7 @@
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NDialogProvider, NDropdown, NMessageProvider, NPagination, NSelect } from "naive-ui";
-import { h } from "vue";
+import { h, ref } from "vue";
 import { i18n } from "@vben/locales";
 import { listAlbums } from "@/api/albums";
 import {
@@ -19,7 +19,15 @@ import { fetchProtectedThumbnail } from "@/api/thumbnails";
 import ImageCard from "@/components/images/ImageCard.vue";
 import ImageDetailDrawer from "@/components/images/ImageDetailDrawer.vue";
 import { makeExif, makeImage } from "@/components/images/fixtures";
+import ImageDetailPanel from "@/components/images/ImageDetailPanel.vue";
+import { setShell } from "@/integrations/shell/useShell";
 import ImageLibrary from "./ImageLibrary.vue";
+
+// jsdom 没有 matchMedia，默认按窄屏处理（沿用详情抽屉）；面板用例显式置为宽屏。
+const wideViewport = ref(false);
+vi.mock("@/components/layout/marvis/useNarrowViewport", () => ({
+  useViewportAtLeast: () => wideViewport,
+}));
 
 vi.mock("@/api/images", () => ({
   searchImages: vi.fn(),
@@ -606,4 +614,159 @@ it("single visibility mutation reloads applied filters and count without applyin
   expect(wrapper.get<HTMLInputElement>(".unified-search__input").element.value).toBe(
     "camera:unsent",
   );
+});
+
+describe("ImageLibrary 详情面板（Marvis 宽屏）", () => {
+  beforeEach(() => {
+    getImageExifMock.mockResolvedValue(makeExif({ image_id: 1 }));
+    wideViewport.value = true;
+    setShell("marvis");
+  });
+  afterEach(() => {
+    wideViewport.value = false;
+    setShell("marvis");
+  });
+
+  it("uses the side panel instead of the drawer", async () => {
+    const wrapper = mountLibrary();
+    await flushPromises();
+    expect(wrapper.findComponent(ImageDetailPanel).exists()).toBe(true);
+    expect(wrapper.findComponent(ImageDetailDrawer).exists()).toBe(false);
+    expect(wrapper.findComponent(ImageDetailPanel).props("image")).toBeNull();
+  });
+
+  it.each([
+    ["classic", true],
+    ["marvis", false],
+  ] as const)("keeps the drawer for shell=%s wide=%s", async (shellName, wide) => {
+    setShell(shellName);
+    wideViewport.value = wide;
+    const wrapper = mountLibrary();
+    await flushPromises();
+    expect(wrapper.findComponent(ImageDetailDrawer).exists()).toBe(true);
+    expect(wrapper.findComponent(ImageDetailPanel).exists()).toBe(false);
+  });
+
+  it("shows the opened image in the panel, highlights its card and closes again", async () => {
+    const wrapper = mountLibrary();
+    await flushPromises();
+    const cards = wrapper.findAllComponents(ImageCard);
+    cards[0].vm.$emit("open");
+    await flushPromises();
+    const panel = wrapper.findComponent(ImageDetailPanel);
+    expect(panel.props("image")).toMatchObject({ id: 1, name: "a.png" });
+    expect(getImageExifMock).toHaveBeenCalledWith(1);
+    expect(cards[0].classes()).toContain("image-card--active");
+    expect(cards[1].classes()).not.toContain("image-card--active");
+    panel.vm.$emit("close");
+    await flushPromises();
+    expect(panel.props("image")).toBeNull();
+    expect(cards[0].classes()).not.toContain("image-card--active");
+  });
+
+  it("selects a card when its info area is clicked, but not when a control is clicked", async () => {
+    setImageVisibilityMock.mockResolvedValue(makeImage({ id: 2, is_public: false }));
+    const wrapper = mountLibrary();
+    await flushPromises();
+    const cards = wrapper.findAllComponents(ImageCard);
+    await cards[1].find(".n-switch").trigger("click");
+    await flushPromises();
+    expect(wrapper.findComponent(ImageDetailPanel).props("image")).toBeNull();
+    await cards[1].find(".image-card__meta").trigger("click");
+    await flushPromises();
+    expect(wrapper.findComponent(ImageDetailPanel).props("image")).toMatchObject({ id: 2 });
+  });
+
+  it("keeps showing the same image after the viewport narrows", async () => {
+    const wrapper = mountLibrary();
+    await flushPromises();
+    wrapper.findAllComponents(ImageCard)[0].vm.$emit("open");
+    await flushPromises();
+    wideViewport.value = false;
+    await flushPromises();
+    expect(wrapper.findComponent(ImageDetailPanel).exists()).toBe(false);
+    const drawer = wrapper.findComponent(ImageDetailDrawer);
+    expect(drawer.props("show")).toBe(true);
+    expect(drawer.props("image")).toMatchObject({ id: 1 });
+  });
+
+  it("offers the same context-menu options and copy results as the drawer mode", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { userAgent: "vitest", clipboard: { writeText } });
+    const wrapper = mountLibrary();
+    await flushPromises();
+    wrapper.findAllComponents(ImageCard)[0].vm.$emit("menu", new MouseEvent("contextmenu"));
+    await flushPromises();
+    const dropdown = wrapper
+      .findAllComponents(NDropdown)
+      .find((node) => node.props("trigger") === "manual")!;
+    const keys = (dropdown.props("options") as { key: string }[]).map((option) => option.key);
+    expect(keys).toEqual([
+      "copy-original",
+      "copy-webp",
+      "copy-thumbnail",
+      "divider",
+      "props",
+      "toggle",
+      "remove",
+    ]);
+    await dropdown.vm.$emit("select", "copy-original:bbcode");
+    await flushPromises();
+    expect(writeText).toHaveBeenCalledWith(`[img]${makeImage().links.original}[/img]`);
+    await dropdown.vm.$emit("select", "props");
+    await flushPromises();
+    expect(wrapper.findComponent(ImageDetailPanel).props("image")).toMatchObject({ id: 1 });
+    vi.unstubAllGlobals();
+  });
+
+  it("clears the panel when the shown image is no longer in the list", async () => {
+    const wrapper = mountLibrary();
+    await flushPromises();
+    wrapper.findAllComponents(ImageCard)[0].vm.$emit("open");
+    await flushPromises();
+    expect(wrapper.findComponent(ImageDetailPanel).props("image")).toMatchObject({ id: 1 });
+    searchImagesMock.mockImplementation(async (p) => ({
+      items: [makeImage({ id: 2, name: "b.jpg", is_public: true })],
+      total: 1,
+      page: p.page,
+      size: p.size,
+      search: searchMetadata(p.q),
+    }));
+    deleteImageMock.mockResolvedValue(null);
+    wrapper.findAllComponents(ImageCard)[0].vm.$emit("remove");
+    await flushPromises();
+    expect(wrapper.findAllComponents(ImageCard)).toHaveLength(1);
+    expect(wrapper.findComponent(ImageDetailPanel).props("image")).toBeNull();
+  });
+
+  it("shows the refreshed copy of the image after it is updated in place", async () => {
+    setImageVisibilityMock.mockResolvedValue(makeImage({ id: 1, name: "a.png", is_public: true }));
+    const wrapper = mountLibrary();
+    await flushPromises();
+    wrapper.findAllComponents(ImageCard)[0].vm.$emit("open");
+    await flushPromises();
+    searchImagesMock.mockImplementation(async (p) => ({
+      items: [makeImage({ id: 1, name: "a.png", is_public: true })],
+      total: 1,
+      page: p.page,
+      size: p.size,
+      search: searchMetadata(p.q),
+    }));
+    wrapper.findAllComponents(ImageCard)[0].vm.$emit("toggle", true);
+    await flushPromises();
+    expect(wrapper.findComponent(ImageDetailPanel).props("image")).toMatchObject({
+      id: 1,
+      is_public: true,
+    });
+    expect(getImageExifMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("card click in drawer mode does not open details from the info area", async () => {
+    wideViewport.value = false;
+    const wrapper = mountLibrary();
+    await flushPromises();
+    await wrapper.findAllComponents(ImageCard)[0].find(".image-card__meta").trigger("click");
+    await flushPromises();
+    expect(wrapper.findComponent(ImageDetailDrawer).props("show")).toBe(false);
+  });
 });

@@ -1,71 +1,82 @@
 <script setup lang="ts">
 import { useI18n } from "@vben/locales";
-import { NButton } from "naive-ui";
-import { landingPath } from "@/router/landing";
-import { BasicLayout, UserDropdown } from "@vben/layouts";
-import { useRouter } from "vue-router";
-import { computed, shallowRef } from "vue";
-import { useAuthStore } from "@/stores/auth";
-import { useSiteStore } from "@/stores/site";
-import { useUserAvatar } from "@/components/account/useUserAvatar";
-import logo from "@/assets/imgnest-mark.svg";
+import { useMessage } from "naive-ui";
+import {
+  computed,
+  defineAsyncComponent,
+  reactive,
+  shallowReactive,
+  watch,
+  type Component,
+} from "vue";
+import { shell, type Shell } from "@/integrations/shell/useShell";
 
 const { t } = useI18n();
-const router = useRouter();
-const auth = useAuthStore();
-const site = useSiteStore();
-const loggingOut = shallowRef(false);
-void site.ensureLoaded();
-const avatarUrl = useUserAvatar(computed(() => auth.user));
+const message = useMessage();
 
-const accountMenus = computed(() => [
-  { text: t("account.profileNav"), handler: () => router.push("/account/settings") },
-  { text: t("common.nav.tokens"), handler: () => router.push("/tokens") },
-  ...(auth.user?.role === "admin"
-    ? [{ text: t("common.nav.admin"), handler: () => router.push("/admin/users") }]
-    : []),
-]);
+const loaders: Record<Shell, () => Promise<{ default: Component }>> = {
+  marvis: () => import("./MarvisLayout.vue"),
+  classic: () => import("./ClassicLayout.vue"),
+};
+const other = (name: Shell): Shell => (name === "marvis" ? "classic" : "marvis");
 
-async function logout(): Promise<void> {
-  if (loggingOut.value) return;
-  loggingOut.value = true;
-  try {
-    const request = auth.logout();
-    // Leave the sensitive view immediately. A delayed logout response must never
-    // navigate a newer session away from its current workspace.
-    await router.replace("/login");
-    await request;
-  } finally {
-    loggingOut.value = false;
-  }
+/** 本次会话里加载失败的布局。只影响当前渲染，不改用户保存的选择。 */
+const failed = reactive(new Set<Shell>());
+
+function create(name: Shell): Component {
+  return defineAsyncComponent({
+    loader: loaders[name],
+    onError(_error, _retry, fail) {
+      failed.add(name);
+      if (!failed.has(other(name))) message.warning(() => t("shell.layoutLoadFailed"));
+      fail();
+    },
+  });
+}
+const layouts = shallowReactive<Record<Shell, Component>>({
+  marvis: create("marvis"),
+  classic: create("classic"),
+});
+
+// 用户再次明确选择失败过的布局时重新加载；异步组件会缓存失败结果，必须重建。
+watch(shell, (next) => {
+  if (!failed.has(next)) return;
+  failed.delete(next);
+  layouts[next] = create(next);
+});
+
+const rendered = computed<Shell | null>(() => {
+  if (!failed.has(shell.value)) return shell.value;
+  return failed.has(other(shell.value)) ? null : other(shell.value);
+});
+
+function reload(): void {
+  window.location.reload();
 }
 </script>
 
 <template>
-  <BasicLayout
-    :refresh-on-locale-change="false"
-    :logo-src="logo"
-    :logo-src-dark="logo"
-    :logo-text="site.siteName"
-    :avatar="avatarUrl"
-    :text="auth.user?.display_name || auth.user?.username || t('common.account')"
-    @logout="logout"
-    @clear-preferences-and-logout="logout"
-    @click-logo="router.push(auth.user ? landingPath(auth.user.role) : '/gallery')"
-  >
-    <template #user-dropdown>
-      <UserDropdown
-        v-if="auth.user"
-        :avatar="avatarUrl"
-        :avatar-dot="false"
-        :text="auth.user?.display_name || auth.user?.username || t('common.account')"
-        :description="auth.user?.email ?? ''"
-        :tag-text="auth.user?.role === 'admin' ? t('common.administrator') : t('common.user')"
-        :menus="accountMenus"
-        @logout="logout"
-        @clear-preferences-and-logout="logout"
-      />
-      <NButton v-else secondary @click="router.push('/login')">{{ t("common.login") }}</NButton>
-    </template>
-  </BasicLayout>
+  <component :is="layouts[rendered]" v-if="rendered" />
+  <div v-else class="app-layout-failed" role="alert" data-testid="layout-failed">
+    <p>{{ t("shell.layoutBothFailed") }}</p>
+    <button type="button" @click="reload">{{ t("shell.reload") }}</button>
+  </div>
 </template>
+
+<style scoped>
+.app-layout-failed {
+  display: grid;
+  gap: 12px;
+  place-content: center;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+}
+.app-layout-failed button {
+  justify-self: center;
+  padding: 6px 16px;
+  color: hsl(var(--primary));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+}
+</style>

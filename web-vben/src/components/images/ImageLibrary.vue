@@ -17,12 +17,15 @@ import {
 import { computed, nextTick, ref } from "vue";
 import ImageCard from "./ImageCard.vue";
 import ImageDetailDrawer from "./ImageDetailDrawer.vue";
+import ImageDetailPanel from "./ImageDetailPanel.vue";
 import { useImageLibrary } from "./useImageLibrary";
 import UnifiedImageSearch from "./UnifiedImageSearch.vue";
 import { buildLinkText, resolveImageLink } from "@/components/upload/linkText";
 import type { ImageView } from "@/api/images";
 import { copyText } from "@/lib/clipboard";
 import { formatApiError } from "@/locales/errors";
+import { useViewportAtLeast } from "@/components/layout/marvis/useNarrowViewport";
+import { shell } from "@/integrations/shell/useShell";
 
 /**
  * 「我的图片」与相册详情共用的图片库：筛选/搜索工具栏、多选批量、
@@ -34,6 +37,20 @@ const { t } = useI18n();
 const message = useMessage();
 const dialog = useDialog();
 const lib = useImageLibrary({ lockedAlbumId: props.lockedAlbumId });
+
+/* ---------------- 详情呈现：Marvis 宽屏用右侧面板，其余沿用抽屉 ---------------- */
+const wide = useViewportAtLeast(1040);
+const usePanel = computed(() => shell.value === "marvis" && wide.value);
+/**
+ * 面板常驻，所以要跟着列表走：取列表里同 id 的最新副本；图片被删除、翻页或换了搜索条件后
+ * 不在列表里就清空。刷新进行中先保留原图，避免面板闪烁和重复请求 EXIF。
+ */
+const panelImage = computed(() => {
+  const shown = lib.drawerShow.value ? lib.drawerImage.value : null;
+  if (!shown) return null;
+  const current = lib.images.value.find((image) => image.id === shown.id);
+  return current ?? (lib.loading.value ? shown : null);
+});
 
 /* ---------------- 灯箱大图（NImageGroup 分组预览：左右箭头 + 键盘 ←/→） ---------------- */
 
@@ -147,160 +164,182 @@ const emptyText = computed(() =>
 </script>
 
 <template>
-  <div class="image-library">
-    <div class="image-library__toolbar">
-      <span class="image-library__total">{{ t("search.total", { count: lib.total.value }) }}</span>
-      <div class="image-library__filters">
+  <div class="image-library" :class="{ 'image-library--panel': usePanel }">
+    <div class="image-library__main">
+      <div class="image-library__toolbar">
+        <span class="image-library__total">{{
+          t("search.total", { count: lib.total.value })
+        }}</span>
+        <div class="image-library__filters">
+          <NSelect
+            class="image-library__size"
+            size="small"
+            :value="lib.size.value"
+            :options="lib.sizeOptions.value"
+            :aria-label="t('user.images.pageSize')"
+            @update:value="lib.handleSizeChange"
+          />
+          <NButton
+            size="small"
+            :loading="lib.loading.value"
+            :disabled="lib.loading.value || lib.batchLoading.value"
+            @click="lib.load"
+            >{{ t("user.common.refresh") }}</NButton
+          >
+        </div>
+      </div>
+      <UnifiedImageSearch
+        v-model="lib.draftRaw.value"
+        :timezone="lib.timezone.value"
+        :authorized-albums="lib.metadata.value?.authorizedAlbums ?? []"
+        :locked-album-id="lockedAlbumId"
+        :locked-album-name="lockedAlbumName"
+        :diagnostics="lib.diagnostics.value"
+        :submitted="lib.submitted.value"
+        :unapplied="lib.unapplied.value"
+        :stale-results="lib.staleResults.value"
+        :loading="lib.loading.value"
+        @submit="lib.submit"
+        @clear="lib.resetFilters"
+      />
+
+      <div v-if="lib.selectedIds.value.length > 0" class="image-library__batchbar">
+        <span class="image-library__batchbar-count">{{
+          t("user.images.selected", { count: lib.selectedIds.value.length })
+        }}</span>
         <NSelect
-          class="image-library__size"
+          v-model:value="lib.batchTarget.value"
+          class="image-library__batchbar-album"
           size="small"
-          :value="lib.size.value"
-          :options="lib.sizeOptions.value"
-          :aria-label="t('user.images.pageSize')"
-          @update:value="lib.handleSizeChange"
+          :options="lib.batchTargetOptions.value"
+          :placeholder="t('user.images.targetAlbum')"
+          :disabled="lib.batchLoading.value"
         />
         <NButton
           size="small"
-          :loading="lib.loading.value"
-          :disabled="lib.loading.value || lib.batchLoading.value"
-          @click="lib.load"
-          >{{ t("user.common.refresh") }}</NButton
+          type="primary"
+          :loading="lib.batchLoading.value"
+          @click="lib.moveSelected"
         >
+          {{ t("user.images.moveAlbum") }}
+        </NButton>
+        <NPopconfirm
+          :positive-text="t('user.common.confirmDelete')"
+          :negative-text="t('user.common.cancel')"
+          @positive-click="lib.removeSelected"
+        >
+          <template #trigger>
+            <NButton size="small" type="error" :loading="lib.batchLoading.value">{{
+              t("user.images.batchDelete")
+            }}</NButton>
+          </template>
+          {{ t("user.images.batchDeleteConfirm", { count: lib.selectedIds.value.length }) }}
+        </NPopconfirm>
+        <NButton size="small" :disabled="lib.batchLoading.value" @click="lib.batchVisibility(true)">
+          {{ t("user.images.makePublic") }}
+        </NButton>
+        <NButton
+          size="small"
+          :disabled="lib.batchLoading.value"
+          @click="lib.batchVisibility(false)"
+        >
+          {{ t("user.images.makePrivate") }}
+        </NButton>
+        <NButton
+          size="small"
+          quaternary
+          :disabled="lib.batchLoading.value"
+          @click="lib.clearSelection"
+        >
+          {{ t("user.common.cancel") }}
+        </NButton>
       </div>
-    </div>
-    <UnifiedImageSearch
-      v-model="lib.draftRaw.value"
-      :timezone="lib.timezone.value"
-      :authorized-albums="lib.metadata.value?.authorizedAlbums ?? []"
-      :locked-album-id="lockedAlbumId"
-      :locked-album-name="lockedAlbumName"
-      :diagnostics="lib.diagnostics.value"
-      :submitted="lib.submitted.value"
-      :unapplied="lib.unapplied.value"
-      :stale-results="lib.staleResults.value"
-      :loading="lib.loading.value"
-      @submit="lib.submit"
-      @clear="lib.resetFilters"
-    />
 
-    <div v-if="lib.selectedIds.value.length > 0" class="image-library__batchbar">
-      <span class="image-library__batchbar-count">{{
-        t("user.images.selected", { count: lib.selectedIds.value.length })
-      }}</span>
-      <NSelect
-        v-model:value="lib.batchTarget.value"
-        class="image-library__batchbar-album"
-        size="small"
-        :options="lib.batchTargetOptions.value"
-        :placeholder="t('user.images.targetAlbum')"
-        :disabled="lib.batchLoading.value"
-      />
-      <NButton
-        size="small"
-        type="primary"
-        :loading="lib.batchLoading.value"
-        @click="lib.moveSelected"
-      >
-        {{ t("user.images.moveAlbum") }}
-      </NButton>
-      <NPopconfirm
-        :positive-text="t('user.common.confirmDelete')"
-        :negative-text="t('user.common.cancel')"
-        @positive-click="lib.removeSelected"
-      >
-        <template #trigger>
-          <NButton size="small" type="error" :loading="lib.batchLoading.value">{{
-            t("user.images.batchDelete")
-          }}</NButton>
-        </template>
-        {{ t("user.images.batchDeleteConfirm", { count: lib.selectedIds.value.length }) }}
-      </NPopconfirm>
-      <NButton size="small" :disabled="lib.batchLoading.value" @click="lib.batchVisibility(true)">
-        {{ t("user.images.makePublic") }}
-      </NButton>
-      <NButton size="small" :disabled="lib.batchLoading.value" @click="lib.batchVisibility(false)">
-        {{ t("user.images.makePrivate") }}
-      </NButton>
-      <NButton
-        size="small"
-        quaternary
-        :disabled="lib.batchLoading.value"
-        @click="lib.clearSelection"
-      >
-        {{ t("user.common.cancel") }}
-      </NButton>
-    </div>
+      <NAlert v-if="lib.loadError.value" type="error" class="image-library__error">
+        {{ formatApiError(lib.loadError.value, "user.images.listError") }}
+        <NButton text :disabled="lib.loading.value" @click="lib.retry">{{
+          t("user.common.retry")
+        }}</NButton>
+      </NAlert>
+      <NSpin :show="lib.loading.value">
+        <NEmpty
+          v-if="
+            !lib.loading.value &&
+            !lib.loadError.value &&
+            lib.diagnostics.value.length === 0 &&
+            lib.images.value.length === 0
+          "
+          class="image-library__empty"
+          :description="emptyText"
+        />
+        <NImageGroup v-else>
+          <div class="image-library__grid">
+            <ImageCard
+              v-for="image in lib.images.value"
+              :key="image.id"
+              :image="image"
+              :busy="
+                lib.loading.value ||
+                !!lib.loadError.value ||
+                lib.staleResults.value ||
+                lib.batchLoading.value ||
+                lib.busyIds.has(image.id)
+              "
+              selectable
+              :selected="lib.selectedIds.value.includes(image.id)"
+              :album-options="lib.cardMoveOptions.value"
+              :active="usePanel && panelImage?.id === image.id"
+              :select-on-click="usePanel"
+              @menu="(event) => openMenu(image, event)"
+              @open="lib.openDrawer(image)"
+              @toggle="(isPublic) => lib.handleToggle(image, isPublic)"
+              @remove="lib.handleRemove(image)"
+              @select="(checked) => lib.handleSelect(image, checked)"
+              @move="(albumId) => lib.handleMove(image, albumId)"
+            />
+          </div>
+        </NImageGroup>
+      </NSpin>
+      <div class="image-library__pagination">
+        <NPagination
+          :disabled="lib.loading.value || !!lib.loadError.value || lib.diagnostics.value.length > 0"
+          :page-slot="5"
+          :page="lib.page.value"
+          :item-count="lib.total.value"
+          :page-size="lib.size.value"
+          @update:page="lib.handlePageChange"
+        />
+      </div>
 
-    <NAlert v-if="lib.loadError.value" type="error" class="image-library__error">
-      {{ formatApiError(lib.loadError.value, "user.images.listError") }}
-      <NButton text :disabled="lib.loading.value" @click="lib.retry">{{
-        t("user.common.retry")
-      }}</NButton>
-    </NAlert>
-    <NSpin :show="lib.loading.value">
-      <NEmpty
-        v-if="
-          !lib.loading.value &&
-          !lib.loadError.value &&
-          lib.diagnostics.value.length === 0 &&
-          lib.images.value.length === 0
-        "
-        class="image-library__empty"
-        :description="emptyText"
-      />
-      <NImageGroup v-else>
-        <div class="image-library__grid">
-          <ImageCard
-            v-for="image in lib.images.value"
-            :key="image.id"
-            :image="image"
-            :busy="
-              lib.loading.value ||
-              !!lib.loadError.value ||
-              lib.staleResults.value ||
-              lib.batchLoading.value ||
-              lib.busyIds.has(image.id)
-            "
-            selectable
-            :selected="lib.selectedIds.value.includes(image.id)"
-            :album-options="lib.cardMoveOptions.value"
-            @menu="(event) => openMenu(image, event)"
-            @open="lib.openDrawer(image)"
-            @toggle="(isPublic) => lib.handleToggle(image, isPublic)"
-            @remove="lib.handleRemove(image)"
-            @select="(checked) => lib.handleSelect(image, checked)"
-            @move="(albumId) => lib.handleMove(image, albumId)"
-          />
-        </div>
-      </NImageGroup>
-    </NSpin>
-    <div class="image-library__pagination">
-      <NPagination
-        :disabled="lib.loading.value || !!lib.loadError.value || lib.diagnostics.value.length > 0"
-        :page-slot="5"
-        :page="lib.page.value"
-        :item-count="lib.total.value"
-        :page-size="lib.size.value"
-        @update:page="lib.handlePageChange"
+      <NDropdown
+        trigger="manual"
+        placement="bottom-start"
+        :show="menuShow"
+        :x="menuX"
+        :y="menuY"
+        :options="menuOptions"
+        @select="onMenuSelect"
+        @clickoutside="menuShow = false"
       />
     </div>
-
-    <NDropdown
-      trigger="manual"
-      placement="bottom-start"
-      :show="menuShow"
-      :x="menuX"
-      :y="menuY"
-      :options="menuOptions"
-      @select="onMenuSelect"
-      @clickoutside="menuShow = false"
-    />
-    <ImageDetailDrawer v-model:show="lib.drawerShow.value" :image="lib.drawerImage.value" />
+    <ImageDetailPanel v-if="usePanel" :image="panelImage" @close="lib.drawerShow.value = false" />
+    <ImageDetailDrawer v-else v-model:show="lib.drawerShow.value" :image="lib.drawerImage.value" />
   </div>
 </template>
 
 <style scoped>
 .image-library {
+  min-width: 0;
+}
+
+.image-library--panel {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.image-library__main {
+  flex: 1;
   min-width: 0;
 }
 
