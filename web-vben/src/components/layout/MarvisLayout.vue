@@ -6,6 +6,7 @@ import { computed, onBeforeUnmount, shallowRef, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useSiteStore } from "@/stores/site";
 import MarvisSidebar from "./marvis/MarvisSidebar.vue";
+import SidebarAlbums from "./marvis/SidebarAlbums.vue";
 import { useViewportBelow } from "./marvis/useNarrowViewport";
 import { useLogout } from "./useLogout";
 
@@ -54,7 +55,9 @@ onBeforeUnmount(stopAfterEach);
       :collapsed="collapsed"
       @navigate="drawerOpen = false"
       @logout="logout"
-    />
+    >
+      <template #albums><SidebarAlbums @navigate="drawerOpen = false" /></template>
+    </MarvisSidebar>
     <main class="mv-main">
       <RouterView />
     </main>

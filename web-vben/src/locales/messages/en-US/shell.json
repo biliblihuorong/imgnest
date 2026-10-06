@@ -7,5 +7,12 @@
   "closeMenu": "Close navigation",
   "openSettings": "Settings",
   "logout": "Sign out",
-  "login": "Sign in"
+  "login": "Sign in",
+  "albums": {
+    "create": "New album",
+    "all": "All albums",
+    "loadFailed": "Could not load albums",
+    "collapse": "Collapse albums",
+    "expand": "Expand albums"
+  }
 }

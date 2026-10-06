@@ -1,7 +1,8 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { updatePreferences } from "@vben/preferences";
 import { createPinia } from "pinia";
-import { nextTick, ref } from "vue";
+import { NMessageProvider } from "naive-ui";
+import { h, nextTick, ref } from "vue";
 import { beforeEach, expect, it, vi } from "vitest";
 import { logout as logoutApi } from "@/api/auth";
 import { useAuthStore } from "@/stores/auth";
@@ -31,7 +32,11 @@ async function mountLayout() {
   auth.user = testUser("user");
   const router = shellTestRouter();
   await router.push("/upload");
-  const wrapper = mount(MarvisLayout, { global: { plugins: [pinia, router] } });
+  // 真实应用里 App.vue 提供 NMessageProvider（相册表单用到 useMessage）。
+  const wrapper = mount(
+    { render: () => h(NMessageProvider, null, { default: () => h(MarvisLayout) }) },
+    { global: { plugins: [pinia, router] } },
+  );
   await flushPromises();
   return { wrapper, router };
 }

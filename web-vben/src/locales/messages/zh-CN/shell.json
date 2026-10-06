@@ -7,5 +7,12 @@
   "closeMenu": "关闭导航",
   "openSettings": "设置",
   "logout": "退出登录",
-  "login": "登录"
+  "login": "登录",
+  "albums": {
+    "create": "新建相册",
+    "all": "全部相册",
+    "loadFailed": "相册加载失败",
+    "collapse": "收起相册",
+    "expand": "展开相册"
+  }
 }
