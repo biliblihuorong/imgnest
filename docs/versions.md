@@ -204,3 +204,13 @@ M2 的实际 native 验证为 Go1.27.1 / vips8.18.6。原 imagor-base 禁用了 
 | `zod-defaults` | 0.2.3 |
 
 Vben 的 layout、menu、tabs 与通用控件来自 vendored 源码；业务表格、弹窗、表单继续使用 Naive UI。Vben 样式采用其原生 Tailwind 4 + Reka/shadcn 内核，保留上游 design tokens 与明暗主题。新版输出独立位于 `web-vben/dist`，legacy 的 `web/dist` 与 package/lock/config保持实际M5基线不变。独立工作区不包含旧前端；默认Go构建仍使用legacy，`-tags=vben`选择新版。详见双前端构建说明。
+
+## CI 缓存执行方式（2026-10-06）
+
+工具链和依赖版本不变。`deploy/Dockerfile.dev` 的默认 `dev` target 保留原开发环境；可选 `lint` target 使用 Go 1.27.1 编译同一个 golangci-lint v2.14.0，只复制二进制，不把安装器的模块/编译缓存带进镜像。
+
+GitHub Actions 分别缓存 dev、lint、固定源码版本的 MinIO 镜像。`deploy/compose.ci.yaml` 仅在 CI 使用：显式复用已加载镜像，将容器实际使用的 Go 模块/编译缓存及 lint 缓存绑定到 runner 临时目录，再由 `actions/cache@v5` 跨运行保存。backend/lint 使用独立缓存键，包含 OS、架构、工具链/原生依赖声明、Go 依赖、lint 配置和提交；兼容前缀用于恢复前一提交的编译结果。缓存不包含数据库、对象存储数据、工作区或认证信息。PR 缓存遵循 GitHub 的 merge-ref 隔离规则，合并后的 main 首次运行需建立 main 的缓存。
+
+完整质量门禁保持不变：`go vet`、`go test -race -shuffle=on -count=1 -timeout 40m ./...`、SQLite/PostgreSQL/MinIO 集成、两种前端的类型检查/测试/构建、前端选择检查和两种 Go 二进制构建。`-count=1` 保证每次重新执行测试，缓存只减少依赖下载和编译。生产 bcrypt cost=12 不变。较便宜的前端选择检查前移，避免在长测试结束后才发现选择错误。
+
+`python3 scripts/test-ci-config.py` 检查缓存接线及原有命令；CI 使用 `--compose` 额外检查 Docker Compose 实际合并后挂载与测试服务配置。比较性能时应分开记录首次构建和相同提交的热缓存重跑，不能把缓存命中推断为测试已执行。

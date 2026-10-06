@@ -1,0 +1,16 @@
+# CI-only overrides: local development keeps its named volumes and build flow.
+# Compose merges volumes by container target, replacing the two named Go caches.
+services:
+  dev:
+    image: ${IMGNEST_CI_DEV_IMAGE:?set the preloaded CI image}
+    pull_policy: never
+    volumes:
+      - ${IMGNEST_CI_CACHE_DIR:?set an absolute CI cache directory}/go-modules:/go/pkg/mod
+      - ${IMGNEST_CI_CACHE_DIR:?set an absolute CI cache directory}/go-build:/root/.cache/go-build
+      - ${IMGNEST_CI_CACHE_DIR:?set an absolute CI cache directory}/golangci-lint:/root/.cache/golangci-lint
+    environment:
+      GOCACHE: /root/.cache/go-build
+      GOLANGCI_LINT_CACHE: /root/.cache/golangci-lint
+  minio:
+    image: imgnest-ci-minio
+    pull_policy: never
