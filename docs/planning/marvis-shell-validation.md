@@ -85,3 +85,5 @@
 - 修复审查意见期间有一轮全量运行与新测试的编写重叠：72 个文件、795 个用例，784 通过、11 失败。失败的 11 个全部是当时刚写好、实现尚未完成的新用例（上传行格式 4 个、检索弹窗 3 个、外壳切换 1 个、语言切换 1 个、匿名设置 2 个），不涉及任何原有用例。
 - 实现完成后重跑了所有受影响的目录（`components/upload`、`components/layout`、`components/images/ImageLibrary.test.ts`、`integrations`）：17 个文件 149 个用例全部通过。
 - 提交后的完整结果以 PR 上 CI 的前端测试为准。
+
+PR [biliblihuorong/imgnest#2](https://github.com/biliblihuorong/imgnest/pull/2) 的 CI 四项全部通过：Frontend (web-vben)、Frontend (web)、Go (race, Postgres, MinIO)、golangci-lint。本地那一轮干净的全量运行在结束前被手动停止，没有结果，完整的前端测试结果以 CI 的 Frontend (web-vben) 为准。
