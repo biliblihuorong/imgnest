@@ -1,0 +1,56 @@
+/*
+ * Marvis 外壳的设计令牌。全部限定在 data-shell="marvis" 下，经典布局不受影响。
+ * 只覆盖 Vben 的语义变量（HSL 三元组），Naive UI 经 useNaiveDesignTokens 自动跟随。
+ * 强调色与圆角不在这里写死：取用户偏好里的 --primary / --radius。
+ */
+:root[data-shell="marvis"] {
+  --mv-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --mv-shadow-sm: 0 1px 2px rgb(0 0 0 / 4%);
+  --mv-shadow-md: 0 1px 3px rgb(0 0 0 / 5%), 0 8px 24px rgb(0 0 0 / 5%);
+  --mv-shadow-lg: 0 12px 40px rgb(0 0 0 / 10%);
+  --mv-shadow-side: 0 1px 2px rgb(0 0 0 / 3%), 0 12px 32px rgb(0 0 0 / 5%);
+}
+
+:root[data-shell="marvis"]:not(.dark) {
+  --background: 0 0% 100%;
+  --background-deep: 240 6% 97%;
+  --foreground: 240 3% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 3% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 3% 11%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 240 4% 46%;
+  --secondary: 240 5% 96%;
+  --accent: 240 5% 96%;
+  --accent-dark: 240 5% 93%;
+  --border: 240 6% 92%;
+  --input: 240 6% 90%;
+  --sidebar: 0 0% 100%;
+  --sidebar-deep: 0 0% 100%;
+  --header: 0 0% 100%;
+}
+
+:root[data-shell="marvis"].dark {
+  --mv-shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --mv-shadow-md: 0 1px 3px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 30%);
+  --mv-shadow-lg: 0 12px 40px rgb(0 0 0 / 50%);
+  --mv-shadow-side: 0 1px 2px rgb(0 0 0 / 30%), 0 12px 32px rgb(0 0 0 / 35%);
+  --background: 240 7% 12%;
+  --background-deep: 240 6% 7%;
+  --foreground: 240 5% 96%;
+  --card: 240 7% 12%;
+  --card-foreground: 240 5% 96%;
+  --popover: 240 6% 15%;
+  --popover-foreground: 240 5% 96%;
+  --muted: 240 5% 17%;
+  --muted-foreground: 240 5% 65%;
+  --secondary: 240 5% 17%;
+  --accent: 240 5% 18%;
+  --accent-dark: 240 5% 21%;
+  --border: 240 5% 20%;
+  --input: 240 5% 22%;
+  --sidebar: 240 7% 12%;
+  --sidebar-deep: 240 7% 12%;
+  --header: 240 7% 12%;
+}

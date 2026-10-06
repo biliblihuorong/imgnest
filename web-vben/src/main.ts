@@ -3,6 +3,7 @@ import "@vben/styles";
 import "@vben/styles/naive";
 import { imgnestPreferences } from "./integrations/vben/preferences";
 import "./assets/app.css";
+import "./assets/marvis.css";
 
 async function start(): Promise<void> {
   await initPreferences({ namespace: "imgnest-vben-v1", overrides: imgnestPreferences });

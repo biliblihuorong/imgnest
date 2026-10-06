@@ -1,17 +1,6 @@
 import type { Pinia } from "pinia";
 import type { Router } from "vue-router";
-import type { Component } from "vue";
 import type { MenuRecordRaw } from "@vben/types";
-import {
-  ImagePlus,
-  Inbox,
-  InspectionPanel,
-  LayoutGrid,
-  List,
-  LockKeyhole,
-  Settings,
-  UserRoundPen,
-} from "@vben/icons";
 import { useAccessStore, useTabbarStore, useUserStore } from "@vben/stores";
 import { computed, markRaw, watch } from "vue";
 import { $t, i18n } from "@vben/locales";
@@ -19,21 +8,11 @@ import { useSiteStore } from "@/stores/site";
 import { landingPath } from "@/router/landing";
 import { useAuthStore } from "@/stores/auth";
 import { useUserAvatar } from "@/components/account/useUserAvatar";
+import { menuIcons } from "./menuIcons";
 import { workspaceMenus, type WorkspaceMenu } from "./navigation";
 
-const icons: Record<string, Component> = {
-  ImagePlus,
-  Inbox,
-  InspectionPanel,
-  LayoutGrid,
-  List,
-  LockKeyhole,
-  Settings,
-  UserRoundPen,
-};
-
 function menuWithIcons(menu: WorkspaceMenu): MenuRecordRaw {
-  const icon = icons[menu.icon];
+  const icon = menuIcons[menu.icon];
   return {
     name: $t(menu.name),
     path: menu.path,

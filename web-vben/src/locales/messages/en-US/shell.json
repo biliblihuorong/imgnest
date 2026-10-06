@@ -1,4 +1,11 @@
 {
   "switchToMarvis": "Switch to the new layout",
-  "layoutLoadFailed": "The layout failed to load, so the other one is shown"
+  "layoutLoadFailed": "The layout failed to load, so the other one is shown",
+  "brandBadge": "Images",
+  "search": "Search images",
+  "openMenu": "Open navigation",
+  "closeMenu": "Close navigation",
+  "openSettings": "Settings",
+  "logout": "Sign out",
+  "login": "Sign in"
 }

@@ -1,4 +1,11 @@
 {
   "switchToMarvis": "切换到新版布局",
-  "layoutLoadFailed": "布局加载失败，已切换到另一套布局"
+  "layoutLoadFailed": "布局加载失败，已切换到另一套布局",
+  "brandBadge": "图床",
+  "search": "搜索图片",
+  "openMenu": "打开导航",
+  "closeMenu": "关闭导航",
+  "openSettings": "设置",
+  "logout": "退出登录",
+  "login": "登录"
 }
