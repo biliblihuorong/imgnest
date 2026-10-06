@@ -13,15 +13,36 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  COMPOSE: docker compose -f deploy/compose.dev.yaml
+  COMPOSE: docker compose -f deploy/compose.dev.yaml -f deploy/compose.ci.yaml
 
 jobs:
   backend:
     name: Go (race, Postgres, MinIO)
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    env:
+      IMGNEST_CI_DEV_IMAGE: imgnest-ci-dev
     steps:
       - uses: actions/checkout@v5
+      - name: Prepare runtime cache directories
+        run: |
+          echo "IMGNEST_CI_CACHE_DIR=$RUNNER_TEMP/imgnest-ci-cache" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/imgnest-ci-cache"/{go-modules,go-build,golangci-lint}
+      - name: Validate CI configuration
+        run: python3 scripts/test-ci-config.py --compose
+      # Image layers do not contain caches written by subsequent compose runs.
+      # Separate job keys prevent immutable-cache first-writer races. The commit
+      # suffix saves newly compiled packages while the prefix permits warm reuse.
+      - name: Restore and save Go runtime caches
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ env.IMGNEST_CI_CACHE_DIR }}/go-modules
+            ${{ env.IMGNEST_CI_CACHE_DIR }}/go-build
+            ${{ env.IMGNEST_CI_CACHE_DIR }}/golangci-lint
+          key: imgnest-backend-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'deploy/Dockerfile.dev', 'deploy/compose.ci.yaml', '.golangci.yml') }}-${{ github.sha }}
+          restore-keys: |
+            imgnest-backend-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'deploy/Dockerfile.dev', 'deploy/compose.ci.yaml', '.golangci.yml') }}-
       - uses: docker/setup-buildx-action@v3
       # The dev image pins Go 1.27.1, Node 24.21.0 and the libvips 8.18.6 build.
       - name: Build dev image (cached)
@@ -29,19 +50,29 @@ jobs:
         with:
           context: .
           file: deploy/Dockerfile.dev
-          tags: imgnest-dev-dev
+          target: dev
+          tags: imgnest-ci-dev
           load: true
           cache-from: type=gha,scope=dev-image
           cache-to: type=gha,scope=dev-image,mode=max
+      - name: Build MinIO test image (cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile.minio-test
+          tags: imgnest-ci-minio
+          load: true
+          cache-from: type=gha,scope=minio-test
+          cache-to: type=gha,scope=minio-test,mode=max
       - name: Start Postgres and MinIO
-        run: $COMPOSE up -d --wait postgres minio
+        run: $COMPOSE up -d --no-build --wait postgres minio
       - name: Vet
         run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev go vet ./...
+      - name: Frontend selection graphs
+        run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev sh scripts/check-frontend-selection.sh
       - name: Test
         # -buildvcs=false: the bind-mounted checkout is owned by another uid inside the container.
         run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false dev go test -race -shuffle=on -count=1 -timeout 40m ./...
-      - name: Frontend selection graphs
-        run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev sh scripts/check-frontend-selection.sh
       - name: Build both binaries
         run: |
           $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev go build -trimpath -o /tmp/imgnest ./cmd/imgnest
@@ -49,23 +80,57 @@ jobs:
       - name: Logs on failure
         if: failure()
         run: $COMPOSE logs --no-color postgres minio | tail -200
+      # Containers run as root; restore runner ownership before cache post-save.
+      - name: Restore cache ownership
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" "$IMGNEST_CI_CACHE_DIR"
 
   lint:
     name: golangci-lint
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      IMGNEST_CI_DEV_IMAGE: imgnest-ci-lint
     steps:
       - uses: actions/checkout@v5
+      - name: Prepare runtime cache directories
+        run: |
+          echo "IMGNEST_CI_CACHE_DIR=$RUNNER_TEMP/imgnest-ci-cache" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/imgnest-ci-cache"/{go-modules,go-build,golangci-lint}
+      - name: Validate CI configuration
+        run: python3 scripts/test-ci-config.py --compose
+      # Image layers do not contain caches written by subsequent compose runs.
+      # Separate job keys prevent immutable-cache first-writer races. The commit
+      # suffix saves newly compiled packages while the prefix permits warm reuse.
+      - name: Restore and save Go runtime caches
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ env.IMGNEST_CI_CACHE_DIR }}/go-modules
+            ${{ env.IMGNEST_CI_CACHE_DIR }}/go-build
+            ${{ env.IMGNEST_CI_CACHE_DIR }}/golangci-lint
+          key: imgnest-lint-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'deploy/Dockerfile.dev', 'deploy/compose.ci.yaml', '.golangci.yml') }}-${{ github.sha }}
+          restore-keys: |
+            imgnest-lint-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'deploy/Dockerfile.dev', 'deploy/compose.ci.yaml', '.golangci.yml') }}-
       - uses: docker/setup-buildx-action@v3
       - name: Build dev image (cached)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/Dockerfile.dev
-          tags: imgnest-dev-dev
+          target: lint
+          tags: imgnest-ci-lint
           load: true
-          cache-from: type=gha,scope=dev-image
-      - run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev sh -c 'go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run ./...'
+          cache-from: |
+            type=gha,scope=lint-image
+            type=gha,scope=dev-image
+          cache-to: type=gha,scope=lint-image,mode=max
+      - name: Lint
+        run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev golangci-lint run ./...
+      # Containers run as root; restore runner ownership before cache post-save.
+      - name: Restore cache ownership
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" "$IMGNEST_CI_CACHE_DIR"
 
   frontend:
     name: Frontend (${{ matrix.app }})
