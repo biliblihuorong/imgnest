@@ -54,7 +54,7 @@ ordinary text, not an album selector.
 ## Protocol, scope and limits
 
 `GET /api/images?qv=1&q=...&tz=Asia%2FShanghai&page=1&size=20` is the new mode.
-`q` must be present and may be empty. Page is 1–100000, size is 20, 50 or 100.
+`q` must be present and may be empty. Page is 1–10000, size is 20, 50 or 100.
 The old keyword/album_id/order/size/date filtering protocol cannot be mixed with
 qv=1. Without qv the legacy behavior is preserved, including the old q needle.
 

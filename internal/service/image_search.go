@@ -93,7 +93,7 @@ func (s *ImageService) listSearch(ctx context.Context, subject TokenSubject, que
 	if query.AlbumID != nil || query.Keyword != "" || query.Order != "" || query.Exif != "" || query.MinSize != 0 || query.MaxSize != 0 || query.From != nil || query.To != nil {
 		return ImagePage{}, SearchDiagnostic("MIXED_QUERY_PROTOCOL", searchquery.Span{}, nil)
 	}
-	if query.Page < 1 || query.Page > 100000 || (query.Size != 20 && query.Size != 50 && query.Size != 100) {
+	if query.Page < 1 || query.Page > 10000 || (query.Size != 20 && query.Size != 50 && query.Size != 100) {
 		return ImagePage{}, SearchDiagnostic("INVALID_PAGINATION", searchquery.Span{}, nil)
 	}
 	albums, hasAlbums := s.deps.Albums.(SearchAlbumRepository)
@@ -255,7 +255,7 @@ func (s *AlbumService) Suggestions(ctx context.Context, owner uint64, keyword st
 	if owner == 0 {
 		return AlbumSuggestions{}, ErrUnauthenticated
 	}
-	if page < 1 || page > 100000 || size < 1 || size > 20 {
+	if page < 1 || page > 10000 || size < 1 || size > 20 {
 		return AlbumSuggestions{}, SearchDiagnostic("INVALID_PAGINATION", searchquery.Span{}, nil)
 	}
 	if !utf8.ValidString(keyword) || len(keyword) > 4096 || utf8.RuneCountInString(keyword) > 200 {

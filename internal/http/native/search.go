@@ -40,7 +40,7 @@ func queryPagination(values url.Values, maxSize uint64) (int, int, error) {
 			if len(vals) != 1 {
 				return 0, 0, parameterError("INVALID_PARAMETER")
 			}
-			max := uint64(100000)
+			max := uint64(10000)
 			if name == "size" {
 				max = maxSize
 			}

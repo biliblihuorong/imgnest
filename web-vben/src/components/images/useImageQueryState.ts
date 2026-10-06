@@ -252,7 +252,7 @@ export function useImageQueryState(options: {
     else await submit();
   }
   async function handlePageChange(next: number): Promise<void> {
-    if (next < 1 || next > 100000) return;
+    if (next < 1 || next > 10000) return;
     await execute({ ...(applied.value ?? params()), page: next }, "page");
   }
   async function handleSizeChange(next: number): Promise<void> {
@@ -286,7 +286,7 @@ export function useImageQueryState(options: {
       serverDiagnostics.value = [diagnostic("UNSUPPORTED_QUERY_VERSION", 0, 0)];
     else if (!validTimezone(timezone.value))
       serverDiagnostics.value = [diagnostic("INVALID_TIMEZONE", 0, 0)];
-    else if (!/^[1-9][0-9]*$/.test(p) || Number(p) > 100000 || !["20", "50", "100"].includes(s))
+    else if (!/^[1-9][0-9]*$/.test(p) || Number(p) > 10000 || !["20", "50", "100"].includes(s))
       serverDiagnostics.value = [diagnostic("INVALID_PAGINATION", 0, 0)];
     else if (
       ["keyword", "album_id", "order", "sort", "min_size", "max_size", "from", "to", "exif"].some(

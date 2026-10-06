@@ -2647,7 +2647,7 @@ export interface components {
         ImageAlbumFilter: number;
         /** @description With qv=1, required unified-search grammar input (empty allowed), at most 4096 UTF-8 bytes. Without qv, the legacy filename/path/EXIF OR needle remains limited to 200 bytes. */
         ImageUnifiedSearch: string;
-        /** @description Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–100000 and size is one of 20, 50, 100. */
+        /** @description Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–10000 and size is one of 20, 50, 100. */
         ImageQueryVersion: 1;
         /** @description Required with qv=1; valid IANA time zone used for upload-date boundaries, independent of display language. */
         ImageQueryTimezone: string;
@@ -3169,7 +3169,7 @@ export interface operations {
                 album_id?: components["parameters"]["ImageAlbumFilter"];
                 /** @description With qv=1, required unified-search grammar input (empty allowed), at most 4096 UTF-8 bytes. Without qv, the legacy filename/path/EXIF OR needle remains limited to 200 bytes. */
                 q?: components["parameters"]["ImageUnifiedSearch"];
-                /** @description Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–100000 and size is one of 20, 50, 100. */
+                /** @description Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–10000 and size is one of 20, 50, 100. */
                 qv?: components["parameters"]["ImageQueryVersion"];
                 /** @description Required with qv=1; valid IANA time zone used for upload-date boundaries, independent of display language. */
                 tz?: components["parameters"]["ImageQueryTimezone"];
@@ -3497,7 +3497,7 @@ export interface operations {
     searchAlbumImages: {
         parameters: {
             query?: {
-                /** @description Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–100000 and size is one of 20, 50, 100. */
+                /** @description Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–10000 and size is one of 20, 50, 100. */
                 qv?: components["parameters"]["ImageQueryVersion"];
                 /** @description With qv=1, required unified-search grammar input (empty allowed), at most 4096 UTF-8 bytes. Without qv, the legacy filename/path/EXIF OR needle remains limited to 200 bytes. */
                 q?: components["parameters"]["ImageUnifiedSearch"];

@@ -96,7 +96,7 @@
     "dateNotRepresentable": "This date does not exist in this timezone. Choose another date",
     "unsupportedQueryVersion": "Unsupported search version. Check qv in the link",
     "mixedQueryProtocol": "The link mixes old and new filters. Remove legacy filter parameters",
-    "invalidPagination": "Page must be 1–100000; page size must be 20, 50 or 100",
+    "invalidPagination": "Page must be 1–10000; page size must be 20, 50 or 100",
     "searchProtocolMismatch": "Search service version mismatch. Update the server and retry",
     "invalidParameter": "Invalid or repeated query parameter. Check the shared link"
   },

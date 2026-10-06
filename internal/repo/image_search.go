@@ -9,7 +9,7 @@ import (
 )
 
 func (r *ImageRepository) listSearch(ctx context.Context, filter model.ImageListFilter, page, size int) ([]model.Image, int64, error) {
-	if page < 1 || page > 100000 || (size != 20 && size != 50 && size != 100) || filter.Admin || filter.Trash || filter.UserID == 0 {
+	if page < 1 || page > 10000 || (size != 20 && size != 50 && size != 100) || filter.Admin || filter.Trash || filter.UserID == 0 {
 		return nil, 0, model.ErrInvalidInput
 	}
 	q := filter.Search
@@ -132,7 +132,7 @@ func (r *AlbumRepository) SearchAlbums(ctx context.Context, ownerID uint64, id *
 
 // SuggestAlbums fetches one extra row for hasMore without touching images.
 func (r *AlbumRepository) SuggestAlbums(ctx context.Context, ownerID uint64, keyword string, page, size int, scope *uint64) ([]model.Album, bool, error) {
-	if page < 1 || page > 100000 || size < 1 || size > 20 {
+	if page < 1 || page > 10000 || size < 1 || size > 20 {
 		return nil, false, fmt.Errorf("suggest albums: %w", model.ErrInvalidInput)
 	}
 	db := r.db.WithContext(ctx).Model(&model.Album{}).Select("id, name").Where("user_id = ?", ownerID)

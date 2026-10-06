@@ -306,7 +306,7 @@ CDN 缓存不在本程序处理范围内。
 - `UserView` 在安全字段之外带 `display_name`（可选显示名，空串回退 `username`，trim 后 ≤64 字符、拒绝控制字符、纯文本）与 `avatar_provider`（只允许 `weavatar`/`gravatar`）、`avatar_url`（服务端按邮箱 SHA-256 计算的 HTTPS 地址，`d=404`，不含邮箱原文；邮箱缺失时为 null）、`avatar_config_version`（配置版本）。`GET /api/auth/me`、登录、注册与管理端用户视图保持一致；URL 计算只做规范化与哈希，核心接口不等待外部头像服务。
 - `PATCH /api/auth/profile` 只接受 `display_name`，身份取自 bearer token；请求解码拒绝未知字段，角色、邮箱、组别没有自助修改入口。
 - 站点头像服务商是 `settings` 表的 `avatar_provider` 键，默认 `weavatar`，经 `GET/PUT /api/admin/settings` 管理；损坏或未知值安全回退默认，不连接未知域名。
-- 头像匹配对邮箱仅做「trim + 小写 + SHA-256」，不删除加号后缀与点号；浏览器侧 `referrerpolicy=no-referrer`，加载失败或超时（5 秒）回退本地默认头像，不循环重试；外部头像服务故障不影响登录与 `/api/auth/me`。蓝空兼容 `/api/v1/profile` 的 `avatar` 字段维持空串语义不变。
+- 头像匹配对邮箱仅做「trim + 小写 + SHA-256」，不删除加号后缀与点号；浏览器侧 `referrerpolicy=no-referrer`，加载失败或超时（5 秒）回退本地默认头像，不循环重试；外部头像服务故障不影响登录与 `/api/auth/me`。注意：未加盐的邮箱 SHA-256 可被持有候选邮箱的第三方比对，且浏览器加载头像会向头像服务暴露访问者 IP；`avatar_url` 只出现在登录用户自己的 `/api/auth/me`、登录/注册响应与管理端用户视图中，不得进入画廊、公开接口或 `/api/v1`。`web-vben/index.html` 以 `<meta name="referrer" content="same-origin">` 保证真实 `<img>` 加载同样不向跨域头像服务发送 Referer。蓝空兼容 `/api/v1/profile` 的 `avatar` 字段维持空串语义不变。
 
 ### 7.4 统一搜索与账户管理补全（2026-10-05）
 

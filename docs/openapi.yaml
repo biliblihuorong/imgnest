@@ -838,7 +838,7 @@ paths:
         album, matching the fixed boundary of the album-detail image list.
       parameters:
         - {name: keyword, in: query, schema: {type: string, maxLength: 200}}
-        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 100000, default: 1}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 10000, default: 1}}
         - {name: size, in: query, schema: {type: integer, minimum: 1, maximum: 20, default: 20}}
         - {name: scope_album_id, in: query, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
       responses:
@@ -1972,7 +1972,7 @@ components:
     ImageQueryVersion:
       name: qv
       in: query
-      description: Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–100000 and size is one of 20, 50, 100.
+      description: Explicit query version; only 1 is supported. Omission preserves the legacy API. New-mode page is 1–10000 and size is one of 20, 50, 100.
       schema: {type: integer, enum: [1]}
     ImageQueryTimezone:
       name: tz

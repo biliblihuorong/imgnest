@@ -96,7 +96,7 @@
     "dateNotRepresentable": "此时区中该日期不存在，请选择其他日期",
     "unsupportedQueryVersion": "不支持此搜索版本，请检查链接中的 qv",
     "mixedQueryProtocol": "链接混用了新旧筛选参数，请移除旧筛选参数",
-    "invalidPagination": "页码应为 1–100000，每页数量仅限 20、50 或 100",
+    "invalidPagination": "页码应为 1–10000，每页数量仅限 20、50 或 100",
     "searchProtocolMismatch": "搜索服务版本不匹配，请更新服务端后重试",
     "invalidParameter": "查询参数不合法或重复，请检查分享链接"
   },

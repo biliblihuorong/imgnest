@@ -11,7 +11,7 @@ import (
 func TestSearchProtocolRejectsMixedAndUnsupported(t *testing.T) {
 	images := &galleryImagesStub{}
 	router := albumRouter(t, &albumsStub{}, images)
-	for _, v := range []struct{ query, code string }{{"qv=2&q=&tz=UTC", "UNSUPPORTED_QUERY_VERSION"}, {"qv=1&q=&tz=UTC&album_id=0", "MIXED_QUERY_PROTOCOL"}, {"qv=1&q=&tz=UTC&sort=newest", "MIXED_QUERY_PROTOCOL"}, {"qv=1&tz=UTC", "MISSING_VALUE"}, {"qv=1&q=&tz=UTC&page=100001", "INVALID_PAGINATION"}, {"qv=1&q=&tz=UTC&size=40", "INVALID_PAGINATION"}, {"qv=1&q=a&q=b&tz=UTC", "INVALID_PARAMETER"}} {
+	for _, v := range []struct{ query, code string }{{"qv=2&q=&tz=UTC", "UNSUPPORTED_QUERY_VERSION"}, {"qv=1&q=&tz=UTC&album_id=0", "MIXED_QUERY_PROTOCOL"}, {"qv=1&q=&tz=UTC&sort=newest", "MIXED_QUERY_PROTOCOL"}, {"qv=1&tz=UTC", "MISSING_VALUE"}, {"qv=1&q=&tz=UTC&page=10001", "INVALID_PAGINATION"}, {"qv=1&q=&tz=UTC&size=40", "INVALID_PAGINATION"}, {"qv=1&q=a&q=b&tz=UTC", "INVALID_PARAMETER"}} {
 		req := httptest.NewRequest(http.MethodGet, "/api/images?"+v.query, nil)
 		req.Header.Set("Authorization", "Bearer "+testCredential)
 		rec := httptest.NewRecorder()
