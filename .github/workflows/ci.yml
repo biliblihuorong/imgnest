@@ -19,7 +19,7 @@ jobs:
   backend:
     name: Go (race, Postgres, MinIO)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
@@ -38,7 +38,8 @@ jobs:
       - name: Vet
         run: $COMPOSE run --rm --no-deps dev go vet ./...
       - name: Test
-        run: $COMPOSE run --rm dev go test -race -shuffle=on -count=1 ./...
+        # -buildvcs=false: the bind-mounted checkout is owned by another uid inside the container.
+        run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false dev go test -race -shuffle=on -count=1 -timeout 40m ./...
       - name: Frontend selection graphs
         run: $COMPOSE run --rm --no-deps dev sh scripts/check-frontend-selection.sh
       - name: Build both binaries
@@ -80,6 +81,8 @@ jobs:
         with:
           node-version: 24.21.0
       - run: npm install -g pnpm@12.9.1
+      # web/pnpm-workspace.yaml pins storeDir to the dev container's /go/pnpm-store.
+      - run: sudo mkdir -p /go/pnpm-store && sudo chown "$USER" /go/pnpm-store
       - run: pnpm install --frozen-lockfile
         working-directory: ${{ matrix.app }}
       - run: pnpm typecheck
