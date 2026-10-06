@@ -214,3 +214,5 @@ GitHub Actions 分别缓存 dev、lint、固定源码版本的 MinIO 镜像。`d
 完整质量门禁保持不变：`go vet`、`go test -race -shuffle=on -count=1 -timeout 40m ./...`、SQLite/PostgreSQL/MinIO 集成、两种前端的类型检查/测试/构建、前端选择检查和两种 Go 二进制构建。`-count=1` 保证每次重新执行测试，缓存只减少依赖下载和编译。生产 bcrypt cost=12 不变。较便宜的前端选择检查前移，避免在长测试结束后才发现选择错误。
 
 `python3 scripts/test-ci-config.py` 检查缓存接线及原有命令；CI 使用 `--compose` 额外检查 Docker Compose 实际合并后挂载与测试服务配置。比较性能时应分开记录首次构建和相同提交的热缓存重跑，不能把缓存命中推断为测试已执行。
+
+CI 实测补充：相同源码两轮构建中，`golang:1.27.1-bookworm` tag 解析到了不同摘要，导致 MinIO 与 lint 安装层重新执行。因此两个 Go 构建阶段进一步固定 `sha256:8d48e12ec56735e9358640898b9d9b9fcca110612ed8a5567438c0a1baa24e66`，Go 版本仍为 1.27.1。MinIO 与 lint 在安装命令的同一个 RUN 中移除安装器的模块/编译缓存，避免将无用缓存写入镜像层后再导出到 Actions cache。后续更换摘要需显式更新并重新跑完整 CI。

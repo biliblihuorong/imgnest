@@ -57,6 +57,13 @@ class CICacheConfigTest(unittest.TestCase):
         self.assertIn("FROM dev-base AS lint", dockerfile)
         self.assertTrue(dockerfile.rstrip().endswith("FROM dev-base AS dev"))
 
+    def test_go_builder_identity_is_immutable_and_shared(self):
+        dev = (ROOT / "deploy/Dockerfile.dev").read_text().splitlines()[0]
+        minio = (ROOT / "deploy/Dockerfile.minio-test").read_text()
+        self.assertRegex(dev, r"^FROM golang:1\.27\.1-bookworm@sha256:[0-9a-f]{64} AS go-toolchain$")
+        self.assertEqual(dev.split()[1], minio.splitlines()[0].split()[1])
+        self.assertIn("rm -rf /go/pkg/mod /root/.cache/go-build", minio)
+
     def test_cheap_graph_check_precedes_full_test(self):
         self.assertLess(self.workflow.index("- name: Frontend selection graphs"),
                         self.workflow.index("- name: Test"))
