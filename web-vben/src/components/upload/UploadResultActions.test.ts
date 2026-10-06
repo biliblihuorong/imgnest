@@ -126,6 +126,24 @@ describe("UploadResultActions", () => {
     expect(wrapper.find(".upload-result__link").text()).toBe(image.links.webp);
   });
 
+  it.each([
+    ["markdown", "![a.png](https://img.example/2026/10/a.webp)"],
+    ["html", '<img src="https://img.example/2026/10/a.webp" alt="a.png" />'],
+    ["bbcode", "[img]https://img.example/2026/10/a.webp[/img]"],
+  ] as const)("行内文本跟随全局格式 %s，与复制内容一致", (format, text) => {
+    const { wrapper } = mountActions(makeImage(), { format, version: "webp" });
+    expect(wrapper.find(".upload-result__link").text()).toBe(text);
+  });
+
+  it("切换全局格式后行内文本立即更新", async () => {
+    const image = makeImage();
+    const { wrapper, format } = mountActions(image, { format: "url", version: "original" });
+    expect(wrapper.find(".upload-result__link").text()).toBe(image.links.original);
+    format.value = "bbcode";
+    await flushPromises();
+    expect(wrapper.find(".upload-result__link").text()).toBe(`[img]${image.links.original}[/img]`);
+  });
+
   it("复制按钮按当前全局格式/版本复制", async () => {
     const image = makeImage();
     const { wrapper } = mountActions(image, { format: "url", version: "webp" });

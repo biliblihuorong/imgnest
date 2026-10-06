@@ -7,7 +7,7 @@ import { copyText } from "@/lib/clipboard";
 import { buildLinkText, resolveImageLink, type LinkFormat, type LinkVersion } from "./linkText";
 
 /**
- * 上传成功行的复制条：展示当前全局格式/版本下的链接文本，
+ * 上传成功行的复制条：展示当前全局格式/版本下将被复制的文本，
  * 「复制」一键复制；链接文本可点击打开完整版本×格式复制抽屉。
  * 格式与版本由队列头部的全局控件统一持有。
  */
@@ -44,9 +44,15 @@ async function copy(): Promise<void> {
 
 <template>
   <div class="upload-result">
-    <div class="upload-result__main" role="button" tabindex="0" @click="emit('detail')" @keydown.enter.prevent="emit('detail')">
+    <div
+      class="upload-result__main"
+      role="button"
+      tabindex="0"
+      @click="emit('detail')"
+      @keydown.enter.prevent="emit('detail')"
+    >
       <span class="upload-result__name" :title="currentName">{{ currentName }}</span>
-      <span class="upload-result__link" :title="currentLink">{{ currentLink }}</span>
+      <span class="upload-result__link" :title="copiedText">{{ copiedText }}</span>
     </div>
     <div class="upload-result__actions">
       <NButton size="tiny" quaternary type="primary" @click="emit('detail')">
