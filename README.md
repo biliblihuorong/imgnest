@@ -10,7 +10,7 @@ Go + Vue 3 自研图床项目。当前已实现 M1–M4：SQLite/PostgreSQL、�
 imgnest-dev-kit/
 ├─ cmd/imgnest/              # 服务、迁移、账户与存储/规则初始化 CLI
 ├─ internal/                 # 分层业务、存储、libvips、元数据与安全路径
-├─ deploy/                   # 固定 Go/libvips 开发镜像、PG/MinIO 测试服务
+├─ deploy/                   # 生产镜像与 SQLite/PG compose、开发镜像、PG/MinIO 测试服务
 ├─ go.mod / go.sum           # 已验证的后端依赖
 ├─ AGENTS.md                  # AI 协作说明（Codex、Cursor 等通用）
 ├─ CLAUDE.md                  # Claude Code 入口，引用 AGENTS.md
@@ -33,8 +33,9 @@ imgnest-dev-kit/
 
 1. 使用 Docker Desktop Linux 引擎，按 [开发说明](docs/development.md) 初始化、创建管理员并启动。
 2. 前后端依赖均已锁定；前端 `web/pnpm-lock.yaml` 已提交，命令通过 `make fe-*` / `make release` 在容器内执行。
-3. 用 Claude Code 打开项目即可：`CLAUDE.md` 和 `.claude/skills/` 会被自动加载。
-4. 其他 AI 工具读 `AGENTS.md`。如果工具从 `.agents/skills/` 读 Skill，复制一份过去即可：
+3. 部署用已发布的镜像 `ghcr.io/biliblihuorong/imgnest`，见 [部署说明](docs/deployment.md)。
+4. 用 Claude Code 打开项目即可：`CLAUDE.md` 和 `.claude/skills/` 会被自动加载。
+5. 其他 AI 工具读 `AGENTS.md`。如果工具从 `.agents/skills/` 读 Skill，复制一份过去即可：
    - macOS / Linux：`cp -r .claude/skills .agents/skills`
    - Windows：`Copy-Item -Recurse .claude\skills .agents\skills`
 
