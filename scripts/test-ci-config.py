@@ -26,9 +26,7 @@ class CICacheConfigTest(unittest.TestCase):
             "go test -race -shuffle=on -count=1 -timeout 40m ./...",
             "go vet ./...",
             "go build -trimpath -o /tmp/imgnest ./cmd/imgnest",
-            "go build -tags vben -trimpath -o /tmp/imgnest-vben ./cmd/imgnest",
-            "app: [web, web-vben]", "pnpm typecheck", "pnpm test",
-            "pnpm vitest run", "pnpm build",
+            "working-directory: web-vben", "pnpm typecheck", "pnpm test", "pnpm build",
         ):
             self.assertIn(command, self.workflow)
         self.assertNotIn("continue-on-error", self.workflow)
@@ -64,10 +62,6 @@ class CICacheConfigTest(unittest.TestCase):
         self.assertRegex(dev, r"^FROM golang:1\.27\.1-bookworm@sha256:[0-9a-f]{64} AS go-toolchain$")
         self.assertEqual(dev.split()[1], minio.splitlines()[0].split()[1])
         self.assertIn("rm -rf /go/pkg/mod /root/.cache/go-build", minio)
-
-    def test_cheap_graph_check_precedes_full_test(self):
-        self.assertLess(self.workflow.index("- name: Frontend selection graphs"),
-                        self.workflow.index("- name: Test"))
 
     def test_ci_override_does_not_change_local_compose(self):
         local = (ROOT / "deploy/compose.dev.yaml").read_text()
@@ -130,13 +124,13 @@ class CIScopeTest(unittest.TestCase):
                          {"backend": True, "frontend": False})
 
     def test_go_inputs_inside_frontend_directories_run_the_go_jobs(self):
-        # Both dist trees are embedded and web/ is hashed by the legacy source guard.
-        for path in ("web-vben/embed.go", "web-vben/dist/.gitkeep", "web/src/App.vue", "web/README.md"):
+        # embed.go and the embedded dist tree are inputs of the Go build.
+        for path in ("web-vben/embed.go", "web-vben/dist/.gitkeep"):
             self.assertEqual(self.scopes(path), {"backend": True, "frontend": True}, path)
 
     def test_shared_and_unknown_paths_run_everything(self):
         for path in (".github/workflows/ci.yml", "scripts/ci-scope.py", "deploy/Dockerfile.dev",
-                     "docs/openapi.yaml", "docs/planning/legacy-m5-source.sha256", "Makefile",
+                     "docs/openapi.yaml", "Makefile",
                      "internal/http/lsky/README.md", "new-top-level-file"):
             self.assertEqual(self.scopes(path), {"backend": True, "frontend": True}, path)
 

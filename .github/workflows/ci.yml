@@ -100,15 +100,11 @@ jobs:
         run: $COMPOSE up -d --no-build --wait postgres minio
       - name: Vet
         run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev go vet ./...
-      - name: Frontend selection graphs
-        run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev sh scripts/check-frontend-selection.sh
       - name: Test
         # -buildvcs=false: the bind-mounted checkout is owned by another uid inside the container.
         run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false dev go test -race -shuffle=on -count=1 -timeout 40m ./...
-      - name: Build both binaries
-        run: |
-          $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev go build -trimpath -o /tmp/imgnest ./cmd/imgnest
-          $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev go build -tags vben -trimpath -o /tmp/imgnest-vben ./cmd/imgnest
+      - name: Build binary
+        run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev go build -trimpath -o /tmp/imgnest ./cmd/imgnest
       - name: Logs on failure
         if: failure()
         run: $COMPOSE logs --no-color postgres minio | tail -200
@@ -167,32 +163,21 @@ jobs:
         run: sudo chown -R "$(id -u):$(id -g)" "$IMGNEST_CI_CACHE_DIR"
 
   frontend:
-    name: Frontend (${{ matrix.app }})
+    name: Frontend
     needs: changes
     if: needs.changes.outputs.frontend != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [web, web-vben]
+    defaults:
+      run:
+        working-directory: web-vben
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 24.21.0
       - run: npm install -g pnpm@12.9.1
-      # web/pnpm-workspace.yaml pins storeDir to the dev container's /go/pnpm-store.
-      - run: sudo mkdir -p /go/pnpm-store && sudo chown "$USER" /go/pnpm-store
       - run: pnpm install --frozen-lockfile
-        working-directory: ${{ matrix.app }}
       - run: pnpm typecheck
-        working-directory: ${{ matrix.app }}
       - run: pnpm test
-        working-directory: ${{ matrix.app }}
-        if: matrix.app == 'web-vben'
-      - run: pnpm vitest run
-        working-directory: ${{ matrix.app }}
-        if: matrix.app == 'web'
       - run: pnpm build
-        working-directory: ${{ matrix.app }}

@@ -320,7 +320,7 @@ CDN 缓存不在本程序处理范围内。
 
 ## 8. 工程规范
 
-一个仓库、一个 Go module，前端在 `web/` 下独立构建后被嵌入。
+一个仓库、一个 Go module，前端在 `web-vben/` 下独立构建后被嵌入。
 
 ```text
 imgnest/
@@ -335,7 +335,7 @@ imgnest/
 │  ├─ pathtpl/                 # 路径模板渲染与校验
 │  ├─ http/                    # Gin 路由、中间件、handler（native / lsky 两个子包）
 │  └─ migrate/                 # 版本化 SQL 迁移 + 蓝空导入
-├─ web/                        # Vue3 + Vite + TS
+├─ web-vben/                   # Vue3 + Vite + TS（Vben 工作区）
 │  ├─ src/{api,views,components,stores,router,composables}
 │  └─ embed.go                 # //go:embed all:dist
 ├─ docs/openapi.yaml

@@ -239,3 +239,7 @@ CI 实测补充：相同源码两轮构建中，`golang:1.27.1-bookworm` tag 解
 版本不变。启用 Magick 的 libvips 8.18.6 重编从各个 Dockerfile 中抽出，由 `deploy/Dockerfile.vips` 统一构建并发布为 `ghcr.io/biliblihuorong/imgnest-vips`：`8.18.6-r1-dev`（构建用，含头文件与编译工具）和 `8.18.6-r1`（运行用，仅动态库及 `libmagickcore-6.q16-7t64`、`libopenexr-3-1-30`）。tag 写在 `.github/workflows/vips-base.yml`，该 workflow 只在基础镜像定义变化时运行，两个架构各在原生 runner 上编译一次。
 
 修改 `deploy/Dockerfile.vips` 时必须递增修订号（`-r2`…），发布后把新的摘要更新到引用它的 Dockerfile。在引用方切换之前，`deploy/Dockerfile` 与 `deploy/Dockerfile.dev` 仍各自内联同一份重编步骤，三处必须保持一致。
+
+## 移除旧前端（2026-10-07）
+
+M5 时期的旧前端 `web/` 已删除，`web-vben/` 是唯一前端，默认 Go 构建直接嵌入它，不再需要 `-tags vben`。上文各节中关于 `web/`、legacy 构建、双前端选择检查与冻结源码清单的描述均为历史记录。前端依赖以 `web-vben/package.json` 与 `web-vben/pnpm-lock.yaml` 为准，版本未变。CI 的前端 job 不再是矩阵，检查名为 `Frontend`。

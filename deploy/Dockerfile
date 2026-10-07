@@ -1,19 +1,12 @@
 # syntax=docker/dockerfile:1
 # Production image. One image serves both SQLite and PostgreSQL; the database
 # is selected at runtime through IMGNEST_DATABASE_DRIVER / IMGNEST_DATABASE_DSN.
-#
-# The embedded frontend is chosen at build time. The two arguments must agree:
-#   Vben (default):  FRONTEND_DIR=web-vben  GO_TAGS=vben
-#   legacy:          FRONTEND_DIR=web       GO_TAGS=
-ARG FRONTEND_DIR=web-vben
-ARG GO_TAGS=vben
 
 # The SPA bundle is architecture independent, so build it once on the host.
 FROM --platform=$BUILDPLATFORM node:24.21.0-bookworm AS frontend
-ARG FRONTEND_DIR
 RUN npm install -g pnpm@12.9.1 && npm cache clean --force
 WORKDIR /src
-COPY ${FRONTEND_DIR}/ ./
+COPY web-vben/ ./
 RUN pnpm install --frozen-lockfile && pnpm build
 
 FROM golang:1.27.1-bookworm@sha256:8d48e12ec56735e9358640898b9d9b9fcca110612ed8a5567438c0a1baa24e66 AS go-toolchain
@@ -43,15 +36,10 @@ COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY cmd/ cmd/
 COPY internal/ internal/
-COPY web/embed.go web/embed.go
-COPY web/dist/.gitkeep web/dist/.gitkeep
 COPY web-vben/embed.go web-vben/embed.go
-COPY web-vben/dist/.gitkeep web-vben/dist/.gitkeep
-ARG FRONTEND_DIR
-ARG GO_TAGS
-COPY --from=frontend /src/dist/ ${FRONTEND_DIR}/dist/
+COPY --from=frontend /src/dist/ web-vben/dist/
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-    go build -buildvcs=false -trimpath -tags "${GO_TAGS}" -ldflags "-s -w" -o /out/imgnest ./cmd/imgnest
+    go build -buildvcs=false -trimpath -ldflags "-s -w" -o /out/imgnest ./cmd/imgnest
 
 FROM ghcr.io/cshum/imagor-base:vips8.18.6-r14 AS runtime
 # Shared libraries the Magick-enabled libvips links beyond the base image.

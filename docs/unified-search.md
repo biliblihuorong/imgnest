@@ -1,8 +1,8 @@
 # Unified image search v1.1
 
-The new Vben personal image page and album-detail page use one editable query.
-The legacy `web/` application, trash and administrator global image list retain
-their existing protocols and interfaces.
+The personal image page and album-detail page use one editable query. Trash and
+the administrator global image list retain their existing protocols and
+interfaces.
 
 ## Grammar and examples
 

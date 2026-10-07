@@ -19,8 +19,7 @@ def is_documentation(path):
 
 
 def is_vben_source(path):
-    # embed.go and the embedded dist tree are inputs of the Go build. web/ is
-    # never frontend-only: the Go job hashes it in the legacy source guard.
+    # embed.go and the embedded dist tree are inputs of the Go build.
     return (path.startswith("web-vben/") and not path.endswith(".go")
             and not path.startswith("web-vben/dist/"))
 

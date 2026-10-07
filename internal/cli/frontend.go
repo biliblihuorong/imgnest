@@ -1,5 +1,3 @@
-//go:build vben
-
 package cli
 
 import (

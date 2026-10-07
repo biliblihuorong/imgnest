@@ -12,7 +12,6 @@ export default defineConfig({
     dedupe: ["vue", "vue-router", "pinia"],
   },
   build: {
-    // Independent Vben output; the legacy web/dist is never overwritten.
     outDir: "dist",
   },
   test: {
