@@ -9,14 +9,14 @@ A **storage** decides where images are kept. A **policy** decides how they are n
 `init-local` creates a local storage together with a default policy:
 
 ```bash
-docker compose -f deploy/compose.dev.yaml run --rm dev \
-  go run ./cmd/imgnest init-local --base-url http://localhost:18080
+docker compose -f deploy/compose.sqlite.yaml exec imgnest \
+  imgnest init-local --base-url https://img.example.com
 ```
 
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--base-url` | `http://localhost:8080` | Public origin; `/i/<storage id>` is appended |
-| `--root` | `data/images` | Directory that holds the files |
+| `--root` | `data/images` | Directory that holds the files; inside the `/app/data` volume in the image |
 | `--name` | `local` | Storage name |
 
 ::: warning Do not publish the storage directory as static files
@@ -46,11 +46,11 @@ The `.jpg` and `.webp` files in a local storage directory use ImgNest's internal
 Create the storage from standard input, then add a policy for it:
 
 ```bash
-docker compose -f deploy/compose.dev.yaml run --rm -T dev \
-  go run ./cmd/imgnest init-storage < private-storage.json
+docker compose -f deploy/compose.sqlite.yaml exec -T imgnest \
+  imgnest init-storage < private-storage.json
 
-docker compose -f deploy/compose.dev.yaml run --rm dev \
-  go run ./cmd/imgnest init-policy --storage-id 2 --name cloud
+docker compose -f deploy/compose.sqlite.yaml exec imgnest \
+  imgnest init-policy --storage-id 2 --name cloud
 ```
 
 Use the ID printed by the first command for `--storage-id`. Creation runs a real connection test: one write, one copy and one cleanup. Services that lack a required capability are rejected. Credentials are encrypted in the database and no API returns them afterwards.

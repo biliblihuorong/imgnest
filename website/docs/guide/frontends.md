@@ -1,22 +1,8 @@
 # 界面与主题
 
-ImgNest 的界面打包后嵌在 Go 二进制里。仓库里有两套前端，构建时二选一；其中新版前端自带两种布局，可以在运行时切换。
+ImgNest 的界面打包后嵌在程序里，不需要单独部署。它自带两种布局，可以在运行时切换，都支持深色模式和中英文。
 
-## 两套前端
-
-| | 经典前端 | 新版前端 |
-| --- | --- | --- |
-| 目录 | `web/` | `web-vben/` |
-| 构建命令 | `make release` | `make release-vben` |
-| 产物 | `bin/imgnest-legacy` | `bin/imgnest-vben` |
-| 布局 | 一种 | 新版布局和经典布局，可切换 |
-| 语言 | 中文 | 中文、English |
-
-默认构建用的是经典前端。两套前端各有自己的依赖和构建产物，互不影响，一个二进制里只会嵌入其中一套。
-
-换二进制只换界面，后端接口、数据库和安全配置都不变。
-
-## 新版前端的两种布局
+## 两种布局
 
 **新版布局**是默认的：
 
@@ -50,15 +36,15 @@ ImgNest 的界面打包后嵌在 Go 二进制里。仓库里有两套前端，�
 
 这些偏好保存在浏览器里，换一台设备需要重新设置。强调色和圆角在你没有自己选过时跟随当前布局的默认值；选过之后，两种布局共用你的选择。
 
-## 开发前端
+## 开发界面
 
-前端命令都在开发镜像里执行：
+界面源码在仓库的 `web-vben/` 目录，用 Vue 3、Vite 和 Naive UI。命令都在开发镜像里执行：
 
 ```bash
-make fe-build-legacy   # 构建经典前端
-make fe-build-vben     # 构建新版前端
-make fe-test           # 运行组件测试
-make fe-lint           # 类型检查与代码检查
+make fe-build   # 构建界面
+make fe-test    # 运行组件测试
+make fe-lint    # 类型检查与代码检查
+make release    # 构建界面并编译出 bin/imgnest
 ```
 
 更多细节见仓库里的 [`docs/development.md`](https://github.com/biliblihuorong/imgnest/blob/main/docs/development.md)。

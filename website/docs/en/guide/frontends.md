@@ -1,22 +1,8 @@
 # Interface and themes
 
-ImgNest's interface is built and embedded into the Go binary. The repository holds two frontends, and a build picks one of them. The newer frontend ships two layouts that can be switched at runtime.
+ImgNest's interface is built into the program, so there is nothing separate to deploy. It ships two layouts that can be switched at runtime, both with dark mode and Chinese/English.
 
-## Two frontends
-
-| | Classic frontend | New frontend |
-| --- | --- | --- |
-| Directory | `web/` | `web-vben/` |
-| Build command | `make release` | `make release-vben` |
-| Output | `bin/imgnest-legacy` | `bin/imgnest-vben` |
-| Layouts | One | New and classic, switchable |
-| Languages | Chinese | Chinese, English |
-
-The default build uses the classic frontend. Each frontend has its own dependencies and build output, and a binary embeds only one of them.
-
-Swapping the binary changes the interface only. The backend API, database and security settings stay the same.
-
-## The two layouts of the new frontend
+## Two layouts
 
 The **new layout** is the default:
 
@@ -50,15 +36,15 @@ Visitors who are not signed in can also switch colour mode, language and layout.
 
 Preferences are saved in the browser, so another device starts from the defaults. Accent colour and corner radius follow the current layout's defaults until you choose your own. After that, both layouts share your choice.
 
-## Working on the frontends
+## Working on the interface
 
-Frontend commands run inside the development image:
+The source is in `web-vben/` in the repository, built with Vue 3, Vite and Naive UI. Commands run inside the development image:
 
 ```bash
-make fe-build-legacy   # build the classic frontend
-make fe-build-vben     # build the new frontend
-make fe-test           # run component tests
-make fe-lint           # type check and lint
+make fe-build   # build the interface
+make fe-test    # run component tests
+make fe-lint    # type check and lint
+make release    # build the interface and compile bin/imgnest
 ```
 
 More detail is in [`docs/development.md`](https://github.com/biliblihuorong/imgnest/blob/main/docs/development.md) in the repository.

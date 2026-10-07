@@ -40,6 +40,8 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: false,
   appearance: true,
+  // 文档里有指向本机服务的示例地址。
+  ignoreDeadLinks: "localhostLinks",
   // 部署到子路径（例如 GitHub Pages 的 /imgnest/）时设置环境变量 SITE_BASE。
   base: process.env.SITE_BASE || "/",
   head: [["link", { rel: "icon", type: "image/svg+xml", href: `${process.env.SITE_BASE || "/"}logo.svg` }]],

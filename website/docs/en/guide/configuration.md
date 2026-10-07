@@ -2,14 +2,14 @@
 
 Deployment settings live in a config file or environment variables. Site-level settings such as the site name or the registration switch are changed in the admin panel and stored in the database.
 
-## Config file
+## Where settings come from
 
-Copy the example and load it explicitly with `--config`:
+With Docker, the simplest way is to set environment variables under `environment` in the compose file. `deploy/compose.sqlite.yaml` and `deploy/compose.postgres.yaml` in the repository already wire up the common ones.
+
+A config file works too. `deploy/config.example.yaml` is the example; copy it and load it explicitly with `--config`:
 
 ```bash
-cp deploy/config.example.yaml config.yaml
-docker compose -f deploy/compose.dev.yaml run --rm --service-ports dev \
-  go run ./cmd/imgnest serve --config config.yaml
+imgnest serve --config config.yaml
 ```
 
 `--config` works on every subcommand. Pass it to `migrate`, `init-admin` and the others when they should read the same file.
@@ -72,7 +72,7 @@ IMGNEST_DATABASE_DRIVER=postgres
 IMGNEST_DATABASE_DSN=postgres://user:password@host:5432/imgnest
 ```
 
-The order after switching is the same as a first install: `migrate`, then `init-admin`, then `serve`.
+`deploy/compose.postgres.yaml` in the repository already sets up the database container and both variables; you only provide `POSTGRES_PASSWORD`. After switching databases, create the administrator and storage again.
 
 ::: tip Migrations are built in
 Migration scripts are compiled into the program, and running `migrate` again writes nothing twice. A modified published migration, a missing version or an unknown version is reported as an error.

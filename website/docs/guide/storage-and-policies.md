@@ -9,14 +9,14 @@
 `init-local` 会创建一个本机存储和一条默认规则：
 
 ```bash
-docker compose -f deploy/compose.dev.yaml run --rm dev \
-  go run ./cmd/imgnest init-local --base-url http://localhost:18080
+docker compose -f deploy/compose.sqlite.yaml exec imgnest \
+  imgnest init-local --base-url https://img.example.com
 ```
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
 | `--base-url` | `http://localhost:8080` | 对外访问的域名，程序会在后面加上 `/i/<存储 ID>` |
-| `--root` | `data/images` | 文件存放目录 |
+| `--root` | `data/images` | 文件存放目录，镜像里位于数据卷 `/app/data` 下 |
 | `--name` | `local` | 存储名称 |
 
 ::: warning 不要直接把存储目录当静态目录发布
@@ -46,11 +46,11 @@ docker compose -f deploy/compose.dev.yaml run --rm dev \
 通过标准输入创建存储，再为它建一条规则：
 
 ```bash
-docker compose -f deploy/compose.dev.yaml run --rm -T dev \
-  go run ./cmd/imgnest init-storage < private-storage.json
+docker compose -f deploy/compose.sqlite.yaml exec -T imgnest \
+  imgnest init-storage < private-storage.json
 
-docker compose -f deploy/compose.dev.yaml run --rm dev \
-  go run ./cmd/imgnest init-policy --storage-id 2 --name cloud
+docker compose -f deploy/compose.sqlite.yaml exec imgnest \
+  imgnest init-policy --storage-id 2 --name cloud
 ```
 
 `--storage-id` 填第一条命令输出的 ID。创建时会真实测试连接：写入、复制、清理各做一次，不支持所需能力的服务会被拒绝。凭据加密后存入数据库，之后任何接口都不会再返回它。

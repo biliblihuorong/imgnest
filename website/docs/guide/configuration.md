@@ -2,14 +2,14 @@
 
 部署参数写在配置文件或环境变量里；站点名、注册开关这类业务设置在管理后台里改，存在数据库中。
 
-## 配置文件
+## 从哪里读配置
 
-复制示例文件，再用 `--config` 显式加载：
+用 Docker 部署时，最简单的做法是在 compose 文件的 `environment` 里写环境变量，仓库里的 `deploy/compose.sqlite.yaml` 和 `deploy/compose.postgres.yaml` 已经接好了常用的几项。
+
+也可以用配置文件。`deploy/config.example.yaml` 是示例，复制一份后用 `--config` 显式加载：
 
 ```bash
-cp deploy/config.example.yaml config.yaml
-docker compose -f deploy/compose.dev.yaml run --rm --service-ports dev \
-  go run ./cmd/imgnest serve --config config.yaml
+imgnest serve --config config.yaml
 ```
 
 `--config` 对所有子命令都有效，`migrate`、`init-admin` 等命令要读同一份配置时也加上它。
@@ -72,7 +72,7 @@ IMGNEST_DATABASE_DRIVER=postgres
 IMGNEST_DATABASE_DSN=postgres://user:password@host:5432/imgnest
 ```
 
-换库之后的顺序和首次安装一样：先 `migrate`，再 `init-admin`，最后 `serve`。
+仓库里的 `deploy/compose.postgres.yaml` 已经配好了数据库容器和这两个变量，只需要提供 `POSTGRES_PASSWORD`。换库之后要重新创建管理员和存储。
 
 ::: tip 迁移是内置的
 迁移脚本编译在程序里，重复执行 `migrate` 不会重复写入。已发布的迁移被改动、版本缺失或出现未知版本时会报错。

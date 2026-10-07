@@ -14,7 +14,7 @@ ImgNest is a self-hosted image host with a Go backend and a Vue 3 interface. It 
 ## Current status
 
 ::: warning No stable release yet
-ImgNest is under active development. Version 1.0.0 has not been released and there is no production image yet. It currently runs from the Docker development image in the repository, verified on Linux amd64.
+ImgNest is under active development and version 1.0.0 has not been released. A Docker image is available: the `edge` tag follows the latest commit on `main` and may be unstable.
 :::
 
 What is implemented:
@@ -36,7 +36,7 @@ What is implemented:
 | Database | SQLite or PostgreSQL |
 | HTTP | Gin |
 | Interface | Vue 3, Vite, TypeScript, Naive UI |
-| Deployment shape | The interface is embedded in the Go binary; one process serves everything |
+| Deployment shape | One Docker image with the interface built in; SQLite and PostgreSQL share the same image |
 
 ## Next
 

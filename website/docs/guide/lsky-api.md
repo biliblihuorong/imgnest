@@ -10,7 +10,7 @@ ImgNest 的 `/api/v1` 与蓝空图床（Lsky Pro）2.x 的 v1 接口保持一致
 - 调接口，用邮箱和密码换：
 
 ```bash
-curl -X POST http://127.0.0.1:18080/api/v1/tokens \
+curl -X POST https://img.example.com/api/v1/tokens \
   --data-urlencode 'email=you@example.com' \
   --data-urlencode 'password=你的密码'
 ```

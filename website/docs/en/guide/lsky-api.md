@@ -10,7 +10,7 @@ Either way works:
 - Call the API with your email and password:
 
 ```bash
-curl -X POST http://127.0.0.1:18080/api/v1/tokens \
+curl -X POST https://img.example.com/api/v1/tokens \
   --data-urlencode 'email=you@example.com' \
   --data-urlencode 'password=your-password'
 ```

@@ -63,17 +63,19 @@ const RESPONSE = `{
   }
 }`;
 
-const COMPOSE = "docker compose -f deploy/compose.dev.yaml";
+const COMPOSE = "docker compose -f deploy/compose.sqlite.yaml";
 const commands = computed(() => {
-  const [build, migrate, serve] = t.value.start.comments;
-  return `# ${build}
-${COMPOSE} build dev
+  const [serve, admin, storage] = t.value.start.comments;
+  return `# ${serve}
+IMGNEST_TAG=edge ${COMPOSE} up -d
 
-# ${migrate}
-${COMPOSE} run --rm dev go run ./cmd/imgnest migrate
+# ${admin}
+${COMPOSE} exec -T imgnest \\
+  imgnest init-admin --username admin --email admin@example.com
 
-# ${serve}
-${COMPOSE} run --rm --service-ports dev go run ./cmd/imgnest serve`;
+# ${storage}
+${COMPOSE} exec imgnest \\
+  imgnest init-local --base-url http://localhost:8080`;
 });
 </script>
 

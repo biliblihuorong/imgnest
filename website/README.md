@@ -1,6 +1,6 @@
 # ImgNest 项目网站
 
-首页 + 文档，基于 [VitePress](https://vitepress.dev) 1.6.4。这是一个独立的工作区，和 `web/`、`web-vben/` 不共用依赖。
+首页 + 文档，基于 [VitePress](https://vitepress.dev) 1.6.4。这是一个独立的工作区，和 `web-vben/` 不共用依赖。
 
 ## 运行
 
