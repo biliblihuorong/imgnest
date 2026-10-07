@@ -9,7 +9,7 @@ This implementation adds a disabled-by-default Cloudflare Turnstile policy for n
 - The existing independent three-request-per-IP-per-minute limits run before provider verification; trusted-proxy configuration remains unchanged
 - `/api/v1/tokens` retains its current email/password contract and rate limit. CAPTCHA does **not** protect all password authentication while that endpoint is enabled
 - PicGo and existing bearer-token uploads remain noninteractive and unchanged
-- Unmodified legacy web does not send `captcha_token`. When CAPTCHA is enabled, legacy login and registration fail closed. A header, query parameter, username, role, or selected frontend never bypasses verification
+- The legacy `web/` frontend was removed on 2026-10-07. A client that does not send `captcha_token` still fails closed when CAPTCHA is enabled; the `acknowledge_legacy_incompatibility` activation field is kept for API compatibility. A header, query parameter, username, role, or selected frontend never bypasses verification
 
 A release operator must explicitly decide the legacy rollback policy before enabling protection: either authorize a separate legacy widget adaptation, or accept that rollback requires an explicit authenticated/operator decision to disable native CAPTCHA. The current code does not choose a downgrade automatically. Activation requires acknowledgement of both legacy incompatibility and the unprotected v1 password surface.
 

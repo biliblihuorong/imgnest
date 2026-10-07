@@ -19,7 +19,7 @@ M4 执行补充：无新增前后端依赖。`/api/v1` 与 `/api/admin` 契约�
 | Node.js | 24.21.0（LTS） | vitest 5 要求 `^22.12 \|\| ^24 \|\| >=26`；`.nvmrc` 写 `24.21.0` |
 | pnpm | 12.9.1 | `package.json` 写 `"packageManager": "pnpm@12.9.1"` |
 | libvips | 8.18.6 | 与 `vipsgen/vips` 包对应，必须一致 |
-| Docker 基础镜像 | `ghcr.io/cshum/imagor-base:vips8.18.6-r14`（运行）/ `-dev`（构建） | M2 dev 镜像基于 -dev 重编同版本 vips，启用 BMP 所需 Magick；见下文 |
+| Docker 基础镜像 | `ghcr.io/biliblihuorong/imgnest-vips:8.18.6-r1`（运行）/ `-r1-dev`（构建），按摘要固定 | 由 `deploy/Dockerfile.vips` 基于 `ghcr.io/cshum/imagor-base:vips8.18.6-r14` 重编同版本 vips，启用 BMP 所需 Magick；见下文 |
 | golangci-lint | v2.14.0 | 配置文件用 v2 格式 |
 
 ## Go 依赖
@@ -238,4 +238,10 @@ CI 实测补充：相同源码两轮构建中，`golang:1.27.1-bookworm` tag 解
 
 版本不变。启用 Magick 的 libvips 8.18.6 重编从各个 Dockerfile 中抽出，由 `deploy/Dockerfile.vips` 统一构建并发布为 `ghcr.io/biliblihuorong/imgnest-vips`：`8.18.6-r1-dev`（构建用，含头文件与编译工具）和 `8.18.6-r1`（运行用，仅动态库及 `libmagickcore-6.q16-7t64`、`libopenexr-3-1-30`）。tag 写在 `.github/workflows/vips-base.yml`，该 workflow 只在基础镜像定义变化时运行，两个架构各在原生 runner 上编译一次。
 
-修改 `deploy/Dockerfile.vips` 时必须递增修订号（`-r2`…），发布后把新的摘要更新到引用它的 Dockerfile。在引用方切换之前，`deploy/Dockerfile` 与 `deploy/Dockerfile.dev` 仍各自内联同一份重编步骤，三处必须保持一致。
+修改 `deploy/Dockerfile.vips` 时必须递增修订号（`-r2`…），发布后把新的摘要更新到引用它的 Dockerfile。
+
+`deploy/Dockerfile.dev` 与 `deploy/Dockerfile` 均按 `tag@sha256` 引用该基础镜像，不再各自编译 libvips，因此开发、CI 与生产链接的是同一份二进制；上文「生产镜像」一节中关于内联重编和运行阶段自行安装运行时包的描述已由本节取代。`scripts/test-ci-config.py` 校验两个文件引用的 tag 与 workflow 中的 `TAG` 一致、构建镜像摘要相同，且不再出现编译步骤。
+
+## 移除旧前端（2026-10-07）
+
+M5 时期的旧前端 `web/` 已删除，`web-vben/` 是唯一前端，默认 Go 构建直接嵌入它，不再需要 `-tags vben`。上文各节中关于 `web/`、legacy 构建、双前端选择检查与冻结源码清单的描述均为历史记录。前端依赖以 `web-vben/package.json` 与 `web-vben/pnpm-lock.yaml` 为准，版本未变。CI 的前端 job 不再是矩阵，检查名为 `Frontend`。

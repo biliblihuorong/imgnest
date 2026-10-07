@@ -12,10 +12,6 @@
 *.db-wal
 *.test
 coverage.out
-/web/node_modules/
-/web/dist/*
-!/web/dist/.gitkeep
-/web/coverage/
 /web-vben/node_modules/
 /web-vben/**/node_modules/
 /web-vben/dist/*

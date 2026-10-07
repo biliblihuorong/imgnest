@@ -7,9 +7,13 @@ import (
 	"testing"
 )
 
-// The selected filesystem must contain exactly the selected frontend's files,
-// with dist/ stripped; comparing bytes catches accidentally selecting the other
-// build even when both frontends have the same asset names.
+func TestFrontendDistFS(t *testing.T) {
+	t.Parallel()
+	assertFrontendDistFS(t, "../../web-vben/dist")
+}
+
+// The embedded filesystem must contain exactly the built frontend's files, with
+// dist/ stripped.
 func assertFrontendDistFS(t *testing.T, directory string) {
 	t.Helper()
 	got, err := frontendDistFS()

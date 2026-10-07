@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import unittest
@@ -26,9 +27,7 @@ class CICacheConfigTest(unittest.TestCase):
             "go test -race -shuffle=on -count=1 -timeout 40m ./...",
             "go vet ./...",
             "go build -trimpath -o /tmp/imgnest ./cmd/imgnest",
-            "go build -tags vben -trimpath -o /tmp/imgnest-vben ./cmd/imgnest",
-            "app: [web, web-vben]", "pnpm typecheck", "pnpm test",
-            "pnpm vitest run", "pnpm build",
+            "working-directory: web-vben", "pnpm typecheck", "pnpm test", "pnpm build",
         ):
             self.assertIn(command, self.workflow)
         self.assertNotIn("continue-on-error", self.workflow)
@@ -58,16 +57,24 @@ class CICacheConfigTest(unittest.TestCase):
         self.assertIn("FROM dev-base AS lint", dockerfile)
         self.assertTrue(dockerfile.rstrip().endswith("FROM dev-base AS dev"))
 
+    def test_libvips_comes_from_one_pinned_base_release(self):
+        tag = re.search(r"^  TAG: (\S+)$", (ROOT / ".github/workflows/vips-base.yml").read_text(), re.M).group(1)
+        image = r"ghcr\.io/biliblihuorong/imgnest-vips:"
+        dev = (ROOT / "deploy/Dockerfile.dev").read_text()
+        prod = (ROOT / "deploy/Dockerfile").read_text()
+        pins = [re.findall(image + r"(\S+?)@(sha256:[0-9a-f]{64})", text) for text in (dev, prod)]
+        self.assertEqual(pins[0], [(f"{tag}-dev", pins[0][0][1])])
+        self.assertEqual(pins[1], [pins[0][0], (tag, pins[1][1][1])])
+        for text in (dev, prod):
+            self.assertNotIn("meson", text)
+            self.assertNotIn("imagor-base", text)
+
     def test_go_builder_identity_is_immutable_and_shared(self):
         dev = (ROOT / "deploy/Dockerfile.dev").read_text().splitlines()[0]
         minio = (ROOT / "deploy/Dockerfile.minio-test").read_text()
         self.assertRegex(dev, r"^FROM golang:1\.27\.1-bookworm@sha256:[0-9a-f]{64} AS go-toolchain$")
         self.assertEqual(dev.split()[1], minio.splitlines()[0].split()[1])
         self.assertIn("rm -rf /go/pkg/mod /root/.cache/go-build", minio)
-
-    def test_cheap_graph_check_precedes_full_test(self):
-        self.assertLess(self.workflow.index("- name: Frontend selection graphs"),
-                        self.workflow.index("- name: Test"))
 
     def test_ci_override_does_not_change_local_compose(self):
         local = (ROOT / "deploy/compose.dev.yaml").read_text()
@@ -130,13 +137,13 @@ class CIScopeTest(unittest.TestCase):
                          {"backend": True, "frontend": False})
 
     def test_go_inputs_inside_frontend_directories_run_the_go_jobs(self):
-        # Both dist trees are embedded and web/ is hashed by the legacy source guard.
-        for path in ("web-vben/embed.go", "web-vben/dist/.gitkeep", "web/src/App.vue", "web/README.md"):
+        # embed.go and the embedded dist tree are inputs of the Go build.
+        for path in ("web-vben/embed.go", "web-vben/dist/.gitkeep"):
             self.assertEqual(self.scopes(path), {"backend": True, "frontend": True}, path)
 
     def test_shared_and_unknown_paths_run_everything(self):
         for path in (".github/workflows/ci.yml", "scripts/ci-scope.py", "deploy/Dockerfile.dev",
-                     "docs/openapi.yaml", "docs/planning/legacy-m5-source.sha256", "Makefile",
+                     "docs/openapi.yaml", "Makefile",
                      "internal/http/lsky/README.md", "new-top-level-file"):
             self.assertEqual(self.scopes(path), {"backend": True, "frontend": True}, path)
 

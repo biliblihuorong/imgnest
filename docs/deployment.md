@@ -64,17 +64,6 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest imgnest init-local --b
 
 ## 自行构建
 
-默认嵌入 Vben 前端。两个构建参数必须成对：
-
-| 前端 | `FRONTEND_DIR` | `GO_TAGS` |
-| --- | --- | --- |
-| Vben（默认） | `web-vben` | `vben` |
-| legacy | `web` | 空 |
-
 ```bash
 docker build -f deploy/Dockerfile -t imgnest:local .
-```
-
-```bash
-docker build -f deploy/Dockerfile --build-arg FRONTEND_DIR=web --build-arg GO_TAGS= -t imgnest:legacy .
 ```

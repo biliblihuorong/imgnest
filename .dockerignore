@@ -9,8 +9,6 @@ bin
 config.yaml
 .env*
 **/node_modules
-web/dist/*
-!web/dist/.gitkeep
 web-vben/dist/*
 !web-vben/dist/.gitkeep
 **/coverage

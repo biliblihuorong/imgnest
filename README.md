@@ -32,7 +32,7 @@ imgnest-dev-kit/
 ## 怎么用
 
 1. 使用 Docker Desktop Linux 引擎，按 [开发说明](docs/development.md) 初始化、创建管理员并启动。
-2. 前后端依赖均已锁定；前端 `web/pnpm-lock.yaml` 已提交，命令通过 `make fe-*` / `make release` 在容器内执行。
+2. 前后端依赖均已锁定；前端 `web-vben/pnpm-lock.yaml` 已提交，命令通过 `make fe-*` / `make release` 在容器内执行。
 3. 部署用已发布的镜像 `ghcr.io/biliblihuorong/imgnest`，见 [部署说明](docs/deployment.md)。
 4. 用 Claude Code 打开项目即可：`CLAUDE.md` 和 `.claude/skills/` 会被自动加载。
 5. 其他 AI 工具读 `AGENTS.md`。如果工具从 `.agents/skills/` 读 Skill，复制一份过去即可：
@@ -61,9 +61,9 @@ Windows：`./scripts/install-skills.ps1`（或加 `-Latest`）。两个项目自
 
 31 个开源 Skill 保留原许可证（MIT、Apache-2.0、CC-BY-SA-4.0），详见 `THIRD_PARTY_NOTICES.md`。
 
-## 可选的 Vben Naive 前端
+## 前端
 
-`web/` 保留 M5 原版前端；`web-vben/` 是独立的 Vben Naive 应用，覆盖用户和管理员页面，提供中英切换及实际数据概览。默认发布仍使用原版；`make release-vben` 构建带新版页面的二进制。新版应与本次包含验证码配置端点的后端一起构建，不能把新静态包直接当作旧后端的无条件替换。
+前端是 `web-vben/`：基于 Vben Naive 的应用，覆盖用户和管理员页面，提供中英切换及实际数据概览，构建后嵌入服务二进制。
 
 `web-vben/` 自带两套可在运行时切换的外壳：默认的 Marvis 风格（漂浮侧栏、`Ctrl K` 检索、右侧详情面板）和原 Vben 经典布局，在「设置 → 外观」里切换。
 

@@ -8,7 +8,8 @@
 #   target runtime  -> :<tag>       shared libraries only
 #
 # The tag lives in .github/workflows/vips-base.yml. Bump its revision whenever
-# this file changes, then repin the digests in Dockerfile and Dockerfile.dev.
+# this file changes, then repin the digests in Dockerfile and Dockerfile.dev;
+# scripts/test-ci-config.py checks that both pin the same release.
 FROM ghcr.io/cshum/imagor-base:vips8.18.6-r14-dev AS dev
 ADD --checksum=sha256:3c41e1d5458081bfa4a5bc54e116c46259c75c6760a18027764555632b9dda3e https://github.com/libvips/libvips/releases/download/v8.18.6/vips-8.18.6.tar.xz /tmp/vips.tar.xz
 RUN apt-get update && apt-get install -y --no-install-recommends meson ninja-build && \

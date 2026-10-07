@@ -26,7 +26,7 @@ docker compose -f deploy/compose.dev.yaml run --rm --service-ports dev go run ./
 
 将 username/email 改为实际管理员信息。密码通过 stdin 传入，不放在命令参数、文件或日志中；重复 init-admin 不会提升已有用户或覆盖管理员。注册默认关闭，可由管理员在站点设置中控制；新版登录页不提供注册入口，直接注册路由仍遵循后端开关。
 
-服务监听 [127.0.0.1:18080](http://127.0.0.1:18080)，健康检查为 [healthz](http://127.0.0.1:18080/healthz)。根路径返回嵌入的 Vue 前端（`go:embed web/dist`）：未匹配的路径回退 `index.html`（no-store），`/assets/**` 带 immutable 缓存，`/api`、`/i`、`/t`、`/healthz` 前缀的未知路径保持 JSON 404。init-local 创建存储、默认规则并绑定默认组，实际本机访问前缀为 /i/{storage_id}。Ctrl+C 触发关闭；二进制同样支持 SIGINT/SIGTERM。单实例运行，监听前恢复遗留图片操作；恢复失败保留记录并拒绝就绪。
+服务监听 [127.0.0.1:18080](http://127.0.0.1:18080)，健康检查为 [healthz](http://127.0.0.1:18080/healthz)。根路径返回嵌入的 Vue 前端（`go:embed web-vben/dist`）：未匹配的路径回退 `index.html`（no-store），`/assets/**` 带 immutable 缓存，`/api`、`/i`、`/t`、`/healthz` 前缀的未知路径保持 JSON 404。init-local 创建存储、默认规则并绑定默认组，实际本机访问前缀为 /i/{storage_id}。Ctrl+C 触发关闭；二进制同样支持 SIGINT/SIGTERM。单实例运行，监听前恢复遗留图片操作；恢复失败保留记录并拒绝就绪。
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:18080/healthz
@@ -109,49 +109,23 @@ $taskPlainPassword | docker compose -f deploy/compose.dev.yaml run --rm -T dev g
 Remove-Variable taskPlainPassword, taskPassword
 ```
 
-## 前端开发（M3）
+## 前端开发
 
-前端在 `web/`：Vue 3.5 + Vite 8（Rolldown）+ TypeScript 6 + Naive UI + Pinia。Node 24.21.0 与 pnpm 12.9.1 已装入 dev 镜像，前端命令全部在容器内执行（宿主 Node 22 仅作手工便利，不作验收依据）；pnpm store 固定到 `pnpm-store` 卷（`web/pnpm-workspace.yaml` 的 storeDir）。
+前端只有 `web-vben/`：基于 Vben 5.8.0 源码工作区的 Vue 3.5 + Vite 8（Rolldown）+ TypeScript 6 + Naive UI + Pinia 应用，构建后由 `web-vben/embed.go` 嵌入服务二进制。M5 时期的旧前端 `web/` 及其 `vben` 构建标签、冻结源码校验已于 2026-10-07 移除。Node 24.21.0 与 pnpm 12.9.1 已装入 dev 镜像，前端命令全部在容器内执行（宿主 Node 22 仅作手工便利，不作验收依据）。
 
 ```powershell
-make fe-install   # 校验冻结源码 + cd web && pnpm install --frozen-lockfile
-make fe-build     # legacy 别名；--frozen-lockfile + vite build，不生成旧 API 类型
-make fe-test      # vitest run（jsdom 组件测试）
+make fe-install   # cd web-vben && pnpm install --frozen-lockfile
+make fe-build     # --frozen-lockfile + vite build，构建后恢复 dist/.gitkeep
+make fe-test      # vitest run
 make fe-lint      # vue-tsc --noEmit（双 tsconfig）+ eslint
-make release      # release-legacy 别名；输出 bin/imgnest-legacy
+make fe-gen-api   # 从 docs/openapi.yaml 重新生成 src/api/schema.d.ts
+make release      # fe-build + 输出 bin/imgnest
+make build        # 仅编译服务，不重建前端
 ```
 
-- 请求只写在 `web/src/api/`：`client.ts` 解 `{code,message,data}` 外壳并统一错误（业务码 20001 清会话跳登录，20002 凭证内容错误就地展示）；`schema.d.ts` 由 `pnpm gen:api` 从 `docs/openapi.yaml` 生成，类型在 `api/types.ts` 派生，不手改。
-- 全局状态只有 `stores/auth`（token + UserView，token 存 `localStorage["imgnest.token"]`）与 `stores/site`；列表数据留在页面。
-- 路由守卫做本地 token 检查（无 token 深链跳 `/login?redirect=…`），真实鉴权由后端保证；Naive UI 组件显式 import，主题跟随系统。
-- 上传通道用 XHR（fetch 无上传进度），与 fetch 通道共用 `client.notifyUnauthorized`，401 语义一致。
-- `web/dist/.gitkeep` 保持无构建时 `go:embed` 可编译；`pnpm build` 会清空 dist，`make fe-build` 已在构建后恢复该占位文件。
-- 已知限制：`vite.config.ts` 的 `@` 别名用 `import.meta.url` 解析，容器内正确；Windows 宿主直跑 `pnpm dev` 时别名可能失准（宿主不作验收环境）。Playwright E2E 延后到 M4 联调。
-
-## 双前端独立构建（M5 / Vben 迁移）
-
-`web/` 固定为实际 M5（`d19323d2714f9d050ffcde8221ef2738e3e98e53`）的旧前端；`web-vben/` 拥有独立源码、package、workspace、锁文件、node_modules 和 dist。选择发生在 Go 编译期，和登录用户的角色无关：默认 legacy；`-tags vben` 只导入新版 embed 包。两套资源不会一起链接到同一服务二进制，`web/embed.go` 保持 M5 原样。
-
-```powershell
-make fe-build-legacy    # 只安装 web 的冻结锁文件并构建 web/dist
-make fe-build-vben      # 只安装 web-vben 的冻结锁文件并构建 web-vben/dist
-make release-legacy    # 上述旧版前端 + bin/imgnest-legacy
-make release-vben      # 上述新版前端 + -tags vben + bin/imgnest-vben
-make release           # 默认仍为 legacy，输出 bin/imgnest-legacy
-make build             # 仅编译默认 legacy 服务，沿用 bin/imgnest；不重建前端
-make check-legacy-source
-make check-frontend-selection
-```
-
-Make 命令继续使用已固定的 dev 容器；也可在具备相同版本的隔离本机环境中进入各自目录执行 `pnpm install --frozen-lockfile` 和 `pnpm build`。旧前端的安装/构建不依赖 Vben 包或新目录；两边不得互用 node_modules 或 dist。首次本机构建 legacy 时，按原 `web/pnpm-workspace.yaml` 使用可写 store，必要时仅通过 pnpm 命令行传入 `--store-dir`，不能为此改动旧配置。
-
-普通构建不执行任何 `gen:api`。需要更新新版类型时单独执行 `make fe-gen-api-vben` 并审查差异；共享 OpenAPI 改动不能覆盖 `web/src/api/schema.d.ts`。旧版类型兼容性检查应输出到临时文件，再只读比较。
-
-`docs/planning/legacy-m5-source.sha256` 固定旧版 102 个受保护源文件的 SHA-256，包含旧 embed、package、lock、workspace 与配置，排除 dist。`node scripts/check-legacy-source.mjs` 同时拒绝新增、缺失和内容变化；两种前端构建前后都会执行。node_modules、dist、coverage 是生成目录，不在源文件基线内。
-
-`sh scripts/check-frontend-selection.sh` 使用真正的 Go `list -deps` 检查两种服务依赖图互斥，并分别编译/执行 selector 的文件系统测试。它不链接完整服务，因此不依赖 libvips；不能代替两套 release、完整后端回归或真实路由联调。完整服务仍需要版本矩阵中的 Go、libvips 与 C 库。辅助检查：`node --test scripts/check-legacy-source.test.mjs`；`python3 scripts/test-frontend-builds.py`（仅 Make 展开/路由检查，不执行 Docker 或编译）。
-
-仅有 dist/.gitkeep 的干净检出允许 Go embed 包编译，但不是可发布前端；release 目标必须先产生真实 dist。切换二进制本身不会改变后端 API、数据库或安全配置；验证码启用后的旧版兼容约束仍按已批准方案处理，不能借切换前端绕过策略。
+- 请求只写在 `web-vben/src/api/`；`schema.d.ts` 由 `pnpm gen:api` 生成，不手改。普通构建不执行 `gen:api`，需要更新类型时单独执行 `make fe-gen-api` 并审查差异。
+- `web-vben/dist/.gitkeep` 保持无构建时 `go:embed` 可编译，但这样的二进制不含可用前端；发布必须先产生真实 dist。生产镜像在 `deploy/Dockerfile` 内完成前端构建。
+- `internal/cli` 的 `TestFrontendDistFS` 校验嵌入的文件系统与 `web-vben/dist` 逐字节一致。
 
 ## 复现验收
 
