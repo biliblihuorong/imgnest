@@ -46,5 +46,26 @@
   "detailFallback": "相册详情",
   "pickerTitle": "从我的图片选择封面",
   "pickerSearch": "搜索图片",
-  "pickerSearchPlaceholder": "搜索文件名…"
+  "pickerSearchPlaceholder": "搜索文件名…",
+  "randomLink": {
+    "title": "随机图片链接",
+    "description": "每次访问随机跳转到本相册中的一张图片，可用于博客背景、README 配图。",
+    "enable": "启用随机链接",
+    "enableConfirm": "确认启用",
+    "enabled": "已启用",
+    "disabled": "已停用",
+    "copy": "复制链接",
+    "copied": "链接已复制",
+    "copyFailed": "复制失败，请手动复制",
+    "formatHint": "默认返回 WebP；需要原图时在链接后加",
+    "reset": "重置链接",
+    "resetConfirm": "确认重置",
+    "resetWarning": "重置后旧链接会立即失效，已发布到博客或 README 的地址需要全部更换。确定重置吗？",
+    "resetDone": "链接已重置",
+    "delete": "删除链接",
+    "deleteWarning": "删除后该链接立即失效；之后重新启用会得到一个新地址。确定删除吗？",
+    "privacyWarning": "启用后，本相册内的所有图片（包括私有图片）都可能通过该链接被匿名访问。确定启用吗？",
+    "loadFailed": "随机链接加载失败，请重试",
+    "saveFailed": "随机链接保存失败，请重试"
+  }
 }

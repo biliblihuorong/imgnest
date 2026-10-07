@@ -112,3 +112,35 @@ export function suggestAlbums(
   if (scopeAlbumId !== undefined) query.set("scope_album_id", scopeAlbumId);
   return request<AlbumSuggestionPage>(`/api/albums/suggestions?${query}`, { signal });
 }
+
+/** 相册随机图片链接；path 是站内相对路径，完整地址由前端拼上当前域名。 */
+export type RandomLinkView = components["schemas"]["RandomLinkView"];
+
+/** 相册 ID 以字符串传递：路由里的十进制 ID 可能超过 JS 安全整数。 */
+function randomLinkPath(albumId: string): string {
+  return `/api/albums/${albumId}/random-link`;
+}
+
+/** 读取相册的随机链接；尚未创建时为 null。 */
+export function getRandomLink(albumId: string): Promise<RandomLinkView | null> {
+  return request<RandomLinkView | null>(randomLinkPath(albumId));
+}
+
+/** 首次调用创建链接，之后只切换启用状态，链接地址不变。 */
+export function putRandomLink(albumId: string, enabled: boolean): Promise<RandomLinkView> {
+  return request<RandomLinkView>(randomLinkPath(albumId), {
+    method: "PUT",
+    headers: { ...JSON_HEADERS },
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+/** 更换 token：已分享出去的旧链接立即失效。 */
+export function resetRandomLink(albumId: string): Promise<RandomLinkView> {
+  return request<RandomLinkView>(`${randomLinkPath(albumId)}/reset`, { method: "POST" });
+}
+
+/** 删除随机链接；重复删除同样成功。 */
+export function deleteRandomLink(albumId: string): Promise<null> {
+  return request<null>(randomLinkPath(albumId), { method: "DELETE" });
+}

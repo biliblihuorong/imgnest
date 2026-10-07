@@ -46,5 +46,26 @@
   "detailFallback": "Album detail",
   "pickerTitle": "Choose a cover from your images",
   "pickerSearch": "Search images",
-  "pickerSearchPlaceholder": "Search by filename…"
+  "pickerSearchPlaceholder": "Search by filename…",
+  "randomLink": {
+    "title": "Random image link",
+    "description": "Each visit redirects to a random image from this album. Useful for blog backgrounds and README images.",
+    "enable": "Enable random link",
+    "enableConfirm": "Enable",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "copy": "Copy link",
+    "copied": "Link copied",
+    "copyFailed": "Copy failed; copy it manually",
+    "formatHint": "Serves WebP by default; for the original, append",
+    "reset": "Reset link",
+    "resetConfirm": "Reset",
+    "resetWarning": "The old link stops working immediately, so every place it is published must be updated. Reset it?",
+    "resetDone": "Link reset",
+    "delete": "Delete link",
+    "deleteWarning": "The link stops working immediately; enabling it again later creates a new address. Delete it?",
+    "privacyWarning": "Once enabled, every image in this album, private ones included, can be reached anonymously through this link. Enable it?",
+    "loadFailed": "Could not load the random link; try again",
+    "saveFailed": "Could not save the random link; try again"
+  }
 }

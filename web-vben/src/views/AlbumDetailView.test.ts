@@ -10,6 +10,9 @@ vi.mock("@/components/images/ImageLibrary.vue", () => ({
     template: "<div data-library />",
   },
 }));
+vi.mock("@/components/albums/AlbumRandomLink.vue", () => ({
+  default: { name: "AlbumRandomLink", props: ["albumId"], template: "<div data-random-link />" },
+}));
 describe("fixed album route boundary", () => {
   it("preserves decimal route IDs beyond JS safe integers and updates same-route scope", async () => {
     const router = createRouter({
@@ -27,6 +30,7 @@ describe("fixed album route boundary", () => {
     await flushPromises();
     expect(wrapper.findComponent(ImageLibrary).props("lockedAlbumId")).toBe("42");
     expect(wrapper.findComponent(ImageLibrary).props("lockedAlbumName")).toBe("Work");
+    expect(wrapper.findComponent({ name: "AlbumRandomLink" }).props("albumId")).toBe("42");
     wrapper.unmount();
   });
   it("does not turn malformed album IDs into a personal-library query", async () => {
@@ -38,6 +42,7 @@ describe("fixed album route boundary", () => {
     await router.isReady();
     const wrapper = mount(AlbumDetailView, { global: { plugins: [router] } });
     expect(wrapper.findComponent(ImageLibrary).exists()).toBe(false);
+    expect(wrapper.findComponent({ name: "AlbumRandomLink" }).exists()).toBe(false);
     wrapper.unmount();
   });
 });
