@@ -233,3 +233,9 @@ CI 实测补充：相同源码两轮构建中，`golang:1.27.1-bookworm` tag 解
 运行阶段的基础镜像不含重编后 libvips 额外链接的库，因此从 Ubuntu noble 安装两个运行时包：`libmagickcore-6.q16-7t64`（BMP 所需）与 `libopenexr-3-1-30`。构建时用 `ldd` 检查二进制、libvips 及其模块，出现未解析的库即失败。它们不属于产品 Go 依赖。
 
 镜像发布到 `ghcr.io/biliblihuorong/imgnest`，覆盖 linux/amd64 与 linux/arm64。arm64 只经过镜像冒烟测试（迁移、`/healthz`、前端、非 root），完整的 Go 测试套件仍只在 amd64 上运行。部署方式见 [deployment.md](deployment.md)。
+
+## libvips 基础镜像（2026-10-07）
+
+版本不变。启用 Magick 的 libvips 8.18.6 重编从各个 Dockerfile 中抽出，由 `deploy/Dockerfile.vips` 统一构建并发布为 `ghcr.io/biliblihuorong/imgnest-vips`：`8.18.6-r1-dev`（构建用，含头文件与编译工具）和 `8.18.6-r1`（运行用，仅动态库及 `libmagickcore-6.q16-7t64`、`libopenexr-3-1-30`）。tag 写在 `.github/workflows/vips-base.yml`，该 workflow 只在基础镜像定义变化时运行，两个架构各在原生 runner 上编译一次。
+
+修改 `deploy/Dockerfile.vips` 时必须递增修订号（`-r2`…），发布后把新的摘要更新到引用它的 Dockerfile。在引用方切换之前，`deploy/Dockerfile` 与 `deploy/Dockerfile.dev` 仍各自内联同一份重编步骤，三处必须保持一致。
