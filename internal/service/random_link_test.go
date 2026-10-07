@@ -13,12 +13,17 @@ import (
 	"github.com/biliblihuorong/imgnest/internal/model"
 )
 
+type candidateCall struct {
+	albumID uint64
+	limit   int
+}
+
 // randomLinkStore is an in-memory RandomLinkRepository keyed by album.
 type randomLinkStore struct {
 	links          map[uint64]model.RandomLink
 	owners         map[uint64]model.User
 	candidates     []model.RandomCandidate
-	candidateCalls [][2]int
+	candidateCalls []candidateCall
 	createErrs     []error
 	createCalls    int
 	touched        bool
@@ -86,7 +91,7 @@ func (s *randomLinkStore) FindByToken(_ context.Context, token string) (model.Ra
 }
 
 func (s *randomLinkStore) Candidates(_ context.Context, albumID uint64, limit int) ([]model.RandomCandidate, error) {
-	s.candidateCalls = append(s.candidateCalls, [2]int{int(albumID), limit})
+	s.candidateCalls = append(s.candidateCalls, candidateCall{albumID: albumID, limit: limit})
 	return s.candidates, nil
 }
 
@@ -416,7 +421,7 @@ func TestPickUsesPool(t *testing.T) {
 	if _, err := f.svc.Pick(t.Context(), testPublicID, testToken, false); err != nil {
 		t.Fatal(err)
 	}
-	if len(f.links.candidateCalls) != 1 || f.links.candidateCalls[0] != [2]int{5, 5000} {
+	if len(f.links.candidateCalls) != 1 || f.links.candidateCalls[0] != (candidateCall{albumID: 5, limit: 5000}) {
 		t.Fatalf("candidate calls = %v, want one call for album 5 with limit 5000", f.links.candidateCalls)
 	}
 	if f.pool.sets != 1 || f.pool.setTTL != 60*time.Second {
