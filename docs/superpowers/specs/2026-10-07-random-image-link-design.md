@@ -24,9 +24,9 @@
 
 ## 数据
 
-新增迁移 `0005_random_links.sql`（`internal/migrate/postgres` 与 `internal/migrate/sqlite` 各一份），不修改已发布迁移，不依赖 `AutoMigrate`。
+新增迁移 `0007_random_links.sql`（`internal/migrate/postgres` 与 `internal/migrate/sqlite` 各一份；`main` 上已发布到 `0006`），不修改已发布迁移，不依赖 `AutoMigrate`。
 
-- `users` 新增 `public_id TEXT NULL` 与唯一索引。迁移不回填：新用户注册时生成；老用户在首次创建随机链接时补齐。生成用 `crypto/rand`，撞唯一索引时重试，最多 5 次。
+- `users` 新增 `public_id TEXT NULL` 与唯一索引。迁移不回填，注册流程也不改：只在用户首次创建随机链接时惰性生成，一条代码路径。生成用 `crypto/rand`，撞唯一索引时重试，最多 5 次。
 - 新表 `random_links`：
 
 | 列 | 类型 / 约束 | 说明 |
@@ -51,7 +51,8 @@
 - `format` 取值只接受空或 `original`，其他值返回 `400`（1xxxx）。
 - `token` 比较使用常量时间比较。
 - 不返回图片元数据，不返回 EXIF。
-- 复用现有按 IP 的 `rateLimit` 中间件；如其阈值是按登录接口设定的，则为本路由单独配置更宽松的阈值，具体数值在实现计划中依据现有实现确定。
+- `uid` 必须是 10 位 base62、`token` 必须是 24 位 base62，否则不查库直接 404。
+- 限流：现有 `rateLimit` 是每 IP 每分钟 3 次、全站共用 4096 条记录，只适合登录注册。本路由使用独立的限流实例：每 IP 每分钟 600 次，记录上限 16384 条，超限返回 `429`（`code` 30003）。实例独立是为了让随机接口被刷时不会挤占登录接口的限流表。
 - 日志只记录路由模板，`uid` 与 `token` 不进日志。
 
 ### 管理接口（需登录，外壳 `{"code","message","data"}`）
@@ -65,7 +66,7 @@
 
 `data`：`{"enabled": boolean, "path": "/random/<uid>/<token>", "created_at": string}`。后端没有站点对外地址配置，因此只返回 `path`，前端用 `window.location.origin` 拼出完整地址。
 
-只有相册所有者可操作；访问他人相册返回与相册不存在相同的错误。
+只有相册所有者可操作；他人相册与不存在的相册的错误码与现有 `/api/albums/:id` 接口保持一致（复用 `AlbumStore.FindOwned`）。`DELETE` 幂等；对不存在的链接 `reset` 返回 404。
 
 ## 分层与组件
 
@@ -104,7 +105,7 @@ type RandomPool interface {
 
 ## 失效
 
-以下操作成功后调用 `pool.Invalidate(albumID)`（涉及两个相册时都失效）：上传到相册、`SetAlbum` 移入或移出、进回收站、恢复、彻底删除、管理员删除图片、删除相册。
+以下操作成功后调用 `pool.Invalidate(albumID)`（涉及两个相册时都失效）：上传到相册、`SetAlbum` 移入或移出、进回收站（含管理员删除）、恢复、新建链接、删除链接。彻底删除只作用于已在回收站的图，不在池中，无需失效。删除相册会在同一事务删掉链接，之后解析链接即 404；新建链接时失效是为了防止 SQLite 复用相册 ID 后读到旧相册的池。
 
 单实例下主动失效保证进回收站的图立即不再被抽中。多实例且无共享缓存时，其他实例最多延迟 60 秒；此时跳转目标已是 404，不泄露内容。缓存读写失败不影响请求：`Get` 出错按未命中处理并记录日志，`Set`/`Invalidate` 出错只记录日志。
 
