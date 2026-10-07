@@ -3,6 +3,7 @@
 
 Pass --compose to also validate Docker Compose's actual merged configuration.
 """
+import importlib.util
 import json
 import os
 import pathlib
@@ -101,6 +102,77 @@ class CICacheConfigTest(unittest.TestCase):
         self.assertEqual(env["IMGNEST_TEST_S3_ENDPOINT"], "http://minio:9000")
         self.assertIn("healthcheck", services["postgres"])
         self.assertIn("tmpfs", services["minio"])
+
+
+def load_scope():
+    spec = importlib.util.spec_from_file_location("ci_scope", ROOT / "scripts/ci-scope.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class CIScopeTest(unittest.TestCase):
+    def scopes(self, *paths):
+        return load_scope().scopes(paths)
+
+    def test_documentation_only_changes_skip_every_job(self):
+        self.assertEqual(self.scopes("README.md", "docs/spec.md", "docs/planning/m5.md",
+                                     ".claude/skills/lsky-api-compat/SKILL.md"),
+                         {"backend": False, "frontend": False})
+
+    def test_vben_only_changes_skip_the_go_jobs(self):
+        self.assertEqual(self.scopes("web-vben/src/App.vue", "web-vben/pnpm-lock.yaml", "docs/spec.md"),
+                         {"backend": False, "frontend": True})
+
+    def test_go_only_changes_skip_the_frontend_jobs(self):
+        self.assertEqual(self.scopes("internal/service/user.go", "cmd/imgnest/main.go", "go.sum",
+                                     ".golangci.yml"),
+                         {"backend": True, "frontend": False})
+
+    def test_go_inputs_inside_frontend_directories_run_the_go_jobs(self):
+        # Both dist trees are embedded and web/ is hashed by the legacy source guard.
+        for path in ("web-vben/embed.go", "web-vben/dist/.gitkeep", "web/src/App.vue", "web/README.md"):
+            self.assertEqual(self.scopes(path), {"backend": True, "frontend": True}, path)
+
+    def test_shared_and_unknown_paths_run_everything(self):
+        for path in (".github/workflows/ci.yml", "scripts/ci-scope.py", "deploy/Dockerfile.dev",
+                     "docs/openapi.yaml", "docs/planning/legacy-m5-source.sha256", "Makefile",
+                     "internal/http/lsky/README.md", "new-top-level-file"):
+            self.assertEqual(self.scopes(path), {"backend": True, "frontend": True}, path)
+
+    def test_an_unknown_or_truncated_change_list_runs_everything(self):
+        everything = {"backend": True, "frontend": True}
+        self.assertEqual(self.scopes(), everything)
+        self.assertEqual(self.scopes("", "  "), everything)
+        # The pull request files API stops at 3000 entries.
+        self.assertEqual(self.scopes(*["docs/spec.md"] * 3000), everything)
+
+    def test_command_line_prints_step_outputs(self):
+        def run(*args, stdin=""):
+            return subprocess.run([sys.executable, str(ROOT / "scripts/ci-scope.py"), *args],
+                                  input=stdin, capture_output=True, text=True, check=True).stdout
+        self.assertEqual(run(stdin="docs/spec.md\nweb-vben/src/App.vue\n"),
+                         "backend=false\nfrontend=true\n")
+        self.assertEqual(run("--all", stdin="docs/spec.md\n"), "backend=true\nfrontend=true\n")
+
+
+class CIScopeWiringTest(unittest.TestCase):
+    def setUp(self):
+        self.workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+
+    def test_go_and_frontend_jobs_follow_the_detected_scope(self):
+        self.assertEqual(self.workflow.count("needs: changes"), 3)
+        self.assertEqual(self.workflow.count("if: needs.changes.outputs.backend != 'false'"), 2)
+        self.assertEqual(self.workflow.count("if: needs.changes.outputs.frontend != 'false'"), 1)
+
+    def test_only_pull_requests_may_skip_jobs(self):
+        # Pushes to main seed the caches every pull request restores from.
+        self.assertIn('if [ "$GITHUB_EVENT_NAME" = pull_request ] && files=$(', self.workflow)
+        self.assertIn('python3 scripts/ci-scope.py --all >> "$GITHUB_OUTPUT"', self.workflow)
+        # A pipeline would hide a failing scope script behind tee's exit status.
+        self.assertNotIn("ci-scope.py |", self.workflow)
+        self.assertIn(".previous_filename // empty", self.workflow)
+        self.assertNotIn("paths-ignore", self.workflow)
 
 
 if __name__ == "__main__":

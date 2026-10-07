@@ -192,6 +192,7 @@ func TestRegisterDisabled(t *testing.T) {
 
 func TestRegisterUsesDefaultGroupAndUserRole(t *testing.T) {
 	forDatabases(t, func(t *testing.T, fixture *authFixture) {
+		service.UseProductionPasswordCost(t)
 		enableRegistration(t, fixture)
 		user, err := fixture.service.Register(t.Context(), service.RegisterInput{
 			Username: "alice", Email: " Alice@Example.COM ", Password: testPassword,
