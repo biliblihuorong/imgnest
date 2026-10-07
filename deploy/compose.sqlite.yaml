@@ -1,0 +1,19 @@
+# Single container with SQLite. Suited to personal or small deployments.
+#   docker compose -f deploy/compose.sqlite.yaml up -d
+name: imgnest
+services:
+  imgnest:
+    image: ghcr.io/biliblihuorong/imgnest:${IMGNEST_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "${IMGNEST_PORT:-8080}:8080"
+    environment:
+      # Only needed for S3-compatible storage: base64 of 32 random bytes.
+      IMGNEST_SECURITY_MASTER_KEY: ${IMGNEST_SECURITY_MASTER_KEY:-}
+      # Comma-separated reverse proxy addresses allowed to set the client IP.
+      IMGNEST_SERVER_TRUSTED_PROXIES: ${IMGNEST_SERVER_TRUSTED_PROXIES:-}
+    volumes:
+      # Database, local image objects and the thumbnail cache.
+      - imgnest-data:/app/data
+volumes:
+  imgnest-data:

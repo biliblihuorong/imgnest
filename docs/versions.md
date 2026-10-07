@@ -225,3 +225,11 @@ CI 实测补充：相同源码两轮构建中，`golang:1.27.1-bookworm` tag 解
 - 新增 `changes` job：PR 上由 `scripts/ci-scope.py` 根据改动文件决定跑哪些 job。只改文档（根目录与 `docs/` 下的 `.md`、`.claude/`）时全部跳过；只改 `web-vben/` 源码时跳过 Go 测试与 lint；只改 `internal/`、`cmd/`、`go.mod`、`go.sum`、`.golangci.yml` 时跳过前端 job。`web/`（受 legacy 源码清单校验）、两个 `dist/`、`embed.go`、`docs/openapi.yaml`、`.github/`、`scripts/`、`deploy/` 以及任何未识别的路径都会运行全部 job。
 - 推送到 `main` 始终运行全部 job，用于建立 PR 可恢复的缓存。改动列表读取失败、为空或达到 API 的 3000 条上限时同样运行全部 job。
 - 被跳过的 job 在 GitHub 上显示为 skipped。以后若为 `main` 配置必需状态检查，需注意矩阵 job 被跳过时不会产生 `Frontend (web)` 这类逐项检查名。
+
+## 生产镜像（2026-10-07）
+
+工具链和依赖版本不变。`deploy/Dockerfile` 沿用上表版本：Node 24.21.0 + pnpm 12.9.1 构建前端，Go 1.27.1（同一摘要）在 `imagor-base:vips8.18.6-r14-dev` 上编译，运行阶段基于 `imagor-base:vips8.18.6-r14`。libvips 的重编参数与 `deploy/Dockerfile.dev` 完全一致（同一 tarball 与 SHA256、启用 Magick），改其中一个必须同步另一个。
+
+运行阶段的基础镜像不含重编后 libvips 额外链接的库，因此从 Ubuntu noble 安装两个运行时包：`libmagickcore-6.q16-7t64`（BMP 所需）与 `libopenexr-3-1-30`。构建时用 `ldd` 检查二进制、libvips 及其模块，出现未解析的库即失败。它们不属于产品 Go 依赖。
+
+镜像发布到 `ghcr.io/biliblihuorong/imgnest`，覆盖 linux/amd64 与 linux/arm64。arm64 只经过镜像冒烟测试（迁移、`/healthz`、前端、非 root），完整的 Go 测试套件仍只在 amd64 上运行。部署方式见 [deployment.md](deployment.md)。
