@@ -1,5 +1,6 @@
-// Package webvben embeds the independently built Vben frontend. The CLI imports
-// this package only when built with -tags vben; the default binary uses web.
+// Package webvben embeds the built Vue single-page app so the server binary
+// can serve it without external files. The embed requires web-vben/dist to
+// exist at compile time; dist/.gitkeep keeps a clean checkout buildable.
 package webvben
 
 import (

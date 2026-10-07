@@ -19,7 +19,7 @@ M4 执行补充：无新增前后端依赖。`/api/v1` 与 `/api/admin` 契约�
 | Node.js | 24.21.0（LTS） | vitest 5 要求 `^22.12 \|\| ^24 \|\| >=26`；`.nvmrc` 写 `24.21.0` |
 | pnpm | 12.9.1 | `package.json` 写 `"packageManager": "pnpm@12.9.1"` |
 | libvips | 8.18.6 | 与 `vipsgen/vips` 包对应，必须一致 |
-| Docker 基础镜像 | `ghcr.io/cshum/imagor-base:vips8.18.6-r14`（运行）/ `-dev`（构建） | M2 dev 镜像基于 -dev 重编同版本 vips，启用 BMP 所需 Magick；见下文 |
+| Docker 基础镜像 | `ghcr.io/biliblihuorong/imgnest-vips:8.18.6-r1`（运行）/ `-r1-dev`（构建），按摘要固定 | 由 `deploy/Dockerfile.vips` 基于 `ghcr.io/cshum/imagor-base:vips8.18.6-r14` 重编同版本 vips，启用 BMP 所需 Magick；见下文 |
 | golangci-lint | v2.14.0 | 配置文件用 v2 格式 |
 
 ## Go 依赖
@@ -226,15 +226,35 @@ CI 实测补充：相同源码两轮构建中，`golang:1.27.1-bookworm` tag 解
 - 推送到 `main` 始终运行全部 job，用于建立 PR 可恢复的缓存。改动列表读取失败、为空或达到 API 的 3000 条上限时同样运行全部 job。
 - 被跳过的 job 在 GitHub 上显示为 skipped。以后若为 `main` 配置必需状态检查，需注意矩阵 job 被跳过时不会产生 `Frontend (web)` 这类逐项检查名。
 
+## 生产镜像（2026-10-07）
+
+工具链和依赖版本不变。`deploy/Dockerfile` 沿用上表版本：Node 24.21.0 + pnpm 12.9.1 构建前端，Go 1.27.1（同一摘要）在 `imagor-base:vips8.18.6-r14-dev` 上编译，运行阶段基于 `imagor-base:vips8.18.6-r14`。libvips 的重编参数与 `deploy/Dockerfile.dev` 完全一致（同一 tarball 与 SHA256、启用 Magick），改其中一个必须同步另一个。
+
+运行阶段的基础镜像不含重编后 libvips 额外链接的库，因此从 Ubuntu noble 安装两个运行时包：`libmagickcore-6.q16-7t64`（BMP 所需）与 `libopenexr-3-1-30`。构建时用 `ldd` 检查二进制、libvips 及其模块，出现未解析的库即失败。它们不属于产品 Go 依赖。
+
+镜像发布到 `ghcr.io/biliblihuorong/imgnest`，覆盖 linux/amd64 与 linux/arm64。arm64 只经过镜像冒烟测试（迁移、`/healthz`、前端、非 root），完整的 Go 测试套件仍只在 amd64 上运行。部署方式见 [deployment.md](deployment.md)。
+
+## libvips 基础镜像（2026-10-07）
+
+版本不变。启用 Magick 的 libvips 8.18.6 重编从各个 Dockerfile 中抽出，由 `deploy/Dockerfile.vips` 统一构建并发布为 `ghcr.io/biliblihuorong/imgnest-vips`：`8.18.6-r1-dev`（构建用，含头文件与编译工具）和 `8.18.6-r1`（运行用，仅动态库及 `libmagickcore-6.q16-7t64`、`libopenexr-3-1-30`）。tag 写在 `.github/workflows/vips-base.yml`，该 workflow 只在基础镜像定义变化时运行，两个架构各在原生 runner 上编译一次。
+
+修改 `deploy/Dockerfile.vips` 时必须递增修订号（`-r2`…），发布后把新的摘要更新到引用它的 Dockerfile。
+
+`deploy/Dockerfile.dev` 与 `deploy/Dockerfile` 均按 `tag@sha256` 引用该基础镜像，不再各自编译 libvips，因此开发、CI 与生产链接的是同一份二进制；上文「生产镜像」一节中关于内联重编和运行阶段自行安装运行时包的描述已由本节取代。`scripts/test-ci-config.py` 校验两个文件引用的 tag 与 workflow 中的 `TAG` 一致、构建镜像摘要相同，且不再出现编译步骤。
+
+## 移除旧前端（2026-10-07）
+
+M5 时期的旧前端 `web/` 已删除，`web-vben/` 是唯一前端，默认 Go 构建直接嵌入它，不再需要 `-tags vben`。上文各节中关于 `web/`、legacy 构建、双前端选择检查与冻结源码清单的描述均为历史记录。前端依赖以 `web-vben/package.json` 与 `web-vben/pnpm-lock.yaml` 为准，版本未变。CI 的前端 job 不再是矩阵，检查名为 `Frontend`。
+
 ## 项目网站（2026-10-07）
 
-项目网站位于独立工作区 `website/`，拥有自己的 package、锁文件和 node_modules，不与 `web/`、`web-vben/` 共用依赖，也不参与 Go 构建。经确认新增一项直接依赖：
+项目网站位于独立工作区 `website/`，拥有自己的 package、锁文件和 node_modules，不与 `web-vben/` 共用依赖，也不参与 Go 构建。经确认新增一项直接依赖：
 
 | 包 | 精确版本 | 备注 |
 | --- | --- | --- |
 | `vitepress` | 1.6.4 | 稳定版；自带 Vite 5、Shiki、minisearch 等间接依赖，以 `website/pnpm-lock.yaml` 为准 |
 | `vue` | 3.5.43 | 与前端锁定版本一致，供主题组件直接导入 |
 
-没有选 VitePress 2.0：它依赖 Vite 8，与前端锁定的主版本一致，但当时仍是 alpha（2.0.0-alpha.20）。网站工作区独立，Vite 主版本不同不影响两套前端。`website/pnpm-workspace.yaml` 仅放行 esbuild 的安装脚本。
+没有选 VitePress 2.0：它依赖 Vite 8，与前端锁定的主版本一致，但当时仍是 alpha（2.0.0-alpha.20）。网站工作区独立，Vite 主版本不同不影响前端。`website/pnpm-workspace.yaml` 仅放行 esbuild 的安装脚本。
 
 `scripts/ci-scope.py` 把 `website/` 归入文档类：只改网站时 PR 上的全部 job 跳过。网站由静态托管平台单独构建部署，不在本仓库的 CI 内。

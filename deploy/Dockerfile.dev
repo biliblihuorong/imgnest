@@ -1,6 +1,7 @@
 FROM golang:1.27.1-bookworm@sha256:8d48e12ec56735e9358640898b9d9b9fcca110612ed8a5567438c0a1baa24e66 AS go-toolchain
 FROM node:24.21.0-bookworm AS node-toolchain
-FROM ghcr.io/cshum/imagor-base:vips8.18.6-r14-dev AS dev-base
+# Magick-enabled libvips 8.18.6, built once by deploy/Dockerfile.vips.
+FROM ghcr.io/biliblihuorong/imgnest-vips:8.18.6-r1-dev@sha256:e80eb82e32bff708d47acad906d112496025b845c673c62b886861b73efab38e AS dev-base
 COPY --from=go-toolchain /usr/local/go /usr/local/go
 COPY --from=node-toolchain /usr/local/bin/node /usr/local/bin/node
 COPY --from=node-toolchain /usr/local/lib/node_modules /usr/local/lib/node_modules
@@ -17,16 +18,6 @@ ENV CGO_ENABLED=1 GOTOOLCHAIN=local \
     LD_LIBRARY_PATH=/opt/imagor/lib \
     MALLOC_ARENA_MAX=2 \
     LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
-# The pinned imagor image disables Magick, so its valid BMP buffers cannot load.
-# Rebuild the same libvips release with the already bundled MagickCore libraries.
-ADD --checksum=sha256:3c41e1d5458081bfa4a5bc54e116c46259c75c6760a18027764555632b9dda3e https://github.com/libvips/libvips/releases/download/v8.18.6/vips-8.18.6.tar.xz /tmp/vips.tar.xz
-RUN apt-get update && apt-get install -y --no-install-recommends meson ninja-build && \
-    rm -rf /var/lib/apt/lists/*
-RUN tar -xf /tmp/vips.tar.xz -C /tmp && \
-    meson setup /tmp/vips-build /tmp/vips-8.18.6 --prefix=/opt/imagor --libdir=lib \
-      -Dmagick=enabled -Dintrospection=disabled -Ddeprecated=false && \
-    ninja -C /tmp/vips-build -j 2 && ninja -C /tmp/vips-build install && \
-    rm -rf /tmp/vips-build /tmp/vips-8.18.6 /tmp/vips.tar.xz
 WORKDIR /workspace
 CMD ["go", "run", "./cmd/imgnest", "--help"]
 
