@@ -129,6 +129,8 @@ func (s *ImageService) Trash(ctx context.Context, subject TokenSubject, key stri
 		if err != nil {
 			return fmt.Errorf("begin recycle image: %w", err)
 		}
+		// The row left the active set here, whatever happens to its objects.
+		s.invalidateRandom(ctx, image.AlbumID)
 	}
 	if err = s.moveToTrash(ctx, image); err != nil {
 		return err
@@ -226,10 +228,13 @@ func (s *ImageService) Restore(ctx context.Context, subject TokenSubject, key st
 			return fmt.Errorf("confirm restore; recovery pending: %w", err)
 		}
 		if current.State == model.ImageStateActive && current.OperationID == op {
+			s.invalidateRandom(checkCtx, current.AlbumID)
 			return s.clearRestoreTrash(checkCtx, current)
 		}
 		return s.failRestore(ctx, image, driver, fmt.Errorf("commit restore: %w", err))
 	}
+	// The row is active again, whether or not its trash copies clear now.
+	s.invalidateRandom(ctx, active.AlbumID)
 	return s.clearRestoreTrash(ctx, active)
 }
 

@@ -117,7 +117,10 @@ type ImageDependencies struct {
 	Settings  ImageSettings
 	// Albums validates album ownership for image assignment; it is optional
 	// and album-related operations reject requests while it stays unset.
-	Albums       AlbumStore
+	Albums AlbumStore
+	// RandomPool drops cached random-link candidates when an album's active
+	// images change; nil disables invalidation.
+	RandomPool   RandomPoolInvalidator
 	Now          func() time.Time
 	MaxFileBytes int64
 }
@@ -234,6 +237,20 @@ type GalleryPage struct {
 type UploadLimits struct {
 	MaxFileBytes int64
 	PerMinute    int
+}
+
+// invalidateRandom drops the random-link candidates of every named album.
+// Failures are ignored: the pool's short TTL bounds how long a stale entry
+// lives, and a cache outage must never fail an image operation.
+func (s *ImageService) invalidateRandom(ctx context.Context, albumIDs ...uint64) {
+	if s.deps.RandomPool == nil {
+		return
+	}
+	for _, albumID := range albumIDs {
+		if albumID != 0 {
+			_ = s.deps.RandomPool.Invalidate(ctx, albumID)
+		}
+	}
 }
 
 // NewImageService constructs image business operations.
