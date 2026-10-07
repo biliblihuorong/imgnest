@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import unittest
@@ -55,6 +56,18 @@ class CICacheConfigTest(unittest.TestCase):
         self.assertIn("go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0", dockerfile)
         self.assertIn("FROM dev-base AS lint", dockerfile)
         self.assertTrue(dockerfile.rstrip().endswith("FROM dev-base AS dev"))
+
+    def test_libvips_comes_from_one_pinned_base_release(self):
+        tag = re.search(r"^  TAG: (\S+)$", (ROOT / ".github/workflows/vips-base.yml").read_text(), re.M).group(1)
+        image = r"ghcr\.io/biliblihuorong/imgnest-vips:"
+        dev = (ROOT / "deploy/Dockerfile.dev").read_text()
+        prod = (ROOT / "deploy/Dockerfile").read_text()
+        pins = [re.findall(image + r"(\S+?)@(sha256:[0-9a-f]{64})", text) for text in (dev, prod)]
+        self.assertEqual(pins[0], [(f"{tag}-dev", pins[0][0][1])])
+        self.assertEqual(pins[1], [pins[0][0], (tag, pins[1][1][1])])
+        for text in (dev, prod):
+            self.assertNotIn("meson", text)
+            self.assertNotIn("imagor-base", text)
 
     def test_go_builder_identity_is_immutable_and_shared(self):
         dev = (ROOT / "deploy/Dockerfile.dev").read_text().splitlines()[0]
