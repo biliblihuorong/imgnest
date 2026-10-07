@@ -30,8 +30,11 @@ type User struct {
 	// RegisteredIP records the client address of account creation; only the
 	// account owner's profile read may return it.
 	RegisteredIP string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// PublicID is the random base62 handle used in anonymous URLs; nil until
+	// the account first needs one.
+	PublicID  *string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // UserChanges is the explicit allowlist of administrator-editable account
