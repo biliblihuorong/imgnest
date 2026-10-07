@@ -140,6 +140,7 @@ v1 用方案 A 快速跑通，M6 再评估是否换 B。运行参数参照 imago
 | `image_exif` | image\_id(PK), make, model, lens, taken\_at, exposure, f\_number, iso, focal\_length, orientation, gps\_lat, gps\_lng, gps\_alt, raw | 只存本地数据库；`raw` = 全量 EXIF + XMP（PG 用 JSONB，SQLite 用 JSON 文本）；GPS 与 `raw` 仅本人/管理员可读 |
 | `albums` | id, user\_id, name, intro, is\_public, cover\_image\_id, image\_count | 删除相册时图片 `album_id` 置空，不删图 |
 | `tokens` | id, user\_id, name, token\_hash, kind(web/api), abilities, last\_used\_at, expires\_at | 明文只在创建时返回一次 |
+| `random_links` | id, user\_id, album\_id(唯一), token(唯一, 明文), enabled | 相册随机图片链接，一个相册一条；删除相册时同事务删除；另有 `users.public_id`（10 位 base62，首次创建链接时惰性生成）。见 7.5 |
 | `settings` | key, value(JSON) | 站点名、开放注册、游客上传、画廊开关、默认组、回收站保留天数等 |
 
 访问 URL 不存库，实时拼接：`storage.base_url + "/" + image.path + "." + ext`，换域名只改存储配置即可。表结构变更用版本化迁移脚本，不依赖 `AutoMigrate` 上生产。
@@ -290,6 +291,8 @@ CDN 缓存不在本程序处理范围内。
 | 本地缩略图 | `GET /t/{key}.webp`（缺失时懒生成） | 本人 / 管理员；公开图片可匿名 |
 | 回收站 | `GET /api/trash`、`POST /api/trash/restore`、`POST /api/trash/purge`（彻底删除选中） | 本人 |
 | 相册 | `GET/POST /api/albums`、`PATCH/DELETE /api/albums/{id}` | 本人 |
+| 随机图片链接 | `GET/PUT/DELETE /api/albums/{id}/random-link`、`POST /api/albums/{id}/random-link/reset` | 本人 |
+| 随机图片 | `GET/HEAD /random/{uid}/{token}`（307 跳转） | 公开（凭链接） |
 | Token | `GET/POST /api/tokens`、`DELETE /api/tokens/{id}` | 本人 |
 | 画廊 | `GET /api/gallery`、`GET /api/site` | 公开（受开关控制） |
 | 管理 | `/api/admin/users`、`groups`、`storages`（含 `POST /{id}/test`）、`policies`（含 `POST /preview` 模板预览）、`images`、`trash`（清空全站回收站）、`settings`、`tasks/backfill`（补 WebP/缩略图/EXIF） | 管理员 |
@@ -317,6 +320,16 @@ CDN 缓存不在本程序处理范围内。
 - 身份、角色、分组或状态发生实际变化时，事务性撤销该账号全部 web/API Token，并递增只在内部使用的持久化 auth_version（迁移 0006）；仅昵称变化或值未变时保留会话与版本。管理员不可停用自己，并发操作也不能停用或降级最后一个启用的管理员。登录证明固定鉴权版本，账户字段改回原值也不能使旧证明恢复有效。
 - `PATCH /api/auth/profile` 必须明确提供非 null 的 display_name 字符串；空串表示主动清空，缺失或 null 是参数错误。
 - 无相册时空态 CTA 打开新建相册表单；已有空相册、当前空页与筛选无结果各自表达，不引导用户错误创建重复相册。
+
+### 7.5 相册随机图片链接（2026-10-07）
+
+- 相册所有者可为一个相册生成一条匿名链接 `/random/{uid}/{token}`，每次访问 `307` 跳转到相册内随机一张图的真实直链；用于博客背景、README 配图、随机壁纸。设计见 [随机图片链接设计](superpowers/specs/2026-10-07-random-image-link-design.md)。
+- `uid` 是用户的随机公开 ID（`users.public_id`，10 位 base62），不由数字 ID 推导，也不依赖任何密钥，重启与多实例下保持有效。`token` 是 24 位 base62，明文存库：它只能用来取该相册的随机图，所有者可随时查看、停用或重置，重置后旧链接立即失效。管理接口只返回站内路径 `path`，完整地址由前端拼上当前域名，URL 不入库。
+- 参与范围是相册内所有 `active` 且至少有一个版本的图片，**不看相册和图片的公开状态**：创建链接是所有者的显式授权，界面在首次启用时提示私有图片也会被匿名访问。回收站中的图不参与。
+- 默认跳转 WebP，`?format=original` 跳原图；图片缺少所请求的版本时回退到另一个版本。其他 `format` 值返回 400。
+- 随机接口响应一律 `Cache-Control: no-store`，不返回图片元数据与 EXIF。`uid`/`token` 格式不符、未知、链接停用、用户被禁用、相册无可用图片，统一返回相同的 404/10001，不区分原因。日志只记路由模板，不记 `uid` 与 `token`。
+- 限流：每客户端地址每分钟 600 次，使用独立的限流表（上限 16384 条），超限 429/30003；与登录注册的限流互不挤占。
+- 候选图经 `RandomPool` 接口缓存：每相册最多 5000 张（超出时随机采样），TTL 60 秒；上传到相册、移入移出相册、进回收站、恢复、新建或删除链接时主动失效。链接本身每次请求都查库，停用、重置、禁用用户立即生效。本轮只有进程内实现；多实例部署且未接共享缓存时，其他实例上的失效最多延迟 60 秒（此时跳转目标已是 404，不泄露内容）。Redis 等共享实现只需满足同一接口，目前未引入依赖。
 
 ## 8. 工程规范
 

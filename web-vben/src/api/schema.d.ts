@@ -655,6 +655,98 @@ export interface paths {
         patch: operations["updateAlbum"];
         trace?: never;
     };
+    "/api/albums/{id}/random-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric album identifier. */
+                id: components["parameters"]["AlbumID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read one owned album's random image link
+         * @description `data` is null while the album has no link. An album owned by another
+         *     account answers 403/20003 and a missing one 404/10001, like the other
+         *     album endpoints.
+         */
+        get: operations["getAlbumRandomLink"];
+        /**
+         * Create the album's random image link or switch it on or off
+         * @description The first call generates the token. Later calls only change `enabled`;
+         *     the token and therefore the published URL stay the same. Every active
+         *     image in the album, private ones included, becomes reachable through
+         *     the link while it is enabled.
+         */
+        put: operations["putAlbumRandomLink"];
+        post?: never;
+        /**
+         * Delete the album's random image link
+         * @description Idempotent; deleting a missing link also answers 200.
+         */
+        delete: operations["deleteAlbumRandomLink"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/albums/{id}/random-link/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric album identifier. */
+                id: components["parameters"]["AlbumID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the link's token so every shared URL stops resolving
+         * @description Answers 404/10001 while the album has no link.
+         */
+        post: operations["resetAlbumRandomLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/random/{uid}/{token}": {
+        parameters: {
+            query?: {
+                /** @description Omit for WebP (falling back to the original when an image has none); `original` asks for the original. */
+                format?: "original";
+            };
+            header?: never;
+            path: {
+                /** @description The owner's random public ID. */
+                uid: string;
+                /** @description The album link's token. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Redirect to a random active image of the linked album
+         * @description Public endpoint without authentication, limited to 600 requests per
+         *     minute per client address. Every response carries
+         *     `Cache-Control: no-store`. An unknown or malformed uid or token, a
+         *     disabled link, a disabled owner and an album without usable images all
+         *     answer the same 404/10001. No image metadata or EXIF is returned.
+         */
+        get: operations["redirectRandomImage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** Same redirect without a body */
+        head: operations["headRandomImage"];
+        patch?: never;
+        trace?: never;
+    };
     "/api/gallery": {
         parameters: {
             query?: never;
@@ -1964,6 +2056,22 @@ export interface components {
         };
         AlbumEnvelope: components["schemas"]["SuccessEnvelope"] & {
             data?: components["schemas"]["AlbumView"];
+        };
+        RandomLinkView: {
+            enabled: boolean;
+            /** @description Site-relative `/random/{uid}/{token}`; clients prefix their own origin. */
+            path: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        RandomLinkInput: {
+            enabled: boolean;
+        };
+        RandomLinkEnvelope: components["schemas"]["SuccessEnvelope"] & {
+            data?: components["schemas"]["RandomLinkView"];
+        };
+        NullableRandomLinkEnvelope: components["schemas"]["SuccessEnvelope"] & {
+            data?: components["schemas"]["RandomLinkView"] | null;
         };
         AlbumPageEnvelope: components["schemas"]["SuccessEnvelope"] & {
             data?: components["schemas"]["AlbumPage"];
@@ -3578,6 +3686,173 @@ export interface operations {
                 };
             };
             default: components["responses"]["ImageFailure"];
+        };
+    };
+    getAlbumRandomLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric album identifier. */
+                id: components["parameters"]["AlbumID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The album's link, or null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullableRandomLinkEnvelope"];
+                };
+            };
+            default: components["responses"]["ImageFailure"];
+        };
+    };
+    putAlbumRandomLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric album identifier. */
+                id: components["parameters"]["AlbumID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RandomLinkInput"];
+            };
+        };
+        responses: {
+            /** @description The current link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RandomLinkEnvelope"];
+                };
+            };
+            default: components["responses"]["ImageFailure"];
+        };
+    };
+    deleteAlbumRandomLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric album identifier. */
+                id: components["parameters"]["AlbumID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Link removed; data is null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullEnvelope"];
+                };
+            };
+            default: components["responses"]["ImageFailure"];
+        };
+    };
+    resetAlbumRandomLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric album identifier. */
+                id: components["parameters"]["AlbumID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The link with its new path. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RandomLinkEnvelope"];
+                };
+            };
+            default: components["responses"]["ImageFailure"];
+        };
+    };
+    redirectRandomImage: {
+        parameters: {
+            query?: {
+                /** @description Omit for WebP (falling back to the original when an image has none); `original` asks for the original. */
+                format?: "original";
+            };
+            header?: never;
+            path: {
+                /** @description The owner's random public ID. */
+                uid: string;
+                /** @description The album link's token. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Location is the chosen image's direct link. */
+            307: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unsupported `format` value (10001). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    headRandomImage: {
+        parameters: {
+            query?: {
+                /** @description Omit for WebP (falling back to the original when an image has none); `original` asks for the original. */
+                format?: "original";
+            };
+            header?: never;
+            path: {
+                /** @description The owner's random public ID. */
+                uid: string;
+                /** @description The album link's token. */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Location is the chosen image's direct link. */
+            307: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
         };
     };
     listGallery: {
