@@ -258,3 +258,5 @@ M5 时期的旧前端 `web/` 已删除，`web-vben/` 是唯一前端，默认 Go
 没有选 VitePress 2.0：它依赖 Vite 8，与前端锁定的主版本一致，但当时仍是 alpha（2.0.0-alpha.20）。网站工作区独立，Vite 主版本不同不影响前端。`website/pnpm-workspace.yaml` 仅放行 esbuild 的安装脚本。
 
 `scripts/ci-scope.py` 把 `website/` 归入文档类：只改网站时 PR 上的全部 job 跳过。网站由静态托管平台单独构建部署，不在本仓库的 CI 内。
+
+网站不随仓库固定 Node 版本：`website/package.json` 的 `engines` 为 `>=22.12.0`，不提供 `.nvmrc`，由托管平台选择预装的 Node 22 或 24。实测 Node 22.13.1 可构建。上表的 Node 24.21.0 仍是 `web-vben/` 与开发镜像的锁定版本。
