@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/mail"
 	"strings"
+	"testing"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -14,7 +15,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const passwordCost = 12
+// productionPasswordCost is the bcrypt work factor of every stored password.
+const productionPasswordCost = 12
+
+// passwordCost is the work factor in effect. Test binaries hash at the cheapest
+// one: a cost-12 hash takes seconds under the race detector and the suites
+// hash hundreds of passwords. Nothing outside a test binary can lower it.
+var passwordCost = passwordCostFor(testing.Testing())
+
+func passwordCostFor(testBinary bool) int {
+	if testBinary {
+		return bcrypt.MinCost
+	}
+	return productionPasswordCost
+}
 
 // maxDisplayNameRunes bounds the self-chosen profile name in Unicode
 // characters, not bytes.

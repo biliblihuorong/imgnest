@@ -216,3 +216,12 @@ GitHub Actions 分别缓存 dev、lint、固定源码版本的 MinIO 镜像。`d
 `python3 scripts/test-ci-config.py` 检查缓存接线及原有命令；CI 使用 `--compose` 额外检查 Docker Compose 实际合并后挂载与测试服务配置。比较性能时应分开记录首次构建和相同提交的热缓存重跑，不能把缓存命中推断为测试已执行。
 
 CI 实测补充：相同源码两轮构建中，`golang:1.27.1-bookworm` tag 解析到了不同摘要，导致 MinIO 与 lint 安装层重新执行。因此两个 Go 构建阶段进一步固定 `sha256:8d48e12ec56735e9358640898b9d9b9fcca110612ed8a5567438c0a1baa24e66`，Go 版本仍为 1.27.1。MinIO 与 lint 在安装命令的同一个 RUN 中移除安装器的模块/编译缓存，避免将无用缓存写入镜像层后再导出到 Actions cache。后续更换摘要需显式更新并重新跑完整 CI。
+
+## CI 测试耗时与按路径跳过（2026-10-07）
+
+工具链、依赖版本和质量门禁命令不变。热缓存下 CI 的耗时几乎全部来自 `go test -race`：race 检测器下一次 cost=12 的 bcrypt 约需 2 秒以上，而 `internal/service`、`internal/http`、`internal/http/lsky` 的测试会哈希数百次密码。
+
+- 生产 bcrypt cost 仍为 12（`productionPasswordCost`）。仅当 `testing.Testing()` 为真（即 `go test` 编译出的测试二进制）时，实际使用的 cost 降为 `bcrypt.MinCost`；正式二进制没有任何开关可以降低它。断言落库哈希强度的测试通过 `service.UseProductionPasswordCost(t)` 回到 cost=12 运行，`internal/cli` 的进程级测试构建的是正式二进制，同样使用 cost=12。
+- 新增 `changes` job：PR 上由 `scripts/ci-scope.py` 根据改动文件决定跑哪些 job。只改文档（根目录与 `docs/` 下的 `.md`、`.claude/`）时全部跳过；只改 `web-vben/` 源码时跳过 Go 测试与 lint；只改 `internal/`、`cmd/`、`go.mod`、`go.sum`、`.golangci.yml` 时跳过前端 job。`web/`（受 legacy 源码清单校验）、两个 `dist/`、`embed.go`、`docs/openapi.yaml`、`.github/`、`scripts/`、`deploy/` 以及任何未识别的路径都会运行全部 job。
+- 推送到 `main` 始终运行全部 job，用于建立 PR 可恢复的缓存。改动列表读取失败、为空或达到 API 的 3000 条上限时同样运行全部 job。
+- 被跳过的 job 在 GitHub 上显示为 skipped。以后若为 `main` 配置必需状态检查，需注意矩阵 job 被跳过时不会产生 `Frontend (web)` 这类逐项检查名。

@@ -12,6 +12,7 @@ import (
 func adminAccountValue[T any](value T) *T { return &value }
 
 func TestAdminCreateUserNormalizesHashesAndDecorates(t *testing.T) {
+	UseProductionPasswordCost(t)
 	svc, users, _, _, _, _, _ := adminServiceFixture(t, AdminDependencies{})
 	view, err := svc.CreateUser(t.Context(), 7, AdminUserInput{
 		Username: "  managed  ", Email: "  MANAGED@EXAMPLE.COM ", Password: "initial-password",
@@ -28,7 +29,7 @@ func TestAdminCreateUserNormalizesHashesAndDecorates(t *testing.T) {
 	if err := bcrypt.CompareHashAndPassword([]byte(stored.PasswordHash), []byte("initial-password")); err != nil {
 		t.Fatal("initial password was not hashed")
 	}
-	if cost, err := bcrypt.Cost([]byte(stored.PasswordHash)); err != nil || cost != passwordCost {
+	if cost, err := bcrypt.Cost([]byte(stored.PasswordHash)); err != nil || cost != productionPasswordCost {
 		t.Fatalf("cost=%d err=%v", cost, err)
 	}
 	if view.AvatarProvider != model.DefaultAvatarProvider || view.AvatarURL == nil {
