@@ -12,6 +12,8 @@ pnpm build      # 输出静态文件到 .vitepress/dist
 pnpm preview    # 预览构建结果
 ```
 
+需要 Node 22.12 或更高版本。这里故意不放 `.nvmrc`：静态托管平台会按它切换到精确版本，而平台预装的版本往往对不上，所以 Node 版本在平台的项目设置里选。
+
 部署到子路径（例如 GitHub Pages 的 `/imgnest/`）时，构建前设置 `SITE_BASE=/imgnest/`。
 
 ## 改什么去哪里
