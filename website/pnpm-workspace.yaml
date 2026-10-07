@@ -1,0 +1,6 @@
+# Independent workspace for the project website; shares nothing with web/ or web-vben/.
+packages:
+  - .
+# esbuild ships its platform binary through an install script.
+allowBuilds:
+  esbuild: true

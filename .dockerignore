@@ -13,3 +13,5 @@ web-vben/dist/*
 !web-vben/dist/.gitkeep
 **/coverage
 web-vben/e2e/results
+website/.vitepress/dist
+website/.vitepress/cache

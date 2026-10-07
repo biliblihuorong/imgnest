@@ -57,6 +57,10 @@ Windows：`./scripts/install-skills.ps1`（或加 `-Latest`）。两个项目自
 规范的在线可编辑版本：https://claude.ai/code/artifact/a63820dd-642d-4916-bdd0-706cdfbd1fd8
 本包里的 `docs/spec.md` 是 2026-10-04 的导出快照，两张图已改为 Mermaid 图和表格。以后改规范请两边同步，或以仓库里的版本为准。
 
+## 项目网站
+
+`website/` 是项目的首页与文档站（VitePress），文档正文是 `website/docs/` 下的 Markdown。运行与修改方法见 [website/README.md](website/README.md)。
+
 ## 许可证
 
 31 个开源 Skill 保留原许可证（MIT、Apache-2.0、CC-BY-SA-4.0），详见 `THIRD_PARTY_NOTICES.md`。
