@@ -120,6 +120,14 @@ class CIScopeTest(unittest.TestCase):
                                      ".claude/skills/lsky-api-compat/SKILL.md"),
                          {"backend": False, "frontend": False})
 
+    def test_project_website_changes_skip_every_job(self):
+        # website/ is a standalone VitePress workspace that no CI job builds.
+        self.assertEqual(self.scopes("website/docs/guide/introduction.md", "website/package.json",
+                                     "website/.vitepress/theme/home/HomePage.vue"),
+                         {"backend": False, "frontend": False})
+        self.assertEqual(self.scopes("website/docs/index.md", "internal/service/user.go"),
+                         {"backend": True, "frontend": False})
+
     def test_vben_only_changes_skip_the_go_jobs(self):
         self.assertEqual(self.scopes("web-vben/src/App.vue", "web-vben/pnpm-lock.yaml", "docs/spec.md"),
                          {"backend": False, "frontend": True})

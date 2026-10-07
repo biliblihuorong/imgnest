@@ -225,3 +225,16 @@ CI 实测补充：相同源码两轮构建中，`golang:1.27.1-bookworm` tag 解
 - 新增 `changes` job：PR 上由 `scripts/ci-scope.py` 根据改动文件决定跑哪些 job。只改文档（根目录与 `docs/` 下的 `.md`、`.claude/`）时全部跳过；只改 `web-vben/` 源码时跳过 Go 测试与 lint；只改 `internal/`、`cmd/`、`go.mod`、`go.sum`、`.golangci.yml` 时跳过前端 job。`web/`（受 legacy 源码清单校验）、两个 `dist/`、`embed.go`、`docs/openapi.yaml`、`.github/`、`scripts/`、`deploy/` 以及任何未识别的路径都会运行全部 job。
 - 推送到 `main` 始终运行全部 job，用于建立 PR 可恢复的缓存。改动列表读取失败、为空或达到 API 的 3000 条上限时同样运行全部 job。
 - 被跳过的 job 在 GitHub 上显示为 skipped。以后若为 `main` 配置必需状态检查，需注意矩阵 job 被跳过时不会产生 `Frontend (web)` 这类逐项检查名。
+
+## 项目网站（2026-10-07）
+
+项目网站位于独立工作区 `website/`，拥有自己的 package、锁文件和 node_modules，不与 `web/`、`web-vben/` 共用依赖，也不参与 Go 构建。经确认新增一项直接依赖：
+
+| 包 | 精确版本 | 备注 |
+| --- | --- | --- |
+| `vitepress` | 1.6.4 | 稳定版；自带 Vite 5、Shiki、minisearch 等间接依赖，以 `website/pnpm-lock.yaml` 为准 |
+| `vue` | 3.5.43 | 与前端锁定版本一致，供主题组件直接导入 |
+
+没有选 VitePress 2.0：它依赖 Vite 8，与前端锁定的主版本一致，但当时仍是 alpha（2.0.0-alpha.20）。网站工作区独立，Vite 主版本不同不影响两套前端。`website/pnpm-workspace.yaml` 仅放行 esbuild 的安装脚本。
+
+`scripts/ci-scope.py` 把 `website/` 归入文档类：只改网站时 PR 上的全部 job 跳过。网站由静态托管平台单独构建部署，不在本仓库的 CI 内。
