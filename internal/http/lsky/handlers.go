@@ -10,6 +10,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// credentialBodyLimit caps token requests, which carry only two short fields.
+const credentialBodyLimit = 64 << 10
+
 // createToken exchanges email and password (form or JSON) for an API token.
 func (h *Handler) createToken(c *gin.Context) {
 	email, password, ok := readCredentials(c)
@@ -38,14 +41,16 @@ func (h *Handler) createToken(c *gin.Context) {
 	c.JSON(200, success("success", gin.H{"token": issued.Token}))
 }
 
-// readCredentials accepts form and JSON token requests.
+// readCredentials accepts form and JSON token requests. Both share one body
+// cap: gin would otherwise spool an unbounded multipart form to temporary
+// files for an unauthenticated caller.
 func readCredentials(c *gin.Context) (string, string, bool) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, credentialBodyLimit)
 	if strings.HasPrefix(c.ContentType(), "application/json") {
 		var body struct {
 			Email    string `json:"email"`
 			Password string `json:"password"`
 		}
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10)
 		if err := c.ShouldBindJSON(&body); err != nil || body.Email == "" || body.Password == "" {
 			return "", "", false
 		}

@@ -3,6 +3,7 @@ package native
 import (
 	"context"
 	"errors"
+	"github.com/biliblihuorong/imgnest/internal/http/reqbody"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 	"io"
@@ -49,15 +50,7 @@ func (h *imageHandler) upload(c *gin.Context) {
 		fail(c, errUploadTooLarge)
 		return
 	}
-	original := c.Request.Body
-	stop := context.AfterFunc(ctx, func() { _ = original.Close() })
-	defer stop()
-	controller := http.NewResponseController(c.Writer)
-	deadline, _ := ctx.Deadline()
-	if err := controller.SetReadDeadline(deadline); err == nil {
-		defer func() { _ = controller.SetReadDeadline(time.Time{}) }()
-	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, original, h.options.MaxRequestBytes)
+	defer reqbody.Bound(ctx, c.Writer, c.Request, h.options.MaxRequestBytes)()
 	reader, err := c.Request.MultipartReader()
 	if err != nil {
 		fail(c, service.ErrInvalidInput)

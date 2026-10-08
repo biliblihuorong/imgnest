@@ -52,6 +52,7 @@ type v1Fixture struct {
 	tokens  *service.TokenService
 	images  *service.ImageService
 	albums  *service.AlbumService
+	lsky    *service.LskyService
 	handler *lsky.Handler
 	alice   service.UserView
 	policy  model.Policy
@@ -174,7 +175,7 @@ func newV1Fixture(t *testing.T, driver string) *v1Fixture {
 		t.Fatal(err)
 	}
 	router := ginRouter(t, handler)
-	return &v1Fixture{db: db, router: router, users: users, tokens: tokens, images: images, albums: albums, handler: handler, alice: alice, policy: policy, backend: backend, local: local}
+	return &v1Fixture{db: db, router: router, users: users, tokens: tokens, images: images, albums: albums, lsky: lskyService, handler: handler, alice: alice, policy: policy, backend: backend, local: local}
 }
 
 // imagesFixture adds the seeded albums an images/albums/profile scenario needs.
