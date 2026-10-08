@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"log/slog"
 	"maps"
@@ -28,6 +27,7 @@ import (
 	"github.com/biliblihuorong/imgnest/internal/imaging"
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/pathtpl"
+	"github.com/biliblihuorong/imgnest/internal/randompool"
 	"github.com/biliblihuorong/imgnest/internal/repo"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/biliblihuorong/imgnest/internal/storage"
@@ -44,6 +44,8 @@ type albumHTTPFixture struct {
 	users       [2]service.UserView
 	tokens      [2]string
 	storageRoot string
+	// logs captures every request log line so tests can prove secrets stay out.
+	logs *bytes.Buffer
 }
 
 func newAlbumHTTPFixture(t *testing.T) *albumHTTPFixture {
@@ -138,12 +140,26 @@ func newAlbumHTTPFixture(t *testing.T) *albumHTTPFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	linkRepo, err := repo.NewRandomLinkRepository(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := randompool.NewMemory(time.Now)
+	f.logs = &bytes.Buffer{}
+	logger := slog.New(slog.NewJSONHandler(f.logs, nil))
 	imageService, err := service.NewImageService(ctx, service.ImageDependencies{
 		Images: images, Policies: policies, Storages: storages, Users: userRepo,
 		Tokens: tokenRepo, Albums: albums, Drivers: realImageProvider{local},
 		Paths:   service.PathFunctions{BuildPath: pathtpl.Build, CleanPath: pathtpl.Sanitize},
 		Imaging: processor, Extractor: metadata, Scrubber: metadata, Cache: cache,
 		Settings: settings, Now: time.Now, MaxFileBytes: 20 << 20,
+		RandomPool: pool,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	randomLinks, err := service.NewRandomLinkService(ctx, service.RandomLinkDependencies{
+		Links: linkRepo, Albums: albums, Users: userRepo, Storages: storages, Pool: pool, Logger: logger,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -154,7 +170,7 @@ func newAlbumHTTPFixture(t *testing.T) *albumHTTPFixture {
 	}
 	f.router, err = httpapi.NewRouter(ctx, httpapi.Dependencies{
 		Users: users, Tokens: tokens, Images: imageService, Albums: albumService,
-		Logger: slog.New(slog.NewJSONHandler(io.Discard, nil)), Health: sqlDB.PingContext,
+		RandomLinks: randomLinks, Logger: logger, Health: sqlDB.PingContext,
 	})
 	if err != nil {
 		t.Fatal(err)

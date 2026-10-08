@@ -4,6 +4,7 @@ import { useI18n } from "@vben/locales";
 import { NButton } from "naive-ui";
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import AlbumRandomLink from "@/components/albums/AlbumRandomLink.vue";
 import ImageLibrary from "@/components/images/ImageLibrary.vue";
 
 /**
@@ -38,6 +39,7 @@ function backToAlbums(): void {
         <h1 class="album-detail-view__title" :title="albumName">{{ albumName }}</h1>
       </div>
     </template>
+    <AlbumRandomLink v-if="albumId" :album-id="albumId" />
     <ImageLibrary
       v-if="albumId"
       :key="albumId"

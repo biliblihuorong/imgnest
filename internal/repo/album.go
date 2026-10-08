@@ -182,6 +182,10 @@ func (r *AlbumRepository) DeleteOwned(ctx context.Context, ownerID, albumID uint
 			Update("album_id", nil).Error; err != nil {
 			return err
 		}
+		// The album's random link must stop resolving in the same commit.
+		if err := tx.Delete(&model.RandomLink{}, "album_id = ?", albumID).Error; err != nil {
+			return err
+		}
 		return tx.Delete(&model.Album{}, "id = ?", albumID).Error
 	})
 	if errors.Is(err, model.ErrForbidden) {

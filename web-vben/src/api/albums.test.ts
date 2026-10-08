@@ -1,6 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { request } from "./client";
-import { createAlbum, deleteAlbum, listAlbums, updateAlbum } from "./albums";
+import {
+  createAlbum,
+  deleteAlbum,
+  deleteRandomLink,
+  getRandomLink,
+  listAlbums,
+  putRandomLink,
+  resetRandomLink,
+  updateAlbum,
+} from "./albums";
 
 vi.mock("./client", () => ({
   request: vi.fn(),
@@ -101,4 +110,41 @@ it("album suggestions use string IDs, bounded pages and an independent fixed sco
     "/api/albums/suggestions?keyword=%E6%9A%91%E5%81%87&page=2&size=20&scope_album_id=9007199254740993",
     { signal },
   );
+});
+
+describe("random image link", () => {
+  // 相册 ID 以字符串传递：路由里的十进制 ID 可能超过 JS 安全整数。
+  const id = "9007199254740993";
+
+  it("getRandomLink 读取相册的随机链接", async () => {
+    await getRandomLink(id);
+
+    expect(requestMock).toHaveBeenCalledWith(`/api/albums/${id}/random-link`);
+  });
+
+  it("putRandomLink 以 PUT 提交 enabled", async () => {
+    await putRandomLink(id, true);
+
+    expect(requestMock).toHaveBeenCalledWith(`/api/albums/${id}/random-link`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: '{"enabled":true}',
+    });
+  });
+
+  it("resetRandomLink 以 POST 请求 reset", async () => {
+    await resetRandomLink(id);
+
+    expect(requestMock).toHaveBeenCalledWith(`/api/albums/${id}/random-link/reset`, {
+      method: "POST",
+    });
+  });
+
+  it("deleteRandomLink 以 DELETE 删除链接", async () => {
+    await deleteRandomLink(id);
+
+    expect(requestMock).toHaveBeenCalledWith(`/api/albums/${id}/random-link`, {
+      method: "DELETE",
+    });
+  });
 });
