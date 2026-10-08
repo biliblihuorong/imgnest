@@ -182,8 +182,17 @@ body {
     box-shadow: var(--mv-shadow-sm);
   }
 
+  /* 默认主题把正文限制在 688px，宽屏两侧会空出一大片；这里让正文卡片铺满侧栏与大纲之间的空间。 */
   .VPDoc.has-aside .content-container {
-    max-width: 780px;
+    max-width: none !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .VPDoc.has-sidebar .content {
+    flex: 1 1 auto;
+    min-width: 0 !important;
+    padding-inline: 0 !important;
   }
 }
 
@@ -219,20 +228,43 @@ body {
   border-radius: 14px;
 }
 
-.vp-doc table {
-  display: table;
-  width: 100%;
-  overflow: hidden;
-  border-collapse: separate;
-  border-spacing: 0;
+.vp-doc .mv-table {
+  margin: 20px 0;
+  overflow-x: auto;
   border: 1px solid var(--mv-line);
   border-radius: 14px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 表格由 config.ts 包进 .mv-table：窄屏时在框内横向滚动，不再把整页撑宽。 */
+.vp-doc .mv-table table {
+  display: table;
+  width: 100%;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .vp-doc th,
 .vp-doc td {
+  min-width: 6em;
   border: 0;
   border-bottom: 1px solid var(--mv-line);
+}
+
+/* 最后一列多半是「说明」，窄屏给它留够宽度，宁可横向滚动也不把文字挤成一字一行。 */
+@media (max-width: 959px) {
+  .vp-doc td:last-child {
+    min-width: 14em;
+  }
+}
+
+@media (max-width: 639px) {
+  .vp-doc th,
+  .vp-doc td {
+    padding: 8px 12px;
+    font-size: 13.5px;
+  }
 }
 
 .vp-doc tr:last-child td {
@@ -247,6 +279,7 @@ body {
 .vp-doc th {
   font-weight: 600;
   text-align: left;
+  white-space: nowrap;
   background: var(--mv-soft);
 }
 
@@ -270,8 +303,8 @@ body {
   }
 }
 
-/* 表格第一列多半是参数名，不让它在连字符处折行。 */
-.vp-doc td:first-child code {
+/* 表格里的代码多半是参数名、环境变量，不让它在连字符或下划线处折行，放不下就横向滚动。 */
+.vp-doc td code {
   white-space: nowrap;
 }
 
