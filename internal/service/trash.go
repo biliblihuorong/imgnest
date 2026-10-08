@@ -61,7 +61,14 @@ func trashKey(backend model.Storage, key string) string {
 	return "_trash/" + key
 }
 
-func ensureCopy(ctx context.Context, driver storage.Driver, source, target string, receipt model.ObjectReceipt) error {
+// Cache headers for live objects and recycle-bin copies. Trash copies must not
+// be cached by browsers or CDNs even when the bucket itself is publicly readable.
+const (
+	liveCacheControl  = "public, max-age=31536000, immutable"
+	trashCacheControl = "private, no-store"
+)
+
+func ensureCopy(ctx context.Context, driver storage.Driver, source, target string, receipt model.ObjectReceipt, cacheControl string) error {
 	origin, err := driver.Stat(ctx, source)
 	if errors.Is(err, storage.ErrNotFound) {
 		existing, err := driver.Stat(ctx, target)
@@ -82,7 +89,7 @@ func ensureCopy(ctx context.Context, driver storage.Driver, source, target strin
 	if origin.OwnerID != receipt.OwnerID || origin.Size != receipt.Size {
 		return storage.ErrOwnership
 	}
-	_, err = driver.Copy(ctx, source, target, storage.CopyOptions{OwnerID: receipt.OwnerID, MIME: receipt.MIME, CacheControl: "public, max-age=31536000, immutable"})
+	_, err = driver.Copy(ctx, source, target, storage.CopyOptions{OwnerID: receipt.OwnerID, MIME: receipt.MIME, CacheControl: cacheControl})
 	return err
 }
 
@@ -156,7 +163,7 @@ func (s *ImageService) moveToTrash(ctx context.Context, image model.Image) error
 		if receipt.Location != model.ObjectLocationCloud {
 			continue
 		}
-		if err = ensureCopy(ctx, driver, receipt.Key, trashKey(backend, receipt.Key), receipt); err != nil {
+		if err = ensureCopy(ctx, driver, receipt.Key, trashKey(backend, receipt.Key), receipt, trashCacheControl); err != nil {
 			return storageError(ctx, err)
 		}
 		live, statErr := driver.Stat(ctx, receipt.Key)
@@ -213,7 +220,7 @@ func (s *ImageService) Restore(ctx context.Context, subject TokenSubject, key st
 		if receipt.Location != model.ObjectLocationCloud {
 			continue
 		}
-		if err = ensureCopy(ctx, driver, trashKey(backend, receipt.Key), receipt.Key, receipt); err != nil {
+		if err = ensureCopy(ctx, driver, trashKey(backend, receipt.Key), receipt.Key, receipt, liveCacheControl); err != nil {
 			return s.failRestore(ctx, image, driver, storageError(ctx, err))
 		}
 	}

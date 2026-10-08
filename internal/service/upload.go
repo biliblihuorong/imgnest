@@ -282,7 +282,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 			err = s.deps.Cache.Put(ctx, image.StorageID, receipt.Key, object.data)
 		} else {
 			var written storage.Receipt
-			written, err = driver.PutNew(ctx, receipt.Key, bytes.NewReader(object.data), storage.PutOptions{MIME: receipt.MIME, OwnerID: image.Key, CacheControl: "public, max-age=31536000, immutable"})
+			written, err = driver.PutNew(ctx, receipt.Key, bytes.NewReader(object.data), storage.PutOptions{MIME: receipt.MIME, OwnerID: image.Key, CacheControl: liveCacheControl})
 			if err == nil {
 				receipt.VersionID = written.VersionID
 				receipt.Size = written.Size

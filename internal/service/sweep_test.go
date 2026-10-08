@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
+	"github.com/biliblihuorong/imgnest/internal/storage"
 )
 
 func TestSweepDrainsDueTrashBeyondOneBatch(t *testing.T) {
@@ -64,5 +66,40 @@ func TestThumbnailDoesNotWaitForLifecycleFence(t *testing.T) {
 	if body, openErr := svc.deps.Cache.Open(t.Context(), 1, "2026/10/a_thumbs.webp"); openErr == nil {
 		_ = body.Close()
 		t.Fatal("preview cached without holding the lifecycle fence")
+	}
+}
+
+type copyRecordingDriver struct {
+	*storage.Local
+	mu      sync.Mutex
+	targets map[string]string
+}
+
+func (d *copyRecordingDriver) Copy(ctx context.Context, source, target string, opts storage.CopyOptions) (storage.Receipt, error) {
+	d.mu.Lock()
+	d.targets[target] = opts.CacheControl
+	d.mu.Unlock()
+	return d.Local.Copy(ctx, source, target, opts)
+}
+
+func TestRecycleBinCopiesAreNeverPubliclyCached(t *testing.T) {
+	svc, _, _, local, subject := uploadFixture(t, "png")
+	driver := &copyRecordingDriver{Local: local, targets: map[string]string{}}
+	svc.deps.Drivers = uploadDriverProvider{driver: driver}
+	view, err := svc.Upload(t.Context(), subject, UploadInput{Data: []byte("source"), Filename: "a.png"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.Trash(t.Context(), subject, view.Key); err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.Restore(t.Context(), subject, view.Key); err != nil {
+		t.Fatal(err)
+	}
+	if got := driver.targets[".trash/2026/10/a.png"]; got != trashCacheControl {
+		t.Fatalf("trash copy cache header %q", got)
+	}
+	if got := driver.targets["2026/10/a.png"]; got != liveCacheControl {
+		t.Fatalf("restored copy cache header %q", got)
 	}
 }
