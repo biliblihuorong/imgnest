@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/biliblihuorong/imgnest/internal/http/reqbody"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -61,7 +62,9 @@ func (h *Handler) upload(c *gin.Context) {
 		h.uploadFailure(c, errV1TooLarge)
 		return
 	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, h.options.MaxRequestBytes)
+	// Without a read deadline a slow body would hold the upload slot past the
+	// timeout; anonymous callers reach this path when guest uploads are on.
+	defer reqbody.Bound(ctx, c.Writer, c.Request, h.options.MaxRequestBytes)()
 	reader, err := c.Request.MultipartReader()
 	if err != nil {
 		h.uploadFailure(c, errV1MissingFile)

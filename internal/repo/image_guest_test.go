@@ -187,3 +187,83 @@ func TestGuestUsedBytesCountsReservedAndTrashRestore(t *testing.T) {
 		}
 	})
 }
+
+// Guest images have no used_bytes counter on the anchor row, so an
+// administrator must still be able to trash, restore and purge them, with
+// restores measured against the guest group's shared quota.
+func TestAdminManagesGuestImageLifecycle(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		fixture := newGuestFixture(t, db, "guest-admin")
+		if err := db.Exec("UPDATE users SET role = ? WHERE id = ?", model.UserRoleAdmin, fixture.user.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		commit := func(key string, size int64) model.Image {
+			t.Helper()
+			reserved, err := fixture.images.ReserveGuestUpload(t.Context(), guestRequest(fixture.storage.ID, key, "2026/01/"+key, size))
+			if err != nil {
+				t.Fatal(err)
+			}
+			committed, err := fixture.images.CommitGuestUpload(t.Context(), reserved.Key, reserved.OperationID, model.ImageExif{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return committed
+		}
+		image := commit("admin-1", 100)
+
+		trashed, err := fixture.images.BeginTrash(t.Context(), image.Key, "trash-1", fixture.grant, 7)
+		if err != nil {
+			t.Fatalf("admin trash of guest image: %v", err)
+		}
+		if trashed.State != model.ImageStateTrash {
+			t.Fatalf("trashed state = %q", trashed.State)
+		}
+		if err := fixture.images.FinishTrash(t.Context(), image.Key, "trash-1"); err != nil {
+			t.Fatal(err)
+		}
+		if used, err := fixture.images.GuestUsedBytes(t.Context()); err != nil || used != 0 {
+			t.Fatalf("guest usage after trash = %d err=%v, want 0", used, err)
+		}
+
+		// While the image sits in the bin, new guest uploads fill the 450-byte
+		// group; restoring the 160-byte image would exceed it.
+		commit("admin-2", 240) // 240 + 40 + 20 = 300
+		if _, err := fixture.images.BeginRestore(t.Context(), image.Key, "restore-full", fixture.grant); !errors.Is(err, model.ErrQuotaExceeded) {
+			t.Fatalf("restore past guest quota = %v, want quota exceeded", err)
+		}
+		if err := db.Exec("UPDATE groups SET capacity_bytes = 0 WHERE id = ?", fixture.guests.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.images.BeginRestore(t.Context(), image.Key, "restore-1", fixture.grant); err != nil {
+			t.Fatalf("admin restore of guest image: %v", err)
+		}
+		restored, err := fixture.images.FinishRestore(t.Context(), image.Key, "restore-1", fixture.grant)
+		if err != nil || restored.State != model.ImageStateActive {
+			t.Fatalf("finish restore = %+v err=%v", restored, err)
+		}
+		if err := fixture.images.FinishRestoreCleanup(t.Context(), image.Key, "restore-1"); err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := fixture.images.BeginTrash(t.Context(), image.Key, "trash-2", fixture.grant, 7); err != nil {
+			t.Fatal(err)
+		}
+		if err := fixture.images.FinishTrash(t.Context(), image.Key, "trash-2"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.images.BeginPurge(t.Context(), image.Key, "purge-1", fixture.grant); err != nil {
+			t.Fatalf("admin purge of guest image: %v", err)
+		}
+		if err := fixture.images.FinishPurge(t.Context(), image.Key, "purge-1"); err != nil {
+			t.Fatal(err)
+		}
+
+		var anchorUsed int64
+		if err := db.Table("users").Select("used_bytes").Where("id = ?", 0).Scan(&anchorUsed).Error; err != nil {
+			t.Fatal(err)
+		}
+		if anchorUsed != 0 {
+			t.Fatalf("guest anchor used_bytes = %d, want 0", anchorUsed)
+		}
+	})
+}
