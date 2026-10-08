@@ -79,7 +79,6 @@ export default defineConfig({
         nav: [
           { text: "首页", link: "/" },
           { text: "文档", link: "/guide/introduction", activeMatch: "^/guide/" },
-          { text: "赞赏", link: "/sponsor" },
         ],
         sidebar: { "/guide/": sidebar(0) },
         editLink: { pattern: `${REPO}/edit/main/website/docs/:path`, text: "在 GitHub 上编辑此页" },
@@ -102,7 +101,6 @@ export default defineConfig({
         nav: [
           { text: "Home", link: "/en/" },
           { text: "Docs", link: "/en/guide/introduction", activeMatch: "^/en/guide/" },
-          { text: "Sponsor", link: "/en/sponsor" },
         ],
         sidebar: { "/en/guide/": sidebar(1) },
         editLink: { pattern: `${REPO}/edit/main/website/docs/:path`, text: "Edit this page on GitHub" },
