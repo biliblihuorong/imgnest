@@ -61,7 +61,14 @@ func trashKey(backend model.Storage, key string) string {
 	return "_trash/" + key
 }
 
-func ensureCopy(ctx context.Context, driver storage.Driver, source, target string, receipt model.ObjectReceipt) error {
+// Cache headers for live objects and recycle-bin copies. Trash copies must not
+// be cached by browsers or CDNs even when the bucket itself is publicly readable.
+const (
+	liveCacheControl  = "public, max-age=31536000, immutable"
+	trashCacheControl = "private, no-store"
+)
+
+func ensureCopy(ctx context.Context, driver storage.Driver, source, target string, receipt model.ObjectReceipt, cacheControl string) error {
 	origin, err := driver.Stat(ctx, source)
 	if errors.Is(err, storage.ErrNotFound) {
 		existing, err := driver.Stat(ctx, target)
@@ -82,7 +89,7 @@ func ensureCopy(ctx context.Context, driver storage.Driver, source, target strin
 	if origin.OwnerID != receipt.OwnerID || origin.Size != receipt.Size {
 		return storage.ErrOwnership
 	}
-	_, err = driver.Copy(ctx, source, target, storage.CopyOptions{OwnerID: receipt.OwnerID, MIME: receipt.MIME, CacheControl: "public, max-age=31536000, immutable"})
+	_, err = driver.Copy(ctx, source, target, storage.CopyOptions{OwnerID: receipt.OwnerID, MIME: receipt.MIME, CacheControl: cacheControl})
 	return err
 }
 
@@ -156,7 +163,7 @@ func (s *ImageService) moveToTrash(ctx context.Context, image model.Image) error
 		if receipt.Location != model.ObjectLocationCloud {
 			continue
 		}
-		if err = ensureCopy(ctx, driver, receipt.Key, trashKey(backend, receipt.Key), receipt); err != nil {
+		if err = ensureCopy(ctx, driver, receipt.Key, trashKey(backend, receipt.Key), receipt, trashCacheControl); err != nil {
 			return storageError(ctx, err)
 		}
 		live, statErr := driver.Stat(ctx, receipt.Key)
@@ -213,7 +220,7 @@ func (s *ImageService) Restore(ctx context.Context, subject TokenSubject, key st
 		if receipt.Location != model.ObjectLocationCloud {
 			continue
 		}
-		if err = ensureCopy(ctx, driver, trashKey(backend, receipt.Key), receipt.Key, receipt); err != nil {
+		if err = ensureCopy(ctx, driver, trashKey(backend, receipt.Key), receipt.Key, receipt, liveCacheControl); err != nil {
 			return s.failRestore(ctx, image, driver, storageError(ctx, err))
 		}
 	}
@@ -353,10 +360,12 @@ func (s *ImageService) recoverOperations(ctx context.Context, startup bool) erro
 		var opErr error
 		switch image.Operation {
 		case model.ImageOperationUpload, model.ImageOperationCleanup:
-			driver, _, driverErr := s.imageDriver(ctx, image)
-			opErr = driverErr
+			// Journal the cleanup before touching storage, so an unreachable
+			// backend leaves a row the periodic sweep keeps retrying.
+			opErr = s.deps.Images.StartCleanup(ctx, image.Key, image.OperationID)
+			var driver storage.Driver
 			if opErr == nil {
-				opErr = s.deps.Images.StartCleanup(ctx, image.Key, image.OperationID)
+				driver, _, opErr = s.imageDriver(ctx, image)
 			}
 			if opErr == nil {
 				opErr = s.cleanupUpload(ctx, image, driver)
@@ -380,21 +389,42 @@ func (s *ImageService) recoverOperations(ctx context.Context, startup bool) erro
 			failures = append(failures, opErr)
 		}
 	}
-	due, err := s.deps.Images.DueTrash(ctx, s.deps.Now().UTC(), 100)
-	if err != nil {
-		failures = append(failures, err)
-	}
-	for _, image := range due {
-		op, opErr := operationID()
-		if opErr == nil {
-			image, opErr = s.deps.Images.BeginSystemPurge(ctx, image.Key, op)
-		}
-		if opErr == nil {
-			opErr = s.purgeObjects(ctx, image)
-		}
-		if opErr != nil {
-			failures = append(failures, opErr)
-		}
+	if !startup {
+		failures = append(failures, s.purgeDueTrash(ctx)...)
 	}
 	return errors.Join(failures...)
+}
+
+// dueTrashBatch bounds one journal read; purgeDueTrash keeps reading batches
+// until the backlog is drained or the sweep's deadline stops it.
+const dueTrashBatch = 100
+
+func (s *ImageService) purgeDueTrash(ctx context.Context) []error {
+	var failures []error
+	for ctx.Err() == nil {
+		due, err := s.deps.Images.DueTrash(ctx, s.deps.Now().UTC(), dueTrashBatch)
+		if err != nil {
+			return append(failures, err)
+		}
+		claimed := 0
+		for _, image := range due {
+			op, opErr := operationID()
+			if opErr == nil {
+				image, opErr = s.deps.Images.BeginSystemPurge(ctx, image.Key, op)
+			}
+			if opErr == nil {
+				claimed++
+				opErr = s.purgeObjects(ctx, image)
+			}
+			if opErr != nil {
+				failures = append(failures, opErr)
+			}
+		}
+		// A claimed purge leaves the due list even when storage fails, so a
+		// full batch with claims makes progress; anything else ends the pass.
+		if len(due) < dueTrashBatch || claimed == 0 {
+			break
+		}
+	}
+	return failures
 }

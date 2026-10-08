@@ -36,6 +36,8 @@ FROM ghcr.io/biliblihuorong/imgnest-vips:8.18.6-r1@sha256:8d44c0cbea219cdc09d7e5
 RUN useradd --system --uid 10001 --user-group --no-create-home --shell /usr/sbin/nologin imgnest &&     mkdir -p /app/data && chown imgnest:imgnest /app/data
 COPY --from=build /out/imgnest /usr/local/bin/imgnest
 COPY --chmod=0755 deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+# Restrict ImageMagick to the BMP reader libvips needs, with resource caps.
+COPY --chmod=0644 deploy/imagemagick-policy.xml /etc/ImageMagick-6/policy.xml
 # Fail the build rather than the first upload if any library is unresolved.
 RUN if ldd /usr/local/bin/imgnest | grep 'not found'; then exit 1; fi
 ENV MALLOC_ARENA_MAX=2 \

@@ -315,7 +315,7 @@ func TestGalleryIsPublicAndEmptyWhenClosed(t *testing.T) {
 		t.Fatalf("closed gallery page = %s", data)
 	}
 
-	images.gallery = service.GalleryPage{Items: []service.GalleryItem{{ImageView: service.ImageView{ID: 4, Key: "k"}, Uploader: "alice"}}, Total: 1}
+	images.gallery = service.GalleryPage{Items: []service.GalleryItem{{ID: 4, Uploader: "alice"}}, Total: 1}
 	response = callAlbum(t, router, http.MethodGet, "/api/gallery", "", "")
 	_, data = decodeEnvelope(t, response)
 	if !strings.Contains(string(data), `"uploader":"alice"`) {

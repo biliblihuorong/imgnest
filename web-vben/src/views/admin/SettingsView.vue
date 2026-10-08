@@ -45,6 +45,7 @@ const model = reactive<AdminSettings>({
   registration_enabled: false,
   guest_upload_enabled: false,
   gallery_enabled: false,
+  gallery_public_albums_only: false,
   api_enabled: false,
   trash_days: 7,
   guest_group_id: 0,
@@ -130,7 +131,7 @@ const rules = computed<FormRules>(() => ({
   ],
 }));
 
-/** 保存全量八字段（后端按 PATCH 语义处理），成功后回读刷新。 */
+/** 保存全量十字段（后端按 PATCH 语义处理），成功后回读刷新。 */
 async function save(): Promise<void> {
   if (controlsDisabled.value) {
     return;
@@ -218,6 +219,18 @@ async function save(): Promise<void> {
           <div class="field">
             <NSwitch v-model:value="model.gallery_enabled" :disabled="controlsDisabled" />
             <p class="field-hint">{{ t("admin.settings.galleryHint") }}</p>
+          </div>
+        </NFormItem>
+        <NFormItem
+          :label="t('admin.settings.galleryPublicAlbumsOnly')"
+          path="gallery_public_albums_only"
+        >
+          <div class="field">
+            <NSwitch
+              v-model:value="model.gallery_public_albums_only"
+              :disabled="controlsDisabled"
+            />
+            <p class="field-hint">{{ t("admin.settings.galleryPublicAlbumsOnlyHint") }}</p>
           </div>
         </NFormItem>
         <NFormItem :label="t('admin.settings.api')" path="api_enabled">

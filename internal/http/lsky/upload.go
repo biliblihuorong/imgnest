@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/http/reqbody"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
@@ -127,7 +128,7 @@ func (h *Handler) preupload(ctx context.Context, c *gin.Context, guest bool, pol
 // checkUploadFields validates size, rate limit and album ownership.
 func (h *Handler) checkUploadFields(ctx context.Context, guest bool, userID uint64, ip string, fields uploadFields, limits service.UploadLimits) error {
 	if guest {
-		if !h.allow("v1upload:guest:"+ip, limits.PerMinute) {
+		if !h.allow("v1upload:guest:"+ratelimit.ClientKey(ip), limits.PerMinute) {
 			return errRateLimited
 		}
 		if fields.albumID != 0 {

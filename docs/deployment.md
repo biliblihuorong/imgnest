@@ -62,6 +62,17 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest imgnest init-local --b
 - 健康检查为 `GET /healthz`，镜像已内置 `HEALTHCHECK`。
 - 运行参数沿用规范 3.1：`LD_PRELOAD` jemalloc、`MALLOC_ARENA_MAX=2`。
 
+## S3 / B2 存储的桶权限
+
+图片直链由存储的 `base_url` 直接指向桶，所以桶通常是公开读的。删除图片时，对象会先复制到同一个桶的 `_trash/` 前缀下，保留期（默认 7 天）结束后才物理删除。**必须让 `_trash/` 前缀拒绝匿名读取**，否则已删除的图片在保留期内仍能通过 `{base_url}/_trash/{原路径}` 打开：
+
+- 公开桶（S3、R2、COS）：桶策略里对 `_trash/*` 加一条拒绝匿名 `GetObject` 的规则，或者只对图片所在前缀授予公开读。
+- B2：B2 的公开桶不能按前缀限制，建议把桶设为私有，再通过 CDN（例如 Cloudflare）回源并在 CDN 上拒绝 `/_trash/` 路径。
+
+回收站副本写入时带 `Cache-Control: private, no-store`，不会被 CDN 缓存；恢复后的对象重新使用长期缓存头。
+
+已经被浏览器或 CDN 缓存的直链不会因为删除而失效（直链使用一年期 `immutable` 缓存）。需要立即下线时，请在 CDN 上手动清除对应 URL 的缓存。
+
 ## 自行构建
 
 ```bash

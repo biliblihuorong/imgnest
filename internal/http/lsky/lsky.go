@@ -7,10 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -20,6 +21,9 @@ type Options struct {
 	MaxRequestBytes int64
 	MaxConcurrent   int
 	Timeout         time.Duration
+	// TrustedProxies lists the addresses or CIDRs whose X-Forwarded-Proto is
+	// honoured when building pagination links; others are ignored.
+	TrustedProxies []string
 }
 
 // Dependencies bind the v1 handlers to the shared services.
@@ -44,13 +48,12 @@ type Handler struct {
 	now     func() time.Time
 	options Options
 	slots   chan struct{}
-	mu      sync.Mutex
-	limits  map[string]window
-}
-
-type window struct {
-	until time.Time
-	count int
+	limits  *ratelimit.Limiter
+	// logins counts failed password exchanges per account, because the v1
+	// token route cannot carry the native captcha.
+	logins *ratelimit.Limiter
+	// proxies are the parsed Options.TrustedProxies.
+	proxies []netip.Prefix
 }
 
 const identityKey = "lsky_identity"
@@ -72,10 +75,17 @@ func NewHandler(ctx context.Context, deps Dependencies) (*Handler, error) {
 	if deps.Options.Timeout <= 0 {
 		deps.Options.Timeout = 5 * time.Minute
 	}
+	proxies, err := parseProxies(deps.Options.TrustedProxies)
+	if err != nil {
+		return nil, fmt.Errorf("create lsky handler: %w", err)
+	}
 	return &Handler{
-		users: deps.Users, tokens: deps.Tokens, images: deps.Images,
+		proxies: proxies,
+		users:   deps.Users, tokens: deps.Tokens, images: deps.Images,
 		albums: deps.Albums, lsky: deps.Lsky, now: deps.Now, options: deps.Options,
-		slots: make(chan struct{}, deps.Options.MaxConcurrent), limits: make(map[string]window),
+		slots:  make(chan struct{}, deps.Options.MaxConcurrent),
+		limits: ratelimit.New(deps.Now, time.Minute, ratelimit.DefaultCapacity),
+		logins: ratelimit.New(deps.Now, loginFailureWindow, ratelimit.DefaultCapacity),
 	}, nil
 }
 
@@ -166,9 +176,15 @@ func currentIdentity(c *gin.Context) *service.Identity {
 	return id
 }
 
+// Failed v1 password exchanges per account before the account is paused.
+const (
+	loginFailureLimit  = 10
+	loginFailureWindow = 15 * time.Minute
+)
+
 // tokenThrottle caps token issuance at three attempts per IP per minute.
 func (h *Handler) tokenThrottle(c *gin.Context) {
-	if !h.allow("v1tokens:"+c.ClientIP(), 3) {
+	if !h.allow("v1tokens:"+ratelimit.ClientKey(c.ClientIP()), 3) {
 		c.JSON(429, failure("Too Many Attempts."))
 		c.Abort()
 	}
@@ -176,27 +192,40 @@ func (h *Handler) tokenThrottle(c *gin.Context) {
 
 // allow implements the native fixed-window limiter semantics.
 func (h *Handler) allow(key string, limit int) bool {
-	if limit <= 0 {
-		return true
-	}
-	now := h.now()
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	entry, exists := h.limits[key]
-	if !exists || !now.Before(entry.until) {
-		for other, current := range h.limits {
-			if !now.Before(current.until) {
-				delete(h.limits, other)
-			}
+	return h.limits.Allow(key, limit)
+}
+
+func parseProxies(values []string) ([]netip.Prefix, error) {
+	proxies := make([]netip.Prefix, 0, len(values))
+	for _, value := range values {
+		if addr, err := netip.ParseAddr(value); err == nil {
+			addr = addr.Unmap()
+			proxies = append(proxies, netip.PrefixFrom(addr, addr.BitLen()))
+			continue
 		}
-		if len(h.limits) >= 4096 {
-			return false
+		prefix, err := netip.ParsePrefix(value)
+		if err != nil {
+			return nil, errors.New("invalid trusted proxy")
 		}
-		entry = window{until: now.Add(time.Minute)}
+		proxies = append(proxies, prefix.Masked())
 	}
-	entry.count++
-	h.limits[key] = entry
-	return entry.count <= limit
+	return proxies, nil
+}
+
+// forwardedProto returns X-Forwarded-Proto only when the direct peer is a
+// configured trusted proxy, matching the router's client-IP policy.
+func (h *Handler) forwardedProto(c *gin.Context) string {
+	peer, err := netip.ParseAddr(c.RemoteIP())
+	if err != nil {
+		return ""
+	}
+	peer = peer.Unmap()
+	for _, prefix := range h.proxies {
+		if prefix.Contains(peer) {
+			return c.GetHeader("X-Forwarded-Proto")
+		}
+	}
+	return ""
 }
 
 // envelope is the v1 response shell. Empty data is always an object.

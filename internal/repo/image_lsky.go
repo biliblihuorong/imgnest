@@ -36,7 +36,7 @@ func (r *ImageRepository) ListV1(ctx context.Context, ownerID uint64, page, size
 		if keyword != "" {
 			pattern := "%" + escapeLike(keyword) + "%"
 			query = query.Where(
-				"(origin_name LIKE ? ESCAPE '\\' OR (path || '.' || ext) LIKE ? ESCAPE '\\')",
+				"(LOWER(origin_name) LIKE LOWER(?) ESCAPE '\\' OR LOWER(path || '.' || ext) LIKE LOWER(?) ESCAPE '\\')",
 				pattern, pattern,
 			)
 		}

@@ -22,7 +22,7 @@ let pinia: Pinia;
 
 function makeItem(overrides: Parameters<typeof makeImage>[0] = {}, uploader?: string): GalleryItem {
   const base = makeImage(overrides);
-  return uploader === undefined ? base : { ...base, uploader };
+  return { ...base, uploader: uploader ?? "" };
 }
 
 function makePage(overrides: Partial<GalleryPage> = {}): GalleryPage {

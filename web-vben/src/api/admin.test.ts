@@ -100,6 +100,7 @@ const settingsFixture: AdminSettings = {
   registration_enabled: true,
   guest_upload_enabled: false,
   gallery_enabled: true,
+  gallery_public_albums_only: false,
   trash_days: 7,
   api_enabled: true,
   guest_group_id: 2,

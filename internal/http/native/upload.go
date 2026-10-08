@@ -10,7 +10,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strconv"
-	"time"
 )
 
 var errUploadTooLarge = errors.New("upload exceeds size limit")
@@ -193,26 +192,5 @@ func uploadReadError(ctx context.Context, err error) error {
 	return service.ErrInvalidInput
 }
 func (h *imageHandler) allowUpload(userID uint64, perMinute int) bool {
-	if perMinute <= 0 {
-		return true
-	}
-	key := "upload:" + strconv.FormatUint(userID, 10)
-	now := h.auth.now()
-	h.auth.mu.Lock()
-	defer h.auth.mu.Unlock()
-	entry := h.auth.limits[key]
-	if !now.Before(entry.until) {
-		for other, current := range h.auth.limits {
-			if !now.Before(current.until) {
-				delete(h.auth.limits, other)
-			}
-		}
-		if len(h.auth.limits) >= 4096 {
-			return false
-		}
-		entry = window{until: now.Add(time.Minute)}
-	}
-	entry.count++
-	h.auth.limits[key] = entry
-	return entry.count <= perMinute
+	return h.auth.limits.Allow("upload:"+strconv.FormatUint(userID, 10), perMinute)
 }

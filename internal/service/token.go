@@ -141,6 +141,9 @@ func (s *TokenService) Issue(ctx context.Context, subject TokenSubject, input To
 	}, nil
 }
 
+// tokenTouchInterval bounds how often a token's last-used time is rewritten.
+const tokenTouchInterval = time.Minute
+
 // Authenticate verifies a bearer secret and records its last-used UTC time.
 func (s *TokenService) Authenticate(ctx context.Context, raw string) (Identity, error) {
 	if err := ctx.Err(); err != nil {
@@ -177,11 +180,15 @@ func (s *TokenService) Authenticate(ctx context.Context, raw string) (Identity, 
 	if err != nil {
 		return Identity{}, fmt.Errorf("find bearer owner: %w", err)
 	}
-	if err := s.tokens.TouchToken(ctx, token.ID, now); err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return Identity{}, ErrUnauthenticated
+	// last_used_at is advisory; refreshing it at most once per minute keeps a
+	// page of previews from turning into one database write per image.
+	if token.LastUsedAt == nil || now.Sub(token.LastUsedAt.UTC()) >= tokenTouchInterval {
+		if err := s.tokens.TouchToken(ctx, token.ID, now); err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return Identity{}, ErrUnauthenticated
+			}
+			return Identity{}, fmt.Errorf("touch bearer token: %w", err)
 		}
-		return Identity{}, fmt.Errorf("touch bearer token: %w", err)
 	}
 	view := userView(user)
 	config, err := s.settings.AvatarConfig(ctx)

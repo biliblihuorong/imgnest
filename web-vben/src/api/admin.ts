@@ -192,12 +192,14 @@ export interface PolicyPreviewResult {
 /** 站点头像服务商（与 openapi AdminSettings.avatar_provider 枚举一致）。 */
 export type AvatarProvider = "weavatar" | "gravatar";
 
-/** 管理端站点设置：契约 settings 九字段。 */
+/** 管理端站点设置：契约 settings 十字段。 */
 export interface AdminSettings {
   site_name: string;
   registration_enabled: boolean;
   guest_upload_enabled: boolean;
   gallery_enabled: boolean;
+  /** 开启后画廊只展示公开相册里的公开图片。 */
+  gallery_public_albums_only: boolean;
   /** 回收站保留天数。 */
   trash_days: number;
   /** /api/v1 蓝空兼容层总开关。 */

@@ -215,11 +215,21 @@ type ImagePage struct {
 	Size   int             `json:"size"`
 }
 
-// GalleryItem is one public gallery entry: an image view plus the uploader's
-// username. ImageView already excludes EXIF, addresses, and internals.
+// GalleryItem is one public gallery entry with the uploader's username. It is
+// deliberately narrower than ImageView: anonymous visitors never see owner,
+// album, rule, storage or content-hash fields, nor EXIF or addresses.
 type GalleryItem struct {
-	ImageView
-	Uploader string `json:"uploader"`
+	ID        uint64     `json:"id"`
+	Name      string     `json:"name"`
+	Ext       string     `json:"ext"`
+	MIME      string     `json:"mime"`
+	Size      int64      `json:"size"`
+	Width     int        `json:"width"`
+	Height    int        `json:"height"`
+	Frames    int        `json:"frames"`
+	Links     ImageLinks `json:"links"`
+	CreatedAt time.Time  `json:"created_at"`
+	Uploader  string     `json:"uploader"`
 }
 
 // GalleryPage is the public gallery listing.

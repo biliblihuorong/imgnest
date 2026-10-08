@@ -933,7 +933,9 @@ paths:
         seeded guest anchor appears as `guest`). When the site switch
         `gallery_enabled` is closed — or its setting cannot be read — the
         endpoint answers the same well-formed empty page so switch state
-        cannot be probed. Responses never contain EXIF, GPS, IP addresses,
+        cannot be probed. Images of disabled accounts are hidden. With
+        `gallery_public_albums_only` on, only images inside public albums
+        are listed. Responses never contain EXIF, GPS, IP addresses,
         or email addresses.
       security: []
       parameters:
@@ -1028,8 +1030,11 @@ paths:
       description: |
         Lsky Pro compatible token endpoint. The credentials may arrive as a
         JSON object or a form body. Issuance is throttled to three attempts
-        per client address per minute; the fourth attempt within a window is
-        rejected with 429. Wrong credentials stay a business failure (HTTP 200
+        per client address per minute (IPv6 clients per /64); the fourth
+        attempt within a window is rejected with 429. Because this route
+        cannot carry the native captcha, an account is also paused with 429
+        after ten wrong passwords within fifteen minutes, from any address.
+        Wrong credentials stay a business failure (HTTP 200
         with `status: false`) so existing clients only branch on `status`.
         The returned plaintext token is shown exactly once.
       security: []
@@ -2378,12 +2383,13 @@ components:
     AdminSettings:
       type: object
       additionalProperties: false
-      required: [site_name, registration_enabled, guest_upload_enabled, gallery_enabled, trash_days, api_enabled, guest_group_id, default_group_id, avatar_provider]
+      required: [site_name, registration_enabled, guest_upload_enabled, gallery_enabled, gallery_public_albums_only, trash_days, api_enabled, guest_group_id, default_group_id, avatar_provider]
       properties:
         site_name: {type: string, minLength: 1, maxLength: 100}
         registration_enabled: {type: boolean}
         guest_upload_enabled: {type: boolean}
         gallery_enabled: {type: boolean}
+        gallery_public_albums_only: {type: boolean, description: Limits the gallery to public images inside public albums; defaults to false.}
         trash_days: {type: integer, minimum: 0, maximum: 36500}
         api_enabled: {type: boolean, description: Master switch of the Lsky-compatible /api/v1 layer.}
         guest_group_id: {type: integer, format: int64, minimum: 0, description: Zero selects the is_guest group.}
@@ -2401,10 +2407,11 @@ components:
         registration_enabled: {type: boolean}
         guest_upload_enabled: {type: boolean}
         gallery_enabled: {type: boolean}
+        gallery_public_albums_only: {type: boolean}
         trash_days: {type: integer, minimum: 0, maximum: 36500}
         api_enabled: {type: boolean}
-        guest_group_id: {type: integer, format: int64, minimum: 0}
-        default_group_id: {$ref: '#/components/schemas/ID'}
+        guest_group_id: {type: integer, format: int64, minimum: 0, description: Nonzero must name the is_guest group, otherwise 400/10001.}
+        default_group_id: {allOf: [{$ref: '#/components/schemas/ID'}], description: Must name an ordinary (non-guest) group, otherwise 400/10001.}
         avatar_provider: {type: string, enum: [weavatar, gravatar]}
     AdminUserPageEnvelope:
       type: object
@@ -2639,7 +2646,7 @@ components:
         id: {$ref: '#/components/schemas/ID'}
         name: {type: string, minLength: 1, maxLength: 100}
         intro: {type: string, maxLength: 500}
-        is_public: {type: boolean, description: Stored for a later gallery mode; this milestone keeps it write-only metadata.}
+        is_public: {type: boolean, description: Marks the album as public; with the `gallery_public_albums_only` setting the gallery lists only public images inside public albums.}
         cover_image_id: {type: integer, format: int64, minimum: 0, description: Zero when no cover is selected; otherwise one of the owner's active images.}
         image_count: {type: integer, format: int64, minimum: 0, description: Live count of active images in the album, recomputed on every read.}
         cover_thumb_url: {type: string, description: Local /t/ preview of the cover image, or an empty string when there is no cover, the cover image is gone, or it carries no thumbnail.}
@@ -2676,36 +2683,18 @@ components:
     GalleryItem:
       type: object
       additionalProperties: false
-      description: One public gallery entry — the same flat shape as ImageView plus the uploader's username; never contains EXIF, GPS, IP addresses, or emails.
-      required: [id, key, user_id, album_id, policy_id, storage_id, name, ext, mime, size, webp_size, charged_bytes, width, height, frames, has_original, has_webp, has_thumb, scrubbed, is_public, md5, sha1, src_md5, links, local_thumb_url, deleted_at, purge_at, created_at, uploader]
+      description: One public gallery entry. Deliberately narrower than ImageView — no owner, album, rule, storage, key or content-hash fields — and never contains EXIF, GPS, IP addresses, or emails.
+      required: [id, name, ext, mime, size, width, height, frames, links, created_at, uploader]
       properties:
         id: {$ref: '#/components/schemas/ID'}
-        key: {type: string}
-        user_id: {$ref: '#/components/schemas/ID'}
-        album_id: {type: integer, format: int64, minimum: 0}
-        policy_id: {$ref: '#/components/schemas/ID'}
-        storage_id: {$ref: '#/components/schemas/ID'}
         name: {type: string}
         ext: {type: string}
         mime: {type: string}
         size: {type: integer, format: int64, minimum: 0}
-        webp_size: {type: integer, format: int64, minimum: 0}
-        charged_bytes: {type: integer, format: int64, minimum: 0}
         width: {type: integer, minimum: 1}
         height: {type: integer, minimum: 1}
         frames: {type: integer, minimum: 1}
-        has_original: {type: boolean}
-        has_webp: {type: boolean}
-        has_thumb: {type: boolean}
-        scrubbed: {type: boolean}
-        is_public: {type: boolean}
-        md5: {type: string}
-        sha1: {type: string}
-        src_md5: {type: string}
         links: {$ref: '#/components/schemas/ImageLinks'}
-        local_thumb_url: {type: string}
-        deleted_at: {$ref: '#/components/schemas/NullableTimestamp'}
-        purge_at: {$ref: '#/components/schemas/NullableTimestamp'}
         created_at: {$ref: '#/components/schemas/Timestamp'}
         uploader: {type: string, description: Uploader's username; the seeded guest anchor appears as `guest`.}
     GalleryPage:

@@ -217,8 +217,9 @@ func (s *ImageService) listSearch(ctx context.Context, subject TokenSubject, que
 		return ImagePage{}, fmt.Errorf("search images: %w", err)
 	}
 	views := make([]ImageView, 0, len(images))
+	build := s.viewer()
 	for _, im := range images {
-		view, e := s.view(ctx, im)
+		view, e := build(ctx, im)
 		if e != nil {
 			return ImagePage{}, e
 		}

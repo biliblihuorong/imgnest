@@ -155,7 +155,7 @@ func TestImageGalleryPagesPublicUploaders(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		rows, total, err := fixture.images.ListGallery(t.Context(), 1, 40)
+		rows, total, err := fixture.images.ListGallery(t.Context(), 1, 40, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -177,12 +177,50 @@ func TestImageGalleryPagesPublicUploaders(t *testing.T) {
 			t.Fatalf("gallery order or uploaders = [%+v %+v]", rows[1], rows[2])
 		}
 
-		paged, pageTotal, err := fixture.images.ListGallery(t.Context(), 2, 1)
+		paged, pageTotal, err := fixture.images.ListGallery(t.Context(), 2, 1, false)
 		if err != nil || pageTotal != 3 || len(paged) != 1 || paged[0].ID != second.ID {
 			t.Fatalf("gallery page 2 total=%d rows=%d err=%v", pageTotal, len(paged), err)
 		}
-		if _, _, err := fixture.images.ListGallery(t.Context(), 0, 40); !errors.Is(err, model.ErrInvalidInput) {
+		if _, _, err := fixture.images.ListGallery(t.Context(), 0, 40, false); !errors.Is(err, model.ErrInvalidInput) {
 			t.Fatalf("page 0 accepted: %v", err)
+		}
+	})
+}
+
+func TestImageGalleryHidesDisabledAccountsAndPrivateAlbums(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		fixture := newImageFixture(t, db, "galleryscope")
+		loose := reserveAndCommit(t, fixture, "scope-loose", "2026/01/scope-loose")
+		inPublic := reserveAndCommit(t, fixture, "scope-public", "2026/01/scope-public")
+		inPrivate := reserveAndCommit(t, fixture, "scope-private", "2026/01/scope-private")
+		shown := model.Album{UserID: fixture.user.ID, Name: "shown", IsPublic: true}
+		hidden := model.Album{UserID: fixture.user.ID, Name: "hidden"}
+		for _, album := range []*model.Album{&shown, &hidden} {
+			if err := db.Create(album).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := db.Exec("UPDATE images SET is_public = ? WHERE id IN ?", true, []uint64{loose.ID, inPublic.ID, inPrivate.ID}).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Exec("UPDATE images SET album_id = ? WHERE id = ?", shown.ID, inPublic.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Exec("UPDATE images SET album_id = ? WHERE id = ?", hidden.ID, inPrivate.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		rows, total, err := fixture.images.ListGallery(t.Context(), 1, 40, true)
+		if err != nil || total != 1 || len(rows) != 1 || rows[0].ID != inPublic.ID {
+			t.Fatalf("public-albums gallery total=%d rows=%v err=%v", total, rows, err)
+		}
+		if _, total, err = fixture.images.ListGallery(t.Context(), 1, 40, false); err != nil || total != 3 {
+			t.Fatalf("full gallery total=%d err=%v", total, err)
+		}
+		if err := db.Exec("UPDATE users SET status = ? WHERE id = ?", model.UserStatusDisabled, fixture.user.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if _, total, err = fixture.images.ListGallery(t.Context(), 1, 40, false); err != nil || total != 0 {
+			t.Fatalf("disabled account still in gallery: total=%d err=%v", total, err)
 		}
 	})
 }
