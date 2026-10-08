@@ -1081,8 +1081,11 @@ export interface paths {
          * Change a backend's name, base URL, switch, or configuration
          * @description Requires the administrator role. A supplied `config` replaces the
          *     stored configuration wholesale (re-sealed for S3) and must pass the
-         *     connectivity probe before the change is persisted. The configuration
-         *     is never part of any response.
+         *     connectivity probe before the change is persisted. Once any image
+         *     lives on the backend, a `config` that changes where objects are kept
+         *     (local `root`; S3 `endpoint`, `region` or `bucket`) returns 409/30009;
+         *     credentials and path style may still change. The configuration is
+         *     never part of any response.
          */
         patch: operations["adminPatchStorage"];
         trace?: never;
@@ -4278,6 +4281,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["AdminForbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["StillReferenced"];
             500: components["responses"]["InternalError"];
             502: components["responses"]["StorageFailed"];
         };

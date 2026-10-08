@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/http/lsky"
+	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 )
 
 // A multipart token request is bounded like the JSON one: an anonymous caller
@@ -85,4 +86,28 @@ func TestV1UploadReadTimeout(t *testing.T) {
 	if !strings.Contains(w.Body.String(), "请求超时或已取消") {
 		t.Fatalf("stalled upload response = %s", w.Body.String())
 	}
+}
+
+// The v1 upload counts against the same per-account limiter as the native
+// API, so alternating between them cannot double the group's quota.
+func TestV1UploadSharesNativeRateLimit(t *testing.T) {
+	fixture := newV1Fixture(t, "sqlite")
+	if err := fixture.db.Exec("UPDATE groups SET upload_per_min = 1 WHERE id = ?", fixture.alice.GroupID).Error; err != nil {
+		t.Fatal(err)
+	}
+	token := fixture.login(t)
+	shared := ratelimit.New(func() time.Time { return fixedNow }, time.Minute, ratelimit.DefaultCapacity)
+	// The native API already used this minute's only upload.
+	if !shared.Allow(ratelimit.UploadKey(fixture.alice.ID), 1) {
+		t.Fatal("fresh limiter refused the first upload")
+	}
+	handler, err := lsky.NewHandler(t.Context(), lsky.Dependencies{
+		Users: fixture.users, Tokens: fixture.tokens, Images: fixture.images, Albums: fixture.albums, Lsky: fixture.lsky,
+		Now: func() time.Time { return fixedNow }, Options: lsky.Options{Uploads: shared},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.router = ginRouter(t, handler)
+	mustStatus(t, fixture.upload(t, "shared.png", pngBytes(t, 4, 4), token), 429)
 }

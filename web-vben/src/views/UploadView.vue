@@ -22,7 +22,8 @@ import UploadQueueList from "@/components/upload/UploadQueueList.vue";
 import { useUploadQueue } from "@/components/upload/useUploadQueue";
 import { buildLinkText, resolveImageLink, type LinkFormat, type LinkVersion } from "@/components/upload/linkText";
 import { listPolicies } from "@/api/policies";
-import { listAlbums, type AlbumView } from "@/api/albums";
+import type { AlbumView } from "@/api/albums";
+import { listAllAlbums } from "@/api/allAlbums";
 import type { PolicySummary } from "@/api/types";
 import { MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES } from "@/api/upload";
 import { copyText } from "@/lib/clipboard";
@@ -143,8 +144,8 @@ async function loadAlbums() {
   albumsLoading.value = true;
   albumsFailed.value = false;
   try {
-    const data = await listAlbums({ page: 1, size: 100 });
-    if (active) albums.value = data.items;
+    const all = await listAllAlbums();
+    if (active) albums.value = all;
   } catch {
     if (active) albumsFailed.value = true;
   } finally {

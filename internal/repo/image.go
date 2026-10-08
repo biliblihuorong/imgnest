@@ -65,7 +65,7 @@ func (r *ImageRepository) ReserveUpload(ctx context.Context, req model.UploadRes
 			return model.ErrForbidden
 		}
 		image.PolicyID = policy.ID
-		if err := checkUploadGroup(image, group); err != nil {
+		if err := checkUploadGroup(image, req.SourceExt, group); err != nil {
 			return err
 		}
 		if image.AlbumID != 0 {
@@ -188,7 +188,7 @@ func (r *ImageRepository) CommitUpload(ctx context.Context, key, op string, exif
 		if backend.ID != image.StorageID {
 			return model.ErrForbidden
 		}
-		if err := checkUploadGroup(*image, group); err != nil {
+		if err := checkUploadGroup(*image, "", group); err != nil {
 			return err
 		}
 		if err := checkQuota(tx, owner, 0); err != nil {
@@ -507,7 +507,10 @@ func (r *ImageRepository) withImage(ctx context.Context, key string, grant *mode
 
 func preparedImage(req model.UploadReservation) (model.Image, error) {
 	image := req.Image
-	invalidIdentity := image.Key == "" || image.OperationID == "" || image.StorageID == 0
+	// A WebP-only image must name its source format so the group's allowed
+	// formats can be checked against what was actually uploaded.
+	invalidIdentity := image.Key == "" || image.OperationID == "" || image.StorageID == 0 ||
+		(!image.HasOriginal && req.SourceExt == "")
 	invalidSize := image.Size < 0 || image.WebPSize < 0 || image.ThumbBytes < 0
 	invalidDimensions := image.Width < 1 || image.Height < 1 || image.Frames < 1
 	if invalidIdentity || invalidSize || invalidDimensions {
@@ -631,7 +634,12 @@ func objectDigest(value string) (string, error) {
 	return strings.ToLower(value), nil
 }
 
-func checkUploadGroup(image model.Image, group model.Group) error {
+// checkUploadGroup applies the group's format and size limits. Allowed formats
+// describe what users may upload, so they are checked against the source
+// format: the stored extension when the original is kept, otherwise sourceExt.
+// A WebP-only image re-checked at commit has no source format on record; the
+// reservation already checked it.
+func checkUploadGroup(image model.Image, sourceExt string, group model.Group) error {
 	supported := []string{"jpg", "png", "gif", "webp", "bmp", "tif", "tiff", "heic", "avif"}
 	valid := false
 	for _, ext := range supported {
@@ -643,10 +651,14 @@ func checkUploadGroup(image model.Image, group model.Group) error {
 	if !valid {
 		return model.ErrUnsupportedFormat
 	}
-	if len(group.AllowedExts) > 0 {
+	uploaded := image.Ext
+	if !image.HasOriginal {
+		uploaded = sourceExt
+	}
+	if len(group.AllowedExts) > 0 && uploaded != "" {
 		allowed := false
 		for _, ext := range group.AllowedExts {
-			if image.Ext == strings.ToLower(ext) {
+			if uploaded == strings.ToLower(ext) {
 				allowed = true
 				break
 			}

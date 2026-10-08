@@ -3,13 +3,13 @@ package native
 import (
 	"context"
 	"errors"
+	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/http/reqbody"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 	"io"
 	"mime/multipart"
 	"net/http"
-	"strconv"
 )
 
 var errUploadTooLarge = errors.New("upload exceeds size limit")
@@ -192,5 +192,5 @@ func uploadReadError(ctx context.Context, err error) error {
 	return service.ErrInvalidInput
 }
 func (h *imageHandler) allowUpload(userID uint64, perMinute int) bool {
-	return h.auth.limits.Allow("upload:"+strconv.FormatUint(userID, 10), perMinute)
+	return h.options.Uploads.Allow(ratelimit.UploadKey(userID), perMinute)
 }

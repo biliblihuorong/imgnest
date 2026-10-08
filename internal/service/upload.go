@@ -56,7 +56,7 @@ func (s *ImageService) actor(ctx context.Context, subject TokenSubject) (model.U
 }
 
 func (s *ImageService) grant(subject TokenSubject) model.TokenGrant {
-	return model.TokenGrant{UserID: subject.userID, ExpectedPasswordHash: subject.passwordHash, SourceTokenID: subject.sourceTokenID, At: s.deps.Now().UTC()}
+	return model.TokenGrant{UserID: subject.userID, ExpectedPasswordHash: subject.passwordHash, SourceTokenID: subject.sourceTokenID, At: s.deps.Now().UTC(), Clock: s.deps.Now}
 }
 
 // Preflight validates the actor and selected rule before a multipart body is read.
@@ -194,7 +194,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 		result.Thumbnail = nil
 	}
 	primary := original
-	storedExt, storedMIME := info.Ext, info.MIME
+	sourceExt, storedExt, storedMIME := info.Ext, info.Ext, info.MIME
 	if !hasOriginal {
 		primary = webp
 		storedExt = "webp"
@@ -262,7 +262,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 			}
 		}
 		var reservation model.Image
-		reservation, err = plan.reserve(ctx, model.UploadReservation{Image: image, Objects: manifests})
+		reservation, err = plan.reserve(ctx, model.UploadReservation{Image: image, Objects: manifests, SourceExt: sourceExt})
 		if errors.Is(err, ErrPathConflict) {
 			continue
 		}

@@ -151,12 +151,16 @@ func (f *adminGroupsFake) DeleteGroup(_ context.Context, id uint64) error {
 type adminRefsFake struct {
 	storagePolicies int64
 	policyImages    int64
+	storageImages   int64
 	policyDefaults  int64
 	settingRefs     []string
 }
 
 func (f adminRefsFake) CountPoliciesForStorage(context.Context, uint64) (int64, error) {
 	return f.storagePolicies, nil
+}
+func (f adminRefsFake) CountImagesForStorage(context.Context, uint64) (int64, error) {
+	return f.storageImages, nil
 }
 func (f adminRefsFake) CountImagesForPolicy(context.Context, uint64) (int64, error) {
 	return f.policyImages, nil
@@ -1180,3 +1184,30 @@ func TestAdminPurgeAllCountsAndReportsFailures(t *testing.T) {
 func ptr[T any](value T) *T { return &value }
 
 func (f *adminStoragesFake) updatedAnything() bool { return len(f.updates) != 0 || len(f.deleted) != 0 }
+
+func TestAdminPatchStorageKeepsLocationOnceImagesExist(t *testing.T) {
+	svc, _, _, refs, storages, _, _ := adminServiceFixture(t, AdminDependencies{})
+	refs.storageImages = 3
+	moved := json.RawMessage(`{"root":"elsewhere"}`)
+	if _, err := svc.PatchStorage(t.Context(), 6, StoragePatch{Config: moved}); !errors.Is(err, ErrStillReferenced) {
+		t.Fatalf("moving a local storage with images = %v, want still referenced", err)
+	}
+	if len(storages.updates) != 0 {
+		t.Fatal("refused move reached persistence")
+	}
+	// The same directory spelled differently is not a move.
+	same := json.RawMessage(`{"root":"./data/"}`)
+	if _, err := svc.PatchStorage(t.Context(), 6, StoragePatch{Config: same}); err != nil {
+		t.Fatalf("unchanged local root refused: %v", err)
+	}
+	// The stored S3 envelope cannot be opened by the fake codec, so the move
+	// check fails closed rather than guessing.
+	cloud := json.RawMessage(`{"endpoint":"https://s3.test","bucket":"other","secret_access_key":"x"}`)
+	if _, err := svc.PatchStorage(t.Context(), 5, StoragePatch{Config: cloud}); !errors.Is(err, ErrStillReferenced) {
+		t.Fatalf("unverifiable S3 change = %v, want still referenced", err)
+	}
+	refs.storageImages = 0
+	if _, err := svc.PatchStorage(t.Context(), 6, StoragePatch{Config: moved}); err != nil {
+		t.Fatalf("empty storage move refused: %v", err)
+	}
+}

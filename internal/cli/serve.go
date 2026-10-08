@@ -12,6 +12,7 @@ import (
 	"github.com/biliblihuorong/imgnest/internal/config"
 	httpapi "github.com/biliblihuorong/imgnest/internal/http"
 	"github.com/biliblihuorong/imgnest/internal/http/lsky"
+	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/migrate"
 	"github.com/biliblihuorong/imgnest/internal/pathtpl"
 	"github.com/biliblihuorong/imgnest/internal/repo"
@@ -45,7 +46,10 @@ func serveCommand(path *string) *cobra.Command {
 				}
 			}()
 			recoverAtStartup(cmd.Context(), images, logger)
-			lskyHandler, err := newLskyHandler(cmd.Context(), db, cfg, users, tokens, images, albums)
+			// One upload limiter spans the native and v1 APIs so a per-minute
+			// group quota cannot be doubled by alternating between them.
+			uploads := ratelimit.New(time.Now, time.Minute, ratelimit.DefaultCapacity)
+			lskyHandler, err := newLskyHandler(cmd.Context(), db, cfg, users, tokens, images, albums, uploads)
 			if err != nil {
 				return err
 			}
@@ -61,7 +65,7 @@ func serveCommand(path *string) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("open embedded web app: %w", err)
 			}
-			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout}, Albums: albums, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS})
+			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads}, Albums: albums, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS})
 			if err != nil {
 				return err
 			}
@@ -121,7 +125,7 @@ func runImageWorker(ctx context.Context, images *service.ImageService, logger *s
 // newLskyHandler wires the Lsky v1 compatibility layer onto the shared
 // services; it owns no business rules of its own. The album service is shared
 // with the native routes so both APIs observe the same ownership rules.
-func newLskyHandler(ctx context.Context, db *gorm.DB, cfg config.Config, users *service.UserService, tokens *service.TokenService, images *service.ImageService, albums *service.AlbumService) (*lsky.Handler, error) {
+func newLskyHandler(ctx context.Context, db *gorm.DB, cfg config.Config, users *service.UserService, tokens *service.TokenService, images *service.ImageService, albums *service.AlbumService, uploads *ratelimit.Limiter) (*lsky.Handler, error) {
 	lskyRepo, err := repo.NewLskyRepository(ctx, db)
 	if err != nil {
 		return nil, fmt.Errorf("create lsky repository: %w", err)
@@ -146,6 +150,7 @@ func newLskyHandler(ctx context.Context, db *gorm.DB, cfg config.Config, users *
 			MaxConcurrent:   cfg.Server.UploadConcurrency,
 			Timeout:         cfg.Server.ProcessingTimeout,
 			TrustedProxies:  cfg.Server.TrustedProxies,
+			Uploads:         uploads,
 		},
 	})
 	if err != nil {

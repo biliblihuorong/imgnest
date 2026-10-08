@@ -12,6 +12,9 @@ checklist; if the two disagree, the spec wins and this file must be updated.
 
 1. **Authorise and check limits** — group `max_file_bytes`, `allowed_exts`,
    remaining capacity, per-minute rate. Fail before reading the whole body.
+   `allowed_exts` applies to the uploaded (source) format, also when only the
+   WebP is stored; the per-minute rate is one counter per account shared by
+   the native and v1 APIs.
 2. **Read into memory** with a hard cap (`server.max_upload_mb`).
 3. **Detect the real format** from magic bytes + libvips probe. Never trust the
    file name or `Content-Type`. Reject SVG. Enforce the pixel limit

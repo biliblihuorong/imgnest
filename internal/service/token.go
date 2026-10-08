@@ -127,7 +127,7 @@ func (s *TokenService) Issue(ctx context.Context, subject TokenSubject, input To
 		TokenHash: hex.EncodeToString(digest[:]), Abilities: []string{"*"},
 		ExpiresAt: expires, CreatedAt: now, UpdatedAt: now,
 	}, model.TokenGrant{
-		ExpectedPasswordHash: subject.passwordHash, ExpectedAccountState: subject.accountState, SourceTokenID: subject.sourceTokenID, At: now,
+		ExpectedPasswordHash: subject.passwordHash, ExpectedAccountState: subject.accountState, SourceTokenID: subject.sourceTokenID, At: now, Clock: s.now,
 	})
 	if err != nil {
 		if errors.Is(err, ErrUnauthenticated) && subject.sourceTokenID == 0 {

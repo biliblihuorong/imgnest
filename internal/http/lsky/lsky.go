@@ -24,6 +24,9 @@ type Options struct {
 	// TrustedProxies lists the addresses or CIDRs whose X-Forwarded-Proto is
 	// honoured when building pagination links; others are ignored.
 	TrustedProxies []string
+	// Uploads, when set, is the upload limiter shared with the native API so
+	// one account's per-minute quota spans both entry points.
+	Uploads *ratelimit.Limiter
 }
 
 // Dependencies bind the v1 handlers to the shared services.
@@ -49,6 +52,7 @@ type Handler struct {
 	options Options
 	slots   chan struct{}
 	limits  *ratelimit.Limiter
+	uploads *ratelimit.Limiter
 	// logins counts failed password exchanges per account, because the v1
 	// token route cannot carry the native captcha.
 	logins *ratelimit.Limiter
@@ -79,12 +83,17 @@ func NewHandler(ctx context.Context, deps Dependencies) (*Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create lsky handler: %w", err)
 	}
+	limits := ratelimit.New(deps.Now, time.Minute, ratelimit.DefaultCapacity)
+	uploads := deps.Options.Uploads
+	if uploads == nil {
+		uploads = limits
+	}
 	return &Handler{
 		proxies: proxies,
 		users:   deps.Users, tokens: deps.Tokens, images: deps.Images,
 		albums: deps.Albums, lsky: deps.Lsky, now: deps.Now, options: deps.Options,
 		slots:  make(chan struct{}, deps.Options.MaxConcurrent),
-		limits: ratelimit.New(deps.Now, time.Minute, ratelimit.DefaultCapacity),
+		limits: limits, uploads: uploads,
 		logins: ratelimit.New(deps.Now, loginFailureWindow, ratelimit.DefaultCapacity),
 	}, nil
 }

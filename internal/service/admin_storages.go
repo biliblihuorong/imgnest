@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/storage"
 )
 
@@ -78,6 +80,9 @@ func (s *AdminService) PatchStorage(ctx context.Context, id uint64, patch Storag
 		if !json.Valid(patch.Config) || len(patch.Config) > 64<<10 {
 			return StorageView{}, ErrInvalidInput
 		}
+		if err := s.checkStorageLocation(ctx, backend, patch.Config); err != nil {
+			return StorageView{}, err
+		}
 		config := patch.Config
 		if backend.Driver == "s3" {
 			config, err = s.deps.Secrets.Seal(ctx, backend.Driver, patch.Config)
@@ -102,6 +107,48 @@ func (s *AdminService) PatchStorage(ctx context.Context, id uint64, patch Storag
 		return StorageView{}, fmt.Errorf("update storage: %w", err)
 	}
 	return storageView(updated), nil
+}
+
+// storageLocation names where a backend's objects live: the local root, or
+// the S3 endpoint, region and bucket. Credentials, path style and the public
+// base URL can change without moving any object.
+type storageLocation struct {
+	Root     string `json:"root"`
+	Endpoint string `json:"endpoint"`
+	Region   string `json:"region"`
+	Bucket   string `json:"bucket"`
+}
+
+// checkStorageLocation refuses a configuration that would point a backend
+// holding images at another directory or bucket: existing links would break
+// and the old objects would be orphaned. Moving data needs an explicit
+// migration, which ImgNest does not offer yet.
+func (s *AdminService) checkStorageLocation(ctx context.Context, backend model.Storage, next json.RawMessage) error {
+	images, err := s.deps.References.CountImagesForStorage(ctx, backend.ID)
+	if err != nil {
+		return fmt.Errorf("count storage images: %w", err)
+	}
+	if images == 0 {
+		return nil
+	}
+	current := []byte(backend.Config)
+	if backend.Driver == "s3" {
+		current, err = s.deps.Secrets.Open(ctx, backend.Driver, backend.Config)
+		if err != nil {
+			return fmt.Errorf("open storage configuration: %w", ErrStillReferenced)
+		}
+	}
+	var before, after storageLocation
+	if json.Unmarshal(current, &before) != nil || json.Unmarshal(next, &after) != nil {
+		return ErrInvalidInput
+	}
+	if backend.Driver == "local" {
+		before.Root, after.Root = filepath.Clean(before.Root), filepath.Clean(after.Root)
+	}
+	if before != after {
+		return fmt.Errorf("move storage with images: %w", ErrStillReferenced)
+	}
+	return nil
 }
 
 // DeleteStorage refuses backends that rules still reference; the policies

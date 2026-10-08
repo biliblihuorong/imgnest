@@ -16,6 +16,7 @@ import (
 
 	httpapi "github.com/biliblihuorong/imgnest/internal/http"
 	"github.com/biliblihuorong/imgnest/internal/http/native"
+	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/service"
 )
@@ -24,6 +25,7 @@ type imagesStub struct {
 	native.ImageService
 	preflightErr error
 	maxFile      int64
+	perMinute    int
 	inputs       []service.UploadInput
 	policies     []uint64
 	actions      []string
@@ -36,7 +38,7 @@ func (s *imagesStub) Preflight(_ context.Context, _ service.TokenSubject, policy
 	if limit == 0 {
 		limit = 1024
 	}
-	return service.UploadLimits{MaxFileBytes: limit}, s.preflightErr
+	return service.UploadLimits{MaxFileBytes: limit, PerMinute: s.perMinute}, s.preflightErr
 }
 func (s *imagesStub) Upload(_ context.Context, _ service.TokenSubject, input service.UploadInput) (service.ImageView, error) {
 	s.inputs = append(s.inputs, input)
@@ -324,5 +326,21 @@ func TestImageUploadCancellationDoesNotReleaseActiveSlot(t *testing.T) {
 		expectCode(t, response, 408, 10004)
 	case <-time.After(time.Second):
 		t.Fatal("completed canceled operation did not return")
+	}
+}
+
+// The native upload counts against the limiter shared with the v1 API.
+func TestImageUploadSharesV1RateLimit(t *testing.T) {
+	images := &imagesStub{perMinute: 1}
+	shared := ratelimit.New(time.Now, time.Minute, ratelimit.DefaultCapacity)
+	// The v1 API already used this minute's only upload for the test user.
+	if !shared.Allow(ratelimit.UploadKey(testUser().ID), 1) {
+		t.Fatal("fresh limiter refused the first upload")
+	}
+	router := imageRouter(t, images, native.ImageOptions{Uploads: shared})
+	body, contentType := multipartBody(t, multipartEntry{"file", "travel.fake", "image"})
+	expectCode(t, uploadRequest(router, body, contentType), 429, 30003)
+	if len(images.inputs) != 0 {
+		t.Fatal("rate-limited upload reached the service")
 	}
 }

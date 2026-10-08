@@ -1573,8 +1573,11 @@ paths:
       description: |
         Requires the administrator role. A supplied `config` replaces the
         stored configuration wholesale (re-sealed for S3) and must pass the
-        connectivity probe before the change is persisted. The configuration
-        is never part of any response.
+        connectivity probe before the change is persisted. Once any image
+        lives on the backend, a `config` that changes where objects are kept
+        (local `root`; S3 `endpoint`, `region` or `bucket`) returns 409/30009;
+        credentials and path style may still change. The configuration is
+        never part of any response.
       security: [{bearerAuth: []}]
       parameters:
         - {$ref: '#/components/parameters/ImageID'}
@@ -1597,6 +1600,8 @@ paths:
           $ref: '#/components/responses/AdminForbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StillReferenced'
         '502':
           $ref: '#/components/responses/StorageFailed'
         '500':

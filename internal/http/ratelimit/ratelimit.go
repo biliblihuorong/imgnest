@@ -4,6 +4,7 @@ package ratelimit
 
 import (
 	"net/netip"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -105,4 +106,10 @@ func ClientKey(ip string) string {
 		return ip
 	}
 	return prefix.String()
+}
+
+// UploadKey names one account's upload counter. Every upload entry point uses
+// it on a shared Limiter so the per-minute quota covers both APIs together.
+func UploadKey(userID uint64) string {
+	return "upload:user:" + strconv.FormatUint(userID, 10)
 }

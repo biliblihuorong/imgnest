@@ -91,7 +91,7 @@ func (r *ImageRepository) ReserveGuestUpload(ctx context.Context, req model.Uplo
 			return model.ErrForbidden
 		}
 		image.PolicyID = policy.ID
-		if err := checkUploadGroup(image, group); err != nil {
+		if err := checkUploadGroup(image, req.SourceExt, group); err != nil {
 			return err
 		}
 		if image.AlbumID != 0 {
@@ -170,7 +170,7 @@ func (r *ImageRepository) CommitGuestUpload(ctx context.Context, key, op string,
 		if backend.ID != image.StorageID {
 			return model.ErrForbidden
 		}
-		if err := checkUploadGroup(image, group); err != nil {
+		if err := checkUploadGroup(image, "", group); err != nil {
 			return err
 		}
 		if err := checkGuestQuota(tx, group, 0); err != nil {

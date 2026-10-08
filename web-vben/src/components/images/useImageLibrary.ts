@@ -4,7 +4,8 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useImageQueryState } from "./useImageQueryState";
 import { ApiError, getToken } from "@/api/client";
 import { formatApiError } from "@/locales/errors";
-import { listAlbums, type AlbumView } from "@/api/albums";
+import type { AlbumView } from "@/api/albums";
+import { listAllAlbums } from "@/api/allAlbums";
 import {
   batchAlbums,
   batchDelete,
@@ -79,8 +80,8 @@ export function useImageLibrary(options: ImageLibraryOptions = {}) {
   async function loadAlbums(): Promise<void> {
     const token = getToken();
     try {
-      const data = await listAlbums({ page: 1, size: 100 });
-      if (active && getToken() === token) albums.value = data.items;
+      const all = await listAllAlbums();
+      if (active && getToken() === token) albums.value = all;
     } catch (error) {
       if (active) message.error(() => formatApiError(error, "user.images.albumsError"));
     }

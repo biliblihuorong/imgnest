@@ -35,6 +35,7 @@ type AdminGroupRepository interface {
 type AdminReferenceRepository interface {
 	CountPoliciesForStorage(context.Context, uint64) (int64, error)
 	CountImagesForPolicy(context.Context, uint64) (int64, error)
+	CountImagesForStorage(context.Context, uint64) (int64, error)
 	CountGroupDefaultsForPolicy(context.Context, uint64) (int64, error)
 	SettingGroupReferences(context.Context, uint64) ([]string, error)
 }

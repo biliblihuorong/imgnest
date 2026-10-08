@@ -72,6 +72,10 @@ type UploadReservation struct {
 	Image   Image
 	Objects []ObjectReceipt
 	Grant   TokenGrant
+	// SourceExt is the probed format of the uploaded bytes. It differs from
+	// Image.Ext when only the WebP conversion is stored, and it is what the
+	// group's allowed formats apply to.
+	SourceExt string
 }
 
 // GalleryImage pairs one public gallery row with its uploader's username.
