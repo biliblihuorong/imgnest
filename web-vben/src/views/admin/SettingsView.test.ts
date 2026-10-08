@@ -35,6 +35,7 @@ const settingsFixture: AdminSettings = {
   registration_enabled: true,
   guest_upload_enabled: false,
   gallery_enabled: true,
+  gallery_public_albums_only: false,
   api_enabled: true,
   trash_days: 7,
   guest_group_id: 3,
@@ -75,16 +76,16 @@ beforeEach(() => {
 });
 
 describe("SettingsView", () => {
-  it("加载后九字段填充表单，组选项含「未设置（0）」", async () => {
+  it("加载后十字段填充表单，组选项含「未设置（0）」", async () => {
     const wrapper = await mountView();
 
     expect(adminApiMock.getSettings).toHaveBeenCalledTimes(1);
     const nameEl = wrapper.find("input[placeholder='站点名称']").element as HTMLInputElement;
     expect(nameEl.value).toBe("ImgNest");
 
-    // 开关顺序：开放注册 / 游客上传 / 公共画廊 / 蓝空 v1 API
+    // 开关顺序：开放注册 / 游客上传 / 公共画廊 / 仅公开相册 / 蓝空 v1 API
     const switchValues = wrapper.findAllComponents(NSwitch).map((item) => item.props("value"));
-    expect(switchValues).toEqual([true, false, true, true]);
+    expect(switchValues).toEqual([true, false, true, false, true]);
 
     expect(wrapper.findComponent(NInputNumber).props("value")).toBe(7);
 
@@ -103,7 +104,7 @@ describe("SettingsView", () => {
     ]);
   });
 
-  it("保存时调用 putSettings 传全量九字段，成功后回读刷新", async () => {
+  it("保存时调用 putSettings 传全量十字段，成功后回读刷新", async () => {
     // 初次加载返回旧值，保存成功后的回读返回已更新的值（模拟服务端已持久化）
     adminApiMock.getSettings
       .mockResolvedValueOnce({ ...settingsFixture })
@@ -126,6 +127,7 @@ describe("SettingsView", () => {
       registration_enabled: true,
       guest_upload_enabled: false,
       gallery_enabled: true,
+      gallery_public_albums_only: false,
       api_enabled: true,
       trash_days: 7,
       guest_group_id: 3,

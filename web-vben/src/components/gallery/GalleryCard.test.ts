@@ -10,7 +10,7 @@ enableAutoUnmount(afterEach);
 
 function makeItem(image: Partial<ImageView> = {}, uploader?: string): GalleryItem {
   const base = makeImage(image);
-  return uploader === undefined ? base : { ...base, uploader };
+  return { ...base, uploader: uploader ?? "" };
 }
 
 function mountCard(item: GalleryItem) {
