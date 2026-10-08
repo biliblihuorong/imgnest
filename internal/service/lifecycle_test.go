@@ -143,8 +143,19 @@ func (r *uploadRepo) PendingOperations(context.Context) ([]model.Image, error) {
 	}
 	return rows, nil
 }
-func (r *uploadRepo) DueTrash(context.Context, time.Time, int) ([]model.Image, error) {
-	return []model.Image{}, nil
+func (r *uploadRepo) DueTrash(_ context.Context, now time.Time, limit int) ([]model.Image, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	rows := []model.Image{}
+	for _, row := range r.rows {
+		if len(rows) == limit {
+			break
+		}
+		if row.State == model.ImageStateTrash && row.Operation == "" && row.PurgeAt != nil && !row.PurgeAt.After(now) {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
 }
 
 func TestTrashRestorePurgeActualLocalObjects(t *testing.T) {

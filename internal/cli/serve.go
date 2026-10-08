@@ -44,9 +44,7 @@ func serveCommand(path *string) *cobra.Command {
 					logger.Error("close image runtime", "code", 50002)
 				}
 			}()
-			if err = images.Recover(cmd.Context()); err != nil {
-				return fmt.Errorf("recover unfinished image operations: %w", err)
-			}
+			recoverAtStartup(cmd.Context(), images, logger)
 			lskyHandler, err := newLskyHandler(cmd.Context(), db, cfg, users, tokens, images, albums)
 			if err != nil {
 				return err
@@ -82,6 +80,24 @@ func serveCommand(path *string) *cobra.Command {
 			return result
 		})
 	}}
+}
+
+// startupRecovery bounds how long a slow storage backend can delay listening.
+const startupRecovery = 2 * time.Minute
+
+type imageRecoverer interface {
+	Recover(context.Context) error
+}
+
+// recoverAtStartup cancels stale uploads and restores before serving. A storage
+// failure must not keep the whole site down: unfinished work stays journaled and
+// the hourly sweep retries it.
+func recoverAtStartup(ctx context.Context, images imageRecoverer, logger *slog.Logger) {
+	recoverCtx, cancel := context.WithTimeout(ctx, startupRecovery)
+	defer cancel()
+	if err := images.Recover(recoverCtx); err != nil && ctx.Err() == nil {
+		logger.ErrorContext(ctx, "image recovery pending; retrying in background", "code", 50002)
+	}
 }
 
 func runImageWorker(ctx context.Context, images *service.ImageService, logger *slog.Logger) {

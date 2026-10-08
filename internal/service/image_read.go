@@ -195,17 +195,15 @@ func (s *ImageService) OpenPublic(ctx context.Context, storageID uint64, key str
 }
 
 // Thumbnail returns a local preview; missing previews are lazily regenerated from owned cloud objects.
+// Reads and regeneration run outside the lifecycle fence so one slow preview or
+// a long sweep cannot stall every other preview; only the cache write re-checks
+// the image under the fence, so purge can never be outlived by a stale write.
 func (s *ImageService) Thumbnail(ctx context.Context, subject TokenSubject, key string) (PublicObject, error) {
-	// Keep preview IO inside the path's lifecycle fence, so purge cannot release it before a cache write finishes.
-	if err := s.lockOperations(ctx); err != nil {
-		return PublicObject{}, err
-	}
-	defer s.unlockOperations()
 	image, err := s.deps.Images.FindByKey(ctx, key)
 	if err != nil {
 		return PublicObject{}, fmt.Errorf("find preview: %w", err)
 	}
-	if image.State == model.ImageStatePending || !image.HasThumb {
+	if image.State == model.ImageStatePending || !image.HasThumb || image.Operation == model.ImageOperationPurge {
 		return PublicObject{}, ErrNotFound
 	}
 	if subject.userID == 0 {
@@ -263,12 +261,28 @@ func (s *ImageService) Thumbnail(ctx context.Context, subject TokenSubject, key 
 			}
 			data = result.Thumbnail
 		}
-		if err = s.deps.Cache.Put(ctx, image.StorageID, name, data); err != nil {
-			return PublicObject{}, ErrStorage
-		}
+		s.cachePreview(ctx, image, name, data)
 		return PublicObject{Body: io.NopCloser(bytes.NewReader(data)), Size: int64(len(data)), MIME: "image/webp"}, nil
 	}
 	return PublicObject{}, ErrNotFound
+}
+
+// cachePreview stores a regenerated preview only while the same image still
+// owns the path. It never waits for the fence: when a lifecycle operation is
+// running the preview is served uncached and rebuilt on a later request.
+func (s *ImageService) cachePreview(ctx context.Context, image model.Image, name string, data []byte) {
+	select {
+	case s.operations <- struct{}{}:
+	default:
+		return
+	}
+	defer s.unlockOperations()
+	current, err := s.deps.Images.FindByKey(ctx, image.Key)
+	if err != nil || current.ID != image.ID || current.Path != image.Path || current.StorageID != image.StorageID ||
+		current.State == model.ImageStatePending || current.Operation == model.ImageOperationPurge {
+		return
+	}
+	_ = s.deps.Cache.Put(ctx, image.StorageID, name, data)
 }
 
 func boundedPreview(body io.ReadCloser, limit int64) (PublicObject, error) {
