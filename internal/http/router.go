@@ -28,6 +28,9 @@ type Dependencies struct {
 	ImageOptions native.ImageOptions
 	// Albums serves the native album management routes when configured.
 	Albums native.Albums
+	// RandomLinks serves the anonymous /random redirect and its per-album
+	// management routes when configured.
+	RandomLinks native.RandomLinks
 	// Lsky serves the Lsky-compatible /api/v1 routes when configured.
 	Lsky *lsky.Handler
 	// Admin serves the /api/admin management routes when configured.
@@ -97,6 +100,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.Albums != nil {
 		if err := handler.RegisterAlbumRoutes(ctx, router, deps.Albums); err != nil {
 			return nil, fmt.Errorf("register album routes: %w", err)
+		}
+	}
+	if deps.RandomLinks != nil {
+		if err := handler.RegisterRandomLinkRoutes(ctx, router, deps.RandomLinks); err != nil {
+			return nil, fmt.Errorf("register random link routes: %w", err)
 		}
 	}
 	if deps.Admin != nil {

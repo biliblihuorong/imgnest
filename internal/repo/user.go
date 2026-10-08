@@ -140,6 +140,51 @@ func (r *UserRepository) UpdatePasswordAndRevokeTokens(
 	return nil
 }
 
+// publicIDAttempts bounds regeneration when a random public ID is taken.
+const publicIDAttempts = 5
+
+// EnsurePublicID returns the stored public ID, generating one on first use.
+// Each attempt is its own transaction so a unique violation on PostgreSQL
+// cannot poison the retry.
+func (r *UserRepository) EnsurePublicID(ctx context.Context, userID uint64, generate func() (string, error)) (string, error) {
+	if generate == nil {
+		return "", fmt.Errorf("ensure public ID: %w", model.ErrInvalidInput)
+	}
+	var err error
+	for range publicIDAttempts {
+		var publicID string
+		err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			user, err := lockUser(ctx, tx, userID)
+			if err != nil {
+				return err
+			}
+			if user.PublicID != nil && *user.PublicID != "" {
+				publicID = *user.PublicID
+				return nil
+			}
+			candidate, err := generate()
+			if err != nil {
+				return err
+			}
+			if candidate == "" {
+				return model.ErrInvalidInput
+			}
+			publicID = candidate
+			return tx.Model(&model.User{}).Where("id = ?", userID).Update("public_id", candidate).Error
+		})
+		if err == nil {
+			return publicID, nil
+		}
+		if !errors.Is(err, gorm.ErrDuplicatedKey) {
+			break
+		}
+	}
+	if errors.Is(err, model.ErrInvalidInput) {
+		return "", fmt.Errorf("ensure public ID: %w", model.ErrInvalidInput)
+	}
+	return "", repositoryError("ensure public ID", err)
+}
+
 func lockUser(ctx context.Context, tx *gorm.DB, userID uint64) (model.User, error) {
 	if err := checkRecordID(ctx, userID); err != nil {
 		return model.User{}, err

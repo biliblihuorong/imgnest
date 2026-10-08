@@ -922,6 +922,136 @@ paths:
               schema: {$ref: '#/components/schemas/NullEnvelope'}
         default:
           $ref: '#/components/responses/ImageFailure'
+  /api/albums/{id}/random-link:
+    parameters:
+      - $ref: '#/components/parameters/AlbumID'
+    get:
+      operationId: getAlbumRandomLink
+      tags: [Albums]
+      summary: Read one owned album's random image link
+      description: |
+        `data` is null while the album has no link. An album owned by another
+        account answers 403/20003 and a missing one 404/10001, like the other
+        album endpoints.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: The album's link, or null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NullableRandomLinkEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+    put:
+      operationId: putAlbumRandomLink
+      tags: [Albums]
+      summary: Create the album's random image link or switch it on or off
+      description: |
+        The first call generates the token. Later calls only change `enabled`;
+        the token and therefore the published URL stay the same. Every active
+        image in the album, private ones included, becomes reachable through
+        the link while it is enabled.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RandomLinkInput'}
+      responses:
+        '200':
+          description: The current link.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RandomLinkEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+    delete:
+      operationId: deleteAlbumRandomLink
+      tags: [Albums]
+      summary: Delete the album's random image link
+      description: Idempotent; deleting a missing link also answers 200.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Link removed; data is null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NullEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /api/albums/{id}/random-link/reset:
+    parameters:
+      - $ref: '#/components/parameters/AlbumID'
+    post:
+      operationId: resetAlbumRandomLink
+      tags: [Albums]
+      summary: Replace the link's token so every shared URL stops resolving
+      description: Answers 404/10001 while the album has no link.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: The link with its new path.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RandomLinkEnvelope'}
+        default:
+          $ref: '#/components/responses/ImageFailure'
+  /random/{uid}/{token}:
+    parameters:
+      - name: uid
+        in: path
+        required: true
+        description: The owner's random public ID.
+        schema: {type: string, pattern: '^[0-9A-Za-z]{10}$'}
+      - name: token
+        in: path
+        required: true
+        description: The album link's token.
+        schema: {type: string, pattern: '^[0-9A-Za-z]{24}$'}
+      - name: format
+        in: query
+        required: false
+        description: Omit for WebP (falling back to the original when an image has none); `original` asks for the original.
+        schema: {type: string, enum: [original]}
+    get:
+      operationId: redirectRandomImage
+      tags: [Images]
+      summary: Redirect to a random active image of the linked album
+      description: |
+        Public endpoint without authentication, limited to 600 requests per
+        minute per client address. Every response carries
+        `Cache-Control: no-store`. An unknown or malformed uid or token, a
+        disabled link, a disabled owner and an album without usable images all
+        answer the same 404/10001. No image metadata or EXIF is returned.
+      security: []
+      responses:
+        '307':
+          description: Location is the chosen image's direct link.
+          headers:
+            Location: {schema: {type: string}}
+        '400':
+          description: Unsupported `format` value (10001).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    head:
+      operationId: headRandomImage
+      tags: [Images]
+      summary: Same redirect without a body
+      security: []
+      responses:
+        '307':
+          description: Location is the chosen image's direct link.
+          headers:
+            Location: {schema: {type: string}}
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /api/gallery:
     get:
       operationId: listGallery
@@ -2768,6 +2898,37 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/AlbumView'}
+    RandomLinkView:
+      type: object
+      additionalProperties: false
+      required: [enabled, path, created_at]
+      properties:
+        enabled: {type: boolean}
+        path:
+          type: string
+          description: Site-relative `/random/{uid}/{token}`; clients prefix their own origin.
+        created_at: {type: string, format: date-time}
+    RandomLinkInput:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled: {type: boolean}
+    RandomLinkEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/RandomLinkView'}
+    NullableRandomLinkEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              nullable: true
+              allOf:
+                - $ref: '#/components/schemas/RandomLinkView'
     AlbumPageEnvelope:
       allOf:
         - $ref: '#/components/schemas/SuccessEnvelope'

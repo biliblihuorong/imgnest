@@ -65,6 +65,7 @@ func (s *ImageService) SetAlbum(ctx context.Context, subject TokenSubject, id, a
 	if err := s.deps.Images.SetAlbum(ctx, image.Key, albumID, s.grant(subject)); err != nil {
 		return ImageView{}, fmt.Errorf("move image: %w", err)
 	}
+	s.invalidateRandom(ctx, image.AlbumID, albumID)
 	image.AlbumID = albumID
 	return s.view(ctx, image)
 }

@@ -22,4 +22,6 @@ var (
 	// ErrStillReferenced rejects deleting a resource another record points at,
 	// such as a storage backend referenced by a rule.
 	ErrStillReferenced = errors.New("resource is still referenced")
+	// ErrRandomLinkExists reports a random link whose album or token is taken.
+	ErrRandomLinkExists = errors.New("random link exists")
 )

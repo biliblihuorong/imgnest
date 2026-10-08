@@ -14,6 +14,7 @@ import (
 	"github.com/biliblihuorong/imgnest/internal/http/lsky"
 	"github.com/biliblihuorong/imgnest/internal/migrate"
 	"github.com/biliblihuorong/imgnest/internal/pathtpl"
+	"github.com/biliblihuorong/imgnest/internal/randompool"
 	"github.com/biliblihuorong/imgnest/internal/repo"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/spf13/cobra"
@@ -35,7 +36,10 @@ func serveCommand(path *string) *cobra.Command {
 				return err
 			}
 			logger := slog.New(slog.NewJSONHandler(cmd.OutOrStdout(), nil))
-			images, albums, closeImages, err := newImageServices(cmd.Context(), db, cfg)
+			// One process-local pool is shared by the link service that fills it
+			// and the image service that invalidates it.
+			randomPool := randompool.NewMemory(time.Now)
+			images, albums, closeImages, err := newImageServices(cmd.Context(), db, cfg, randomPool)
 			if err != nil {
 				return err
 			}
@@ -45,6 +49,10 @@ func serveCommand(path *string) *cobra.Command {
 				}
 			}()
 			recoverAtStartup(cmd.Context(), images, logger)
+			randomLinks, err := newRandomLinkService(cmd.Context(), db, randomPool, logger)
+			if err != nil {
+				return err
+			}
 			lskyHandler, err := newLskyHandler(cmd.Context(), db, cfg, users, tokens, images, albums)
 			if err != nil {
 				return err
@@ -61,7 +69,7 @@ func serveCommand(path *string) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("open embedded web app: %w", err)
 			}
-			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout}, Albums: albums, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS})
+			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS})
 			if err != nil {
 				return err
 			}
@@ -116,6 +124,34 @@ func runImageWorker(ctx context.Context, images *service.ImageService, logger *s
 			}
 		}
 	}
+}
+
+// newRandomLinkService wires random image links onto the repositories the
+// album and image services already use.
+func newRandomLinkService(ctx context.Context, db *gorm.DB, pool service.RandomPool, logger *slog.Logger) (*service.RandomLinkService, error) {
+	links, err := repo.NewRandomLinkRepository(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("create random link repository: %w", err)
+	}
+	albums, err := repo.NewAlbumRepository(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("create album repository: %w", err)
+	}
+	users, err := repo.NewUserRepository(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("create user repository: %w", err)
+	}
+	storages, err := repo.NewStorageRepository(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("create storage repository: %w", err)
+	}
+	randomLinks, err := service.NewRandomLinkService(ctx, service.RandomLinkDependencies{
+		Links: links, Albums: albums, Users: users, Storages: storages, Pool: pool, Logger: logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create random link service: %w", err)
+	}
+	return randomLinks, nil
 }
 
 // newLskyHandler wires the Lsky v1 compatibility layer onto the shared
