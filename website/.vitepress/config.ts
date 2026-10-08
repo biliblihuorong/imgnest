@@ -46,6 +46,14 @@ export default defineConfig({
   base: process.env.SITE_BASE || "/",
   head: [["link", { rel: "icon", type: "image/svg+xml", href: `${process.env.SITE_BASE || "/"}logo.svg` }]],
 
+  markdown: {
+    config(md) {
+      // 每张表格包一层可横向滚动的容器，圆角边框画在容器上。
+      md.renderer.rules.table_open = () => '<div class="mv-table"><table>\n';
+      md.renderer.rules.table_close = () => "</table></div>\n";
+    },
+  },
+
   themeConfig: {
     logo: "/logo.svg",
     socialLinks: [{ icon: "github", link: REPO }],

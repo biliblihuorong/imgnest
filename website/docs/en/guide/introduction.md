@@ -25,7 +25,9 @@ What is implemented:
 | Storage | Local storage, S3-compatible storage, upload policies and path templates |
 | Image processing | WebP conversion, two thumbnails, EXIF archiving and lossless scrubbing |
 | Management | Recycle bin, albums, public gallery, admin panel |
-| Compatibility | Lsky Pro v1 API, Lsky Pro data migration |
+| Compatibility | Lsky Pro v1 API |
+
+Not done yet: a migration tool (`import-lsky`) that imports users, albums and image records from Lsky Pro is planned but not part of v1.
 
 ## Built with
 
