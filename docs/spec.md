@@ -385,11 +385,12 @@ imgnest/
 - 配置优先级：默认值 < 显式 YAML < `IMGNEST_` 环境变量；显式配置文件缺失、无效 YAML/数值/driver 拒绝启动。环境变量保留字段内部下划线，如 `IMGNEST_DATABASE_MAX_OPEN` 对应 `database.max_open`。
 - 默认监听 `:8080`，read_header_timeout=5s、shutdown_timeout=10s，trusted_proxies=[]。SQLite 默认 `data/imgnest.db`、WAL、foreign_keys=ON、busy_timeout=5000ms、max_open=max_idle=1、max_lifetime=0；PostgreSQL 默认 pool 为 25/10、max_lifetime=5min。
 - 0001 先迁移 `groups/users/tokens/settings` 与 `schema_migrations`；存储、图片等在 M2 新增迁移。迁移记录版本、校验和及执行时间；`migrate` 显式执行，`serve` 检查 schema 版本和校验和，不自动修改生产表结构。
+- 默认组与游客组各至多一个，均由部分唯一索引保证（游客组为迁移 0008）。已有图片的存储不能修改存放位置（本机 `root`；S3 `endpoint`/`region`/`bucket`），返回 409/30009；凭据与 path style 仍可修改，迁移数据需另行提供显式功能。
 - 初始化注册、游客上传、画廊均关闭，trash_days=7；默认用户组容量 0 表示不限。管理员通过 `init-admin` 显式创建，密码从 stdin 输入；普通注册只创建 user 并使用默认组。
 - username 3–64 个 Unicode 字符；email 去首尾空白、转小写并校验纯邮箱地址；新建和替换的密码为 12–72 字节，bcrypt cost=12；登录/当前密码校验允许非空、至多 72 字节的旧密码以保留旧 bcrypt 兼容。用户 status 为 enabled/disabled。
 - Token 格式 `<id>|<40 random chars>`；随机串用 crypto/rand 产生，库中 SHA-256 仅计算分隔符后的 secret；验证常量时间比较。web Token 默认 24 小时，api Token 可无过期时间，否则必须在未来；M1 abilities 只支持 `["*"]`。每次鉴权检查用户仍 enabled。
 - logout 仅吊销当前 Token；改密与 reset-password 原子更新密码并吊销该用户全部 Token。用户不能查看或吊销其他用户 Token。
-- Token 签发绑定服务层产生的不透明认证证明，事务内锁定用户并重新检查密码哈希、enabled 状态及来源 Token 的存在/所有权/过期时间；签发与吊销共用用户锁。不能仅凭 middleware 早先读出的 userID 签发新凭证，撤销完成后的在途旧请求必须被拒绝。
+- Token 签发绑定服务层产生的不透明认证证明，事务内锁定用户并重新检查密码哈希、enabled 状态及来源 Token 的存在/所有权/过期时间（过期时间用取得锁之后的当前时间判断，而不是请求开始时间）；签发与吊销共用用户锁。不能仅凭 middleware 早先读出的 userID 签发新凭证，撤销完成后的在途旧请求必须被拒绝。
 - 改密/重置以读取并验证的旧哈希为 CAS 条件，原子更新与全 Token 删除同事务；旧改密请求不能覆盖已完成的重置。
 - 新增 `PATCH /api/auth/password`，输入 current_password/new_password，成功需重新登录。登录和注册分别按可信客户端 IP 限流，每分钟 3 次；默认不信任代理头。
 - 原生错误码：10001 参数、20001 未鉴权、20002 凭证错误、20003 权限不足、30001 注册关闭、30002 用户重复、30003 请求限流、50001 内部失败。成功 code=0；失败 data=null，空列表 data=[]。普通注册成功 HTTP 201、重复 409、注册关闭 403、无效凭证 401、限流 429。

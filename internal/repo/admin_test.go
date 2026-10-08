@@ -538,3 +538,31 @@ func TestAdminImageListingAndTrashKeys(t *testing.T) {
 		}
 	})
 }
+
+// The database admits one guest group even when two creations race past the
+// service-level check, and the loser surfaces as invalid input.
+func TestCreateGroupRejectsSecondGuestGroup(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		admin, _, _, _, _, _, _ := newAdminRepositories(t, db)
+		if _, err := admin.CreateGroup(t.Context(), model.Group{Name: "guests", IsGuest: true}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.CreateGroup(t.Context(), model.Group{Name: "guests-again", IsGuest: true}, nil); !errors.Is(err, model.ErrInvalidInput) {
+			t.Fatalf("second guest group = %v, want invalid input", err)
+		}
+	})
+}
+
+func TestCountImagesForStorage(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		f := newImageFixture(t, db, "storage-count")
+		reserveAndCommit(t, f, "counted-1", "2026/01/counted-1")
+		admin, err := NewAdminRepository(t.Context(), db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count, err := admin.CountImagesForStorage(t.Context(), f.storage.ID); err != nil || count != 1 {
+			t.Fatalf("storage image count = %d err=%v, want 1", count, err)
+		}
+	})
+}

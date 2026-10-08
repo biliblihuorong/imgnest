@@ -2,6 +2,7 @@ package native
 
 import (
 	"context"
+	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/searchquery"
 	"github.com/biliblihuorong/imgnest/internal/service"
@@ -16,6 +17,9 @@ type ImageOptions struct {
 	MaxRequestBytes int64
 	MaxConcurrent   int
 	Timeout         time.Duration
+	// Uploads, when set, is the upload limiter shared with the Lsky v1 API so
+	// one account's per-minute quota spans both entry points.
+	Uploads *ratelimit.Limiter
 }
 
 // ImageService is the shared image business API consumed by native routes.
@@ -52,6 +56,9 @@ func (h *Handler) RegisterImageRoutes(ctx context.Context, router gin.IRouter, i
 	}
 	if opts.Timeout == 0 {
 		opts.Timeout = 5 * time.Minute
+	}
+	if opts.Uploads == nil {
+		opts.Uploads = h.limits
 	}
 	image := &imageHandler{auth: h, images: images, options: opts, slots: make(chan struct{}, opts.MaxConcurrent), searchSlots: make(chan struct{}, 4)}
 	protected := router.Group("/api", h.authenticate)

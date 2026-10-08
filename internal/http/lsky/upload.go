@@ -128,14 +128,14 @@ func (h *Handler) preupload(ctx context.Context, c *gin.Context, guest bool, pol
 // checkUploadFields validates size, rate limit and album ownership.
 func (h *Handler) checkUploadFields(ctx context.Context, guest bool, userID uint64, ip string, fields uploadFields, limits service.UploadLimits) error {
 	if guest {
-		if !h.allow("v1upload:guest:"+ratelimit.ClientKey(ip), limits.PerMinute) {
+		if !h.uploads.Allow("upload:guest:"+ratelimit.ClientKey(ip), limits.PerMinute) {
 			return errRateLimited
 		}
 		if fields.albumID != 0 {
 			return errGuestAlbum
 		}
 	} else {
-		if !h.allow("v1upload:user:"+strconv.FormatUint(userID, 10), limits.PerMinute) {
+		if !h.uploads.Allow(ratelimit.UploadKey(userID), limits.PerMinute) {
 			return errRateLimited
 		}
 		if fields.albumID != 0 {

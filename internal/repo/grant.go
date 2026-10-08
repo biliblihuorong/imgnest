@@ -43,7 +43,13 @@ func validateGrant(ctx context.Context, tx *gorm.DB, user model.User, grant mode
 	if source.UserID != user.ID {
 		return model.ErrUnauthenticated
 	}
-	if source.ExpiresAt != nil && !grant.At.Before(*source.ExpiresAt) {
+	checked := grant.At
+	if grant.Clock != nil {
+		if now := grant.Clock().UTC(); now.After(checked) {
+			checked = now
+		}
+	}
+	if source.ExpiresAt != nil && !checked.Before(*source.ExpiresAt) {
 		return model.ErrUnauthenticated
 	}
 	return nil

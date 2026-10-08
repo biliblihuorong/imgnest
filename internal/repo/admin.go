@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -319,6 +320,11 @@ func (r *AdminRepository) CreateGroup(ctx context.Context, group model.Group, po
 		}
 		return replaceGroupPolicies(tx, group.ID, policyIDs)
 	})
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		// groups_one_default / groups_one_guest: a concurrent request created
+		// the structural group first.
+		return model.Group{}, fmt.Errorf("create group: %w", model.ErrInvalidInput)
+	}
 	if err != nil {
 		return model.Group{}, repositoryError("create group", err)
 	}
@@ -403,6 +409,16 @@ func (r *AdminRepository) CountPoliciesForStorage(ctx context.Context, storageID
 	var count int64
 	if err := r.db.WithContext(ctx).Model(&model.Policy{}).Where("storage_id = ?", storageID).Count(&count).Error; err != nil {
 		return 0, databaseError("count storage policies", err)
+	}
+	return count, nil
+}
+
+// CountImagesForStorage counts images in any state whose objects live on one
+// storage backend.
+func (r *AdminRepository) CountImagesForStorage(ctx context.Context, storageID uint64) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&model.Image{}).Where("storage_id = ?", storageID).Count(&count).Error; err != nil {
+		return 0, databaseError("count storage images", err)
 	}
 	return count, nil
 }

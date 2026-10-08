@@ -278,3 +278,31 @@ func testGrant(hash string) model.TokenGrant {
 		At:                   time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC),
 	}
 }
+
+// A source token that expires while the request is in flight cannot mint a
+// new token: expiry is re-read from the grant's clock once locks are held.
+func TestTokenGrantRechecksExpiryWithClock(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		user, _, tokens := grantFixture(t, db, "expiring-source")
+		grant := testGrant(user.PasswordHash)
+		expires := grant.At.Add(time.Second)
+		sourceToken := testToken(user.ID)
+		sourceToken.ExpiresAt = &expires
+		source, err := tokens.CreateToken(t.Context(), sourceToken, grant)
+		if err != nil {
+			t.Fatal(err)
+		}
+		grant.SourceTokenID = source.ID
+		grant.Clock = func() time.Time { return expires.Add(time.Millisecond) }
+		minted := testToken(user.ID)
+		minted.Name = "after-expiry"
+		if _, err := tokens.CreateToken(t.Context(), minted, grant); !errors.Is(err, model.ErrUnauthenticated) {
+			t.Fatalf("token minted after its source expired: %v", err)
+		}
+		grant.Clock = func() time.Time { return grant.At }
+		minted.Name = "before-expiry"
+		if _, err := tokens.CreateToken(t.Context(), minted, grant); err != nil {
+			t.Fatalf("token refused before its source expired: %v", err)
+		}
+	})
+}
