@@ -459,6 +459,21 @@ func TestTouchUpdatesLastUsedAt(t *testing.T) {
 		if stored.LastUsedAt == nil || !stored.LastUsedAt.Equal(now.UTC()) {
 			t.Fatalf("last_used_at=%v, want UTC authentication time", stored.LastUsedAt)
 		}
+		touched := now.UTC()
+		now = now.Add(30 * time.Second)
+		if _, err := svc.Authenticate(t.Context(), issued.Token); err != nil {
+			t.Fatal(err)
+		}
+		if stored, err = fixture.tokens.FindToken(t.Context(), issued.Info.ID); err != nil || !stored.LastUsedAt.Equal(touched) {
+			t.Fatalf("token rewritten within the touch interval: %v err=%v", stored.LastUsedAt, err)
+		}
+		now = now.Add(30 * time.Second)
+		if _, err := svc.Authenticate(t.Context(), issued.Token); err != nil {
+			t.Fatal(err)
+		}
+		if stored, err = fixture.tokens.FindToken(t.Context(), issued.Info.ID); err != nil || !stored.LastUsedAt.Equal(now.UTC()) {
+			t.Fatalf("token not refreshed after the touch interval: %v err=%v", stored.LastUsedAt, err)
+		}
 		list, err := svc.List(t.Context(), user.ID)
 		if err != nil || len(list) != 1 {
 			t.Fatalf("list after authentication count=%d, err=%v", len(list), err)

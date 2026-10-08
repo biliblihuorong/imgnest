@@ -13,10 +13,16 @@ type GallerySwitch interface {
 	GalleryEnabled(ctx context.Context) (bool, error)
 }
 
+// GalleryAlbumScope reports whether the gallery is limited to public albums.
+// It is optional; without it the gallery lists every public image.
+type GalleryAlbumScope interface {
+	GalleryPublicAlbumsOnly(ctx context.Context) (bool, error)
+}
+
 // GallerySource pages public active images together with uploader names. It
 // is an optional repository capability wired by the composition root.
 type GallerySource interface {
-	ListGallery(ctx context.Context, page, size int) ([]model.GalleryImage, int64, error)
+	ListGallery(ctx context.Context, page, size int, publicAlbumsOnly bool) ([]model.GalleryImage, int64, error)
 }
 
 // gallery bounds keep the public listing cheap and cache-friendly.
@@ -93,17 +99,24 @@ func (s *ImageService) Gallery(ctx context.Context, page, size int) (GalleryPage
 	if !ok {
 		return empty, nil
 	}
-	images, total, err := source.ListGallery(ctx, page, size)
+	albumsOnly := false
+	if scope, ok := s.deps.Settings.(GalleryAlbumScope); ok {
+		if albumsOnly, err = scope.GalleryPublicAlbumsOnly(ctx); err != nil {
+			return empty, nil
+		}
+	}
+	images, total, err := source.ListGallery(ctx, page, size, albumsOnly)
 	if err != nil {
 		return GalleryPage{}, fmt.Errorf("list gallery: %w", err)
 	}
 	items := make([]GalleryItem, 0, len(images))
+	views := s.viewer()
 	for _, image := range images {
-		view, err := s.view(ctx, image.Image)
+		view, err := views(ctx, image.Image)
 		if err != nil {
 			return GalleryPage{}, err
 		}
-		items = append(items, GalleryItem{ImageView: view, Uploader: image.Uploader})
+		items = append(items, GalleryItem{ID: view.ID, Name: view.Name, Ext: view.Ext, MIME: view.MIME, Size: view.Size, Width: view.Width, Height: view.Height, Frames: view.Frames, Links: view.Links, CreatedAt: view.CreatedAt, Uploader: image.Uploader})
 	}
 	return GalleryPage{Items: items, Total: total, Page: page, Size: size}, nil
 }

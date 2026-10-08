@@ -33,10 +33,11 @@ func (s *AdminService) GetSettings(ctx context.Context) (AdminSettingsView, erro
 		}
 	}
 	for key, target := range map[string]*bool{
-		"registration_enabled": &view.RegistrationEnabled,
-		"guest_upload_enabled": &view.GuestUploadEnabled,
-		"gallery_enabled":      &view.GalleryEnabled,
-		"api_enabled":          &view.APIEnabled,
+		"registration_enabled":       &view.RegistrationEnabled,
+		"guest_upload_enabled":       &view.GuestUploadEnabled,
+		"gallery_enabled":            &view.GalleryEnabled,
+		"api_enabled":                &view.APIEnabled,
+		"gallery_public_albums_only": &view.GalleryPublicAlbumsOnly,
 	} {
 		if value, ok := values[key]; ok {
 			if err := decodeSetting(value, target); err != nil {
@@ -95,10 +96,11 @@ func (s *AdminService) PutSettings(ctx context.Context, patch SettingsPatch) (Ad
 		writes["site_name"] = encoded
 	}
 	for key, value := range map[string]*bool{
-		"registration_enabled": patch.RegistrationEnabled,
-		"guest_upload_enabled": patch.GuestUploadEnabled,
-		"gallery_enabled":      patch.GalleryEnabled,
-		"api_enabled":          patch.APIEnabled,
+		"registration_enabled":       patch.RegistrationEnabled,
+		"guest_upload_enabled":       patch.GuestUploadEnabled,
+		"gallery_enabled":            patch.GalleryEnabled,
+		"api_enabled":                patch.APIEnabled,
+		"gallery_public_albums_only": patch.GalleryPublicAlbumsOnly,
 	} {
 		if value == nil {
 			continue
@@ -129,17 +131,28 @@ func (s *AdminService) PutSettings(ctx context.Context, patch SettingsPatch) (Ad
 		}
 		writes["avatar_provider"] = encoded
 	}
+	// The guest setting must name a guest group and the default setting an
+	// ordinary one; otherwise signups would land in the guest group or guest
+	// uploads would draw on an account group's rules and quota.
 	if patch.GuestGroupID != nil && *patch.GuestGroupID != 0 {
-		if _, err := s.deps.Groups.FindGroup(ctx, *patch.GuestGroupID); err != nil {
+		group, err := s.deps.Groups.FindGroup(ctx, *patch.GuestGroupID)
+		if err != nil {
 			return AdminSettingsView{}, fmt.Errorf("find guest group: %w", err)
+		}
+		if !group.IsGuest {
+			return AdminSettingsView{}, ErrInvalidInput
 		}
 	}
 	if patch.DefaultGroupID != nil {
 		if *patch.DefaultGroupID == 0 {
 			return AdminSettingsView{}, ErrInvalidInput
 		}
-		if _, err := s.deps.Groups.FindGroup(ctx, *patch.DefaultGroupID); err != nil {
+		group, err := s.deps.Groups.FindGroup(ctx, *patch.DefaultGroupID)
+		if err != nil {
 			return AdminSettingsView{}, fmt.Errorf("find default group: %w", err)
+		}
+		if group.IsGuest {
+			return AdminSettingsView{}, ErrInvalidInput
 		}
 	}
 	if patch.GuestGroupID != nil {

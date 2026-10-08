@@ -9,6 +9,8 @@ RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
     ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx && \
     npm install -g pnpm@12.9.1 && \
     npm cache clean --force
+# Same ImageMagick policy as production, so tests see the restricted coders.
+COPY --chmod=0644 deploy/imagemagick-policy.xml /etc/ImageMagick-6/policy.xml
 ENV PATH=/usr/local/go/bin:/go/bin:/opt/imagor/bin:$PATH
 ENV CGO_ENABLED=1 GOTOOLCHAIN=local \
     GOPATH=/go GOMODCACHE=/go/pkg/mod GOCACHE=/root/.cache/go-build \

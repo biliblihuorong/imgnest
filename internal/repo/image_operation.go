@@ -29,11 +29,7 @@ func (r *ImageRepository) BeginTrash(ctx context.Context, key, op string, grant 
 		if image.State != model.ImageStateActive || image.Operation != "" || image.OperationID == op {
 			return model.ErrImageBusy
 		}
-		if image.ChargedBytes > owner.UsedBytes {
-			return model.ErrInvalidInput
-		}
-		if err := tx.Model(&model.User{}).Where("id = ?", owner.ID).
-			Update("used_bytes", gorm.Expr("used_bytes - ?", image.ChargedBytes)).Error; err != nil {
+		if err := chargeOwner(tx, owner, -image.ChargedBytes); err != nil {
 			return err
 		}
 		if err := adjustAlbum(tx, *image, -1); err != nil {
@@ -96,7 +92,7 @@ func (r *ImageRepository) BeginRestore(ctx context.Context, key, op string, gran
 		if image.State != model.ImageStateTrash || image.Operation != "" || image.OperationID == op {
 			return model.ErrImageBusy
 		}
-		if err := checkQuota(tx, owner, image.ChargedBytes); err != nil {
+		if err := checkOwnerQuota(ctx, tx, owner, image.ChargedBytes); err != nil {
 			return err
 		}
 		if err := updateImage(tx, image.ID, map[string]any{"operation": model.ImageOperationRestore, "operation_id": op}); err != nil {
@@ -129,11 +125,10 @@ func (r *ImageRepository) FinishRestore(ctx context.Context, key, op string, gra
 		if image.State != model.ImageStateTrash || image.Operation != model.ImageOperationRestore {
 			return model.ErrImageBusy
 		}
-		if err := checkQuota(tx, owner, 0); err != nil {
+		if err := checkOwnerQuota(ctx, tx, owner, 0); err != nil {
 			return err
 		}
-		if err := tx.Model(&model.User{}).Where("id = ?", owner.ID).
-			Update("used_bytes", gorm.Expr("used_bytes + ?", image.ChargedBytes)).Error; err != nil {
+		if err := chargeOwner(tx, owner, image.ChargedBytes); err != nil {
 			return err
 		}
 		if err := adjustAlbum(tx, *image, 1); err != nil {
@@ -246,4 +241,35 @@ func (r *ImageRepository) FinishPurge(ctx context.Context, key, op string) error
 		return nil
 	}
 	return finishImageError("finish purge", err)
+}
+
+// chargeOwner moves an account's used_bytes by delta. The guest anchor (id 0)
+// has no counter: guest usage is derived from images.user_id = 0, so its
+// transitions only change the image state.
+func chargeOwner(tx *gorm.DB, owner model.User, delta int64) error {
+	if owner.ID == 0 {
+		return nil
+	}
+	if delta < 0 && -delta > owner.UsedBytes {
+		return model.ErrInvalidInput
+	}
+	return tx.Model(&model.User{}).Where("id = ?", owner.ID).
+		Update("used_bytes", gorm.Expr("used_bytes + ?", delta)).Error
+}
+
+// checkOwnerQuota applies the account quota, or the guest group's shared quota
+// for guest images. Without a guest group there is no guest capacity to
+// enforce, so an administrator can still restore earlier guest uploads.
+func checkOwnerQuota(ctx context.Context, tx *gorm.DB, owner model.User, additional int64) error {
+	if owner.ID != 0 {
+		return checkQuota(tx, owner, additional)
+	}
+	if err := lockGuestQuota(ctx, tx); err != nil {
+		return err
+	}
+	group, ok, err := resolveGuestGroup(ctx, tx)
+	if err != nil || !ok {
+		return err
+	}
+	return checkGuestQuota(tx, group, additional)
 }

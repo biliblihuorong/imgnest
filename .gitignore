@@ -21,3 +21,7 @@ coverage.out
 /web-vben/e2e/results/
 
 /.review/
+
+/website/node_modules/
+/website/.vitepress/dist/
+/website/.vitepress/cache/

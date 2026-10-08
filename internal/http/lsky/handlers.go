@@ -10,11 +10,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// credentialBodyLimit caps token requests, which carry only two short fields.
+const credentialBodyLimit = 64 << 10
+
 // createToken exchanges email and password (form or JSON) for an API token.
 func (h *Handler) createToken(c *gin.Context) {
 	email, password, ok := readCredentials(c)
 	if !ok {
 		c.JSON(200, failure("The email address or password is incorrect."))
+		return
+	}
+	account := "v1login:" + strings.ToLower(strings.TrimSpace(email))
+	if h.logins.Exceeded(account, loginFailureLimit) {
+		c.JSON(429, failure("Too Many Attempts."))
 		return
 	}
 	verified, err := h.users.VerifyCredentials(c.Request.Context(), email, password)
@@ -23,9 +31,11 @@ func (h *Handler) createToken(c *gin.Context) {
 		return
 	}
 	if err != nil || verified.User.ID == 0 {
+		h.logins.Allow(account, loginFailureLimit)
 		c.JSON(200, failure("The email address or password is incorrect."))
 		return
 	}
+	h.logins.Reset(account)
 	issued, err := h.tokens.Issue(c.Request.Context(), verified.Subject, service.TokenInput{Name: "api", Kind: service.TokenKindAPI, Abilities: []string{"*"}})
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
@@ -38,14 +48,16 @@ func (h *Handler) createToken(c *gin.Context) {
 	c.JSON(200, success("success", gin.H{"token": issued.Token}))
 }
 
-// readCredentials accepts form and JSON token requests.
+// readCredentials accepts form and JSON token requests. Both share one body
+// cap: gin would otherwise spool an unbounded multipart form to temporary
+// files for an unauthenticated caller.
 func readCredentials(c *gin.Context) (string, string, bool) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, credentialBodyLimit)
 	if strings.HasPrefix(c.ContentType(), "application/json") {
 		var body struct {
 			Email    string `json:"email"`
 			Password string `json:"password"`
 		}
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10)
 		if err := c.ShouldBindJSON(&body); err != nil || body.Email == "" || body.Password == "" {
 			return "", "", false
 		}
@@ -134,7 +146,7 @@ func (h *Handler) listImages(c *gin.Context) {
 		attached := album
 		data = append(data, buildImageItem(item.Image, attached, now))
 	}
-	c.JSON(200, success("success", buildPaginator(baseURL(c.Request.Host, c.GetHeader("X-Forwarded-Proto"), c.Request.TLS != nil)+"/api/v1/images", page, 40, total, data)))
+	c.JSON(200, success("success", buildPaginator(baseURL(c.Request.Host, h.forwardedProto(c), c.Request.TLS != nil)+"/api/v1/images", page, 40, total, data)))
 }
 
 // deleteImage moves one owned image into the recycle bin.
@@ -185,7 +197,7 @@ func (h *Handler) listAlbums(c *gin.Context) {
 	for _, album := range result.Items {
 		data = append(data, albumItem{ID: album.ID, Name: album.Name, Intro: album.Intro, ImageNum: album.ImageNum})
 	}
-	c.JSON(200, success("success", buildPaginator(baseURL(c.Request.Host, c.GetHeader("X-Forwarded-Proto"), c.Request.TLS != nil)+"/api/v1/albums", page, 40, result.Total, data)))
+	c.JSON(200, success("success", buildPaginator(baseURL(c.Request.Host, h.forwardedProto(c), c.Request.TLS != nil)+"/api/v1/albums", page, 40, result.Total, data)))
 }
 
 // deleteAlbum removes one owned album; its images stay and become unassigned.

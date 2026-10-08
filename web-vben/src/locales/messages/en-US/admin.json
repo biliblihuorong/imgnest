@@ -220,6 +220,8 @@
     "guestUploadHint": "Allow signed-out users to upload through the Lsky v1-compatible API, using the guest group’s capacity and rate limits.",
     "gallery": "Public gallery",
     "galleryHint": "Turning this off hides the public image gallery.",
+    "galleryPublicAlbumsOnly": "Gallery shows public albums only",
+    "galleryPublicAlbumsOnlyHint": "When on, the gallery only shows public images that are in a public album. Images outside albums or in private albums are hidden.",
     "api": "Lsky v1 API",
     "apiHint": "Controls the /api/v1 Lsky-compatible API. Turning it off disables v1 endpoints; native /api endpoints are unaffected.",
     "retention": "Trash retention days",

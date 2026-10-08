@@ -1016,6 +1016,21 @@ func TestAdminSettingsDefaultsAndRoundTrip(t *testing.T) {
 	if len(groups.updates) != 0 {
 		t.Fatal("settings write mutated groups")
 	}
+	ordinary, guestGroup := uint64(1), uint64(2)
+	if _, err := svc.PutSettings(t.Context(), SettingsPatch{DefaultGroupID: &guestGroup}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("guest group accepted as default group: %v", err)
+	}
+	if _, err := svc.PutSettings(t.Context(), SettingsPatch{GuestGroupID: &ordinary}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("ordinary group accepted as guest group: %v", err)
+	}
+	albumsOnly := true
+	if _, err := svc.PutSettings(t.Context(), SettingsPatch{GalleryPublicAlbumsOnly: &albumsOnly}); err != nil {
+		t.Fatal(err)
+	}
+	last := settingsFake.written[len(settingsFake.written)-1]
+	if string(last["gallery_public_albums_only"]) != "true" {
+		t.Fatalf("gallery album scope not written: %+v", last)
+	}
 }
 
 // ---------- admin image operations ----------

@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+// window is one key's count within its current one-minute window.
+type window struct {
+	until time.Time
+	count int
+}
+
 // fixedWindowLimiter counts requests per key in one-minute windows. Each
 // instance owns its table, so flooding one route cannot exhaust the entries
 // another route's limiter needs.

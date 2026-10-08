@@ -520,6 +520,10 @@ func TestAdminImageListingAndTrashKeys(t *testing.T) {
 		if err != nil || total != 1 || images[0].ID != first.ID {
 			t.Fatalf("pathname keyword total=%d rows=%+v err=%v", total, images, err)
 		}
+		images, total, err = imagesRepo.ListAdminPage(t.Context(), 0, "HOLIDAY", 1, 20)
+		if err != nil || total != 1 || images[0].ID != second.ID {
+			t.Fatalf("keyword is case-sensitive: total=%d err=%v", total, err)
+		}
 		_, total, err = imagesRepo.ListAdminPage(t.Context(), 0, "_", 1, 20)
 		if err != nil || total != 0 {
 			t.Fatalf("unescaped underscore matched: total=%d err=%v", total, err)

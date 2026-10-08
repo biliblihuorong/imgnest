@@ -220,6 +220,8 @@
     "guestUploadHint": "允许未登录用户通过蓝空 v1 兼容接口上传，走游客用户组的容量与限流配置。",
     "gallery": "公共画廊",
     "galleryHint": "关闭后画廊页面不再对外展示公开图片。",
+    "galleryPublicAlbumsOnly": "画廊仅展示公开相册",
+    "galleryPublicAlbumsOnlyHint": "开启后，画廊只展示放在公开相册里的公开图片；未归入相册或在私密相册里的图片不会出现。",
     "api": "蓝空 v1 API",
     "apiHint": "/api/v1 蓝空兼容接口总开关，关闭后 v1 接口不再可用（原生 /api 接口不受影响）。",
     "retention": "回收站保留天数",

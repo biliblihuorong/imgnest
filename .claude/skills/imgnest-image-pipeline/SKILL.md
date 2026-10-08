@@ -91,6 +91,9 @@ whitespace and `?#%&\:*"<>|` with `-`, keep CJK, ≤100 runes per segment,
 - The pinned imagor-base disables Magick. Rebuild the same vips8.18.6 official
   tarball with its fixed digest and Magick enabled for BMP; never upgrade
   vips/vipsgen to hide a missing-loader failure.
+- `deploy/imagemagick-policy.xml` limits ImageMagick to the BMP readers with
+  resource caps; keep it copied in both `deploy/Dockerfile` and
+  `deploy/Dockerfile.dev` and extend it only when a new Magick format is needed.
 - Runtime env in the container: jemalloc via `LD_PRELOAD`,
   `MALLOC_ARENA_MAX=2`.
 
@@ -145,7 +148,11 @@ folder is a cache — safe to delete.
   then remove local cache, EXIF and image row. Compensation instead uses
   OwnedPurger.PurgeOwned, preserving foreign history and clearing local owned
   staging even when canonical Stat is missing.
-- CDN cache purging is out of scope.
+- CDN cache purging is out of scope: "old URL 404" means the origin, not
+  browser/CDN copies of the immutable direct link.
+- Trash copies are written with `Cache-Control: private, no-store`; restored
+  objects go back to the long-lived public header. Public buckets must deny
+  anonymous reads under `_trash/` (see `docs/deployment.md`).
 
 ## S3 client settings (COS / R2 / B2)
 

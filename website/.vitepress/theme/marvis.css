@@ -1,0 +1,318 @@
+/*
+ * Marvis 风格：灰底、白色漂浮卡片、大圆角、柔和阴影。
+ * 第 1 节是设计令牌，取值与 web-vben/src/assets/marvis.css 一致，换肤只改这一节；
+ * 第 2 节把令牌接到 VitePress 默认主题的变量上；第 3 节起是少量结构性覆盖。
+ */
+
+/* 1. 设计令牌 ---------------------------------------------------------- */
+:root {
+  --mv-bg-deep: hsl(240 6% 97%);
+  --mv-card: hsl(0 0% 100%);
+  --mv-fg: hsl(240 3% 11%);
+  --mv-sub: hsl(240 4% 42%);
+  --mv-soft: hsl(240 5% 96%);
+  --mv-soft-strong: hsl(240 5% 93%);
+  --mv-line: hsl(240 6% 91%);
+  --mv-line-strong: hsl(240 5% 84%);
+  --mv-primary: hsl(230 100% 62%);
+  --mv-primary-text: hsl(230 82% 52%);
+  --mv-ok: hsl(152 62% 32%);
+  --mv-bad: hsl(4 72% 48%);
+
+  --mv-shadow-sm: 0 1px 2px rgb(0 0 0 / 4%);
+  --mv-shadow-md: 0 1px 3px rgb(0 0 0 / 5%), 0 8px 24px rgb(0 0 0 / 5%);
+  --mv-shadow-lg: 0 12px 40px rgb(0 0 0 / 10%);
+  --mv-shadow-side: 0 1px 2px rgb(0 0 0 / 3%), 0 12px 32px rgb(0 0 0 / 5%);
+  --mv-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dark {
+  --mv-bg-deep: hsl(240 6% 7%);
+  --mv-card: hsl(240 7% 12%);
+  --mv-fg: hsl(240 5% 96%);
+  --mv-sub: hsl(240 5% 68%);
+  --mv-soft: hsl(240 5% 17%);
+  --mv-soft-strong: hsl(240 5% 21%);
+  --mv-line: hsl(240 5% 20%);
+  --mv-line-strong: hsl(240 5% 30%);
+  --mv-primary: hsl(230 100% 68%);
+  --mv-primary-text: hsl(230 100% 78%);
+  --mv-ok: hsl(152 55% 56%);
+  --mv-bad: hsl(4 85% 70%);
+
+  --mv-shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --mv-shadow-md: 0 1px 3px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 30%);
+  --mv-shadow-lg: 0 12px 40px rgb(0 0 0 / 50%);
+  --mv-shadow-side: 0 1px 2px rgb(0 0 0 / 30%), 0 12px 32px rgb(0 0 0 / 35%);
+}
+
+/* 2. 接到 VitePress 变量 ----------------------------------------------- */
+:root {
+  --vp-font-family-base: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Segoe UI",
+    "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif;
+  --vp-font-family-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas, monospace;
+
+  --vp-c-bg: var(--mv-bg-deep);
+  --vp-c-bg-alt: var(--mv-soft);
+  --vp-c-bg-elv: var(--mv-card);
+  --vp-c-bg-soft: var(--mv-soft);
+  --vp-c-text-1: var(--mv-fg);
+  --vp-c-text-2: var(--mv-sub);
+  --vp-c-divider: var(--mv-line);
+  --vp-c-gutter: var(--mv-line);
+  --vp-c-border: var(--mv-line-strong);
+
+  --vp-c-brand-1: var(--mv-primary-text);
+  --vp-c-brand-2: var(--mv-primary);
+  --vp-c-brand-3: var(--mv-primary);
+  --vp-c-brand-soft: color-mix(in srgb, var(--mv-primary) 12%, transparent);
+
+  --vp-nav-bg-color: var(--mv-bg-deep);
+  --vp-sidebar-bg-color: var(--mv-card);
+  --vp-code-block-bg: var(--mv-soft);
+  --vp-code-copy-code-bg: var(--mv-card);
+  --vp-code-copy-code-hover-bg: var(--mv-card);
+  --vp-local-search-bg: var(--mv-card);
+  --vp-local-search-result-bg: var(--mv-card);
+
+  /* 让宽屏下侧栏始终靠左漂浮，而不是跟着内容居中。 */
+  --vp-layout-max-width: 100vw;
+  --vp-sidebar-width: 290px;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 3. 首页与通用按钮 ---------------------------------------------------- */
+.mv-btn {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 22px;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--mv-fg);
+  text-decoration: none;
+  background: var(--mv-card);
+  border: 1px solid var(--mv-line);
+  border-radius: 14px;
+  box-shadow: var(--mv-shadow-sm);
+  transition:
+    transform 0.2s var(--mv-ease),
+    background 0.2s,
+    box-shadow 0.2s;
+}
+
+.mv-btn:hover {
+  background: var(--mv-soft);
+}
+
+.mv-btn:active {
+  transform: scale(0.98);
+}
+
+.mv-btn--primary {
+  color: #fff;
+  background: var(--mv-primary);
+  border-color: transparent;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--mv-primary) 30%, transparent);
+}
+
+.dark .mv-btn--primary {
+  color: hsl(240 10% 6%);
+}
+
+.mv-btn--primary:hover {
+  background: color-mix(in srgb, var(--mv-primary) 88%, var(--mv-fg));
+}
+
+/* 4. 顶栏 -------------------------------------------------------------- */
+.VPNavBar .divider-line {
+  background-color: transparent;
+}
+
+.VPNavBarTitle .title {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  border-bottom-color: transparent;
+}
+
+.VPNavBarMenuLink {
+  border-radius: 10px;
+}
+
+.DocSearch-Button {
+  border-radius: 12px !important;
+}
+
+.VPLocalSearchBox .shell {
+  border-radius: 18px !important;
+  box-shadow: var(--mv-shadow-lg);
+}
+
+/* 5. 文档页：漂浮侧栏 + 白色正文卡片 ------------------------------------ */
+@media (min-width: 960px) {
+  .VPSidebar {
+    top: calc(var(--vp-nav-height) + 4px) !important;
+    bottom: 14px;
+    left: 14px;
+    width: calc(var(--vp-sidebar-width) - 18px) !important;
+    padding: 8px 18px 28px !important;
+    border: 1px solid var(--mv-line);
+    border-radius: 22px;
+    box-shadow: var(--mv-shadow-side);
+  }
+
+  .VPSidebar .curtain {
+    display: none;
+  }
+
+  .VPNavBar.has-sidebar .title {
+    background-color: transparent;
+  }
+
+  .VPDoc .content-container {
+    padding: 36px 44px 28px;
+    background: var(--mv-card);
+    border: 1px solid var(--mv-line);
+    border-radius: 24px;
+    box-shadow: var(--mv-shadow-sm);
+  }
+
+  /* 默认主题把正文限制在 688px，宽屏两侧会空出一大片；这里让正文卡片铺满侧栏与大纲之间的空间。 */
+  .VPDoc.has-aside .content-container {
+    max-width: none !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .VPDoc.has-sidebar .content {
+    flex: 1 1 auto;
+    min-width: 0 !important;
+    padding-inline: 0 !important;
+  }
+}
+
+.VPSidebarItem.level-1 .item {
+  margin-inline: -10px;
+  padding-inline: 10px;
+  border-radius: 10px;
+}
+
+.VPSidebarItem.level-1.is-active > .item {
+  background: var(--mv-soft);
+}
+
+.VPSidebarItem.level-1.is-active > .item .text {
+  color: var(--mv-fg);
+  font-weight: 600;
+}
+
+.VPSidebarItem.level-1 .indicator {
+  display: none;
+}
+
+.vp-doc h1 {
+  letter-spacing: -0.03em;
+}
+
+.vp-doc h2 {
+  letter-spacing: -0.02em;
+}
+
+.vp-doc div[class*="language-"],
+.vp-doc .custom-block {
+  border-radius: 14px;
+}
+
+.vp-doc .mv-table {
+  margin: 20px 0;
+  overflow-x: auto;
+  border: 1px solid var(--mv-line);
+  border-radius: 14px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 表格由 config.ts 包进 .mv-table：窄屏时在框内横向滚动，不再把整页撑宽。 */
+.vp-doc .mv-table table {
+  display: table;
+  width: 100%;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.vp-doc th,
+.vp-doc td {
+  min-width: 6em;
+  border: 0;
+  border-bottom: 1px solid var(--mv-line);
+}
+
+/* 最后一列多半是「说明」，窄屏给它留够宽度，宁可横向滚动也不把文字挤成一字一行。 */
+@media (max-width: 959px) {
+  .vp-doc td:last-child {
+    min-width: 14em;
+  }
+}
+
+@media (max-width: 639px) {
+  .vp-doc th,
+  .vp-doc td {
+    padding: 8px 12px;
+    font-size: 13.5px;
+  }
+}
+
+.vp-doc tr:last-child td {
+  border-bottom: 0;
+}
+
+.vp-doc tr,
+.vp-doc tr:nth-child(2n) {
+  background: transparent;
+}
+
+.vp-doc th {
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  background: var(--mv-soft);
+}
+
+.vp-doc :not(pre) > code {
+  border-radius: 6px;
+}
+
+.pager-link {
+  background: var(--mv-card);
+  border-radius: 14px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 表格里的代码多半是参数名、环境变量，不让它在连字符或下划线处折行，放不下就横向滚动。 */
+.vp-doc td code {
+  white-space: nowrap;
+}
+
+.vp-doc div[class*="language-"] code {
+  font-size: 13px;
+}
+
+/* 首页没有目录，也就不需要窄屏下的「回到顶部」条。 */
+.mv-home .VPLocalNav {
+  display: none;
+}

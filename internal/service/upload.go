@@ -282,7 +282,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 			err = s.deps.Cache.Put(ctx, image.StorageID, receipt.Key, object.data)
 		} else {
 			var written storage.Receipt
-			written, err = driver.PutNew(ctx, receipt.Key, bytes.NewReader(object.data), storage.PutOptions{MIME: receipt.MIME, OwnerID: image.Key, CacheControl: "public, max-age=31536000, immutable"})
+			written, err = driver.PutNew(ctx, receipt.Key, bytes.NewReader(object.data), storage.PutOptions{MIME: receipt.MIME, OwnerID: image.Key, CacheControl: liveCacheControl})
 			if err == nil {
 				receipt.VersionID = written.VersionID
 				receipt.Size = written.Size
@@ -441,6 +441,32 @@ func (s *ImageService) view(ctx context.Context, image model.Image) (ImageView, 
 		return ImageView{}, fmt.Errorf("read image policy: %w", err)
 	}
 	return imageView(image, backend, policy), nil
+}
+
+// viewer returns a view builder that reads each storage and rule once, so a
+// listing page costs two lookups per distinct backend instead of per image.
+func (s *ImageService) viewer() func(context.Context, model.Image) (ImageView, error) {
+	backends := map[uint64]model.Storage{}
+	policies := map[uint64]model.Policy{}
+	return func(ctx context.Context, image model.Image) (ImageView, error) {
+		backend, ok := backends[image.StorageID]
+		if !ok {
+			found, err := s.deps.Storages.Find(ctx, image.StorageID)
+			if err != nil {
+				return ImageView{}, fmt.Errorf("read image storage: %w", err)
+			}
+			backend, backends[image.StorageID] = found, found
+		}
+		policy, ok := policies[image.PolicyID]
+		if !ok {
+			found, err := s.deps.Policies.Find(ctx, image.PolicyID)
+			if err != nil {
+				return ImageView{}, fmt.Errorf("read image policy: %w", err)
+			}
+			policy, policies[image.PolicyID] = found, found
+		}
+		return imageView(image, backend, policy), nil
+	}
 }
 
 func imageView(image model.Image, backend model.Storage, policy model.Policy) ImageView {

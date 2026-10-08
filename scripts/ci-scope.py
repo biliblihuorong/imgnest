@@ -13,7 +13,9 @@ GO_ONLY_FILES = {"go.mod", "go.sum", ".golangci.yml"}
 
 
 def is_documentation(path):
-    if path.startswith(".claude/"):
+    # website/ is the standalone project site; it is deployed separately and
+    # no CI job builds or embeds it.
+    if path.startswith((".claude/", "website/")):
         return True
     return path.endswith(".md") and ("/" not in path or path.startswith("docs/"))
 

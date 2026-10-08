@@ -761,7 +761,9 @@ export interface paths {
          *     seeded guest anchor appears as `guest`). When the site switch
          *     `gallery_enabled` is closed — or its setting cannot be read — the
          *     endpoint answers the same well-formed empty page so switch state
-         *     cannot be probed. Responses never contain EXIF, GPS, IP addresses,
+         *     cannot be probed. Images of disabled accounts are hidden. With
+         *     `gallery_public_albums_only` on, only images inside public albums
+         *     are listed. Responses never contain EXIF, GPS, IP addresses,
          *     or email addresses.
          */
         get: operations["listGallery"];
@@ -835,8 +837,11 @@ export interface paths {
          * Exchange account credentials for an API token
          * @description Lsky Pro compatible token endpoint. The credentials may arrive as a
          *     JSON object or a form body. Issuance is throttled to three attempts
-         *     per client address per minute; the fourth attempt within a window is
-         *     rejected with 429. Wrong credentials stay a business failure (HTTP 200
+         *     per client address per minute (IPv6 clients per /64); the fourth
+         *     attempt within a window is rejected with 429. Because this route
+         *     cannot carry the native captcha, an account is also paused with 429
+         *     after ten wrong passwords within fifteen minutes, from any address.
+         *     Wrong credentials stay a business failure (HTTP 200
          *     with `status: false`) so existing clients only branch on `status`.
          *     The returned plaintext token is shown exactly once.
          */
@@ -1703,6 +1708,8 @@ export interface components {
             registration_enabled: boolean;
             guest_upload_enabled: boolean;
             gallery_enabled: boolean;
+            /** @description Limits the gallery to public images inside public albums; defaults to false. */
+            gallery_public_albums_only: boolean;
             trash_days: number;
             /** @description Master switch of the Lsky-compatible /api/v1 layer. */
             api_enabled: boolean;
@@ -1723,10 +1730,15 @@ export interface components {
             registration_enabled?: boolean;
             guest_upload_enabled?: boolean;
             gallery_enabled?: boolean;
+            gallery_public_albums_only?: boolean;
             trash_days?: number;
             api_enabled?: boolean;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Nonzero must name the is_guest group
+             */
             guest_group_id?: number;
+            /** @description Must name an ordinary (non-guest) group */
             default_group_id?: components["schemas"]["ID"];
             /** @enum {string} */
             avatar_provider?: "weavatar" | "gravatar";
@@ -1920,7 +1932,7 @@ export interface components {
             id: components["schemas"]["ID"];
             name: string;
             intro: string;
-            /** @description Stored for a later gallery mode; this milestone keeps it write-only metadata. */
+            /** @description Marks the album as public; with the `gallery_public_albums_only` setting the gallery lists only public images inside public albums. */
             is_public: boolean;
             /**
              * Format: int64
@@ -1968,39 +1980,18 @@ export interface components {
             page: number;
             size: number;
         };
-        /** @description One public gallery entry — the same flat shape as ImageView plus the uploader's username; never contains EXIF, GPS, IP addresses, or emails. */
+        /** @description One public gallery entry. Deliberately narrower than ImageView — no owner, album, rule, storage, key or content-hash fields — and never contains EXIF, GPS, IP addresses, or emails. */
         GalleryItem: {
             id: components["schemas"]["ID"];
-            key: string;
-            user_id: components["schemas"]["ID"];
-            /** Format: int64 */
-            album_id: number;
-            policy_id: components["schemas"]["ID"];
-            storage_id: components["schemas"]["ID"];
             name: string;
             ext: string;
             mime: string;
             /** Format: int64 */
             size: number;
-            /** Format: int64 */
-            webp_size: number;
-            /** Format: int64 */
-            charged_bytes: number;
             width: number;
             height: number;
             frames: number;
-            has_original: boolean;
-            has_webp: boolean;
-            has_thumb: boolean;
-            scrubbed: boolean;
-            is_public: boolean;
-            md5: string;
-            sha1: string;
-            src_md5: string;
             links: components["schemas"]["ImageLinks"];
-            local_thumb_url: string;
-            deleted_at: components["schemas"]["NullableTimestamp"];
-            purge_at: components["schemas"]["NullableTimestamp"];
             created_at: components["schemas"]["Timestamp"];
             /** @description Uploader's username; the seeded guest anchor appears as `guest`. */
             uploader: string;

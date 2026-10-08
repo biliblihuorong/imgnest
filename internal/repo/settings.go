@@ -110,6 +110,20 @@ func (r *SettingsRepository) GalleryEnabled(ctx context.Context) (bool, error) {
 	return *enabled, nil
 }
 
+// GalleryPublicAlbumsOnly reports whether the gallery shows only images in
+// public albums. An absent key reads as false.
+func (r *SettingsRepository) GalleryPublicAlbumsOnly(ctx context.Context) (bool, error) {
+	setting, found, err := r.findOptional(ctx, "gallery_public_albums_only")
+	if err != nil || !found {
+		return false, err
+	}
+	var enabled *bool
+	if err := json.Unmarshal(setting.Value, &enabled); err != nil {
+		return false, databaseError("decode gallery album setting", err)
+	}
+	return enabled != nil && *enabled, nil
+}
+
 // AvatarConfig returns the site-wide avatar provider with its configuration
 // version (the settings row's update time as Unix seconds). A missing key or
 // an unsupported stored value reads as the default provider with version 0 so

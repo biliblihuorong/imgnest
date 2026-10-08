@@ -3,13 +3,13 @@ package native
 import (
 	"context"
 	"errors"
+	"github.com/biliblihuorong/imgnest/internal/http/reqbody"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"strconv"
-	"time"
 )
 
 var errUploadTooLarge = errors.New("upload exceeds size limit")
@@ -49,15 +49,7 @@ func (h *imageHandler) upload(c *gin.Context) {
 		fail(c, errUploadTooLarge)
 		return
 	}
-	original := c.Request.Body
-	stop := context.AfterFunc(ctx, func() { _ = original.Close() })
-	defer stop()
-	controller := http.NewResponseController(c.Writer)
-	deadline, _ := ctx.Deadline()
-	if err := controller.SetReadDeadline(deadline); err == nil {
-		defer func() { _ = controller.SetReadDeadline(time.Time{}) }()
-	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, original, h.options.MaxRequestBytes)
+	defer reqbody.Bound(ctx, c.Writer, c.Request, h.options.MaxRequestBytes)()
 	reader, err := c.Request.MultipartReader()
 	if err != nil {
 		fail(c, service.ErrInvalidInput)
@@ -200,26 +192,5 @@ func uploadReadError(ctx context.Context, err error) error {
 	return service.ErrInvalidInput
 }
 func (h *imageHandler) allowUpload(userID uint64, perMinute int) bool {
-	if perMinute <= 0 {
-		return true
-	}
-	key := "upload:" + strconv.FormatUint(userID, 10)
-	now := h.auth.now()
-	h.auth.mu.Lock()
-	defer h.auth.mu.Unlock()
-	entry := h.auth.limits[key]
-	if !now.Before(entry.until) {
-		for other, current := range h.auth.limits {
-			if !now.Before(current.until) {
-				delete(h.auth.limits, other)
-			}
-		}
-		if len(h.auth.limits) >= 4096 {
-			return false
-		}
-		entry = window{until: now.Add(time.Minute)}
-	}
-	entry.count++
-	h.auth.limits[key] = entry
-	return entry.count <= perMinute
+	return h.auth.limits.Allow("upload:"+strconv.FormatUint(userID, 10), perMinute)
 }
