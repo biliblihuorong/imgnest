@@ -91,6 +91,9 @@ whitespace and `?#%&\:*"<>|` with `-`, keep CJK, ≤100 runes per segment,
 - The pinned imagor-base disables Magick. Rebuild the same vips8.18.6 official
   tarball with its fixed digest and Magick enabled for BMP; never upgrade
   vips/vipsgen to hide a missing-loader failure.
+- `deploy/imagemagick-policy.xml` limits ImageMagick to the BMP readers with
+  resource caps; keep it copied in both `deploy/Dockerfile` and
+  `deploy/Dockerfile.dev` and extend it only when a new Magick format is needed.
 - Runtime env in the container: jemalloc via `LD_PRELOAD`,
   `MALLOC_ARENA_MAX=2`.
 

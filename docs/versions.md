@@ -260,3 +260,7 @@ M5 时期的旧前端 `web/` 已删除，`web-vben/` 是唯一前端，默认 Go
 `scripts/ci-scope.py` 把 `website/` 归入文档类：只改网站时 PR 上的全部 job 跳过。网站由静态托管平台单独构建部署，不在本仓库的 CI 内。
 
 网站不随仓库固定 Node 版本：`website/package.json` 的 `engines` 为 `>=22.12.0`，不提供 `.nvmrc`，由托管平台选择预装的 Node 22 或 24。实测 Node 22.13.1 可构建。上表的 Node 24.21.0 仍是 `web-vben/` 与开发镜像的锁定版本。
+
+## ImageMagick 策略（2026-10-08）
+
+版本不变。`deploy/imagemagick-policy.xml` 覆盖运行镜像与开发镜像中的 `/etc/ImageMagick-6/policy.xml`：只允许读取 `BMP`/`BMP2`/`BMP3`，禁用其他 coder、delegate、filter 与 `@` 间接读取，并限制内存 256MiB、宽高 32K、面积 100MP。libvips 的 Magick 只为 BMP 启用，其他上传格式都走原生 loader，因此不影响现有格式。基础镜像 `imgnest-vips` 不变，策略文件在 `deploy/Dockerfile` 与 `deploy/Dockerfile.dev` 中复制。
