@@ -61,6 +61,15 @@ Windows：`./scripts/install-skills.ps1`（或加 `-Latest`）。两个项目自
 
 `website/` 是项目的首页与文档站（VitePress），文档正文是 `website/docs/` 下的 Markdown。运行与修改方法见 [website/README.md](website/README.md)。
 
+## 赞赏
+
+ImgNest 是业余时间开发的开源项目。如果它对你有帮助，欢迎扫码请作者喝杯咖啡，或者点个 Star。
+
+<p>
+  <img src="website/docs/public/sponsor/wechat.png" alt="微信赞赏码" width="200" />
+  <img src="website/docs/public/sponsor/alipay.png" alt="支付宝收款码" width="200" />
+</p>
+
 ## 许可证
 
 31 个开源 Skill 保留原许可证（MIT、Apache-2.0、CC-BY-SA-4.0），详见 `THIRD_PARTY_NOTICES.md`。
