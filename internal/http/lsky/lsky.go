@@ -8,9 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -44,13 +44,10 @@ type Handler struct {
 	now     func() time.Time
 	options Options
 	slots   chan struct{}
-	mu      sync.Mutex
-	limits  map[string]window
-}
-
-type window struct {
-	until time.Time
-	count int
+	limits  *ratelimit.Limiter
+	// logins counts failed password exchanges per account, because the v1
+	// token route cannot carry the native captcha.
+	logins *ratelimit.Limiter
 }
 
 const identityKey = "lsky_identity"
@@ -75,7 +72,9 @@ func NewHandler(ctx context.Context, deps Dependencies) (*Handler, error) {
 	return &Handler{
 		users: deps.Users, tokens: deps.Tokens, images: deps.Images,
 		albums: deps.Albums, lsky: deps.Lsky, now: deps.Now, options: deps.Options,
-		slots: make(chan struct{}, deps.Options.MaxConcurrent), limits: make(map[string]window),
+		slots:  make(chan struct{}, deps.Options.MaxConcurrent),
+		limits: ratelimit.New(deps.Now, time.Minute, ratelimit.DefaultCapacity),
+		logins: ratelimit.New(deps.Now, loginFailureWindow, ratelimit.DefaultCapacity),
 	}, nil
 }
 
@@ -166,9 +165,15 @@ func currentIdentity(c *gin.Context) *service.Identity {
 	return id
 }
 
+// Failed v1 password exchanges per account before the account is paused.
+const (
+	loginFailureLimit  = 10
+	loginFailureWindow = 15 * time.Minute
+)
+
 // tokenThrottle caps token issuance at three attempts per IP per minute.
 func (h *Handler) tokenThrottle(c *gin.Context) {
-	if !h.allow("v1tokens:"+c.ClientIP(), 3) {
+	if !h.allow("v1tokens:"+ratelimit.ClientKey(c.ClientIP()), 3) {
 		c.JSON(429, failure("Too Many Attempts."))
 		c.Abort()
 	}
@@ -176,27 +181,7 @@ func (h *Handler) tokenThrottle(c *gin.Context) {
 
 // allow implements the native fixed-window limiter semantics.
 func (h *Handler) allow(key string, limit int) bool {
-	if limit <= 0 {
-		return true
-	}
-	now := h.now()
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	entry, exists := h.limits[key]
-	if !exists || !now.Before(entry.until) {
-		for other, current := range h.limits {
-			if !now.Before(current.until) {
-				delete(h.limits, other)
-			}
-		}
-		if len(h.limits) >= 4096 {
-			return false
-		}
-		entry = window{until: now.Add(time.Minute)}
-	}
-	entry.count++
-	h.limits[key] = entry
-	return entry.count <= limit
+	return h.limits.Allow(key, limit)
 }
 
 // envelope is the v1 response shell. Empty data is always an object.

@@ -20,15 +20,22 @@ func (h *Handler) createToken(c *gin.Context) {
 		c.JSON(200, failure("The email address or password is incorrect."))
 		return
 	}
+	account := "v1login:" + strings.ToLower(strings.TrimSpace(email))
+	if h.logins.Exceeded(account, loginFailureLimit) {
+		c.JSON(429, failure("Too Many Attempts."))
+		return
+	}
 	verified, err := h.users.VerifyCredentials(c.Request.Context(), email, password)
 	if isCanceled(err) {
 		c.JSON(200, failure("请求超时或已取消"))
 		return
 	}
 	if err != nil || verified.User.ID == 0 {
+		h.logins.Allow(account, loginFailureLimit)
 		c.JSON(200, failure("The email address or password is incorrect."))
 		return
 	}
+	h.logins.Reset(account)
 	issued, err := h.tokens.Issue(c.Request.Context(), verified.Subject, service.TokenInput{Name: "api", Kind: service.TokenKindAPI, Abilities: []string{"*"}})
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {

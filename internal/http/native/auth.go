@@ -9,9 +9,9 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -48,12 +48,8 @@ type Handler struct {
 	captcha CaptchaService
 	tokens  TokenService
 	now     func() time.Time
-	mu      sync.Mutex
-	limits  map[string]window
-}
-type window struct {
-	until time.Time
-	count int
+	// limits throttles login, registration and uploads per client or user.
+	limits *ratelimit.Limiter
 }
 
 const identityKey = "imgnest_identity"
@@ -66,7 +62,7 @@ func NewHandler(ctx context.Context, users UserService, tokens TokenService, now
 	if users == nil || tokens == nil || now == nil {
 		return nil, fmt.Errorf("create native handler: missing dependencies")
 	}
-	return &Handler{users: users, tokens: tokens, now: now, limits: make(map[string]window)}, nil
+	return &Handler{users: users, tokens: tokens, now: now, limits: ratelimit.New(now, time.Minute, ratelimit.DefaultCapacity)}, nil
 }
 
 // RegisterRoutes binds native routes to the provided router.
@@ -90,28 +86,8 @@ func (h *Handler) RegisterRoutes(ctx context.Context, router gin.IRouter) error 
 }
 
 func (h *Handler) rateLimit(c *gin.Context) {
-	key := c.FullPath() + ":" + c.ClientIP()
-	now := h.now()
-	h.mu.Lock()
-	entry, exists := h.limits[key]
-	if !exists || !now.Before(entry.until) {
-		// ponytail: bounded fixed-window limits suit the monolith; shared limits are needed for multiple instances.
-		for other, current := range h.limits {
-			if !now.Before(current.until) {
-				delete(h.limits, other)
-			}
-		}
-		if len(h.limits) >= 4096 {
-			h.mu.Unlock()
-			c.AbortWithStatusJSON(429, Response{Code: 30003, Message: "too many requests", Data: nil})
-			return
-		}
-		entry = window{until: now.Add(time.Minute)}
-	}
-	entry.count++
-	h.limits[key] = entry
-	h.mu.Unlock()
-	if entry.count > 3 {
+	// ponytail: bounded fixed-window limits suit the monolith; shared limits are needed for multiple instances.
+	if !h.limits.Allow(c.FullPath()+":"+ratelimit.ClientKey(c.ClientIP()), 3) {
 		c.AbortWithStatusJSON(429, Response{Code: 30003, Message: "too many requests", Data: nil})
 	}
 }
