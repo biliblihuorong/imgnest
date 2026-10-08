@@ -17,18 +17,19 @@ import (
 
 type albumImagesRepo struct {
 	ImageRepository
-	image      model.Image
-	findErr    error
-	setAlbumID uint64
-	setKey     string
-	setErr     error
-	listAlbum  *uint64
-	listFilter model.ImageListFilter
-	listResult []model.Image
-	listTotal  int64
-	gallery    []model.GalleryImage
-	galleryAll int64
-	galleryErr error
+	image             model.Image
+	findErr           error
+	setAlbumID        uint64
+	setKey            string
+	setErr            error
+	listAlbum         *uint64
+	listFilter        model.ImageListFilter
+	listResult        []model.Image
+	listTotal         int64
+	gallery           []model.GalleryImage
+	galleryAll        int64
+	galleryErr        error
+	galleryAlbumsOnly bool
 }
 
 func (r *albumImagesRepo) listOrder() string { return r.listFilter.Order }
@@ -56,7 +57,8 @@ func (r *albumImagesRepo) List(_ context.Context, filter model.ImageListFilter, 
 	return r.listResult, r.listTotal, nil
 }
 
-func (r *albumImagesRepo) ListGallery(_ context.Context, _, _ int) ([]model.GalleryImage, int64, error) {
+func (r *albumImagesRepo) ListGallery(_ context.Context, _, _ int, albumsOnly bool) ([]model.GalleryImage, int64, error) {
+	r.galleryAlbumsOnly = albumsOnly
 	return r.gallery, r.galleryAll, r.galleryErr
 }
 
@@ -78,8 +80,13 @@ func (s *albumStoreStub) FindOwned(_ context.Context, ownerID, albumID uint64) (
 
 type gallerySettings struct {
 	ImageSettings
-	enabled bool
-	err     error
+	enabled    bool
+	err        error
+	albumsOnly bool
+}
+
+func (s gallerySettings) GalleryPublicAlbumsOnly(context.Context) (bool, error) {
+	return s.albumsOnly, nil
 }
 
 func (s gallerySettings) TrashDays(context.Context) (int, error) { return 7, nil }
@@ -261,10 +268,19 @@ func TestGallerySwitchControlsVisibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, leak := range []string{"email", "exif", "gps", "ip\"", "password", "registered_ip"} {
+	for _, leak := range []string{"email", "exif", "gps", "ip\"", "password", "registered_ip", "user_id", "album_id", "policy_id", "storage_id", "md5", "sha1", "key\"", "charged_bytes"} {
 		if strings.Contains(string(raw), leak) {
 			t.Fatalf("gallery leaked %s: %s", leak, raw)
 		}
+	}
+
+	if images.galleryAlbumsOnly {
+		t.Fatal("gallery limited to public albums without the setting")
+	}
+	switcher.albumsOnly = true
+	svc.deps.Settings = switcher
+	if _, err = svc.Gallery(t.Context(), 1, 20); err != nil || !images.galleryAlbumsOnly {
+		t.Fatalf("public-albums setting not applied: %v", err)
 	}
 
 	images.galleryErr = ErrStorage

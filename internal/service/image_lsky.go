@@ -50,8 +50,9 @@ func (s *ImageService) ListV1(ctx context.Context, ownerID uint64, page, size in
 		return nil, 0, fmt.Errorf("list v1 images: %w", err)
 	}
 	items := make([]V1Image, 0, len(images))
+	build := s.viewer()
 	for _, image := range images {
-		view, err := s.view(ctx, image)
+		view, err := build(ctx, image)
 		if err != nil {
 			return nil, 0, err
 		}

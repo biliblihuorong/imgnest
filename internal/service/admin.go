@@ -225,10 +225,12 @@ type AdminSettingsView struct {
 	RegistrationEnabled bool   `json:"registration_enabled"`
 	GuestUploadEnabled  bool   `json:"guest_upload_enabled"`
 	GalleryEnabled      bool   `json:"gallery_enabled"`
-	TrashDays           int    `json:"trash_days"`
-	APIEnabled          bool   `json:"api_enabled"`
-	GuestGroupID        uint64 `json:"guest_group_id"`
-	DefaultGroupID      uint64 `json:"default_group_id"`
+	// GalleryPublicAlbumsOnly limits the gallery to images in public albums.
+	GalleryPublicAlbumsOnly bool   `json:"gallery_public_albums_only"`
+	TrashDays               int    `json:"trash_days"`
+	APIEnabled              bool   `json:"api_enabled"`
+	GuestGroupID            uint64 `json:"guest_group_id"`
+	DefaultGroupID          uint64 `json:"default_group_id"`
 	// AvatarProvider is the site-wide external avatar source; users cannot
 	// change it and only the two supported enums are ever stored or returned.
 	AvatarProvider string `json:"avatar_provider"`
@@ -240,11 +242,13 @@ type SettingsPatch struct {
 	RegistrationEnabled *bool   `json:"registration_enabled,omitempty"`
 	GuestUploadEnabled  *bool   `json:"guest_upload_enabled,omitempty"`
 	GalleryEnabled      *bool   `json:"gallery_enabled,omitempty"`
-	TrashDays           *int    `json:"trash_days,omitempty"`
-	APIEnabled          *bool   `json:"api_enabled,omitempty"`
-	GuestGroupID        *uint64 `json:"guest_group_id,omitempty"`
-	DefaultGroupID      *uint64 `json:"default_group_id,omitempty"`
-	AvatarProvider      *string `json:"avatar_provider,omitempty"`
+	// GalleryPublicAlbumsOnly limits the gallery to images in public albums.
+	GalleryPublicAlbumsOnly *bool   `json:"gallery_public_albums_only,omitempty"`
+	TrashDays               *int    `json:"trash_days,omitempty"`
+	APIEnabled              *bool   `json:"api_enabled,omitempty"`
+	GuestGroupID            *uint64 `json:"guest_group_id,omitempty"`
+	DefaultGroupID          *uint64 `json:"default_group_id,omitempty"`
+	AvatarProvider          *string `json:"avatar_provider,omitempty"`
 }
 
 func containsID(values []uint64, id uint64) bool {

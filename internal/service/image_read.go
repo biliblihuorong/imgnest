@@ -111,8 +111,9 @@ func (s *ImageService) List(ctx context.Context, subject TokenSubject, query Ima
 		return ImagePage{}, fmt.Errorf("list images: %w", err)
 	}
 	views := make([]ImageView, 0, len(images))
+	build := s.viewer()
 	for _, image := range images {
-		view, err := s.view(ctx, image)
+		view, err := build(ctx, image)
 		if err != nil {
 			return ImagePage{}, err
 		}

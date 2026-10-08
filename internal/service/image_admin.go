@@ -59,8 +59,9 @@ func (s *ImageService) AdminList(ctx context.Context, subject TokenSubject, quer
 		return ImagePage{}, fmt.Errorf("list admin images: %w", err)
 	}
 	views := make([]ImageView, 0, len(images))
+	build := s.viewer()
 	for _, image := range images {
-		view, err := s.view(ctx, image)
+		view, err := build(ctx, image)
 		if err != nil {
 			return ImagePage{}, err
 		}

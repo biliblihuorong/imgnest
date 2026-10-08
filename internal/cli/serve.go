@@ -145,6 +145,7 @@ func newLskyHandler(ctx context.Context, db *gorm.DB, cfg config.Config, users *
 			MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20,
 			MaxConcurrent:   cfg.Server.UploadConcurrency,
 			Timeout:         cfg.Server.ProcessingTimeout,
+			TrustedProxies:  cfg.Server.TrustedProxies,
 		},
 	})
 	if err != nil {

@@ -441,6 +441,32 @@ func (s *ImageService) view(ctx context.Context, image model.Image) (ImageView, 
 	return imageView(image, backend, policy), nil
 }
 
+// viewer returns a view builder that reads each storage and rule once, so a
+// listing page costs two lookups per distinct backend instead of per image.
+func (s *ImageService) viewer() func(context.Context, model.Image) (ImageView, error) {
+	backends := map[uint64]model.Storage{}
+	policies := map[uint64]model.Policy{}
+	return func(ctx context.Context, image model.Image) (ImageView, error) {
+		backend, ok := backends[image.StorageID]
+		if !ok {
+			found, err := s.deps.Storages.Find(ctx, image.StorageID)
+			if err != nil {
+				return ImageView{}, fmt.Errorf("read image storage: %w", err)
+			}
+			backend, backends[image.StorageID] = found, found
+		}
+		policy, ok := policies[image.PolicyID]
+		if !ok {
+			found, err := s.deps.Policies.Find(ctx, image.PolicyID)
+			if err != nil {
+				return ImageView{}, fmt.Errorf("read image policy: %w", err)
+			}
+			policy, policies[image.PolicyID] = found, found
+		}
+		return imageView(image, backend, policy), nil
+	}
+}
+
 func imageView(image model.Image, backend model.Storage, policy model.Policy) ImageView {
 	links := ImageLinks{}
 	if image.HasOriginal {

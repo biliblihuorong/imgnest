@@ -97,9 +97,10 @@ func refreshAlbumCount(tx *gorm.DB, albumID uint64, delta int64) error {
 }
 
 // ListGallery pages public active images newest first together with their
-// uploader's username. Guest uploads carry no account row and the inner join
-// keeps them out of the public gallery.
-func (r *ImageRepository) ListGallery(ctx context.Context, page, size int) ([]model.GalleryImage, int64, error) {
+// uploader's username. Images of disabled accounts are hidden; the guest
+// anchor row (id 0) is disabled by design and stays visible. With
+// publicAlbumsOnly, only images inside albums marked public are listed.
+func (r *ImageRepository) ListGallery(ctx context.Context, page, size int, publicAlbumsOnly bool) ([]model.GalleryImage, int64, error) {
 	if page < 1 || size < 1 || size > 200 {
 		return nil, 0, fmt.Errorf("list gallery: %w", model.ErrInvalidInput)
 	}
@@ -107,9 +108,14 @@ func (r *ImageRepository) ListGallery(ctx context.Context, page, size int) ([]mo
 		return nil, 0, fmt.Errorf("list gallery: %w", model.ErrInvalidInput)
 	}
 	base := func() *gorm.DB {
-		return r.db.WithContext(ctx).Model(&model.Image{}).
+		query := r.db.WithContext(ctx).Model(&model.Image{}).
 			Where("images.state = ? AND images.is_public = ?", model.ImageStateActive, true).
-			Joins("JOIN users ON users.id = images.user_id")
+			Joins("JOIN users ON users.id = images.user_id").
+			Where("(users.status = ? OR users.id = 0)", model.UserStatusEnabled)
+		if publicAlbumsOnly {
+			query = query.Joins("JOIN albums ON albums.id = images.album_id").Where("albums.is_public = ?", true)
+		}
+		return query
 	}
 	var total int64
 	if err := base().Count(&total).Error; err != nil {

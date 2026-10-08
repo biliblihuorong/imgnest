@@ -123,6 +123,10 @@ func TestListV1FiltersAndOrders(t *testing.T) {
 		if err != nil || total != 1 || !sameKeys(keys(byName), []string{"v1-beta"}) {
 			t.Fatalf("keyword name filter = %v total=%d err=%v", keys(byName), total, err)
 		}
+		upper, total, err := fixture.images.ListV1(t.Context(), fixture.user.ID, 1, 40, "newest", "all", "BETA", 0)
+		if err != nil || total != 1 || !sameKeys(keys(upper), []string{"v1-beta"}) {
+			t.Fatalf("keyword is case-sensitive: %v total=%d err=%v", keys(upper), total, err)
+		}
 		byPath, total, err := fixture.images.ListV1(t.Context(), fixture.user.ID, 1, 40, "newest", "all", "v1-gamma", 0)
 		if err != nil || total != 1 || !sameKeys(keys(byPath), []string{"v1-gamma"}) {
 			t.Fatalf("keyword path filter = %v total=%d err=%v", keys(byPath), total, err)

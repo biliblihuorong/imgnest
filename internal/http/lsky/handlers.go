@@ -146,7 +146,7 @@ func (h *Handler) listImages(c *gin.Context) {
 		attached := album
 		data = append(data, buildImageItem(item.Image, attached, now))
 	}
-	c.JSON(200, success("success", buildPaginator(baseURL(c.Request.Host, c.GetHeader("X-Forwarded-Proto"), c.Request.TLS != nil)+"/api/v1/images", page, 40, total, data)))
+	c.JSON(200, success("success", buildPaginator(baseURL(c.Request.Host, h.forwardedProto(c), c.Request.TLS != nil)+"/api/v1/images", page, 40, total, data)))
 }
 
 // deleteImage moves one owned image into the recycle bin.
@@ -197,7 +197,7 @@ func (h *Handler) listAlbums(c *gin.Context) {
 	for _, album := range result.Items {
 		data = append(data, albumItem{ID: album.ID, Name: album.Name, Intro: album.Intro, ImageNum: album.ImageNum})
 	}
-	c.JSON(200, success("success", buildPaginator(baseURL(c.Request.Host, c.GetHeader("X-Forwarded-Proto"), c.Request.TLS != nil)+"/api/v1/albums", page, 40, result.Total, data)))
+	c.JSON(200, success("success", buildPaginator(baseURL(c.Request.Host, h.forwardedProto(c), c.Request.TLS != nil)+"/api/v1/albums", page, 40, result.Total, data)))
 }
 
 // deleteAlbum removes one owned album; its images stay and become unassigned.
