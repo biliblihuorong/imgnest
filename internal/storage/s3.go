@@ -7,11 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -24,6 +27,14 @@ type S3Config struct {
 	Endpoint, Region, Bucket, AccessKeyID, SecretAccessKey, SessionToken string
 	UsePathStyle                                                         bool
 }
+
+// Network bounds for one S3 request. The SDK default has no response-header
+// timeout, so an endpoint that accepts the connection but never answers would
+// hold an upload, a preview or a connection test until the caller gives up.
+var (
+	s3DialTimeout           = 10 * time.Second
+	s3ResponseHeaderTimeout = 60 * time.Second
+)
 
 // S3 provides conditional owned objects in an S3-compatible bucket.
 type S3 struct {
@@ -50,7 +61,7 @@ func NewS3(ctx context.Context, cfg S3Config) (*S3, error) {
 	if cfg.Region == "" {
 		cfg.Region = "us-east-1"
 	}
-	sdk, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(cfg.Region), awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, cfg.SessionToken)), awsconfig.WithRetryMaxAttempts(1))
+	sdk, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(cfg.Region), awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, cfg.SessionToken)), awsconfig.WithRetryMaxAttempts(1), awsconfig.WithHTTPClient(s3HTTPClient()))
 	if err != nil {
 		return nil, safeError("configure S3 client", err)
 	}
@@ -63,6 +74,12 @@ func NewS3(ctx context.Context, cfg S3Config) (*S3, error) {
 		o.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
 	})
 	return &S3{client: client, bucket: cfg.Bucket, probeGate: make(chan struct{}, 1)}, nil
+}
+
+func s3HTTPClient() *awshttp.BuildableClient {
+	return awshttp.NewBuildableClient().
+		WithDialerOptions(func(d *net.Dialer) { d.Timeout = s3DialTimeout }).
+		WithTransportOptions(func(t *http.Transport) { t.ResponseHeaderTimeout = s3ResponseHeaderTimeout })
 }
 
 // PutNew installs a new key atomically; a failed request may still have committed.

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func testS3(t *testing.T, handler http.HandlerFunc) *S3 {
@@ -196,5 +197,23 @@ func TestS3AmbiguousPutReturnsOwnershipReceipt(t *testing.T) {
 	info, err := d.Stat(t.Context(), receipt.Key)
 	if err != nil || info.OwnerID != receipt.OwnerID || info.VersionID != "committed-version" {
 		t.Fatalf("cannot recover committed write %+v %v", info, err)
+	}
+}
+
+func TestS3BoundsUnansweredRequests(t *testing.T) {
+	previous := s3ResponseHeaderTimeout
+	s3ResponseHeaderTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { s3ResponseHeaderTimeout = previous })
+	release := make(chan struct{})
+	d := testS3(t, func(w http.ResponseWriter, r *http.Request) {
+		<-release
+	})
+	t.Cleanup(func() { close(release) })
+	started := time.Now()
+	if _, err := d.Stat(t.Context(), "a.jpg"); err == nil {
+		t.Fatal("unanswered request succeeded")
+	}
+	if elapsed := time.Since(started); elapsed > 5*time.Second {
+		t.Fatalf("unanswered request held for %v", elapsed)
 	}
 }
