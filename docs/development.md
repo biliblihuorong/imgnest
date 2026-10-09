@@ -109,6 +109,15 @@ $taskPlainPassword | docker compose -f deploy/compose.dev.yaml run --rm -T dev g
 Remove-Variable taskPlainPassword, taskPassword
 ```
 
+## 扩展插件
+
+`internal/` 下的包对仓库外不可见。仓库外的版本（例如 ImgNest Pro）只能依赖两个公开包：
+
+- `extension`：`Plugin` 接口。每个插件的路由挂在 `/api/ext/{Name}` 自己的分组下，不能覆盖核心路由；`LoginProviders` 返回的登录方式会出现在 `GET /api/site` 的 `login_providers` 里，原版构建为空数组。
+- `app`：`app.Execute(ctx, args, stdout, stderr, plugins...)`，自带 `main` 时用它代替 `cmd/imgnest`。
+
+插件名只能是 `[a-z0-9-]`、1 到 32 个字符，重名或 `Mount` 返回错误时 `serve` 直接启动失败。
+
 ## 前端开发
 
 前端只有 `web-vben/`：基于 Vben 5.8.0 源码工作区的 Vue 3.5 + Vite 8（Rolldown）+ TypeScript 6 + Naive UI + Pinia 应用，构建后由 `web-vben/embed.go` 嵌入服务二进制。M5 时期的旧前端 `web/` 及其 `vben` 构建标签、冻结源码校验已于 2026-10-07 移除。Node 24.21.0 与 pnpm 12.9.1 已装入 dev 镜像，前端命令全部在容器内执行（宿主 Node 22 仅作手工便利，不作验收依据）。

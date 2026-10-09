@@ -57,9 +57,9 @@ func TestSiteViewIsPublicAndExact(t *testing.T) {
 		gallery  bool
 		expected string
 	}{
-		{"registration open", true, false, `{"site_name":"ImgNest","register_enabled":true,"gallery_enabled":false}`},
-		{"registration closed", false, false, `{"site_name":"ImgNest","register_enabled":false,"gallery_enabled":false}`},
-		{"gallery open", true, true, `{"site_name":"ImgNest","register_enabled":true,"gallery_enabled":true}`},
+		{"registration open", true, false, `{"site_name":"ImgNest","register_enabled":true,"gallery_enabled":false,"login_providers":[]}`},
+		{"registration closed", false, false, `{"site_name":"ImgNest","register_enabled":false,"gallery_enabled":false,"login_providers":[]}`},
+		{"gallery open", true, true, `{"site_name":"ImgNest","register_enabled":true,"gallery_enabled":true,"login_providers":[]}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			router := siteRouter(t, &siteUsersStub{view: service.SiteView{SiteName: "ImgNest", RegisterEnabled: tc.enabled, GalleryEnabled: tc.gallery}})
@@ -81,7 +81,7 @@ func TestSiteViewIsPublicAndExact(t *testing.T) {
 			if err := json.Unmarshal(envelope.Data, &fields); err != nil {
 				t.Fatal(err)
 			}
-			if len(fields) != 3 {
+			if len(fields) != 4 {
 				t.Fatalf("site data exposes %d fields: %s", len(fields), envelope.Data)
 			}
 			// The public descriptor must not change unmatched API routing.

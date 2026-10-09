@@ -2228,6 +2228,25 @@ export interface components {
             register_enabled: boolean;
             /** @description Whether the public gallery is open; when false the gallery API returns empty pages. */
             gallery_enabled: boolean;
+            /** @description Extra sign-in options contributed by server extensions; empty on a stock build. */
+            login_providers: components["schemas"]["LoginProvider"][];
+        };
+        LoginProvider: {
+            /**
+             * @description Stable key, unique within the extension that provides it.
+             * @example github
+             */
+            id: string;
+            /**
+             * @description Button label shown on the login page.
+             * @example GitHub
+             */
+            name: string;
+            /**
+             * @description Same-origin path that starts the sign-in flow, under /api/ext/{plugin}.
+             * @example /api/ext/sso/github/start
+             */
+            start_url: string;
         };
         PolicySummary: {
             id: components["schemas"]["ID"];

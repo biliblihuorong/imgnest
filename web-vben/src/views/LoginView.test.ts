@@ -61,6 +61,7 @@ async function mountLoginView(options: MountOptions = {}) {
     site_name: "测试图床",
     register_enabled: registerEnabled,
     gallery_enabled: true,
+    login_providers: [],
   });
 
   const router = createRouter({
