@@ -79,6 +79,12 @@ export function setupRouter(): Router {
         ],
       },
       {
+        path: "/auth/sso",
+        component: () => import("@/components/layout/AuthLayout.vue"),
+        meta: { bare: true, title: "common.login" },
+        children: [{ path: "", component: () => import("@/views/SsoCallbackView.vue") }],
+      },
+      {
         path: "/register",
         component: () => import("@/components/layout/AuthLayout.vue"),
         meta: { bare: true, title: "common.register" },
@@ -194,7 +200,8 @@ export function setupRouter(): Router {
   });
 
   router.beforeEach(async (to) => {
-    if (to.path === "/gallery") return true;
+    // 单点登录回调要用票据换新会话，即使本地已有旧 token 也要放行。
+    if (to.path === "/gallery" || to.path === "/auth/sso") return true;
     let token: string | null = null;
     try {
       token = localStorage.getItem(TOKEN_STORAGE_KEY);

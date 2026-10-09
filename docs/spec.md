@@ -142,6 +142,7 @@ v1 用方案 A 快速跑通，M6 再评估是否换 B。运行参数参照 imago
 | `tokens` | id, user\_id, name, token\_hash, kind(web/api), abilities, last\_used\_at, expires\_at | 明文只在创建时返回一次 |
 | `random_links` | id, user\_id, album\_id(唯一), token(唯一, 明文), enabled | 相册随机图片链接，一个相册一条；删除相册时同事务删除；另有 `users.public_id`（10 位 base62，首次创建链接时惰性生成）。见 7.5 |
 | `settings` | key, value(JSON) | 站点名、开放注册、游客上传、画廊开关、默认组、回收站保留天数等 |
+| `user_identities` | id, user\_id, provider, subject, created\_at | 外部登录（SSO 扩展）身份；`(provider, subject)` 唯一，`provider` 形如 `sso:github`；不复制外部资料，只存稳定的 subject。见 `docs/development.md` 的「扩展插件」 |
 
 访问 URL 不存库，实时拼接：`storage.base_url + "/" + image.path + "." + ext`，换域名只改存储配置即可。表结构变更用版本化迁移脚本，不依赖 `AutoMigrate` 上生产。
 

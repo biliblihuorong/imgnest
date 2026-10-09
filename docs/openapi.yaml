@@ -309,6 +309,38 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/CaptchaUnavailable'
+  /api/auth/sso/exchange:
+    post:
+      operationId: exchangeSsoTicket
+      tags: [Authentication]
+      summary: Trade a single sign-on ticket for a web token
+      description: |
+        A server extension that finishes an external sign-in redirects the
+        browser to /auth/sso#ticket=... The web app posts that ticket here.
+        A ticket is valid for two minutes and works once. Limited to three
+        requests per minute per client IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SsoExchangeRequest'
+      responses:
+        '200':
+          description: Ticket accepted and web token issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/auth/me:
     get:
       operationId: getCurrentUser
@@ -3024,6 +3056,14 @@ components:
           $ref: '#/components/schemas/Password'
         captcha_token:
           $ref: '#/components/schemas/CaptchaToken'
+    SsoExchangeRequest:
+      type: object
+      additionalProperties: false
+      required: [ticket]
+      properties:
+        ticket:
+          type: string
+          description: One-time ticket from the /auth/sso redirect fragment.
     LoginRequest:
       type: object
       additionalProperties: false

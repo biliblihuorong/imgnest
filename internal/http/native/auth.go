@@ -53,10 +53,17 @@ type Handler struct {
 	limits *ratelimit.Limiter
 	// plugins contribute extra sign-in options to the public site view.
 	plugins []extension.Plugin
+	// signIn and tickets finish sign-ins that plugins verified.
+	signIn  ExternalSignIn
+	tickets *ticketStore
 }
 
-// UsePlugins sets the extensions whose login providers the site view lists.
-func (h *Handler) UsePlugins(plugins []extension.Plugin) { h.plugins = plugins }
+// UsePlugins sets the extensions whose login providers the site view lists
+// and the service that signs their verified identities in.
+func (h *Handler) UsePlugins(plugins []extension.Plugin, signIn ExternalSignIn) {
+	h.plugins = plugins
+	h.signIn = signIn
+}
 
 const identityKey = "imgnest_identity"
 
@@ -68,7 +75,7 @@ func NewHandler(ctx context.Context, users UserService, tokens TokenService, now
 	if users == nil || tokens == nil || now == nil {
 		return nil, fmt.Errorf("create native handler: missing dependencies")
 	}
-	return &Handler{users: users, tokens: tokens, now: now, limits: ratelimit.New(now, time.Minute, ratelimit.DefaultCapacity)}, nil
+	return &Handler{users: users, tokens: tokens, now: now, limits: ratelimit.New(now, time.Minute, ratelimit.DefaultCapacity), tickets: newTicketStore(now)}, nil
 }
 
 // RegisterRoutes binds native routes to the provided router.
@@ -78,6 +85,7 @@ func (h *Handler) RegisterRoutes(ctx context.Context, router gin.IRouter) error 
 	}
 	router.POST("/api/auth/register", h.rateLimit, h.register)
 	router.POST("/api/auth/login", h.rateLimit, h.login)
+	router.POST("/api/auth/sso/exchange", h.rateLimit, h.exchangeTicket)
 	router.GET("/api/site", h.site)
 	router.GET("/api/auth/captcha", h.publicCaptcha)
 	protected := router.Group("/api", h.authenticate)

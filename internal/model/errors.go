@@ -24,4 +24,10 @@ var (
 	ErrStillReferenced = errors.New("resource is still referenced")
 	// ErrRandomLinkExists reports a random link whose album or token is taken.
 	ErrRandomLinkExists = errors.New("random link exists")
+	// ErrIdentityNotLinked reports an external sign-in whose subject has no
+	// local account and policy allows neither linking nor creating one.
+	ErrIdentityNotLinked = errors.New("external identity is not linked")
+	// ErrIdentityEmailRequired reports an external sign-in that would create
+	// an account but carries no verified email address.
+	ErrIdentityEmailRequired = errors.New("external identity has no verified email")
 )

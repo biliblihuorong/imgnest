@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
-import { login as loginApi, logout as logoutApi, me as meApi } from "@/api/auth";
+import { exchangeSsoTicket, login as loginApi, logout as logoutApi, me as meApi } from "@/api/auth";
 import { TOKEN_STORAGE_KEY } from "@/api/client";
-import type { UserView } from "@/api/types";
+import type { LoginData, UserView } from "@/api/types";
 
 interface AuthState {
   token: string | null;
@@ -30,11 +30,22 @@ export const useAuthStore = defineStore("auth", {
   }),
   actions: {
     /** 登录：保存 token/user 并持久化 token；失败抛 ApiError。 */
-    async login(
+    login(
       email: string,
       password: string,
       captchaToken?: string,
       signal?: AbortSignal,
+    ): Promise<UserView> {
+      return this.establish(signal, (abort) => loginApi(email, password, captchaToken, abort));
+    },
+    /** 单点登录回调：用一次性票据换 token，之后与密码登录完全一致。 */
+    loginWithSsoTicket(ticket: string, signal?: AbortSignal): Promise<UserView> {
+      return this.establish(signal, (abort) => exchangeSsoTicket(ticket, abort));
+    },
+    /** 建立会话的共用流程：新请求取消旧请求，过期结果一律按取消处理。 */
+    async establish(
+      signal: AbortSignal | undefined,
+      fetchSession: (signal: AbortSignal) => Promise<LoginData>,
     ): Promise<UserView> {
       const generation = ++this.sessionGeneration;
       pendingLogins.get(this)?.abort();
@@ -46,7 +57,7 @@ export const useAuthStore = defineStore("auth", {
       const current = () => !controller.signal.aborted && this.sessionGeneration === generation;
       try {
         if (!current()) throw cancelledLogin();
-        const data = await loginApi(email, password, captchaToken, controller.signal);
+        const data = await fetchSession(controller.signal);
         if (!current()) throw cancelledLogin();
         this.token = data.token;
         this.user = data.user;

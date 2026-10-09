@@ -44,6 +44,9 @@ type Dependencies struct {
 	Web fs.FS
 	// Plugins are out-of-tree extensions, each mounted under /api/ext/{name}.
 	Plugins []extension.Plugin
+	// ExternalSignIn signs in identities that plugins verified; without it
+	// plugin sign-ins end on the login page with an "unavailable" error.
+	ExternalSignIn native.ExternalSignIn
 }
 
 var pluginName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
@@ -93,10 +96,10 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if err := handler.RegisterRoutes(ctx, router); err != nil {
 		return nil, fmt.Errorf("register native routes: %w", err)
 	}
-	if err := mountPlugins(ctx, router, deps.Plugins); err != nil {
+	handler.UsePlugins(deps.Plugins, deps.ExternalSignIn)
+	if err := mountPlugins(ctx, router, deps.Plugins, handler); err != nil {
 		return nil, err
 	}
-	handler.UsePlugins(deps.Plugins)
 	if deps.Captcha != nil {
 		if err := handler.RegisterCaptchaRoutes(ctx, router, deps.Captcha); err != nil {
 			return nil, fmt.Errorf("register captcha routes: %w", err)
@@ -145,7 +148,7 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 
 // mountPlugins gives each plugin its own route group so no plugin can shadow a
 // core route or another plugin's routes.
-func mountPlugins(ctx context.Context, router gin.IRouter, plugins []extension.Plugin) error {
+func mountPlugins(ctx context.Context, router gin.IRouter, plugins []extension.Plugin, handler *native.Handler) error {
 	seen := make(map[string]bool, len(plugins))
 	for _, plugin := range plugins {
 		if plugin == nil {
@@ -159,7 +162,7 @@ func mountPlugins(ctx context.Context, router gin.IRouter, plugins []extension.P
 			return fmt.Errorf("mount plugin %q: duplicate name", name)
 		}
 		seen[name] = true
-		if err := plugin.Mount(ctx, router.Group("/api/ext/"+name)); err != nil {
+		if err := plugin.Mount(ctx, router.Group("/api/ext/"+name), handler.Host(name)); err != nil {
 			return fmt.Errorf("mount plugin %q: %w", name, err)
 		}
 	}

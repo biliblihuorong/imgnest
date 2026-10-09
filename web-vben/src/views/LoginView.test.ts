@@ -8,7 +8,7 @@ import * as authApi from "@/api/auth";
 import { fetchCaptcha } from "@/api/captcha";
 import type { TurnstileOptions } from "@/components/captcha/turnstile";
 import * as siteApi from "@/api/site";
-import type { LoginData, UserView } from "@/api/types";
+import type { LoginData, LoginProvider, UserView } from "@/api/types";
 import { useAuthStore } from "@/stores/auth";
 import LoginView from "./LoginView.vue";
 
@@ -47,6 +47,7 @@ const userFixture: UserView = {
 
 interface MountOptions {
   registerEnabled?: boolean;
+  loginProviders?: LoginProvider[];
   withToken?: boolean;
   initialRoute?: string;
   pinia?: ReturnType<typeof createPinia>;
@@ -61,7 +62,7 @@ async function mountLoginView(options: MountOptions = {}) {
     site_name: "测试图床",
     register_enabled: registerEnabled,
     gallery_enabled: true,
-    login_providers: [],
+    login_providers: options.loginProviders ?? [],
   });
 
   const router = createRouter({
@@ -98,6 +99,39 @@ describe("LoginView", () => {
     vi.resetAllMocks();
     captchaConfig.mockResolvedValue({ enabled: false, provider: "", site_key: "", version: 0 });
     delete window.turnstile;
+  });
+
+  it("站点提供单点登录时渲染同源的登录按钮", async () => {
+    const { wrapper } = await mountLoginView({
+      loginProviders: [
+        { id: "github", name: "GitHub", start_url: "/api/ext/sso/github/start" },
+        { id: "evil", name: "Evil", start_url: "//evil.example/start" },
+      ],
+    });
+
+    const links = wrapper.findAll("a[href^='/api/ext/']");
+    expect(links).toHaveLength(1);
+    expect(links[0]!.attributes("href")).toBe("/api/ext/sso/github/start");
+    expect(links[0]!.text()).toContain("使用 GitHub 登录");
+    expect(wrapper.text()).not.toContain("Evil");
+  });
+
+  it("没有单点登录方式时不渲染分隔与按钮", async () => {
+    const { wrapper } = await mountLoginView();
+
+    expect(wrapper.find(".sso-providers").exists()).toBe(false);
+  });
+
+  it("单点登录失败返回时展示对应提示", async () => {
+    const { wrapper } = await mountLoginView({ initialRoute: "/login?sso_error=not_linked" });
+
+    expect(wrapper.get("[role='alert']").text()).toContain("还没有绑定本站账号");
+  });
+
+  it("未知的单点登录错误码按通用失败提示", async () => {
+    const { wrapper } = await mountLoginView({ initialRoute: "/login?sso_error=<script>" });
+
+    expect(wrapper.get("[role='alert']").text()).toContain("单点登录失败");
   });
 
   it("渲染邮箱、密码输入与登录按钮", async () => {

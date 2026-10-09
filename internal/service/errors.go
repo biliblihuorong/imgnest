@@ -36,4 +36,9 @@ var (
 	// ErrStillReferenced rejects deleting a storage, policy, or group that
 	// other records still point at.
 	ErrStillReferenced = model.ErrStillReferenced
+	// ErrIdentityNotLinked rejects an external sign-in with no usable account.
+	ErrIdentityNotLinked = model.ErrIdentityNotLinked
+	// ErrIdentityEmailRequired rejects creating an account from an external
+	// sign-in that carries no verified email.
+	ErrIdentityEmailRequired = model.ErrIdentityEmailRequired
 )

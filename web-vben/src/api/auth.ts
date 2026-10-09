@@ -64,3 +64,13 @@ export function updateDisplayName(displayName: string): Promise<UserView> {
     body: JSON.stringify({ display_name: displayName }),
   });
 }
+
+/** 用单点登录回调给出的一次性票据换取 web token；响应与 /api/auth/login 相同。 */
+export function exchangeSsoTicket(ticket: string, signal?: AbortSignal): Promise<LoginData> {
+  return request<LoginData>("/api/auth/sso/exchange", {
+    method: "POST",
+    signal,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticket }),
+  });
+}
