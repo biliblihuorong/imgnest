@@ -133,6 +133,10 @@ type DisplayImage struct {
 	// Width and Height are the display WebP's pixel size; Frames is above 1
 	// for animations.
 	Width, Height, Frames int
+	// Quality, Effort and Lossless are the rule's WebP settings, for
+	// re-encoding the transformed image the same way.
+	Quality, Effort int
+	Lossless        bool
 }
 
 // DisplayTransformer may rewrite the WebP display copy an upload produces,

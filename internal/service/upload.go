@@ -174,7 +174,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 		return ImageView{}, processingError(ctx, err)
 	}
 	if info.Format != "webp" && mode != "none" && len(result.WebP) > 0 && len(s.deps.Display) > 0 {
-		result.WebP, err = s.transformDisplay(ctx, DisplayImage{UserID: plan.userID, GroupID: group.ID, PolicyID: policy.ID, StorageID: backend.ID, Format: info.Format}, result.WebP)
+		result.WebP, err = s.transformDisplay(ctx, DisplayImage{UserID: plan.userID, GroupID: group.ID, PolicyID: policy.ID, StorageID: backend.ID, Format: info.Format, Quality: policy.WebPQuality, Effort: policy.WebPEffort, Lossless: policy.WebPLossless}, result.WebP)
 		if err != nil {
 			return ImageView{}, err
 		}

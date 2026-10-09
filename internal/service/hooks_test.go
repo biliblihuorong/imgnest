@@ -73,7 +73,7 @@ func TestDisplayTransformerRewritesOnlyTheEncodedWebP(t *testing.T) {
 		t.Fatalf("transformer calls: %d", len(marker.calls))
 	}
 	got := marker.calls[0]
-	if got.UserID != 1 || got.GroupID != 1 || got.PolicyID != 1 || got.StorageID != 1 || got.Format != "png" || got.Width != 10 || got.Height != 8 || got.Frames != 1 {
+	if got.UserID != 1 || got.GroupID != 1 || got.PolicyID != 1 || got.StorageID != 1 || got.Format != "png" || got.Width != 10 || got.Height != 8 || got.Frames != 1 || got.Quality != 80 || got.Effort != 4 || got.Lossless {
 		t.Fatalf("display input: %+v", got)
 	}
 	if view.WebPSize != int64(len("webp-marked")) {

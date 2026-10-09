@@ -51,6 +51,8 @@ type DisplayImage struct {
 	UserID, GroupID, PolicyID, StorageID uint64
 	Format                               string
 	Width, Height, Frames                int
+	Quality, Effort                      int
+	Lossless                             bool
 }
 
 // DisplayTransformer may rewrite an upload's separately encoded display WebP.

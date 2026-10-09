@@ -117,7 +117,7 @@ func (p *pluginEvents) Close() {
 type displayTransformer struct{ plugin extension.DisplayTransformer }
 
 func (d displayTransformer) TransformDisplay(ctx context.Context, image service.DisplayImage, webp []byte) ([]byte, error) {
-	return d.plugin.TransformDisplay(ctx, extension.DisplayImage{UserID: image.UserID, GroupID: image.GroupID, PolicyID: image.PolicyID, StorageID: image.StorageID, Format: image.Format, Width: image.Width, Height: image.Height, Frames: image.Frames}, webp)
+	return d.plugin.TransformDisplay(ctx, extension.DisplayImage{UserID: image.UserID, GroupID: image.GroupID, PolicyID: image.PolicyID, StorageID: image.StorageID, Format: image.Format, Width: image.Width, Height: image.Height, Frames: image.Frames, Quality: image.Quality, Effort: image.Effort, Lossless: image.Lossless}, webp)
 }
 
 // pluginImageHooks collects the plugins' image capabilities; events may be nil.
