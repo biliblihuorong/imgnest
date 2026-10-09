@@ -51,6 +51,7 @@ func newServices(ctx context.Context, db *gorm.DB) (*service.UserService, *servi
 	if err != nil {
 		return nil, nil, fmt.Errorf("create user service: %w", err)
 	}
+	u.UseIdentities(users)
 	t, err := service.NewTokenService(ctx, tokens, users, settings, time.Now)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create token service: %w", err)

@@ -139,7 +139,7 @@ func TestSiteAndPoliciesContract(t *testing.T) {
 			if err := json.Unmarshal(envelope(t, site)["data"], &siteData); err != nil {
 				t.Fatal(err)
 			}
-			if len(siteData) != 3 || siteData["site_name"] != "ImgNest" || siteData["register_enabled"] != true || siteData["gallery_enabled"] != false {
+			if len(siteData) != 4 || len(siteData["login_providers"].([]any)) != 0 || siteData["site_name"] != "ImgNest" || siteData["register_enabled"] != true || siteData["gallery_enabled"] != false {
 				t.Fatalf("site data %s", site.Body.String())
 			}
 			for _, private := range []string{"trash_days", "guest_upload_enabled", "default_group_id", "registration_enabled"} {

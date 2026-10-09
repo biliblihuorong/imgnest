@@ -309,6 +309,38 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/CaptchaUnavailable'
+  /api/auth/sso/exchange:
+    post:
+      operationId: exchangeSsoTicket
+      tags: [Authentication]
+      summary: Trade a single sign-on ticket for a web token
+      description: |
+        A server extension that finishes an external sign-in redirects the
+        browser to /auth/sso#ticket=... The web app posts that ticket here.
+        A ticket is valid for two minutes and works once. Limited to three
+        requests per minute per client IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SsoExchangeRequest'
+      responses:
+        '200':
+          description: Ticket accepted and web token issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/auth/me:
     get:
       operationId: getCurrentUser
@@ -3024,6 +3056,14 @@ components:
           $ref: '#/components/schemas/Password'
         captcha_token:
           $ref: '#/components/schemas/CaptchaToken'
+    SsoExchangeRequest:
+      type: object
+      additionalProperties: false
+      required: [ticket]
+      properties:
+        ticket:
+          type: string
+          description: One-time ticket from the /auth/sso redirect fragment.
     LoginRequest:
       type: object
       additionalProperties: false
@@ -3163,7 +3203,7 @@ components:
     SiteView:
       type: object
       additionalProperties: false
-      required: [site_name, register_enabled, gallery_enabled]
+      required: [site_name, register_enabled, gallery_enabled, login_providers]
       properties:
         site_name:
           type: string
@@ -3176,6 +3216,28 @@ components:
         gallery_enabled:
           type: boolean
           description: Whether the public gallery is open; when false the gallery API returns empty pages.
+        login_providers:
+          type: array
+          description: Extra sign-in options contributed by server extensions; empty on a stock build.
+          items:
+            $ref: '#/components/schemas/LoginProvider'
+    LoginProvider:
+      type: object
+      additionalProperties: false
+      required: [id, name, start_url]
+      properties:
+        id:
+          type: string
+          description: Stable key, unique within the extension that provides it.
+          example: github
+        name:
+          type: string
+          description: Button label shown on the login page.
+          example: GitHub
+        start_url:
+          type: string
+          description: Same-origin path that starts the sign-in flow, under /api/ext/{plugin}.
+          example: /api/ext/sso/github/start
     PolicySummary:
       type: object
       additionalProperties: false

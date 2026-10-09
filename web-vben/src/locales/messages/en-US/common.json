@@ -44,7 +44,18 @@
     "toRegisterHint": "No account yet?",
     "toRegister": "Create one",
     "closed": "Registration closed",
-    "closedDescription": "Registration is closed. Please contact the administrator."
+    "closedDescription": "Registration is closed. Please contact the administrator.",
+    "ssoDivider": "or",
+    "ssoContinue": "Continue with {name}",
+    "ssoSigningIn": "Signing you in…",
+    "ssoBack": "Back to sign in",
+    "ssoErrors": {
+      "not_linked": "This account is not linked to a user here, and registration is closed. Please contact the administrator.",
+      "email_required": "The provider did not share a verified email, so no account can be created.",
+      "disabled": "This account is disabled.",
+      "unavailable": "Single sign-on is unavailable right now.",
+      "failed": "Single sign-on failed. Please try again."
+    }
   },
   "errors": {
     "network": "Connection failed. Please retry.",

@@ -242,6 +242,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/sso/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trade a single sign-on ticket for a web token
+         * @description A server extension that finishes an external sign-in redirects the
+         *     browser to /auth/sso#ticket=... The web app posts that ticket here.
+         *     A ticket is valid for two minutes and works once. Limited to three
+         *     requests per minute per client IP.
+         */
+        post: operations["exchangeSsoTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/me": {
         parameters: {
             query?: never;
@@ -2136,6 +2159,10 @@ export interface components {
             password: components["schemas"]["Password"];
             captcha_token?: components["schemas"]["CaptchaToken"];
         };
+        SsoExchangeRequest: {
+            /** @description One-time ticket from the /auth/sso redirect fragment. */
+            ticket: string;
+        };
         LoginRequest: {
             email: components["schemas"]["EmailInput"];
             password: components["schemas"]["CredentialPassword"];
@@ -2228,6 +2255,25 @@ export interface components {
             register_enabled: boolean;
             /** @description Whether the public gallery is open; when false the gallery API returns empty pages. */
             gallery_enabled: boolean;
+            /** @description Extra sign-in options contributed by server extensions; empty on a stock build. */
+            login_providers: components["schemas"]["LoginProvider"][];
+        };
+        LoginProvider: {
+            /**
+             * @description Stable key, unique within the extension that provides it.
+             * @example github
+             */
+            id: string;
+            /**
+             * @description Button label shown on the login page.
+             * @example GitHub
+             */
+            name: string;
+            /**
+             * @description Same-origin path that starts the sign-in flow, under /api/ext/{plugin}.
+             * @example /api/ext/sso/github/start
+             */
+            start_url: string;
         };
         PolicySummary: {
             id: components["schemas"]["ID"];
@@ -3008,6 +3054,34 @@ export interface operations {
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["CaptchaUnavailable"];
+        };
+    };
+    exchangeSsoTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SsoExchangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Ticket accepted and web token issued. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
         };
     };
     getCurrentUser: {

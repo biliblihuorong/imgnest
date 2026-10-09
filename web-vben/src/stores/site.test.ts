@@ -17,7 +17,7 @@ describe("site store", () => {
   });
 
   it("ensureLoaded 拉取站点名与注册开关", async () => {
-    siteApiMock.fetchSite.mockResolvedValue({ site_name: "我的图床", register_enabled: true, gallery_enabled: true });
+    siteApiMock.fetchSite.mockResolvedValue({ site_name: "我的图床", register_enabled: true, gallery_enabled: true, login_providers: [] });
     const store = useSiteStore();
 
     await store.ensureLoaded();
@@ -37,7 +37,7 @@ describe("site store", () => {
   });
 
   it("成功加载后重复调用不再发起请求", async () => {
-    siteApiMock.fetchSite.mockResolvedValue({ site_name: "ImgNest", register_enabled: false, gallery_enabled: false });
+    siteApiMock.fetchSite.mockResolvedValue({ site_name: "ImgNest", register_enabled: false, gallery_enabled: false, login_providers: [] });
     const store = useSiteStore();
 
     await store.ensureLoaded();

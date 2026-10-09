@@ -27,6 +27,17 @@ const errorMessage = computed(() =>
   serverError.value ? formatApiError(serverError.value, "common.errors.network") : "",
 );
 
+const ssoErrorKeys = new Set(["not_linked", "email_required", "disabled", "unavailable", "failed"]);
+const ssoError = computed(() => {
+  const code = route.query.sso_error;
+  if (typeof code !== "string") return "";
+  return t(`common.auth.ssoErrors.${ssoErrorKeys.has(code) ? code : "failed"}`);
+});
+// 只接受同源路径，防止配置错误的扩展把用户带去别的站点。
+const ssoProviders = computed(() =>
+  site.loginProviders.filter((p) => p.start_url.startsWith("/") && !p.start_url.startsWith("//")),
+);
+
 const canSubmit = computed(
   () => captchaReady.value && email.value.trim().length > 0 && password.value.length > 0,
 );
@@ -101,8 +112,8 @@ async function onSubmit(): Promise<void> {
         />
       </NFormItem>
       <AuthCaptcha ref="captcha" action="login" @ready="captchaReady = $event" />
-      <p v-if="errorMessage" role="alert">
-        <NText type="error">{{ errorMessage }}</NText>
+      <p v-if="errorMessage || ssoError" role="alert">
+        <NText type="error">{{ errorMessage || ssoError }}</NText>
       </p>
       <NButton
         attr-type="submit"
@@ -115,6 +126,22 @@ async function onSubmit(): Promise<void> {
         {{ t("common.login") }}
       </NButton>
     </NForm>
+    <template v-if="ssoProviders.length > 0">
+      <p class="sso-divider">{{ t("common.auth.ssoDivider") }}</p>
+      <div class="sso-providers">
+        <NButton
+          v-for="provider in ssoProviders"
+          :key="provider.start_url"
+          tag="a"
+          :href="provider.start_url"
+          size="large"
+          block
+          secondary
+        >
+          {{ t("common.auth.ssoContinue", { name: provider.name }) }}
+        </NButton>
+      </div>
+    </template>
     <p v-if="site.registerEnabled" class="login-footer">
       {{ t("common.auth.toRegisterHint") }}
       <RouterLink to="/register">{{ t("common.auth.toRegister") }}</RouterLink>
@@ -140,6 +167,15 @@ async function onSubmit(): Promise<void> {
 .auth-heading p {
   margin: 0;
   color: hsl(var(--muted-foreground));
+}
+.sso-divider {
+  margin: 20px 0 12px;
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+}
+.sso-providers {
+  display: grid;
+  gap: 10px;
 }
 .login-footer {
   margin: 20px 0 0;

@@ -7,8 +7,10 @@ import (
 	"io/fs"
 	"log/slog"
 	stdhttp "net/http"
+	"regexp"
 	"time"
 
+	"github.com/biliblihuorong/imgnest/extension"
 	"github.com/biliblihuorong/imgnest/internal/config"
 	"github.com/biliblihuorong/imgnest/internal/http/lsky"
 	"github.com/biliblihuorong/imgnest/internal/http/native"
@@ -40,7 +42,14 @@ type Dependencies struct {
 	// Web is the built single-page app rooted at its dist directory. When nil
 	// the router keeps returning JSON 404 for unmatched paths.
 	Web fs.FS
+	// Plugins are out-of-tree extensions, each mounted under /api/ext/{name}.
+	Plugins []extension.Plugin
+	// ExternalSignIn signs in identities that plugins verified; without it
+	// plugin sign-ins end on the login page with an "unavailable" error.
+	ExternalSignIn native.ExternalSignIn
 }
+
+var pluginName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 
 // ImageOptions configures bounded native image uploads.
 type ImageOptions = native.ImageOptions
@@ -87,6 +96,10 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if err := handler.RegisterRoutes(ctx, router); err != nil {
 		return nil, fmt.Errorf("register native routes: %w", err)
 	}
+	handler.UsePlugins(deps.Plugins, deps.ExternalSignIn)
+	if err := mountPlugins(ctx, router, deps.Plugins, handler); err != nil {
+		return nil, err
+	}
 	if deps.Captcha != nil {
 		if err := handler.RegisterCaptchaRoutes(ctx, router, deps.Captcha); err != nil {
 			return nil, fmt.Errorf("register captcha routes: %w", err)
@@ -131,4 +144,27 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 		router.NoRoute(func(c *gin.Context) { c.JSON(404, native.Response{Code: 10001, Message: "not found", Data: nil}) })
 	}
 	return router, nil
+}
+
+// mountPlugins gives each plugin its own route group so no plugin can shadow a
+// core route or another plugin's routes.
+func mountPlugins(ctx context.Context, router gin.IRouter, plugins []extension.Plugin, handler *native.Handler) error {
+	seen := make(map[string]bool, len(plugins))
+	for _, plugin := range plugins {
+		if plugin == nil {
+			return fmt.Errorf("mount plugin: nil plugin")
+		}
+		name := plugin.Name()
+		if !pluginName.MatchString(name) {
+			return fmt.Errorf("mount plugin %q: invalid name", name)
+		}
+		if seen[name] {
+			return fmt.Errorf("mount plugin %q: duplicate name", name)
+		}
+		seen[name] = true
+		if err := plugin.Mount(ctx, router.Group("/api/ext/"+name), handler.Host(name)); err != nil {
+			return fmt.Errorf("mount plugin %q: %w", name, err)
+		}
+	}
+	return nil
 }

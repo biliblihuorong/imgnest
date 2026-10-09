@@ -109,6 +109,23 @@ $taskPlainPassword | docker compose -f deploy/compose.dev.yaml run --rm -T dev g
 Remove-Variable taskPlainPassword, taskPassword
 ```
 
+## 扩展插件
+
+`internal/` 下的包对仓库外不可见。仓库外的版本（例如 ImgNest Pro）只能依赖两个公开包：
+
+- `extension`：`Plugin` 接口。每个插件的路由挂在 `/api/ext/{Name}` 自己的分组下，不能覆盖核心路由；`LoginProviders` 返回的登录方式会出现在 `GET /api/site` 的 `login_providers` 里，原版构建为空数组。
+- `app`：`app.Execute(ctx, args, stdout, stderr, plugins...)`，自带 `main` 时用它代替 `cmd/imgnest`。
+
+插件名只能是 `[a-z0-9-]`、1 到 32 个字符，重名或 `Mount` 返回错误时 `serve` 直接启动失败。
+
+### 外部登录（SSO）
+
+插件自己完成 OIDC / OAuth2 校验，然后调用 `Mount` 拿到的 `extension.Host`：
+
+- `CompleteSignIn(c, identity)`：按 `{插件名}:{Provider}` + `Subject` 查 `user_identities`。已绑定直接登录；未绑定时，若插件声明 `LinkByEmail` 且邮箱已验证，绑定到同邮箱的**非管理员**账号；否则在开放注册时用已验证邮箱新建普通账号。成功后 303 跳到 `/auth/sso#ticket=…`，前端用 `POST /api/auth/sso/exchange` 换 web token。票据只在内存里，2 分钟有效、只能用一次。
+- 失败一律跳回 `/login?sso_error=not_linked|email_required|disabled|unavailable|failed`，`FailSignIn(c)` 用于插件自己拒绝的情况（state 不匹配、用户拒绝授权）。
+- `Subject` 必须是提供方稳定且不会复用的用户 ID，不能用邮箱或可改名的登录名。
+
 ## 前端开发
 
 前端只有 `web-vben/`：基于 Vben 5.8.0 源码工作区的 Vue 3.5 + Vite 8（Rolldown）+ TypeScript 6 + Naive UI + Pinia 应用，构建后由 `web-vben/embed.go` 嵌入服务二进制。M5 时期的旧前端 `web/` 及其 `vben` 构建标签、冻结源码校验已于 2026-10-07 移除。Node 24.21.0 与 pnpm 12.9.1 已装入 dev 镜像，前端命令全部在容器内执行（宿主 Node 22 仅作手工便利，不作验收依据）。

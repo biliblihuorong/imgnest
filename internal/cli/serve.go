@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/biliblihuorong/imgnest/extension"
 	"github.com/biliblihuorong/imgnest/internal/config"
 	httpapi "github.com/biliblihuorong/imgnest/internal/http"
 	"github.com/biliblihuorong/imgnest/internal/http/lsky"
@@ -22,7 +23,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func serveCommand(path *string) *cobra.Command {
+func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 	return &cobra.Command{Use: "serve", Short: "Serve the native HTTP API", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		return withDatabase(cmd.Context(), *path, func(db *gorm.DB, cfg config.Config) error {
 			sqlDB, err := db.DB()
@@ -73,7 +74,7 @@ func serveCommand(path *string) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("open embedded web app: %w", err)
 			}
-			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS})
+			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, ExternalSignIn: users})
 			if err != nil {
 				return err
 			}

@@ -22,6 +22,7 @@ async function renderView(enabled = true) {
     site_name: "ImageNest",
     register_enabled: enabled,
     gallery_enabled: true,
+    login_providers: [],
   });
   const router = createRouter({
     history: createMemoryHistory(),

@@ -99,6 +99,8 @@ type VerifiedCredentials struct {
 type UserService struct {
 	users    UserRepository
 	settings SettingsRepository
+	// identities enables external sign-in; nil rejects it.
+	identities IdentityRepository
 }
 
 // NewUserService constructs account operations with injected persistence.
