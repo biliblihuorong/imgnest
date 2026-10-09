@@ -41,7 +41,14 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			// One process-local pool is shared by the link service that fills it
 			// and the image service that invalidates it.
 			randomPool := randompool.NewMemory(time.Now)
-			images, albums, closeImages, err := newImageServices(cmd.Context(), db, cfg, randomPool)
+			// Plugin events are delivered asynchronously; Close drains them
+			// after the server stops taking requests.
+			events := newPluginEvents(cmd.Context(), plugins, logger)
+			defer events.Close()
+			if events != nil {
+				users.UseEvents(events)
+			}
+			images, albums, closeImages, err := newImageServices(cmd.Context(), db, cfg, randomPool, pluginImageHooks(plugins, events))
 			if err != nil {
 				return err
 			}

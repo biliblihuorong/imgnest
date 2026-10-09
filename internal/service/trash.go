@@ -187,6 +187,7 @@ func (s *ImageService) moveToTrash(ctx context.Context, image model.Image) error
 	if err = s.deps.Images.FinishTrash(ctx, image.Key, image.OperationID); err != nil {
 		return fmt.Errorf("finish recycling image: %w", err)
 	}
+	s.emit(ctx, EventImageTrashed, image, backend)
 	return nil
 }
 
@@ -236,12 +237,14 @@ func (s *ImageService) Restore(ctx context.Context, subject TokenSubject, key st
 		}
 		if current.State == model.ImageStateActive && current.OperationID == op {
 			s.invalidateRandom(checkCtx, current.AlbumID)
+			s.emit(checkCtx, EventImageRestored, current, backend)
 			return s.clearRestoreTrash(checkCtx, current)
 		}
 		return s.failRestore(ctx, image, driver, fmt.Errorf("commit restore: %w", err))
 	}
 	// The row is active again, whether or not its trash copies clear now.
 	s.invalidateRandom(ctx, active.AlbumID)
+	s.emit(ctx, EventImageRestored, active, backend)
 	return s.clearRestoreTrash(ctx, active)
 }
 
@@ -339,7 +342,11 @@ func (s *ImageService) purgeObjects(ctx context.Context, image model.Image) erro
 	if err = errors.Join(failures...); err != nil {
 		return fmt.Errorf("physical purge pending: %w", err)
 	}
-	return s.deps.Images.FinishPurge(ctx, image.Key, image.OperationID)
+	if err = s.deps.Images.FinishPurge(ctx, image.Key, image.OperationID); err != nil {
+		return err
+	}
+	s.emit(ctx, EventImagePurged, image, backend)
+	return nil
 }
 
 // Recover must run before serving in the single-instance deployment; it cancels old uploads/restores.

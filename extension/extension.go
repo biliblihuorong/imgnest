@@ -5,6 +5,7 @@ package extension
 
 import (
 	"context"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -64,4 +65,101 @@ type Host interface {
 	// FailSignIn redirects the browser to the login page with a generic
 	// error, for flows the plugin itself rejected (bad state, denied consent).
 	FailSignIn(c *gin.Context)
+}
+
+// The interfaces below are optional: a Plugin that also implements one of them
+// is wired into that part of the server. A plugin that implements none of them
+// changes nothing outside its own routes.
+
+// Event types delivered to EventSubscriber.
+const (
+	EventImageUploaded  = "image.uploaded"
+	EventImageTrashed   = "image.trashed"
+	EventImageRestored  = "image.restored"
+	EventImagePurged    = "image.purged"
+	EventUserRegistered = "user.registered"
+)
+
+// Event is a change the server has already committed. Image or User is set
+// according to Type. Events never carry EXIF, credentials or email addresses.
+type Event struct {
+	Type  string
+	At    time.Time
+	Image *EventImage
+	User  *EventUser
+}
+
+// EventImage describes the image an event is about. Links are the public
+// object URLs the image had when the event happened; empty ones do not exist.
+type EventImage struct {
+	ID        uint64
+	Key       string
+	UserID    uint64
+	AlbumID   uint64
+	StorageID uint64
+	Path      string
+	Name      string
+	MIME      string
+	Size      int64
+	Width     int
+	Height    int
+	IsPublic  bool
+	Original  string
+	WebP      string
+	Thumbnail string
+}
+
+// EventUser describes the account an event is about.
+type EventUser struct {
+	ID       uint64
+	Username string
+}
+
+// EventSubscriber receives committed events. Each subscriber gets its own
+// bounded queue and goroutine, so a slow subscriber delays only itself; when
+// its queue is full, further events for it are dropped and logged.
+type EventSubscriber interface {
+	HandleEvent(ctx context.Context, event Event)
+}
+
+// DisplayImage describes an upload whose display WebP is being produced.
+type DisplayImage struct {
+	UserID    uint64 // 0 for guest uploads
+	GroupID   uint64
+	PolicyID  uint64
+	StorageID uint64
+	// Format is the detected source format ("jpeg", "png", "gif"...).
+	Format string
+	// Width and Height are the display WebP's pixel size; Frames is above 1
+	// for animations.
+	Width, Height, Frames int
+}
+
+// DisplayTransformer may rewrite the WebP display copy an upload produces,
+// for example to add a watermark. It is called only when the server encoded a
+// separate WebP from the source: the stored original, thumbnails and uploads
+// that already were WebP are never passed in, so the original is never
+// re-encoded. The result must be a WebP with the same size and frame count;
+// anything else, or an error, rejects the upload. Return the input unchanged
+// to leave an image alone.
+type DisplayTransformer interface {
+	TransformDisplay(ctx context.Context, image DisplayImage, webp []byte) ([]byte, error)
+}
+
+// Access kinds passed to AccessGuard.
+const (
+	// AccessObject is a direct link the server itself serves (/i/...), which
+	// exists only for local storage; S3 links never reach the server.
+	AccessObject = "object"
+	// AccessThumbnail is a local preview (/t/...).
+	AccessThumbnail = "thumbnail"
+	// AccessRandom is a random-image link (/random/...), for every storage.
+	AccessRandom = "random"
+)
+
+// AccessGuard can refuse public image requests the server answers itself,
+// for example by Referer. It runs before the core handler; returning false
+// means the guard has already written the response.
+type AccessGuard interface {
+	GuardAccess(c *gin.Context, kind string) bool
 }

@@ -1,0 +1,135 @@
+package cli
+
+import (
+	"context"
+	"log/slog"
+	"sync"
+	"time"
+
+	"github.com/biliblihuorong/imgnest/extension"
+	"github.com/biliblihuorong/imgnest/internal/service"
+)
+
+// pluginEventQueue bounds the events waiting for one subscriber.
+const pluginEventQueue = 256
+
+// pluginEventDrain bounds how long shutdown waits for queued events.
+const pluginEventDrain = 10 * time.Second
+
+// imageHooks are the plugin capabilities the image service runs.
+type imageHooks struct {
+	Events  service.EventSink
+	Display []service.DisplayTransformer
+}
+
+// pluginEvents fans committed events out to every EventSubscriber plugin,
+// each with its own queue and goroutine so one slow plugin delays only itself.
+type pluginEvents struct {
+	logger  *slog.Logger
+	mu      sync.RWMutex
+	closed  bool
+	queues  []chan extension.Event
+	names   []string
+	workers sync.WaitGroup
+}
+
+// newPluginEvents starts one delivery goroutine per subscriber; it returns nil
+// when no plugin subscribes, which disables publishing entirely.
+func newPluginEvents(ctx context.Context, plugins []extension.Plugin, logger *slog.Logger) *pluginEvents {
+	events := &pluginEvents{logger: logger}
+	for _, plugin := range plugins {
+		subscriber, ok := plugin.(extension.EventSubscriber)
+		if !ok {
+			continue
+		}
+		queue := make(chan extension.Event, pluginEventQueue)
+		events.queues = append(events.queues, queue)
+		events.names = append(events.names, plugin.Name())
+		events.workers.Add(1)
+		go events.deliver(context.WithoutCancel(ctx), plugin.Name(), subscriber, queue)
+	}
+	if len(events.queues) == 0 {
+		return nil
+	}
+	return events
+}
+
+func (p *pluginEvents) deliver(ctx context.Context, name string, subscriber extension.EventSubscriber, queue <-chan extension.Event) {
+	defer p.workers.Done()
+	for event := range queue {
+		func() {
+			defer func() {
+				if recover() != nil {
+					p.logger.ErrorContext(ctx, "plugin event handler panicked", "plugin", name, "event", event.Type)
+				}
+			}()
+			subscriber.HandleEvent(ctx, event)
+		}()
+	}
+}
+
+// Publish implements service.EventSink without ever blocking the caller.
+func (p *pluginEvents) Publish(ctx context.Context, event service.Event) {
+	value := extension.Event{Type: event.Type, At: event.At}
+	if image := event.Image; image != nil {
+		value.Image = &extension.EventImage{ID: image.ID, Key: image.Key, UserID: image.UserID, AlbumID: image.AlbumID, StorageID: image.StorageID, Path: image.Path, Name: image.Name, MIME: image.MIME, Size: image.Size, Width: image.Width, Height: image.Height, IsPublic: image.IsPublic, Original: image.Original, WebP: image.WebP, Thumbnail: image.Thumbnail}
+	}
+	if user := event.User; user != nil {
+		value.User = &extension.EventUser{ID: user.ID, Username: user.Username}
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.closed {
+		return
+	}
+	for i, queue := range p.queues {
+		select {
+		case queue <- value:
+		default:
+			p.logger.WarnContext(ctx, "plugin event queue full; event dropped", "plugin", p.names[i], "event", value.Type)
+		}
+	}
+}
+
+// Close stops accepting events and waits a bounded time for queued ones.
+func (p *pluginEvents) Close() {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	if !p.closed {
+		p.closed = true
+		for _, queue := range p.queues {
+			close(queue)
+		}
+	}
+	p.mu.Unlock()
+	done := make(chan struct{})
+	go func() { p.workers.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(pluginEventDrain):
+		p.logger.Warn("plugin events still pending at shutdown")
+	}
+}
+
+// displayTransformer adapts a plugin's DisplayTransformer to the service.
+type displayTransformer struct{ plugin extension.DisplayTransformer }
+
+func (d displayTransformer) TransformDisplay(ctx context.Context, image service.DisplayImage, webp []byte) ([]byte, error) {
+	return d.plugin.TransformDisplay(ctx, extension.DisplayImage{UserID: image.UserID, GroupID: image.GroupID, PolicyID: image.PolicyID, StorageID: image.StorageID, Format: image.Format, Width: image.Width, Height: image.Height, Frames: image.Frames}, webp)
+}
+
+// pluginImageHooks collects the plugins' image capabilities; events may be nil.
+func pluginImageHooks(plugins []extension.Plugin, events *pluginEvents) imageHooks {
+	hooks := imageHooks{}
+	if events != nil {
+		hooks.Events = events
+	}
+	for _, plugin := range plugins {
+		if transformer, ok := plugin.(extension.DisplayTransformer); ok {
+			hooks.Display = append(hooks.Display, displayTransformer{plugin: transformer})
+		}
+	}
+	return hooks
+}

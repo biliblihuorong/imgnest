@@ -126,6 +126,14 @@ Remove-Variable taskPlainPassword, taskPassword
 - 失败一律跳回 `/login?sso_error=not_linked|email_required|disabled|unavailable|failed`，`FailSignIn(c)` 用于插件自己拒绝的情况（state 不匹配、用户拒绝授权）。
 - `Subject` 必须是提供方稳定且不会复用的用户 ID，不能用邮箱或可改名的登录名。
 
+### 可选接口
+
+插件额外实现下面的接口，就会被接入对应位置；都不实现时，插件只影响自己的路由。原版构建没有插件，这些位置全部为空操作。
+
+- `EventSubscriber`：`HandleEvent(ctx, event)` 接收已提交的变化：`image.uploaded`、`image.trashed`、`image.restored`、`image.purged`、`user.registered`。每个订阅者有自己的队列（256）和 goroutine，慢的只拖慢自己；队列满时丢弃并记日志，`serve` 退出时最多等 10 秒把队列发完。事件里不带 EXIF、凭据和邮箱；图片事件带当时的原图、WebP、缩略图公开 URL。
+- `DisplayTransformer`：`TransformDisplay(ctx, image, webp)` 可以改写上传时**单独编码出来的展示 WebP**（例如加水印）。原图、缩略图、本身就是 WebP 的上传和 `webp_mode=none` 的规则都不会经过它，所以原图永远不会被重新编码。返回值必须是尺寸和帧数不变的 WebP，且不超过单文件上限；出错或不合规都会拒绝这次上传（走正常的补偿流程，不会留下对象）。多个插件按注册顺序依次执行。
+- `AccessGuard`：`GuardAccess(c, kind)` 在服务端自己出的公开图片路由之前运行：`object`（`/i/...`，只有本机存储）、`thumbnail`（`/t/...`）、`random`（`/random/...`，对所有存储有效，因为跳转前会经过服务端）。返回 `false` 表示插件已经写好响应（例如 403）。S3 直链不经过服务端，这里管不到；前面有 CDN 缓存时，命中缓存的请求也不会到这里。
+
 ## 前端开发
 
 前端只有 `web-vben/`：基于 Vben 5.8.0 源码工作区的 Vue 3.5 + Vite 8（Rolldown）+ TypeScript 6 + Naive UI + Pinia 应用，构建后由 `web-vben/embed.go` 嵌入服务二进制。M5 时期的旧前端 `web/` 及其 `vben` 构建标签、冻结源码校验已于 2026-10-07 移除。Node 24.21.0 与 pnpm 12.9.1 已装入 dev 镜像，前端命令全部在容器内执行（宿主 Node 22 仅作手工便利，不作验收依据）。

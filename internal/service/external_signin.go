@@ -133,6 +133,7 @@ func (s *UserService) createExternalUser(ctx context.Context, in ExternalSignIn,
 			RegisteredIP: strings.TrimSpace(in.IP),
 		}, identity)
 		if err == nil {
+			s.emitRegistered(ctx, created)
 			return s.externalCredentials(ctx, created)
 		}
 		if !errors.Is(err, ErrUserExists) {

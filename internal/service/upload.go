@@ -173,6 +173,12 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	if err != nil {
 		return ImageView{}, processingError(ctx, err)
 	}
+	if info.Format != "webp" && mode != "none" && len(result.WebP) > 0 && len(s.deps.Display) > 0 {
+		result.WebP, err = s.transformDisplay(ctx, DisplayImage{UserID: plan.userID, GroupID: group.ID, PolicyID: policy.ID, StorageID: backend.ID, Format: info.Format}, result.WebP)
+		if err != nil {
+			return ImageView{}, err
+		}
+	}
 	hasOriginal := mode != "webp_only"
 	webp := result.WebP
 	if info.Format == "webp" {
@@ -304,6 +310,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 		cancel()
 		if checkErr == nil && current.State == model.ImageStateActive && current.OperationID == op {
 			s.invalidateRandom(ctx, current.AlbumID)
+			s.emit(ctx, EventImageUploaded, current, backend)
 			return imageView(current, backend, policy), nil
 		}
 		if checkErr != nil {
@@ -312,7 +319,30 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 		return ImageView{}, s.failUpload(ctx, image, driver, fmt.Errorf("commit upload: %w", err))
 	}
 	s.invalidateRandom(ctx, committed.AlbumID)
+	s.emit(ctx, EventImageUploaded, committed, backend)
 	return imageView(committed, backend, policy), nil
+}
+
+// transformDisplay runs each display transformer and accepts only a WebP with
+// the same pixel size and frame count, so a plugin cannot swap the image.
+func (s *ImageService) transformDisplay(ctx context.Context, image DisplayImage, webp []byte) ([]byte, error) {
+	before, err := s.deps.Imaging.Probe(ctx, webp)
+	if err != nil {
+		return nil, processingError(ctx, err)
+	}
+	image.Width, image.Height, image.Frames = before.Width, before.Height, before.LoadedFrames
+	for _, transformer := range s.deps.Display {
+		out, err := transformer.TransformDisplay(ctx, image, webp)
+		if err != nil || len(out) == 0 || int64(len(out)) > s.deps.MaxFileBytes {
+			return nil, processingError(ctx, err)
+		}
+		after, err := s.deps.Imaging.Probe(ctx, out)
+		if err != nil || after.Format != "webp" || after.Width != before.Width || after.Height != before.Height || after.LoadedFrames != before.LoadedFrames {
+			return nil, processingError(ctx, err)
+		}
+		webp = out
+	}
+	return webp, nil
 }
 
 func makeUploadObjects(image model.Image, original, webp, thumbnail []byte) []uploadObject {

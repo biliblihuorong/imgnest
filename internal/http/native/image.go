@@ -2,6 +2,7 @@ package native
 
 import (
 	"context"
+	"github.com/biliblihuorong/imgnest/extension"
 	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/searchquery"
@@ -77,10 +78,11 @@ func (h *Handler) RegisterImageRoutes(ctx context.Context, router gin.IRouter, i
 	// The gallery is a public read-only endpoint and deliberately sits
 	// outside the authenticated group, like /api/site.
 	router.GET("/api/gallery", image.gallery)
-	router.GET("/i/:storageID/*key", image.publicObject)
-	router.HEAD("/i/:storageID/*key", image.publicObject)
-	router.GET("/t/:key", image.thumbnail)
-	router.HEAD("/t/:key", image.thumbnail)
+	objectGuard, thumbGuard := h.guardAccess(extension.AccessObject), h.guardAccess(extension.AccessThumbnail)
+	router.GET("/i/:storageID/*key", objectGuard, image.publicObject)
+	router.HEAD("/i/:storageID/*key", objectGuard, image.publicObject)
+	router.GET("/t/:key", thumbGuard, image.thumbnail)
+	router.HEAD("/t/:key", thumbGuard, image.thumbnail)
 	return nil
 }
 

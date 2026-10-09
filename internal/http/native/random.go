@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/biliblihuorong/imgnest/extension"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -40,8 +41,9 @@ func (h *Handler) RegisterRandomLinkRoutes(ctx context.Context, router gin.IRout
 		// A private table keeps a flood here from filling the login limiter's.
 		limiter: newFixedWindowLimiter(randomRequestsPerMinute, randomLimiterCapacity, h.now),
 	}
-	router.GET("/random/:uid/:token", random.rateLimit, random.redirect)
-	router.HEAD("/random/:uid/:token", random.rateLimit, random.redirect)
+	guard := h.guardAccess(extension.AccessRandom)
+	router.GET("/random/:uid/:token", random.rateLimit, guard, random.redirect)
+	router.HEAD("/random/:uid/:token", random.rateLimit, guard, random.redirect)
 	protected := router.Group("/api", h.authenticate)
 	protected.GET("/albums/:id/random-link", random.get)
 	protected.PUT("/albums/:id/random-link", random.put)
