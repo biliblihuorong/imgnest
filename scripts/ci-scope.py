@@ -29,7 +29,7 @@ def is_vben_source(path):
 def is_go_source(path):
     if path in GO_ONLY_FILES:
         return True
-    return path.startswith(("internal/", "cmd/")) and not path.endswith(".md")
+    return path.startswith(("internal/", "cmd/", "app/", "extension/")) and not path.endswith(".md")
 
 
 def scopes(paths):

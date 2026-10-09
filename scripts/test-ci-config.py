@@ -69,6 +69,17 @@ class CICacheConfigTest(unittest.TestCase):
             self.assertNotIn("meson", text)
             self.assertNotIn("imagor-base", text)
 
+    def test_release_image_copies_every_go_package_directory(self):
+        # The release build only copies listed directories; a new top-level Go
+        # package that is not copied compiles in CI but breaks the image.
+        prod = (ROOT / "deploy/Dockerfile").read_text()
+        copied = set(re.findall(r"^COPY (\S+)/ \1/$", prod, re.M))
+        skipped = {"web-vben", "website", "third_party", "node_modules"}
+        go_dirs = {top.name for top in ROOT.iterdir()
+                   if top.is_dir() and not top.name.startswith(".") and top.name not in skipped
+                   and any(top.rglob("*.go"))}
+        self.assertEqual(go_dirs - copied, set())
+
     def test_go_builder_identity_is_immutable_and_shared(self):
         dev = (ROOT / "deploy/Dockerfile.dev").read_text().splitlines()[0]
         minio = (ROOT / "deploy/Dockerfile.minio-test").read_text()
@@ -141,7 +152,7 @@ class CIScopeTest(unittest.TestCase):
 
     def test_go_only_changes_skip_the_frontend_jobs(self):
         self.assertEqual(self.scopes("internal/service/user.go", "cmd/imgnest/main.go", "go.sum",
-                                     ".golangci.yml"),
+                                     "app/app.go", "extension/extension.go", ".golangci.yml"),
                          {"backend": True, "frontend": False})
 
     def test_go_inputs_inside_frontend_directories_run_the_go_jobs(self):
