@@ -25,7 +25,9 @@ ENV CGO_ENABLED=1 GOTOOLCHAIN=local \
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY app/ app/
 COPY cmd/ cmd/
+COPY extension/ extension/
 COPY internal/ internal/
 COPY web-vben/embed.go web-vben/embed.go
 COPY --from=frontend /src/dist/ web-vben/dist/
