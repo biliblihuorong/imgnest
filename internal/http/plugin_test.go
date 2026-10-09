@@ -50,7 +50,7 @@ func pluginRouterWith(t *testing.T, signIn native.ExternalSignIn, plugins ...ext
 	t.Helper()
 	return httpapi.NewRouter(t.Context(), httpapi.Dependencies{
 		ExternalSignIn: signIn,
-		Users: &usersStub{}, Tokens: &tokensStub{}, Logger: slog.New(slog.NewJSONHandler(io.Discard, nil)), Server: config.Server{TrustedProxies: []string{}},
+		Users:          &usersStub{}, Tokens: &tokensStub{}, Logger: slog.New(slog.NewJSONHandler(io.Discard, nil)), Server: config.Server{TrustedProxies: []string{}},
 		Now: func() time.Time { return time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC) }, Health: func(context.Context) error { return nil },
 		Plugins: plugins,
 	})
