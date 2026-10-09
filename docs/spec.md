@@ -296,7 +296,7 @@ CDN 缓存不在本程序处理范围内。
 | 随机图片 | `GET/HEAD /random/{uid}/{token}`（307 跳转） | 公开（凭链接） |
 | Token | `GET/POST /api/tokens`、`DELETE /api/tokens/{id}` | 本人 |
 | 画廊 | `GET /api/gallery`、`GET /api/site` | 公开（受开关控制） |
-| 管理 | `/api/admin/users`、`groups`、`storages`（含 `POST /{id}/test`）、`policies`（含 `POST /preview` 模板预览）、`images`、`trash`（清空全站回收站）、`settings`、`tasks/backfill`（补 WebP/缩略图/EXIF） | 管理员 |
+| 管理 | `/api/admin/users`、`groups`、`storages`（含 `POST /{id}/test`）、`policies`（含 `POST /preview` 模板预览）、`images`、`trash`（清空全站回收站）、`settings`、`plugins`（扩展插件的设置卡片，`PUT /{name}/settings` 保存）、`tasks/backfill`（补 WebP/缩略图/EXIF） | 管理员 |
 
 **约定**
 
@@ -411,6 +411,7 @@ imgnest/
 - 完整 raw 归档保存容器元数据原始块。classic TIFF 的不透明私有布局可用明确标记的 full-source-fallback（输入至多20MiB）保存在 owner/admin 私有 raw；该情况 gps/all 原图脱敏拒绝。BigTIFF 和不能完整解析的 ISOBMFF 布局明确拒绝，不默默漏存元数据。
 - M2 native 以数值 id 提供图片/EXIF/权限与批量回收站接口；稳定随机 key 用于缩略图及未来 v1。POST /api/upload 接受重复 file/files[]，字段 policy_id/album_id/is_public，单文件201，批量207逐项结果。默认整请求64MiB、单文件20MiB、至多20文件、2并发请求、5min处理期限、100MP含动画帧；这些限制先于完整读取。
 - M2 新码：10002=请求/文件过大(413)、10004=请求取消/超时(408)、30004=容量(403)、30005=路径冲突(409)、30006=图片繁忙(409)、30007=格式不支持(415)、50002=存储(502)、50003=处理/脱敏拒绝(422)。保留 M1 外壳与错误码。
+- 扩展插件新码：10005=插件设置值需要管理员修正(400，message 由插件提供、可直接显示)、30013=上传未通过插件的内容审核(422)、30014=未配置主密钥时保存密钥类插件设置(409)、50005=内容审核暂不可用(503)。
 - M2 提供主机管理员 CLI init-local/init-storage/init-policy；S3 配置用部署32-byte base64主密钥 AES-256-GCM 加密，输入只能 stdin/未跟踪配置。主密钥不入库/日志；连接测试验证实际不覆盖写、复制和清理。本机访问前缀为 /i/{storage_id}，BaseURL 实时读出。
 - 固定 vips8.18.6 的 imagor-base 实际缺 BMP 加载器，M2 在同版本官方源码上启用 Magick，并固定源码校验和；不升级 vipsgen。默认 StripMeta 始终保留 ICC 且保护衍生版本，源 WebP 复用按 scrub_mode 无损处理。输入缺少 terminator、恶意 IFD、像素别名及越界 item 都拒绝。
 - M2 单实例、Linux amd64 已实际验证；真实 MinIO 不代表 B2/COS/R2 账户联调已完成。Vue 页面/相册CRUD与蓝空v1/完整管理后台仍按 M3/M4；多架构发布按 M5。

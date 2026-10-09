@@ -82,6 +82,9 @@
     "captchaChallenge": "请重新完成验证后重试",
     "captchaVersion": "验证设置已变化，请刷新后重试",
     "captchaUnavailable": "验证服务暂时不可用，请稍后重试",
-    "captchaActivation": "请先完成候选配置测试并确认启用风险"
+    "captchaActivation": "请先完成候选配置测试并确认启用风险",
+    "contentRejected": "图片未通过内容审核",
+    "reviewUnavailable": "内容审核暂时不可用，请稍后重试",
+    "secretsUnavailable": "保存密钥需要先在配置文件里设置 security.master_key"
   }
 }

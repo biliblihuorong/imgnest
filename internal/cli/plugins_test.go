@@ -3,6 +3,9 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -85,5 +88,84 @@ func TestPluginEventsDropWhenFullAndSurvivePanics(t *testing.T) {
 	}
 	if n := len(slow.events()); n < pluginEventQueue || n > pluginEventQueue+1 {
 		t.Fatalf("slow subscriber got %d events", n)
+	}
+}
+
+type reviewPlugin struct {
+	plainPlugin
+	err error
+	got extension.UploadImage
+}
+
+func (p *reviewPlugin) InspectUpload(_ context.Context, upload extension.UploadImage, _ []byte) error {
+	p.got = upload
+	return p.err
+}
+
+func TestUploadInspectorAdapterMapsRefusals(t *testing.T) {
+	for _, tc := range []struct{ err, want error }{
+		{nil, nil},
+		{fmt.Errorf("porn: %w", extension.ErrUploadRejected), service.ErrContentRejected},
+		{extension.ErrReviewUnavailable, service.ErrReviewUnavailable},
+	} {
+		plugin := &reviewPlugin{err: tc.err}
+		hooks := pluginImageHooks([]extension.Plugin{plainPlugin{}, plugin}, nil)
+		if len(hooks.Inspectors) != 1 {
+			t.Fatalf("inspectors: %d", len(hooks.Inspectors))
+		}
+		err := hooks.Inspectors[0].InspectUpload(t.Context(), service.UploadInspection{UserID: 3, Filename: "a.png", Format: "png", Width: 4, Height: 5, Frames: 1, Size: 9}, []byte("x"))
+		if !errors.Is(err, tc.want) || (tc.want == nil && err != nil) {
+			t.Fatalf("%v: got %v", tc.err, err)
+		}
+		if plugin.got.UserID != 3 || plugin.got.Filename != "a.png" || plugin.got.Width != 4 || plugin.got.Size != 9 {
+			t.Fatalf("converted upload: %+v", plugin.got)
+		}
+	}
+}
+
+type settingsPlugin struct {
+	plainPlugin
+	applied string
+}
+
+func (p *settingsPlugin) SettingsSchema(context.Context) (extension.SettingsSchema, bool) {
+	return extension.SettingsSchema{Title: "T", Fields: []extension.SettingField{
+		{Key: "mode", Label: "模式", Type: extension.SettingSelect, Default: "a", Options: []extension.SettingOption{{Label: "A", Value: "a"}}},
+		{Key: "targets", Label: "目标", Type: extension.SettingList, Fields: []extension.SettingField{{Key: "url", Label: "地址", Type: extension.SettingText}}},
+	}}, true
+}
+
+func (p *settingsPlugin) ApplySettings(_ context.Context, values json.RawMessage) error {
+	if strings.Contains(string(values), "bad") {
+		return &extension.SettingsError{Field: "targets", Message: "地址无效"}
+	}
+	p.applied = string(values)
+	return nil
+}
+
+func (p *settingsPlugin) SettingsStatus(context.Context) []extension.SettingStatus {
+	return []extension.SettingStatus{{Label: "授权", Value: "有效", Level: extension.StatusSuccess}}
+}
+
+func TestConfigurablePluginAdapter(t *testing.T) {
+	plugin := &settingsPlugin{}
+	configurable := configurablePlugins([]extension.Plugin{plainPlugin{}, plugin})
+	if len(configurable) != 1 || configurable[0].Name() != "plain" {
+		t.Fatalf("configurable: %v", configurable)
+	}
+	schema, ok := configurable[0].Schema(t.Context())
+	if !ok || schema.Title != "T" || len(schema.Fields) != 2 || schema.Fields[0].Options[0].Value != "a" || schema.Fields[1].Fields[0].Key != "url" {
+		t.Fatalf("schema: %+v", schema)
+	}
+	if status := configurable[0].Status(t.Context()); len(status) != 1 || status[0].Level != "success" {
+		t.Fatalf("status: %v", status)
+	}
+	err := configurable[0].Apply(t.Context(), json.RawMessage(`{"targets":[{"url":"bad"}]}`))
+	var settingsErr *service.PluginSettingsError
+	if !errors.As(err, &settingsErr) || settingsErr.Message != "地址无效" || settingsErr.Field != "targets" {
+		t.Fatalf("refusal: %v", err)
+	}
+	if err := configurable[0].Apply(t.Context(), json.RawMessage(`{"mode":"a"}`)); err != nil || plugin.applied != `{"mode":"a"}` {
+		t.Fatalf("apply: %v %q", err, plugin.applied)
 	}
 }

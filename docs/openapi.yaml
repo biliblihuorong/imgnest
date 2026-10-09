@@ -2078,6 +2078,82 @@ paths:
           $ref: '#/components/responses/StorageFailed'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/admin/plugins:
+    get:
+      operationId: adminListPluginSettings
+      tags: [Admin]
+      summary: List the settings cards of server plugins
+      description: |
+        Requires the administrator role. Each plugin that implements
+        `extension.Configurable` and currently shows its card is listed with
+        its field schema and current values. Secret values are never returned:
+        a stored secret reads as `__imgnest_secret_kept__`, an unset one as
+        an empty string. List items carry a `_key` that keeps their secrets
+        across saves. The community edition returns an empty list.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Visible plugin settings cards.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PluginSettingsListEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/plugins/{name}/settings:
+    put:
+      operationId: adminSavePluginSettings
+      tags: [Admin]
+      summary: Save one plugin's settings
+      description: |
+        Requires the administrator role. `values` replaces the plugin's
+        settings: missing keys take their defaults and unknown keys are
+        dropped. Send `__imgnest_secret_kept__` (with the item's `_key` inside
+        lists) to keep a stored secret. The server checks types, bounds,
+        options and required fields, the plugin checks the rest, and only
+        accepted values are stored (encrypted when `security.master_key` is
+        set). 400/10005 carries a message for the administrator; 409/30014
+        means a secret was entered but no master key is configured.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: name, in: path, required: true, schema: {type: string, pattern: '^[a-z0-9][a-z0-9-]{0,31}$'}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [values]
+              properties:
+                values: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          description: The saved card.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PluginSettingsEnvelope'}
+        '400':
+          description: Invalid JSON (10001) or a value the administrator must fix (10005, with a displayable message).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A secret was entered but `security.master_key` is not configured; code 30014.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/admin/trash/purge-all:
     post:
       operationId: adminPurgeAllTrash
@@ -2636,6 +2712,84 @@ components:
         code: {type: integer, enum: [0]}
         message: {type: string}
         data: {$ref: '#/components/schemas/PolicyPreviewResult'}
+    PluginSettingOption:
+      type: object
+      additionalProperties: false
+      required: [label, value]
+      properties:
+        label: {type: string}
+        value:
+          oneOf:
+            - {type: string}
+            - {type: number}
+    PluginSettingField:
+      type: object
+      additionalProperties: false
+      required: [key, label, type]
+      properties:
+        key: {type: string}
+        label: {type: string}
+        help: {type: string}
+        type: {type: string, enum: [text, textarea, secret, bool, int, number, select, tags, list]}
+        placeholder: {type: string}
+        required: {type: boolean}
+        default: {}
+        min: {type: number}
+        max: {type: number}
+        options:
+          type: array
+          items: {$ref: '#/components/schemas/PluginSettingOption'}
+        options_from: {type: string, enum: [groups, policies, storages]}
+        multiple: {type: boolean}
+        fields:
+          type: array
+          description: Item fields of a list field.
+          items: {$ref: '#/components/schemas/PluginSettingField'}
+        item_label: {type: string}
+    PluginSettingStatus:
+      type: object
+      additionalProperties: false
+      required: [label, value, level]
+      properties:
+        label: {type: string}
+        value: {type: string}
+        level: {type: string, enum: [info, success, warning, error]}
+    PluginSettings:
+      type: object
+      additionalProperties: false
+      required: [name, title, fields, values, status, secrets_available]
+      properties:
+        name: {type: string}
+        title: {type: string}
+        description: {type: string}
+        fields:
+          type: array
+          items: {$ref: '#/components/schemas/PluginSettingField'}
+        values: {type: object, additionalProperties: true}
+        status:
+          type: array
+          items: {$ref: '#/components/schemas/PluginSettingStatus'}
+        secrets_available:
+          type: boolean
+          description: False when no master key is configured, so secret fields cannot be saved.
+    PluginSettingsEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/PluginSettings'}
+    PluginSettingsListEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data:
+          type: array
+          items: {$ref: '#/components/schemas/PluginSettings'}
     AdminSettingsEnvelope:
       type: object
       additionalProperties: false
@@ -3545,7 +3699,7 @@ components:
       properties:
         code:
           type: integer
-          enum: [10001, 10002, 10004, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 30010, 30011, 30012, 50001, 50002, 50003, 50004]
+          enum: [10001, 10002, 10004, 10005, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 30010, 30011, 30012, 30013, 30014, 50001, 50002, 50003, 50004, 50005]
         message:
           type: string
           description: Human-readable error message without technical or credential details.
@@ -3619,8 +3773,10 @@ components:
         413/10002 byte limit; 408/10004 cancellation/deadline; 429/30003 upload
         rate; 403/30004 quota; 409/30005 path conflict; 409/30006 in-progress
         image operation; 415/30007 disallowed format; 502/50002 storage failure;
-        422/50003 processing or privacy-sanitization failure; 500/50001 other
-        internal failure. No private source data or provider diagnostics are returned.
+        422/50003 processing or privacy-sanitization failure; 422/30013 refused
+        by a plugin's content review; 503/50005 content review unavailable;
+        500/50001 other internal failure. No private source data or provider
+        diagnostics are returned.
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorEnvelope'}

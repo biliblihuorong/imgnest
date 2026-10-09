@@ -173,6 +173,15 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	if err != nil {
 		return ImageView{}, processingError(ctx, err)
 	}
+	if len(s.deps.Inspectors) > 0 {
+		display := original
+		if info.Format != "webp" && mode != "none" && len(result.WebP) > 0 {
+			display = result.WebP
+		}
+		if err := s.inspect(ctx, UploadInspection{UserID: plan.userID, GroupID: group.ID, PolicyID: policy.ID, StorageID: backend.ID, Filename: input.Filename, Format: info.Format, Width: info.Width, Height: info.Height, Frames: info.LoadedFrames, Size: int64(len(input.Data))}, display); err != nil {
+			return ImageView{}, err
+		}
+	}
 	if info.Format != "webp" && mode != "none" && len(result.WebP) > 0 && len(s.deps.Display) > 0 {
 		result.WebP, err = s.transformDisplay(ctx, DisplayImage{UserID: plan.userID, GroupID: group.ID, PolicyID: policy.ID, StorageID: backend.ID, Format: info.Format, Quality: policy.WebPQuality, Effort: policy.WebPEffort, Lossless: policy.WebPLossless}, result.WebP)
 		if err != nil {
@@ -321,6 +330,23 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	s.invalidateRandom(ctx, committed.AlbumID)
 	s.emit(ctx, EventImageUploaded, committed, backend)
 	return imageView(committed, backend, policy), nil
+}
+
+// inspect runs every upload inspector in order; the first refusal wins.
+func (s *ImageService) inspect(ctx context.Context, upload UploadInspection, image []byte) error {
+	for _, inspector := range s.deps.Inspectors {
+		err := inspector.InspectUpload(ctx, upload, image)
+		switch {
+		case err == nil:
+		case errors.Is(err, ErrContentRejected):
+			return ErrContentRejected
+		case errors.Is(err, ErrReviewUnavailable):
+			return ErrReviewUnavailable
+		default:
+			return processingError(ctx, err)
+		}
+	}
+	return nil
 }
 
 // transformDisplay runs each display transformer and accepts only a WebP with

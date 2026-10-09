@@ -41,4 +41,8 @@ var (
 	// ErrIdentityEmailRequired rejects creating an account from an external
 	// sign-in that carries no verified email.
 	ErrIdentityEmailRequired = model.ErrIdentityEmailRequired
+	// ErrContentRejected rejects an upload a content review refused.
+	ErrContentRejected = model.ErrContentRejected
+	// ErrReviewUnavailable rejects an upload whose content review could not run.
+	ErrReviewUnavailable = model.ErrReviewUnavailable
 )

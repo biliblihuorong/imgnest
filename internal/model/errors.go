@@ -30,4 +30,9 @@ var (
 	// ErrIdentityEmailRequired reports an external sign-in that would create
 	// an account but carries no verified email address.
 	ErrIdentityEmailRequired = errors.New("external identity has no verified email")
+	// ErrContentRejected reports an upload a content review refused.
+	ErrContentRejected = errors.New("upload rejected by content review")
+	// ErrReviewUnavailable reports an upload refused because its content
+	// review could not run.
+	ErrReviewUnavailable = errors.New("content review unavailable")
 )
