@@ -120,7 +120,12 @@ type ImageDependencies struct {
 	Albums AlbumStore
 	// RandomPool drops cached random-link candidates when an album's active
 	// images change; nil disables invalidation.
-	RandomPool   RandomPoolInvalidator
+	RandomPool RandomPoolInvalidator
+	// Events receives committed image changes; nil disables them.
+	Events EventSink
+	// Display transformers run in order on each separately encoded display
+	// WebP; an error or invalid result rejects the upload.
+	Display      []DisplayTransformer
 	Now          func() time.Time
 	MaxFileBytes int64
 }

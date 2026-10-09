@@ -56,6 +56,8 @@ type Handler struct {
 	// signIn and tickets finish sign-ins that plugins verified.
 	signIn  ExternalSignIn
 	tickets *ticketStore
+	// guards may refuse public image requests before the core handlers.
+	guards []extension.AccessGuard
 }
 
 // UsePlugins sets the extensions whose login providers the site view lists
@@ -63,6 +65,25 @@ type Handler struct {
 func (h *Handler) UsePlugins(plugins []extension.Plugin, signIn ExternalSignIn) {
 	h.plugins = plugins
 	h.signIn = signIn
+	h.guards = nil
+	for _, plugin := range plugins {
+		if guard, ok := plugin.(extension.AccessGuard); ok {
+			h.guards = append(h.guards, guard)
+		}
+	}
+}
+
+// guardAccess runs the plugins' access guards for one kind of public image
+// route; the first guard that refuses has already written the response.
+func (h *Handler) guardAccess(kind string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		for _, guard := range h.guards {
+			if !guard.GuardAccess(c, kind) {
+				c.Abort()
+				return
+			}
+		}
+	}
 }
 
 const identityKey = "imgnest_identity"

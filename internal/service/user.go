@@ -101,6 +101,8 @@ type UserService struct {
 	settings SettingsRepository
 	// identities enables external sign-in; nil rejects it.
 	identities IdentityRepository
+	// events receives account events; nil disables them.
+	events EventSink
 }
 
 // NewUserService constructs account operations with injected persistence.
@@ -134,6 +136,7 @@ func (s *UserService) Register(ctx context.Context, input RegisterInput) (UserVi
 	if err != nil {
 		return UserView{}, fmt.Errorf("create user: %w", err)
 	}
+	s.emitRegistered(ctx, created)
 	return s.decoratedView(ctx, created)
 }
 
