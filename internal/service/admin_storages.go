@@ -207,8 +207,13 @@ func probeStorage(ctx context.Context, driver storage.Driver) (put, copyOK, dele
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
-		if purger, ok := driver.(storage.OwnedPurger); ok {
-			for _, probeKey := range []string{key, copyKey} {
+		// DeleteCurrent leaves a delete marker on versioned buckets (B2), and
+		// PurgeOwned keeps markers, so prefer the full-history purge the
+		// creation check uses; probe keys are random and only ever ours.
+		for _, probeKey := range []string{key, copyKey} {
+			if purger, ok := driver.(storage.ImagePurger); ok {
+				_ = purger.PurgeImage(cleanup, probeKey, owner)
+			} else if purger, ok := driver.(storage.OwnedPurger); ok {
 				_ = purger.PurgeOwned(cleanup, probeKey, owner)
 			}
 		}

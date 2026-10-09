@@ -323,6 +323,7 @@ type adminProbeObject struct {
 type adminProbeDriver struct {
 	putErr, copyErr, deleteErr    error
 	puts, copies, deletes, purges int
+	imagePurges                   int
 	objects                       map[string]adminProbeObject
 }
 
@@ -387,6 +388,7 @@ func (d *adminProbeDriver) PurgeOwned(_ context.Context, key string, owner strin
 }
 func (d *adminProbeDriver) PurgeImage(_ context.Context, key string, owner string) error {
 	d.purges++
+	d.imagePurges++
 	if object, ok := d.objects[key]; ok && object.owner != owner {
 		return storage.ErrOwnership
 	}
@@ -793,6 +795,9 @@ func TestAdminStorageTestReportsEachCheck(t *testing.T) {
 	}
 	if driver.purges < 2 {
 		t.Fatalf("probe left objects behind: purges=%d", driver.purges)
+	}
+	if driver.imagePurges < 2 {
+		t.Fatalf("probe kept delete markers: full-history purges=%d", driver.imagePurges)
 	}
 
 	driver = &adminProbeDriver{copyErr: storage.ErrExists}
