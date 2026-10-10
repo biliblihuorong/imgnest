@@ -22,6 +22,7 @@ const pluginEventDrain = 10 * time.Second
 type imageHooks struct {
 	Events     service.EventSink
 	Inspectors []service.UploadInspector
+	Trash      []service.TrashPolicy
 	Display    []service.DisplayTransformer
 }
 
@@ -136,6 +137,9 @@ func pluginImageHooks(plugins []extension.Plugin, events *pluginEvents) imageHoo
 		if transformer, ok := plugin.(extension.DisplayTransformer); ok {
 			hooks.Display = append(hooks.Display, displayTransformer{plugin: transformer})
 		}
+		if policy, ok := plugin.(extension.TrashPolicy); ok {
+			hooks.Trash = append(hooks.Trash, trashPolicy{plugin: policy})
+		}
 	}
 	return hooks
 }
@@ -153,8 +157,17 @@ func (u uploadInspector) InspectUpload(ctx context.Context, upload service.Uploa
 		return service.ErrContentRejected
 	case errors.Is(err, extension.ErrReviewUnavailable):
 		return service.ErrReviewUnavailable
+	case errors.Is(err, extension.ErrUploadLimitReached):
+		return service.ErrUploadLimitReached
 	}
 	return err
+}
+
+// trashPolicy adapts a plugin's TrashPolicy to the service.
+type trashPolicy struct{ plugin extension.TrashPolicy }
+
+func (t trashPolicy) TrashDays(ctx context.Context, userID, groupID uint64) (int, bool) {
+	return t.plugin.TrashDays(ctx, extension.TrashOwner{UserID: userID, GroupID: groupID})
 }
 
 // configurablePlugin adapts a plugin's Configurable (and optional status
@@ -220,4 +233,24 @@ func configurablePlugins(plugins []extension.Plugin) []service.ConfigurablePlugi
 		out = append(out, configurablePlugin{name: plugin.Name(), plugin: configurable, status: status})
 	}
 	return out
+}
+
+// pluginCounterStore is the durable counter table plugins share.
+type pluginCounterStore interface {
+	Add(ctx context.Context, plugin, name, subject string, delta int64) (int64, error)
+	Get(ctx context.Context, plugin, name, subject string) (int64, error)
+}
+
+// pluginCounters scopes the counter table to one plugin.
+type pluginCounters struct {
+	plugin string
+	store  pluginCounterStore
+}
+
+func (p pluginCounters) Add(ctx context.Context, name, subject string, delta int64) (int64, error) {
+	return p.store.Add(ctx, p.plugin, name, subject, delta)
+}
+
+func (p pluginCounters) Get(ctx context.Context, name, subject string) (int64, error) {
+	return p.store.Get(ctx, p.plugin, name, subject)
 }

@@ -168,7 +168,7 @@ func newImageServices(ctx context.Context, db *gorm.DB, cfg config.Config, rando
 		_ = cleanup()
 		return nil, nil, nil, service.ErrProcessing
 	}
-	svc, err := service.NewImageService(ctx, service.ImageDependencies{Images: images, Policies: policies, Storages: stores, Users: users, Tokens: tokens, Drivers: drivers, Paths: service.PathFunctions{BuildPath: pathtpl.Build, CleanPath: pathtpl.Sanitize}, Imaging: processor, Extractor: metadata, Scrubber: metadata, Cache: cache, Settings: settings, Albums: albumsRepo, RandomPool: randomPool, Events: hooks.Events, Inspectors: hooks.Inspectors, Display: hooks.Display, Now: time.Now, MaxFileBytes: int64(cfg.Server.MaxUploadMB) << 20})
+	svc, err := service.NewImageService(ctx, service.ImageDependencies{Images: images, Policies: policies, Storages: stores, Users: users, Tokens: tokens, Drivers: drivers, Paths: service.PathFunctions{BuildPath: pathtpl.Build, CleanPath: pathtpl.Sanitize}, Imaging: processor, Extractor: metadata, Scrubber: metadata, Cache: cache, Settings: settings, Albums: albumsRepo, RandomPool: randomPool, Events: hooks.Events, Inspectors: hooks.Inspectors, TrashPolicies: hooks.Trash, Display: hooks.Display, Now: time.Now, MaxFileBytes: int64(cfg.Server.MaxUploadMB) << 20})
 	if err != nil {
 		_ = cleanup()
 		return nil, nil, nil, err

@@ -170,6 +170,36 @@ type AccessGuard interface {
 	GuardAccess(c *gin.Context, kind string) bool
 }
 
+// TrashOwner identifies whose image is being moved to the recycle bin.
+type TrashOwner struct {
+	UserID, GroupID uint64
+}
+
+// TrashPolicy may set how many days an image stays in the recycle bin
+// before it is purged, overriding the site's setting, for example per user
+// group. It is asked when an image is trashed; ok=false keeps the site
+// setting. days is clamped to 0..36500, and 0 purges at once. Guest uploads
+// are never passed to it.
+type TrashPolicy interface {
+	TrashDays(ctx context.Context, owner TrashOwner) (days int, ok bool)
+}
+
+// Counters are durable integer counters shared by every server instance,
+// kept per plugin. name groups counters (for example "uploads:2026-10") and
+// subject identifies one (for example a user ID); both are at most 80
+// characters. Counters untouched for 400 days are deleted.
+type Counters interface {
+	// Add adds delta (which may be negative) and returns the new total.
+	Add(ctx context.Context, name, subject string, delta int64) (int64, error)
+	// Get returns a counter's total; a missing counter is 0.
+	Get(ctx context.Context, name, subject string) (int64, error)
+}
+
+// CounterUser receives the plugin's own Counters at startup, before Mount.
+type CounterUser interface {
+	UseCounters(counters Counters)
+}
+
 // UploadImage describes an upload being inspected. Nothing has been stored
 // yet when UploadInspector runs.
 type UploadImage struct {
@@ -195,6 +225,9 @@ var (
 	// ErrReviewUnavailable refuses an upload because the review itself
 	// could not run, for plugins configured to fail closed.
 	ErrReviewUnavailable = errors.New("content review unavailable")
+	// ErrUploadLimitReached refuses an upload because the account used up an
+	// allowance the plugin enforces, such as uploads per day.
+	ErrUploadLimitReached = errors.New("upload limit reached")
 )
 
 // UploadInspector may refuse an upload after the server has decoded and

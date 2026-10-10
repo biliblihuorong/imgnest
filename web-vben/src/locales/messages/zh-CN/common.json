@@ -84,6 +84,7 @@
     "captchaUnavailable": "验证服务暂时不可用，请稍后重试",
     "captchaActivation": "请先完成候选配置测试并确认启用风险",
     "contentRejected": "图片未通过内容审核",
+    "uploadLimit": "已达到上传次数上限",
     "reviewUnavailable": "内容审核暂时不可用，请稍后重试",
     "secretsUnavailable": "保存密钥需要先在配置文件里设置 security.master_key"
   }

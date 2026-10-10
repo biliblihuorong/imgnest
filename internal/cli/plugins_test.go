@@ -107,6 +107,7 @@ func TestUploadInspectorAdapterMapsRefusals(t *testing.T) {
 		{nil, nil},
 		{fmt.Errorf("porn: %w", extension.ErrUploadRejected), service.ErrContentRejected},
 		{extension.ErrReviewUnavailable, service.ErrReviewUnavailable},
+		{extension.ErrUploadLimitReached, service.ErrUploadLimitReached},
 	} {
 		plugin := &reviewPlugin{err: tc.err}
 		hooks := pluginImageHooks([]extension.Plugin{plainPlugin{}, plugin}, nil)

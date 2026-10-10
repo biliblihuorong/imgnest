@@ -78,6 +78,9 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := usePluginCounters(cmd.Context(), db, plugins, logger); err != nil {
+				return err
+			}
 			pluginSettings, err := newPluginSettings(cmd.Context(), db, cfg, plugins, logger)
 			if err != nil {
 				return err
@@ -273,6 +276,28 @@ func newPluginSettings(ctx context.Context, db *gorm.DB, cfg config.Config, plug
 		return nil, fmt.Errorf("apply plugin settings: %w", err)
 	}
 	return settings, nil
+}
+
+// usePluginCounters hands each CounterUser plugin its own durable counters
+// and prunes counters no plugin has touched for a long time.
+func usePluginCounters(ctx context.Context, db *gorm.DB, plugins []extension.Plugin, logger *slog.Logger) error {
+	counters, err := repo.NewPluginCounterRepository(db, time.Now)
+	if err != nil {
+		return fmt.Errorf("create plugin counters: %w", err)
+	}
+	used := false
+	for _, plugin := range plugins {
+		if user, ok := plugin.(extension.CounterUser); ok {
+			user.UseCounters(pluginCounters{plugin: plugin.Name(), store: counters})
+			used = true
+		}
+	}
+	if used {
+		if _, err := counters.Prune(ctx); err != nil {
+			logger.WarnContext(ctx, "prune plugin counters failed", "code", 50001)
+		}
+	}
+	return nil
 }
 
 func runServer(ctx context.Context, server *http.Server, listener net.Listener, timeout time.Duration) error {

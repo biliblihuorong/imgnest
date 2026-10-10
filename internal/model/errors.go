@@ -35,4 +35,7 @@ var (
 	// ErrReviewUnavailable reports an upload refused because its content
 	// review could not run.
 	ErrReviewUnavailable = errors.New("content review unavailable")
+	// ErrUploadLimitReached reports an upload refused because the account
+	// used up an upload allowance a plugin enforces.
+	ErrUploadLimitReached = errors.New("upload limit reached")
 )

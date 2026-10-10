@@ -45,4 +45,6 @@ var (
 	ErrContentRejected = model.ErrContentRejected
 	// ErrReviewUnavailable rejects an upload whose content review could not run.
 	ErrReviewUnavailable = model.ErrReviewUnavailable
+	// ErrUploadLimitReached rejects an upload over a plugin's upload allowance.
+	ErrUploadLimitReached = model.ErrUploadLimitReached
 )

@@ -126,6 +126,9 @@ type ImageDependencies struct {
 	// Inspectors run in order on each processed upload before anything is
 	// stored; any of them may refuse it.
 	Inspectors []UploadInspector
+	// TrashPolicies may set an owner's recycle-bin retention; the first
+	// that answers wins over the site setting.
+	TrashPolicies []TrashPolicy
 	// Display transformers run in order on each separately encoded display
 	// WebP; an error or invalid result rejects the upload.
 	Display      []DisplayTransformer

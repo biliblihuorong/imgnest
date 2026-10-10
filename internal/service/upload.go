@@ -342,6 +342,8 @@ func (s *ImageService) inspect(ctx context.Context, upload UploadInspection, ima
 			return ErrContentRejected
 		case errors.Is(err, ErrReviewUnavailable):
 			return ErrReviewUnavailable
+		case errors.Is(err, ErrUploadLimitReached):
+			return ErrUploadLimitReached
 		default:
 			return processingError(ctx, err)
 		}

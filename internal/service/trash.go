@@ -128,6 +128,9 @@ func (s *ImageService) Trash(ctx context.Context, subject TokenSubject, key stri
 		return nil
 	}
 	if image.Operation != model.ImageOperationTrash {
+		if days, err = s.trashDays(ctx, image, days); err != nil {
+			return err
+		}
 		op, err := operationID()
 		if err != nil {
 			return err
@@ -154,6 +157,24 @@ func (s *ImageService) Trash(ctx context.Context, subject TokenSubject, key stri
 		return s.purgeObjects(ctx, image)
 	}
 	return nil
+}
+
+// trashDays asks the trash policies for the owner's retention; guest images
+// and owners no policy answers for keep the site setting.
+func (s *ImageService) trashDays(ctx context.Context, image model.Image, site int) (int, error) {
+	if len(s.deps.TrashPolicies) == 0 || image.UserID == 0 {
+		return site, nil
+	}
+	owner, err := s.deps.Users.FindUserByID(ctx, image.UserID)
+	if err != nil {
+		return 0, fmt.Errorf("find image owner: %w", err)
+	}
+	for _, policy := range s.deps.TrashPolicies {
+		if days, ok := policy.TrashDays(ctx, owner.ID, owner.GroupID); ok {
+			return min(max(days, 0), maxTrashDays), nil
+		}
+	}
+	return site, nil
 }
 
 func (s *ImageService) moveToTrash(ctx context.Context, image model.Image) error {

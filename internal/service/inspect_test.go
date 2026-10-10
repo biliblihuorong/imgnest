@@ -54,6 +54,7 @@ func TestUploadInspectorRefusalsStoreNothing(t *testing.T) {
 	for name, tc := range map[string]struct{ err, want error }{
 		"rejected":    {ErrContentRejected, ErrContentRejected},
 		"unavailable": {ErrReviewUnavailable, ErrReviewUnavailable},
+		"limit":       {errors.Join(errors.New("daily"), ErrUploadLimitReached), ErrUploadLimitReached},
 		"wrapped":     {errors.Join(errors.New("provider said no"), ErrContentRejected), ErrContentRejected},
 		"other":       {errors.New("boom"), ErrProcessing},
 	} {

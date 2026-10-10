@@ -34,6 +34,7 @@ export function formatApiError(error: unknown, fallbackKey = "common.errors.unkn
         30012: "captchaActivation",
         30013: "contentRejected",
         30014: "secretsUnavailable",
+        30015: "uploadLimit",
         50001: "server",
         50002: "storage",
         50003: "processing",

@@ -318,6 +318,8 @@ func errorResponse(err error) (int, Response) {
 		status, code, message = 422, 30013, "image rejected by content review"
 	case errors.Is(err, service.ErrReviewUnavailable):
 		status, code, message = 503, 50005, "content review unavailable; try again later"
+	case errors.Is(err, service.ErrUploadLimitReached):
+		status, code, message = 429, 30015, "upload limit reached"
 	case errors.Is(err, service.ErrPluginSecretsUnavailable):
 		status, code, message = 409, 30014, "saving secrets requires security.master_key"
 	}

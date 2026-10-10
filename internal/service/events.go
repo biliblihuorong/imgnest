@@ -55,6 +55,12 @@ type DisplayImage struct {
 	Lossless                             bool
 }
 
+// TrashPolicy may override the recycle-bin retention of one owner's image;
+// ok=false keeps the site setting.
+type TrashPolicy interface {
+	TrashDays(ctx context.Context, userID, groupID uint64) (days int, ok bool)
+}
+
 // DisplayTransformer may rewrite an upload's separately encoded display WebP.
 type DisplayTransformer interface {
 	TransformDisplay(ctx context.Context, image DisplayImage, webp []byte) ([]byte, error)
