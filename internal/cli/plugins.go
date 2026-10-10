@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -18,8 +20,10 @@ const pluginEventDrain = 10 * time.Second
 
 // imageHooks are the plugin capabilities the image service runs.
 type imageHooks struct {
-	Events  service.EventSink
-	Display []service.DisplayTransformer
+	Events     service.EventSink
+	Inspectors []service.UploadInspector
+	Trash      []service.TrashPolicy
+	Display    []service.DisplayTransformer
 }
 
 // pluginEvents fans committed events out to every EventSubscriber plugin,
@@ -127,9 +131,126 @@ func pluginImageHooks(plugins []extension.Plugin, events *pluginEvents) imageHoo
 		hooks.Events = events
 	}
 	for _, plugin := range plugins {
+		if inspector, ok := plugin.(extension.UploadInspector); ok {
+			hooks.Inspectors = append(hooks.Inspectors, uploadInspector{plugin: inspector})
+		}
 		if transformer, ok := plugin.(extension.DisplayTransformer); ok {
 			hooks.Display = append(hooks.Display, displayTransformer{plugin: transformer})
 		}
+		if policy, ok := plugin.(extension.TrashPolicy); ok {
+			hooks.Trash = append(hooks.Trash, trashPolicy{plugin: policy})
+		}
 	}
 	return hooks
+}
+
+// uploadInspector adapts a plugin's UploadInspector to the service, mapping
+// the extension's refusal errors to the service's.
+type uploadInspector struct{ plugin extension.UploadInspector }
+
+func (u uploadInspector) InspectUpload(ctx context.Context, upload service.UploadInspection, image []byte) error {
+	err := u.plugin.InspectUpload(ctx, extension.UploadImage{UserID: upload.UserID, GroupID: upload.GroupID, PolicyID: upload.PolicyID, StorageID: upload.StorageID, Filename: upload.Filename, Format: upload.Format, Width: upload.Width, Height: upload.Height, Frames: upload.Frames, Size: upload.Size}, image)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, extension.ErrUploadRejected):
+		return service.ErrContentRejected
+	case errors.Is(err, extension.ErrReviewUnavailable):
+		return service.ErrReviewUnavailable
+	case errors.Is(err, extension.ErrUploadLimitReached):
+		return service.ErrUploadLimitReached
+	}
+	return err
+}
+
+// trashPolicy adapts a plugin's TrashPolicy to the service.
+type trashPolicy struct{ plugin extension.TrashPolicy }
+
+func (t trashPolicy) TrashDays(ctx context.Context, userID, groupID uint64) (int, bool) {
+	return t.plugin.TrashDays(ctx, extension.TrashOwner{UserID: userID, GroupID: groupID})
+}
+
+// configurablePlugin adapts a plugin's Configurable (and optional status
+// reporter) to the service.
+type configurablePlugin struct {
+	name   string
+	plugin extension.Configurable
+	status extension.SettingsStatusReporter
+}
+
+func (p configurablePlugin) Name() string { return p.name }
+
+func (p configurablePlugin) Schema(ctx context.Context) (service.PluginSchema, bool) {
+	schema, ok := p.plugin.SettingsSchema(ctx)
+	return service.PluginSchema{Title: schema.Title, Description: schema.Description, Fields: pluginFields(schema.Fields)}, ok
+}
+
+func (p configurablePlugin) Apply(ctx context.Context, values json.RawMessage) error {
+	err := p.plugin.ApplySettings(ctx, values)
+	var settingsErr *extension.SettingsError
+	if errors.As(err, &settingsErr) {
+		return &service.PluginSettingsError{Field: settingsErr.Field, Message: settingsErr.Message}
+	}
+	return err
+}
+
+func (p configurablePlugin) Status(ctx context.Context) []service.PluginStatus {
+	if p.status == nil {
+		return nil
+	}
+	lines := p.status.SettingsStatus(ctx)
+	out := make([]service.PluginStatus, 0, len(lines))
+	for _, line := range lines {
+		out = append(out, service.PluginStatus{Label: line.Label, Value: line.Value, Level: line.Level})
+	}
+	return out
+}
+
+func pluginFields(fields []extension.SettingField) []service.PluginField {
+	if len(fields) == 0 {
+		return nil
+	}
+	out := make([]service.PluginField, 0, len(fields))
+	for _, field := range fields {
+		options := make([]service.PluginOption, 0, len(field.Options))
+		for _, option := range field.Options {
+			options = append(options, service.PluginOption{Label: option.Label, Value: option.Value})
+		}
+		out = append(out, service.PluginField{Key: field.Key, Label: field.Label, Help: field.Help, Type: field.Type, Placeholder: field.Placeholder, Required: field.Required, Default: field.Default, Min: field.Min, Max: field.Max, Options: options, OptionsFrom: field.OptionsFrom, Multiple: field.Multiple, Fields: pluginFields(field.Fields), ItemLabel: field.ItemLabel})
+	}
+	return out
+}
+
+// configurablePlugins lists the plugins with settings cards.
+func configurablePlugins(plugins []extension.Plugin) []service.ConfigurablePlugin {
+	var out []service.ConfigurablePlugin
+	for _, plugin := range plugins {
+		configurable, ok := plugin.(extension.Configurable)
+		if !ok {
+			continue
+		}
+		status, _ := plugin.(extension.SettingsStatusReporter)
+		out = append(out, configurablePlugin{name: plugin.Name(), plugin: configurable, status: status})
+	}
+	return out
+}
+
+// pluginCounterStore is the durable counter table plugins share.
+type pluginCounterStore interface {
+	Add(ctx context.Context, plugin, name, subject string, delta int64) (int64, error)
+	Get(ctx context.Context, plugin, name, subject string) (int64, error)
+}
+
+// pluginCounters scopes the counter table to one plugin.
+type pluginCounters struct {
+	plugin string
+	store  pluginCounterStore
+}
+
+func (p pluginCounters) Add(ctx context.Context, name, subject string, delta int64) (int64, error) {
+	return p.store.Add(ctx, p.plugin, name, subject, delta)
+}
+
+func (p pluginCounters) Get(ctx context.Context, name, subject string) (int64, error) {
+	return p.store.Get(ctx, p.plugin, name, subject)
 }

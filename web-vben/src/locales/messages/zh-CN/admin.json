@@ -284,5 +284,20 @@
     "preview": "路径预览失败",
     "purge": "清空回收站失败",
     "templateInvalid": "模板无效，请检查路径与文件名模板"
+  },
+  "plugins": {
+    "title": "扩展功能",
+    "description": "由扩展插件提供的功能设置，保存后立即生效。",
+    "save": "保存",
+    "saved": "「{title}」已保存",
+    "loadError": "扩展设置加载失败",
+    "secretsUnavailable": "服务器没有设置 security.master_key，密钥类设置项无法保存。",
+    "secretKept": "已设置，留空保持不变",
+    "secretClear": "清除已保存的值",
+    "addItem": "添加",
+    "removeItem": "删除",
+    "itemTitle": "第 {index} 项",
+    "emptyList": "还没有添加任何项",
+    "tagPlaceholder": "输入后回车"
   }
 }

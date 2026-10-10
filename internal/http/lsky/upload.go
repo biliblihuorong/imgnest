@@ -179,6 +179,12 @@ func (h *Handler) uploadFailure(c *gin.Context, err error) {
 		c.JSON(200, failure("相同的上传正在进行中，请稍后再试"))
 	case errors.Is(err, service.ErrProcessing):
 		c.JSON(200, failure("图片处理失败，请稍后再试"))
+	case errors.Is(err, service.ErrContentRejected):
+		c.JSON(200, failure("图片未通过内容审核"))
+	case errors.Is(err, service.ErrReviewUnavailable):
+		c.JSON(200, failure("内容审核暂不可用，请稍后再试"))
+	case errors.Is(err, service.ErrUploadLimitReached):
+		c.JSON(200, failure("已达到上传次数上限"))
 	case errors.Is(err, service.ErrStorage):
 		c.JSON(200, failure("存储服务异常，请稍后再试"))
 	case isCanceled(err):

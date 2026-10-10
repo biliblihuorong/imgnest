@@ -5,6 +5,8 @@ package extension
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -166,4 +168,195 @@ const (
 // means the guard has already written the response.
 type AccessGuard interface {
 	GuardAccess(c *gin.Context, kind string) bool
+}
+
+// TrashOwner identifies whose image is being moved to the recycle bin.
+type TrashOwner struct {
+	UserID, GroupID uint64
+}
+
+// TrashPolicy may set how many days an image stays in the recycle bin
+// before it is purged, overriding the site's setting, for example per user
+// group. It is asked when an image is trashed; ok=false keeps the site
+// setting. days is clamped to 0..36500, and 0 purges at once. Guest uploads
+// are never passed to it.
+type TrashPolicy interface {
+	TrashDays(ctx context.Context, owner TrashOwner) (days int, ok bool)
+}
+
+// Counters are durable integer counters shared by every server instance,
+// kept per plugin. name groups counters (for example "uploads:2026-10") and
+// subject identifies one (for example a user ID); both are at most 80
+// characters. Counters untouched for 400 days are deleted.
+type Counters interface {
+	// Add adds delta (which may be negative) and returns the new total.
+	Add(ctx context.Context, name, subject string, delta int64) (int64, error)
+	// Get returns a counter's total; a missing counter is 0.
+	Get(ctx context.Context, name, subject string) (int64, error)
+}
+
+// CounterUser receives the plugin's own Counters at startup, before Mount.
+type CounterUser interface {
+	UseCounters(counters Counters)
+}
+
+// UploadImage describes an upload being inspected. Nothing has been stored
+// yet when UploadInspector runs.
+type UploadImage struct {
+	UserID    uint64 // 0 for guest uploads
+	GroupID   uint64
+	PolicyID  uint64
+	StorageID uint64
+	// Filename is the client's file name, for logs and messages only.
+	Filename string
+	// Format is the detected source format ("jpeg", "png", "gif"...).
+	Format string
+	// Width and Height are the source's pixel size; Frames is above 1 for
+	// animations. Size is the uploaded byte count.
+	Width, Height, Frames int
+	Size                  int64
+}
+
+// Errors an UploadInspector returns (wrapped or not) to refuse an upload.
+// Any other error is reported to the uploader as a processing failure.
+var (
+	// ErrUploadRejected refuses content the plugin judged unacceptable.
+	ErrUploadRejected = errors.New("upload rejected by content review")
+	// ErrReviewUnavailable refuses an upload because the review itself
+	// could not run, for plugins configured to fail closed.
+	ErrReviewUnavailable = errors.New("content review unavailable")
+	// ErrUploadLimitReached refuses an upload because the account used up an
+	// allowance the plugin enforces, such as uploads per day.
+	ErrUploadLimitReached = errors.New("upload limit reached")
+)
+
+// UploadInspector may refuse an upload after the server has decoded and
+// processed it but before anything is stored or counted against quota, for
+// example to send it to a content-moderation service. image is the display
+// copy: the WebP the server encoded or, when it encoded none, the scrubbed
+// original. Inspectors run in order and before any DisplayTransformer, so
+// they see the image without watermarks. Return nil to accept.
+type UploadInspector interface {
+	InspectUpload(ctx context.Context, upload UploadImage, image []byte) error
+}
+
+// Setting field types for SettingField.Type.
+const (
+	// SettingText is a single-line string.
+	SettingText = "text"
+	// SettingTextarea is a multi-line string.
+	SettingTextarea = "textarea"
+	// SettingSecret is a string the console never shows again once saved. It
+	// is stored encrypted, which requires security.master_key.
+	SettingSecret = "secret"
+	// SettingBool is a switch.
+	SettingBool = "bool"
+	// SettingInt is a whole number; SettingNumber may have a fraction.
+	SettingInt    = "int"
+	SettingNumber = "number"
+	// SettingSelect is one value from Options or OptionsFrom; with Multiple
+	// it is a list of them.
+	SettingSelect = "select"
+	// SettingTags is a list of free strings, such as host names.
+	SettingTags = "tags"
+	// SettingList is a list of objects whose fields are Fields, such as
+	// webhook targets.
+	SettingList = "list"
+)
+
+// Option sources for SettingField.OptionsFrom; option values are record IDs.
+const (
+	OptionsGroups   = "groups"
+	OptionsPolicies = "policies"
+	OptionsStorages = "storages"
+)
+
+// SettingOption is one choice of a select field. Value is a string or a
+// number and is what the plugin receives.
+type SettingOption struct {
+	Label string `json:"label"`
+	Value any    `json:"value"`
+}
+
+// SettingField is one input on a plugin's settings card.
+type SettingField struct {
+	// Key is the field's JSON name ([a-z0-9_], unique within its level).
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	// Help is shown under the input.
+	Help        string `json:"help,omitempty"`
+	Type        string `json:"type"`
+	Placeholder string `json:"placeholder,omitempty"`
+	// Required rejects empty strings, empty lists and unset selects.
+	Required bool `json:"required,omitempty"`
+	// Default is the value used while nothing has been saved; it must have
+	// the field's JSON shape (string, bool, number, list...).
+	Default any `json:"default,omitempty"`
+	// Min and Max bound int and number fields.
+	Min *float64 `json:"min,omitempty"`
+	Max *float64 `json:"max,omitempty"`
+	// Options are a select field's fixed choices; OptionsFrom fills them
+	// from the site's records instead.
+	Options     []SettingOption `json:"options,omitempty"`
+	OptionsFrom string          `json:"options_from,omitempty"`
+	Multiple    bool            `json:"multiple,omitempty"`
+	// Fields are the fields of each item of a list field (one level only).
+	Fields []SettingField `json:"fields,omitempty"`
+	// ItemLabel names the item field used as a list item's title.
+	ItemLabel string `json:"item_label,omitempty"`
+}
+
+// SettingsSchema describes a plugin's card on the console's extension page.
+type SettingsSchema struct {
+	Title       string         `json:"title"`
+	Description string         `json:"description,omitempty"`
+	Fields      []SettingField `json:"fields"`
+}
+
+// SettingsError is an invalid setting the administrator can fix. Message is
+// shown to them as is, so it must not contain secrets.
+type SettingsError struct {
+	// Field is the field's key, or "" for the whole card.
+	Field   string
+	Message string
+}
+
+func (e *SettingsError) Error() string { return e.Message }
+
+// Configurable plugins get a settings card in the console. The server stores
+// the values (secret fields encrypted) and hands them to ApplySettings at
+// startup and after every save; it has already checked each value's type,
+// bounds, options and Required, filled defaults and dropped unknown keys.
+type Configurable interface {
+	// SettingsSchema returns the card. ok=false hides it for now (for
+	// example while a feature is unavailable); the stored values are still
+	// applied at startup.
+	SettingsSchema(ctx context.Context) (schema SettingsSchema, ok bool)
+	// ApplySettings receives the values as one JSON object. It must validate
+	// everything before changing behavior and leave the previous settings in
+	// force when it returns an error; a *SettingsError is shown to the
+	// administrator and the values are not saved.
+	ApplySettings(ctx context.Context, values json.RawMessage) error
+}
+
+// Setting status levels for SettingStatus.Level.
+const (
+	StatusInfo    = "info"
+	StatusSuccess = "success"
+	StatusWarning = "warning"
+	StatusError   = "error"
+)
+
+// SettingStatus is a read-only line shown at the top of a settings card,
+// such as a license's holder and expiry.
+type SettingStatus struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+	Level string `json:"level"`
+}
+
+// SettingsStatusReporter adds status lines to a Configurable plugin's card;
+// it is called on every console read and must be cheap.
+type SettingsStatusReporter interface {
+	SettingsStatus(ctx context.Context) []SettingStatus
 }

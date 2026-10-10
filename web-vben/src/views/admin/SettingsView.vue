@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CaptchaSettingsCard from "@/components/admin/CaptchaSettingsCard.vue";
+import PluginSettingsSection from "@/components/admin/PluginSettingsSection.vue";
 import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
 import { formatApiError } from "@/locales/errors";
@@ -292,6 +293,7 @@ async function save(): Promise<void> {
       </NForm>
     </NCard>
     <CaptchaSettingsCard class="mt-5" />
+    <PluginSettingsSection />
   </Page>
 </template>
 

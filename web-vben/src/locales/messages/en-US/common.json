@@ -82,6 +82,10 @@
     "captchaChallenge": "Please complete a new verification challenge.",
     "captchaVersion": "Verification settings changed. Refresh and try again.",
     "captchaUnavailable": "The verification service is unavailable. Try again later.",
-    "captchaActivation": "Test this configuration and acknowledge the activation risks first."
+    "captchaActivation": "Test this configuration and acknowledge the activation risks first.",
+    "contentRejected": "This image did not pass content review.",
+    "uploadLimit": "You have reached your upload limit for now.",
+    "reviewUnavailable": "Content review is unavailable. Try again later.",
+    "secretsUnavailable": "Set security.master_key in the server configuration before saving secrets."
   }
 }

@@ -284,5 +284,20 @@
     "preview": "Could not preview this path",
     "purge": "Could not empty the trash",
     "templateInvalid": "Invalid template. Check the path and filename templates"
+  },
+  "plugins": {
+    "title": "Extensions",
+    "description": "Settings for features provided by server plugins. Changes apply as soon as you save.",
+    "save": "Save",
+    "saved": "Saved “{title}”",
+    "loadError": "Could not load extension settings",
+    "secretsUnavailable": "security.master_key is not set on the server, so secret fields cannot be saved.",
+    "secretKept": "Saved. Leave empty to keep it.",
+    "secretClear": "Clear the saved value",
+    "addItem": "Add",
+    "removeItem": "Remove",
+    "itemTitle": "Item {index}",
+    "emptyList": "Nothing added yet",
+    "tagPlaceholder": "Type and press Enter"
   }
 }
