@@ -261,7 +261,12 @@ func (d *tiffDocument) scrub(mode string, wholeTIFF bool) ([]byte, error) {
 	for _, dir := range d.dirs {
 		kept := []tiffEntry{}
 		for _, entry := range dir.entries {
-			remove := dir.role == "gps" || entry.id == 0x8825 || entry.id == 0x13b || entry.id == 0xa430 || entry.id == 0xa431 || entry.id == 0xa435 || entry.id == 0x927c || entry.id == 0xc634 || entry.id == 700
+			// Embedded EXIF may carry vendor-private tags (IDs at or above
+			// 0xC000) that hold device or owner identifiers beyond the named
+			// list; the gps profile strips them too. Whole-TIFF documents
+			// never reach this branch with such tags: parseTIFF flags them
+			// and the upload is refused instead.
+			remove := dir.role == "gps" || entry.id == 0x8825 || entry.id == 0x13b || entry.id == 0xa430 || entry.id == 0xa431 || entry.id == 0xa435 || entry.id == 0x927c || entry.id == 0xc634 || entry.id == 700 || (!wholeTIFF && entry.id >= 0xc000)
 			if mode == "all" {
 				remove = entry.id != 0x112 && entry.id != 0x8773
 				if wholeTIFF && structuralTag(entry.id) {

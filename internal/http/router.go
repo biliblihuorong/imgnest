@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	stdhttp "net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/biliblihuorong/imgnest/extension"
@@ -84,6 +85,12 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 		defer func() {
 			if recover() != nil {
 				deps.Logger.ErrorContext(c.Request.Context(), "request panic", "route", c.FullPath())
+				// The Lsky-compatible routes answer with their own envelope
+				// so a panic never breaks a v1 client's error parsing.
+				if strings.HasPrefix(c.FullPath(), "/api/v1") {
+					c.AbortWithStatusJSON(500, gin.H{"status": false, "message": "internal error", "data": gin.H{}})
+					return
+				}
 				c.AbortWithStatusJSON(500, native.Response{Code: 50001, Message: "internal error", Data: nil})
 			}
 		}()

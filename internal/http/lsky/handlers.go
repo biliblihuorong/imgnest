@@ -149,14 +149,15 @@ func (h *Handler) listImages(c *gin.Context) {
 	c.JSON(200, success("success", buildPaginator(baseURL(c.Request.Host, h.forwardedProto(c), c.Request.TLS != nil)+"/api/v1/images", page, 40, total, data)))
 }
 
-// deleteImage moves one owned image into the recycle bin.
+// deleteImage moves one owned image into the recycle bin. v1 tokens are
+// owner-scoped: administrators cannot recycle another owner's image here.
 func (h *Handler) deleteImage(c *gin.Context) {
 	id := currentIdentity(c)
 	if id == nil {
 		c.JSON(401, failure("Unauthenticated."))
 		return
 	}
-	err := h.images.Trash(c.Request.Context(), id.Subject, c.Param("key"))
+	err := h.images.TrashOwned(c.Request.Context(), id.Subject, c.Param("key"))
 	if err == nil {
 		c.JSON(200, success("success", nil))
 		return
@@ -167,10 +168,10 @@ func (h *Handler) deleteImage(c *gin.Context) {
 	}
 	message := "删除失败，请稍后再试"
 	switch {
-	case errors.Is(err, service.ErrNotFound), errors.Is(err, service.ErrInvalidInput):
+	// A missing key and a key owned by someone else answer identically so
+	// the endpoint cannot be used to probe which keys exist.
+	case errors.Is(err, service.ErrNotFound), errors.Is(err, service.ErrForbidden), errors.Is(err, service.ErrInvalidInput):
 		message = "图片不存在"
-	case errors.Is(err, service.ErrForbidden):
-		message = "没有权限操作该图片"
 	case errors.Is(err, service.ErrImageBusy):
 		message = "图片操作进行中，请稍后再试"
 	case errors.Is(err, service.ErrStorage):

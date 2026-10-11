@@ -87,7 +87,7 @@ func (s *AdminService) PatchStorage(ctx context.Context, id uint64, patch Storag
 		if backend.Driver == "s3" {
 			config, err = s.deps.Secrets.Seal(ctx, backend.Driver, patch.Config)
 			if err != nil {
-				return StorageView{}, fmt.Errorf("encrypt storage configuration: %w", ErrInvalidInput)
+				return StorageView{}, fmt.Errorf("encrypt storage configuration: %w", errors.Join(ErrInvalidInput, err))
 			}
 		}
 		candidate := backend

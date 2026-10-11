@@ -10,6 +10,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/biliblihuorong/imgnest/internal/model"
+	"github.com/biliblihuorong/imgnest/internal/service"
 )
 
 // v1Data decodes the data member of a v1 envelope.
@@ -487,6 +490,47 @@ func TestV1ImageDeleteContract(t *testing.T) {
 			anonymous := fixture.request(t, "DELETE", "/api/v1/images/"+key, "", "", "")
 			mustStatus(t, anonymous, 401)
 			assertGolden(t, "error_401.json", anonymous.Body.Bytes())
+
+			// Another owner's key answers exactly like a missing one, so the
+			// endpoint leaks neither key existence nor ownership.
+			bob, err := fixture.users.Register(t.Context(), service.RegisterInput{Username: "bob", Email: "bob@example.com", Password: "bob-v1-delete-password"}) // #nosec G101 -- throwaway fixture account, not a credential.
+			if err != nil {
+				t.Fatal(err)
+			}
+			bobLogin := fixture.request(t, "POST", "/api/v1/tokens", "email=bob@example.com&password=bob-v1-delete-password", "application/x-www-form-urlencoded", "")
+			var bobBody struct {
+				Data struct {
+					Token string `json:"token"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal(bobLogin.Body.Bytes(), &bobBody); err != nil || bobBody.Data.Token == "" {
+				t.Fatalf("bob login failed: %s", bobLogin.Body.String())
+			}
+			bobUpload := fixture.upload(t, "kept.png", pngBytes(t, 24, 24), bobBody.Data.Token)
+			mustStatus(t, bobUpload, 200)
+			bobKey, _ := v1Data(t, bobUpload.Body.Bytes())["key"].(string)
+			if bobKey == "" {
+				t.Fatal("bob upload response missing image key")
+			}
+			foreign := fixture.request(t, "DELETE", "/api/v1/images/"+bobKey, "", "", token)
+			mustStatus(t, foreign, 200)
+			if foreign.Body.String() != missing.Body.String() {
+				t.Fatalf("foreign key delete differs from missing key:\n%s\n%s", foreign.Body.String(), missing.Body.String())
+			}
+
+			// Even an administrator's v1 token stays owner-scoped on delete.
+			if err := fixture.db.Exec("UPDATE users SET role = ? WHERE id = ?", model.UserRoleAdmin, fixture.alice.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			adminForeign := fixture.request(t, "DELETE", "/api/v1/images/"+bobKey, "", "", token)
+			mustStatus(t, adminForeign, 200)
+			if adminForeign.Body.String() != missing.Body.String() {
+				t.Fatalf("admin foreign key delete differs from missing key:\n%s", adminForeign.Body.String())
+			}
+			var kept modelImage
+			if err := fixture.db.First(&kept, "key = ?", bobKey).Error; err != nil || kept.State != model.ImageStateActive || kept.UserID != bob.ID {
+				t.Fatalf("cross-owner delete trashed the image: state=%s owner=%d err=%v", kept.State, kept.UserID, err)
+			}
 		})
 	}
 }

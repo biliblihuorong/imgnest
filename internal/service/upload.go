@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/biliblihuorong/imgnest/internal/imaging"
 	"github.com/biliblihuorong/imgnest/internal/model"
@@ -75,11 +76,37 @@ func (s *ImageService) Preflight(ctx context.Context, subject TokenSubject, poli
 	if group.CapacityBytes > 0 && user.UsedBytes >= group.CapacityBytes {
 		return UploadLimits{}, ErrQuotaExceeded
 	}
+	return s.groupLimits(group), nil
+}
+
+// PreflightLimits resolves the actor and the group-level bounds that gate a
+// multipart body before the form fields have named a rule. Unlike Preflight
+// it does not require the group's default rule to be usable: a request that
+// names an explicit, usable rule in its fields is judged by Preflight once
+// those fields have been read.
+func (s *ImageService) PreflightLimits(ctx context.Context, subject TokenSubject) (UploadLimits, error) {
+	user, err := s.actor(ctx, subject)
+	if err != nil {
+		return UploadLimits{}, err
+	}
+	group, err := s.deps.Policies.UploadGroup(ctx, user.ID)
+	if err != nil {
+		return UploadLimits{}, fmt.Errorf("resolve upload group: %w", err)
+	}
+	if group.CapacityBytes > 0 && user.UsedBytes >= group.CapacityBytes {
+		return UploadLimits{}, ErrQuotaExceeded
+	}
+	return s.groupLimits(group), nil
+}
+
+// groupLimits derives the request-level read bound and per-minute rate from
+// the group caps; they never depend on the rule a request selects.
+func (s *ImageService) groupLimits(group model.Group) UploadLimits {
 	cap := s.deps.MaxFileBytes
 	if group.MaxFileBytes > 0 && group.MaxFileBytes < cap {
 		cap = group.MaxFileBytes
 	}
-	return UploadLimits{MaxFileBytes: cap, PerMinute: group.UploadPerMin}, nil
+	return UploadLimits{MaxFileBytes: cap, PerMinute: group.UploadPerMin}
 }
 
 type uploadObject struct {
@@ -220,7 +247,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	if err != nil {
 		return ImageView{}, err
 	}
-	image := model.Image{UserID: plan.userID, AlbumID: input.AlbumID, PolicyID: policy.ID, StorageID: backend.ID, Key: imageKey, Ext: storedExt, OriginName: path.Base(strings.ReplaceAll(input.Filename, "\\", "/")), MIME: storedMIME, SrcMD5: srcMD5, MD5: storedMD5, SHA1: storedSHA1, IP: input.IP, State: model.ImageStatePending, Operation: model.ImageOperationUpload, OperationID: op, HasOriginal: hasOriginal, HasWebP: len(webp) > 0, HasThumb: len(result.Thumbnail) > 0, Scrubbed: scrubbed, IsPublic: input.IsPublic, Size: int64(len(primary)), WebPSize: int64(len(webp)), ThumbBytes: int64(len(result.Thumbnail)), Width: info.Width, Height: info.Height, Frames: info.LoadedFrames, CreatedAt: s.deps.Now().UTC()}
+	image := model.Image{UserID: plan.userID, AlbumID: input.AlbumID, PolicyID: policy.ID, StorageID: backend.ID, Key: imageKey, Ext: storedExt, OriginName: clampOriginName(path.Base(strings.ReplaceAll(input.Filename, "\\", "/"))), MIME: storedMIME, SrcMD5: srcMD5, MD5: storedMD5, SHA1: storedSHA1, IP: input.IP, State: model.ImageStatePending, Operation: model.ImageOperationUpload, OperationID: op, HasOriginal: hasOriginal, HasWebP: len(webp) > 0, HasThumb: len(result.Thumbnail) > 0, Scrubbed: scrubbed, IsPublic: input.IsPublic, Size: int64(len(primary)), WebPSize: int64(len(webp)), ThumbBytes: int64(len(result.Thumbnail)), Width: info.Width, Height: info.Height, Frames: info.LoadedFrames, CreatedAt: s.deps.Now().UTC()}
 	driver, err := s.deps.Drivers.DriverFor(ctx, backend)
 	if err != nil {
 		return ImageView{}, storageError(ctx, err)
@@ -424,10 +451,29 @@ func (s *ImageService) cleanupUpload(ctx context.Context, image model.Image, dri
 	return nil
 }
 
+// maxOriginNameBytes bounds the stored original filename: multipart part
+// headers carry no independent limit, so a single request could otherwise
+// park megabytes in origin_name and its search-copy column.
+const maxOriginNameBytes = 255
+
+// clampOriginName truncates on a UTF-8 rune boundary so list responses and
+// the search normalization never see a torn character.
+func clampOriginName(name string) string {
+	if len(name) <= maxOriginNameBytes {
+		return name
+	}
+	name = name[:maxOriginNameBytes]
+	for len(name) > 0 && !utf8.ValidString(name) {
+		name = name[:len(name)-1]
+	}
+	return name
+}
+
 func allowedFormat(allowed []string, ext string) bool {
+	ext = model.CanonicalExt(ext)
 	for _, candidate := range allowed {
-		candidate = strings.ToLower(strings.TrimPrefix(candidate, "."))
-		if candidate == ext || (ext == "jpg" && candidate == "jpeg") || (ext == "tiff" && candidate == "tif") {
+		candidate = model.CanonicalExt(strings.ToLower(strings.TrimPrefix(candidate, ".")))
+		if candidate == ext {
 			return true
 		}
 	}

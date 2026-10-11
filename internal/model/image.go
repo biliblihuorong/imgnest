@@ -28,6 +28,19 @@ type ObjectReceipt struct {
 	Size      int64  `json:"size"`
 }
 
+// CanonicalExt maps extension aliases onto the form the imaging pipeline
+// detects, so an allowlist entry of "jpeg" or "tif" governs the same upload
+// as "jpg" or "tiff".
+func CanonicalExt(ext string) string {
+	switch ext {
+	case "jpeg":
+		return "jpg"
+	case "tif":
+		return "tiff"
+	}
+	return ext
+}
+
 // Image persists identity, version sizes and a durable storage-operation journal.
 type Image struct {
 	ID             uint64          `gorm:"primaryKey" json:"id"`

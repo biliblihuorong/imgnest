@@ -12,6 +12,7 @@ import (
 
 	"github.com/biliblihuorong/imgnest/internal/imaging"
 	"github.com/biliblihuorong/imgnest/internal/model"
+	"github.com/biliblihuorong/imgnest/internal/storage"
 )
 
 // Get returns an owner/admin image without EXIF or operation internals.
@@ -240,6 +241,11 @@ func (s *ImageService) Thumbnail(ctx context.Context, subject TokenSubject, key 
 		}
 		cloud, info, openErr := driver.Open(ctx, cloudKey)
 		if openErr != nil {
+			// A missing candidate falls through to the next one, but a broken
+			// backend must not masquerade as a missing image.
+			if !errors.Is(openErr, storage.ErrNotFound) {
+				return PublicObject{}, storageError(ctx, openErr)
+			}
 			continue
 		}
 		if info.OwnerID != image.Key {

@@ -347,6 +347,137 @@ func TestRealImageHTTPPipelineAndPrivacy(t *testing.T) {
 	}
 }
 
+// A disabled group default rule must not reject uploads that name another
+// usable rule explicitly: the first preflight only bounds the body read and
+// the terminal rule check runs once the policy_id field is known.
+func TestUploadExplicitPolicyWithDisabledDefault(t *testing.T) {
+	for _, driver := range []string{"sqlite", "postgres"} {
+		t.Run(driver, func(t *testing.T) {
+			db := imageDatabase(t, driver)
+			ctx := t.Context()
+			userRepo, err := repo.NewUserRepository(ctx, db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			settings, err := repo.NewSettingsRepository(ctx, db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tokenRepo, err := repo.NewTokenRepository(ctx, db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			users, err := service.NewUserService(ctx, userRepo, settings)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tokens, err := service.NewTokenService(ctx, tokenRepo, userRepo, settings, time.Now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Model(&model.Setting{}).Where("key = ?", "registration_enabled").Update("value", "true").Error; err != nil {
+				t.Fatal(err)
+			}
+			alice, err := users.Register(ctx, service.RegisterInput{Username: "alice", Email: "alice@example.com", Password: "explicit-policy-test-password"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			storageRepo, err := repo.NewStorageRepository(ctx, db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			backend, err := storageRepo.Create(ctx, model.Storage{Name: "local", Driver: "local", Config: json.RawMessage(`{}`), BaseURL: "http://images.test/i/1", Enabled: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			policies, err := repo.NewPolicyRepository(ctx, db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			disabled, err := policies.CreateAndBind(ctx, model.Policy{Name: "disabled-default", StorageID: backend.ID, PathTpl: "{Y}/{m}", NameTpl: "{filename}", WebPMode: "both", WebPQuality: 80, WebPEffort: 4, ScrubMode: "gps", HEIFMode: "webp_only", ThumbEnabled: true, ThumbSize: 16, Enabled: true, LinkPrefer: "webp", OnConflict: "rename"}, alice.GroupID, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			usable, err := policies.CreateAndBind(ctx, model.Policy{Name: "usable", StorageID: backend.ID, PathTpl: "{Y}/{m}", NameTpl: "{uniqid}", WebPMode: "both", WebPQuality: 80, WebPEffort: 4, ScrubMode: "gps", HEIFMode: "webp_only", ThumbEnabled: true, ThumbSize: 16, Enabled: true, LinkPrefer: "webp", OnConflict: "rename"}, alice.GroupID, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Exec("UPDATE policies SET enabled = false WHERE id = ?", disabled.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			images, err := repo.NewImageRepository(ctx, db)
+			if err != nil {
+				t.Fatal(err)
+			}
+			local, err := storage.NewLocal(ctx, filepath.Join(t.TempDir(), "objects"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := local.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			cache, err := thumbcache.New(ctx, filepath.Join(t.TempDir(), "thumbs"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := cache.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			processor, err := imaging.NewProcessor(ctx, 100000000, 2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			metadata, err := exif.NewProcessor(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			imageService, err := service.NewImageService(ctx, service.ImageDependencies{Images: images, Policies: policies, Storages: storageRepo, Users: userRepo, Tokens: tokenRepo, Drivers: realImageProvider{local}, Paths: service.PathFunctions{BuildPath: pathtpl.Build, CleanPath: pathtpl.Sanitize}, Imaging: processor, Extractor: metadata, Scrubber: metadata, Cache: cache, Settings: settings, Now: time.Now, MaxFileBytes: 20 << 20})
+			if err != nil {
+				t.Fatal(err)
+			}
+			sqlDB, err := db.DB()
+			if err != nil {
+				t.Fatal(err)
+			}
+			router, err := httpapi.NewRouter(ctx, httpapi.Dependencies{Users: users, Tokens: tokens, Images: imageService, Logger: slog.New(slog.NewJSONHandler(&bytes.Buffer{}, nil)), Health: sqlDB.PingContext})
+			if err != nil {
+				t.Fatal(err)
+			}
+			login, err := json.Marshal(map[string]string{"email": "alice@example.com", "password": "explicit-policy-test-password"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			response := request(t, router, "POST", "/api/auth/login", string(login), "")
+			expectCode(t, response, 200, 0)
+			var session struct {
+				Token string `json:"token"`
+			}
+			if err := json.Unmarshal(envelope(t, response)["data"], &session); err != nil {
+				t.Fatal(err)
+			}
+			source := privateJPEG(t)
+
+			noRule, contentType := multipartBody(t, multipartEntry{"file", "photo.jpg", string(source)})
+			expectCode(t, httptestImageUpload(router, noRule, contentType, session.Token), 403, 20003)
+
+			withRule, contentType := multipartBody(t, multipartEntry{"file", "photo.jpg", string(source)}, multipartEntry{"policy_id", "", strconv.FormatUint(usable.ID, 10)})
+			uploaded := httptestImageUpload(router, withRule, contentType, session.Token)
+			expectCode(t, uploaded, 201, 0)
+			var imageView service.ImageView
+			if err := json.Unmarshal(envelope(t, uploaded)["data"], &imageView); err != nil {
+				t.Fatal(err)
+			}
+			if imageView.PolicyID != usable.ID || imageView.Key == "" {
+				t.Fatalf("explicit rule not honored: %+v", imageView)
+			}
+		})
+	}
+}
+
 func httptestImageUpload(router http.Handler, body []byte, contentType, token string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest("POST", "/api/upload", bytes.NewReader(body))
 	r.Header.Set("Content-Type", contentType)

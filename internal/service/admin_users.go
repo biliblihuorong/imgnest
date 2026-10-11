@@ -397,7 +397,9 @@ func (s *AdminService) checkUniqueStructuralGroup(ctx context.Context, wantDefau
 	return nil
 }
 
-// normalizeExts lowercases and validates the extension allowlist entries.
+// normalizeExts lowercases, validates and canonicalizes the extension
+// allowlist entries: aliases fold onto the form the imaging pipeline reports,
+// so every layer compares the same strings.
 func normalizeExts(values []string) ([]string, error) {
 	if len(values) > 64 {
 		return nil, ErrInvalidInput
@@ -413,7 +415,7 @@ func normalizeExts(values []string) ([]string, error) {
 				return nil, ErrInvalidInput
 			}
 		}
-		exts = append(exts, ext)
+		exts = append(exts, model.CanonicalExt(ext))
 	}
 	return exts, nil
 }

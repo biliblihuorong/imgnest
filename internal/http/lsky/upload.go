@@ -7,12 +7,17 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/http/reqbody"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
+
+// uploadSlotWait bounds how long a v1 upload waits for a processing slot
+// before answering with throttling.
+const uploadSlotWait = 10 * time.Second
 
 // Parse and validation failures carry distinct client-facing messages; all of
 // them answer HTTP 200 with status false except authentication.
@@ -46,14 +51,19 @@ func (h *Handler) upload(c *gin.Context) {
 	select {
 	case h.slots <- struct{}{}:
 		defer func() { <-h.slots }()
+	case <-time.After(uploadSlotWait):
+		// A busy slot answers with throttling instead of holding the caller
+		// for the whole processing timeout: a few slow bodies must not lock
+		// every other upload out of the entrance.
+		h.uploadFailure(c, errRateLimited)
+		return
 	case <-ctx.Done():
 		c.JSON(200, failure("请求超时或已取消"))
 		return
 	}
 
 	guest := c.GetHeader("Authorization") == ""
-	strategyID := uint64(0)
-	subject, userID, limits, err := h.preupload(ctx, c, guest, strategyID)
+	subject, userID, limits, err := h.preuploadLimits(ctx, c, guest)
 	if err != nil {
 		h.uploadFailure(c, err)
 		return
@@ -77,7 +87,7 @@ func (h *Handler) upload(c *gin.Context) {
 	}
 	if err == nil {
 		// Re-run the gate with the caller-selected rule before publishing.
-		strategyID = fields.strategyID
+		strategyID := fields.strategyID
 		subject, userID, limits, err = h.preupload(ctx, c, guest, strategyID)
 	}
 	if err == nil {
@@ -100,6 +110,30 @@ func (h *Handler) upload(c *gin.Context) {
 		return
 	}
 	c.JSON(200, success("上传成功", buildUploadData(view)))
+}
+
+// preuploadLimits resolves only the read bound for a v1 multipart body: it
+// does not require the group's default rule to be usable, because the request
+// may name an explicit, usable strategy in its form fields. preupload makes
+// the terminal decision once those fields have been read.
+func (h *Handler) preuploadLimits(ctx context.Context, c *gin.Context, guest bool) (service.TokenSubject, uint64, service.UploadLimits, error) {
+	if guest {
+		enabled, _, ok, err := h.lsky.GuestUploadState(ctx)
+		if err != nil {
+			return service.TokenSubject{}, 0, service.UploadLimits{}, err
+		}
+		if !enabled || !ok {
+			return service.TokenSubject{}, 0, service.UploadLimits{}, service.ErrUnauthenticated
+		}
+		limits, err := h.images.GuestPreflightLimits(ctx)
+		return service.TokenSubject{}, 0, limits, err
+	}
+	id := currentIdentity(c)
+	if id == nil {
+		return service.TokenSubject{}, 0, service.UploadLimits{}, service.ErrUnauthenticated
+	}
+	limits, err := h.images.PreflightLimits(ctx, id.Subject)
+	return id.Subject, id.User.ID, limits, err
 }
 
 // preupload resolves the caller's limits: guest group rules for anonymous

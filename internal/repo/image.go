@@ -657,8 +657,9 @@ func checkUploadGroup(image model.Image, sourceExt string, group model.Group) er
 	}
 	if len(group.AllowedExts) > 0 && uploaded != "" {
 		allowed := false
+		canonical := model.CanonicalExt(uploaded)
 		for _, ext := range group.AllowedExts {
-			if uploaded == strings.ToLower(ext) {
+			if model.CanonicalExt(strings.ToLower(ext)) == canonical {
 				allowed = true
 				break
 			}

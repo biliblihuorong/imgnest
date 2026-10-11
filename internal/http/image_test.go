@@ -40,6 +40,13 @@ func (s *imagesStub) Preflight(_ context.Context, _ service.TokenSubject, policy
 	}
 	return service.UploadLimits{MaxFileBytes: limit, PerMinute: s.perMinute}, s.preflightErr
 }
+func (s *imagesStub) PreflightLimits(context.Context, service.TokenSubject) (service.UploadLimits, error) {
+	limit := s.maxFile
+	if limit == 0 {
+		limit = 1024
+	}
+	return service.UploadLimits{MaxFileBytes: limit, PerMinute: s.perMinute}, s.preflightErr
+}
 func (s *imagesStub) Upload(_ context.Context, _ service.TokenSubject, input service.UploadInput) (service.ImageView, error) {
 	s.inputs = append(s.inputs, input)
 	if input.Filename == "bad.bin" {

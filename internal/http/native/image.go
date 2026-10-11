@@ -26,6 +26,7 @@ type ImageOptions struct {
 // ImageService is the shared image business API consumed by native routes.
 type ImageService interface {
 	Preflight(context.Context, service.TokenSubject, uint64) (service.UploadLimits, error)
+	PreflightLimits(context.Context, service.TokenSubject) (service.UploadLimits, error)
 	Upload(context.Context, service.TokenSubject, service.UploadInput) (service.ImageView, error)
 	Get(context.Context, service.TokenSubject, uint64) (service.ImageView, error)
 	List(context.Context, service.TokenSubject, service.ImageQuery) (service.ImagePage, error)

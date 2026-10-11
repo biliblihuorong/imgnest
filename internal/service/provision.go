@@ -94,7 +94,7 @@ func (s *ProvisionService) CreateStorage(ctx context.Context, input StorageInput
 	if input.Driver == "s3" {
 		config, err = s.secrets.Seal(ctx, input.Driver, input.Config)
 		if err != nil {
-			return StorageView{}, fmt.Errorf("encrypt storage configuration: %w", ErrInvalidInput)
+			return StorageView{}, fmt.Errorf("encrypt storage configuration: %w", errors.Join(ErrInvalidInput, err))
 		}
 	}
 	candidate := model.Storage{Name: name, Driver: input.Driver, BaseURL: strings.TrimRight(input.BaseURL, "/"), Config: config, Enabled: true}

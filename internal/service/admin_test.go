@@ -264,6 +264,9 @@ func (f *adminPoliciesFake) Delete(_ context.Context, id uint64) error {
 func (f *adminPoliciesFake) UploadPolicy(context.Context, uint64, uint64) (model.Policy, model.Storage, model.Group, error) {
 	return model.Policy{}, model.Storage{}, model.Group{}, ErrNotFound
 }
+func (f *adminPoliciesFake) UploadGroup(context.Context, uint64) (model.Group, error) {
+	return model.Group{}, ErrNotFound
+}
 func (f *adminPoliciesFake) CreateAndBind(_ context.Context, value model.Policy, _ uint64, _ bool) (model.Policy, error) {
 	return f.Create(context.Background(), value)
 }

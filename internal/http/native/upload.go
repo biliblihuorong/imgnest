@@ -10,10 +10,16 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"time"
 )
 
 var errUploadTooLarge = errors.New("upload exceeds size limit")
 var errUploadRateLimited = errors.New("upload rate exceeded")
+
+// uploadSlotWait bounds how long an upload waits for a processing slot
+// before answering with throttling instead of holding the caller for the
+// whole processing timeout.
+const uploadSlotWait = 10 * time.Second
 
 type uploadFile struct {
 	name string
@@ -32,11 +38,17 @@ func (h *imageHandler) upload(c *gin.Context) {
 	select {
 	case h.slots <- struct{}{}:
 		defer func() { <-h.slots }()
+	case <-time.After(uploadSlotWait):
+		fail(c, errUploadRateLimited)
+		return
 	case <-ctx.Done():
 		fail(c, ctx.Err())
 		return
 	}
-	limits, err := h.images.Preflight(ctx, identity(c).Subject, 0)
+	// The first gate only bounds the body read: the group's default rule may
+	// be unusable while the request names an explicit, usable rule in its
+	// fields, so the terminal rule check waits for the second preflight.
+	limits, err := h.images.PreflightLimits(ctx, identity(c).Subject)
 	if err != nil {
 		fail(c, err)
 		return

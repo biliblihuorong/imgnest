@@ -38,8 +38,10 @@ func (r *AlbumRepository) ListByOwner(ctx context.Context, ownerID uint64, page,
 	base := func() *gorm.DB {
 		query := r.db.WithContext(ctx).Table("albums").Where("albums.user_id = ?", ownerID)
 		if keyword != "" {
-			pattern := "%" + escapeLike(keyword) + "%"
-			query = query.Where("(albums.name LIKE ? ESCAPE '\\' OR albums.intro LIKE ? ESCAPE '\\')", pattern, pattern)
+			pattern := "%" + escapeLike(strings.ToLower(keyword)) + "%"
+			// LOWER on both sides keeps SQLite's ASCII-insensitive LIKE and
+			// PostgreSQL's case-sensitive LIKE answering the same results.
+			query = query.Where("(LOWER(albums.name) LIKE ? ESCAPE '\\' OR LOWER(albums.intro) LIKE ? ESCAPE '\\')", pattern, pattern)
 		}
 		return query
 	}
