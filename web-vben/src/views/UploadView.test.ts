@@ -212,13 +212,13 @@ describe("UploadView", () => {
     await selectSegmented(wrapper, "Markdown");
     await findButton(actions, "复制").trigger("click");
     await flushPromises();
-    expect(writeText).toHaveBeenLastCalledWith(`![a.png](${image.links.webp})`);
+    expect(writeText).toHaveBeenLastCalledWith(`![a.png](<${image.links.webp}>)`);
 
     // 头部全局切回原图（格式仍是 Markdown），行内复制跟随
     await selectSegmented(wrapper, "原图");
     await findButton(actions, "复制").trigger("click");
     await flushPromises();
-    expect(writeText).toHaveBeenLastCalledWith(`![a.png](${image.links.original})`);
+    expect(writeText).toHaveBeenLastCalledWith(`![a.png](<${image.links.original}>)`);
   });
 
   it("207 部分失败逐项呈现：成功项可复制、失败项有 code/message 与重试", async () => {

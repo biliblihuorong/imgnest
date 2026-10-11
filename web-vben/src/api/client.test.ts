@@ -171,7 +171,7 @@ describe("api client request", () => {
     expect((error as ApiError).status).toBe(0);
   });
 
-  it("响应体不是合法 JSON 时按网络错误处理", async () => {
+  it("响应体不是合法 JSON 时按网络错误处理但保留真实 HTTP 状态", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response("gateway timeout", { status: 504 })),
@@ -180,7 +180,36 @@ describe("api client request", () => {
     const error = await request("/api/x").catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).code).toBe(-1);
-    expect((error as ApiError).status).toBe(0);
+    expect((error as ApiError).status).toBe(504);
+  });
+
+  it("非 JSON 502 响应抛 code=-1 且 status=502，不触发未授权回调", async () => {
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("bad gateway", { status: 502 })));
+
+    const error = await request("/api/x").catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe(-1);
+    expect((error as ApiError).message).toBe("网络错误");
+    expect((error as ApiError).status).toBe(502);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("非 JSON 401（携带 Bearer 却被反代/网关拒绝）触发未授权回调并保留 status", async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|abc");
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("unauthorized", { status: 401 })),
+    );
+
+    const error = await request("/api/x").catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe(-1);
+    expect((error as ApiError).status).toBe(401);
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 });
 

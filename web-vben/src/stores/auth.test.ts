@@ -58,6 +58,28 @@ describe("auth store", () => {
     );
   });
 
+  it("localStorage 写入失败（隐私模式/配额满）时 login 仍成功，降级为仅内存会话", async () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+    });
+    try {
+      authApiMock.login.mockResolvedValue({
+        token: "7|token",
+        user: userFixture,
+        expires_at: "2026-10-05T00:00:00Z",
+      });
+      const store = useAuthStore();
+
+      await expect(store.login("alice@example.com", "password-123")).resolves.toEqual(userFixture);
+
+      expect(store.token).toBe("7|token");
+      expect(store.user).toEqual(userFixture);
+      expect(setItem).toHaveBeenCalledWith(TOKEN_STORAGE_KEY, "7|token");
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
   it("restore 时有效 token 恢复用户信息并保留 token", async () => {
     localStorage.setItem(TOKEN_STORAGE_KEY, "7|token");
     authApiMock.me.mockResolvedValue(userFixture);

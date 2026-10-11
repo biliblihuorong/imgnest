@@ -79,11 +79,37 @@ function mountActions(image: ImageView, options: MountOptions = {}) {
 describe("buildLinkText", () => {
   it("四种格式的拼接", () => {
     expect(buildLinkText("url", "a.png", "https://x/a.png")).toBe("https://x/a.png");
-    expect(buildLinkText("markdown", "a.png", "https://x/a.png")).toBe("![a.png](https://x/a.png)");
+    expect(buildLinkText("markdown", "a.png", "https://x/a.png")).toBe(
+      "![a.png](<https://x/a.png>)",
+    );
     expect(buildLinkText("html", "a.png", "https://x/a.png")).toBe(
       `<img src="https://x/a.png" alt="a.png" />`,
     );
     expect(buildLinkText("bbcode", "a.png", "https://x/a.png")).toBe("[img]https://x/a.png[/img]");
+  });
+
+  it("markdown：文件名含 ]( 等结构字符时转义，不破坏图片语法", () => {
+    const text = buildLinkText("markdown", "evil](https://evil.example/x.png", "https://x/a.png");
+    expect(text).toBe("![evil\\]\\(https://evil.example/x.png](<https://x/a.png>)");
+    // 转义后 alt 里的 ]( 不会被 markdown 解析成新的链接语法
+    expect(text.indexOf("](")).toBe(text.length - "](<https://x/a.png>)".length);
+  });
+
+  it("markdown：链接含 ) 与空格时用尖括号形式与 %20，输出保持一个完整链接", () => {
+    const text = buildLinkText("markdown", "a b.png", "https://x/a b)c.png");
+    expect(text).toBe("![a b.png](<https://x/a%20b)c.png>)");
+  });
+
+  it("bbcode：链接含 [/img] 时百分号编码，不产生标签注入", () => {
+    const text = buildLinkText(
+      "bbcode",
+      "a.png",
+      "https://x/a.png[/img][img]https://evil.example/e.png",
+    );
+    expect(text).toBe("[img]https://x/a.png%5B/img%5D%5Bimg%5Dhttps://evil.example/e.png[/img]");
+    // 输出里唯一未被编码的 [/img] 必须是合法的收尾标签
+    expect(text.lastIndexOf("[/img]")).toBe(text.length - "[/img]".length);
+    expect(text).not.toContain("[img]https://evil");
   });
 });
 
@@ -127,7 +153,7 @@ describe("UploadResultActions", () => {
   });
 
   it.each([
-    ["markdown", "![a.png](https://img.example/2026/10/a.webp)"],
+    ["markdown", "![a.png](<https://img.example/2026/10/a.webp>)"],
     ["html", '<img src="https://img.example/2026/10/a.webp" alt="a.png" />'],
     ["bbcode", "[img]https://img.example/2026/10/a.webp[/img]"],
   ] as const)("行内文本跟随全局格式 %s，与复制内容一致", (format, text) => {
@@ -154,7 +180,7 @@ describe("UploadResultActions", () => {
     wrapper.unmount();
     const markdown = mountActions(image, { format: "markdown", version: "original" });
     await copy(markdown.wrapper);
-    expect(writeText).toHaveBeenLastCalledWith(`![a.png](${image.links.original})`);
+    expect(writeText).toHaveBeenLastCalledWith(`![a.png](<${image.links.original}>)`);
     markdown.wrapper.unmount();
   });
 

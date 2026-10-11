@@ -8,7 +8,10 @@
 
 export const TOKEN_STORAGE_KEY = "imgnest.token";
 
-/** 业务错误：code 为外壳业务码（网络/解析失败为 -1），status 为 HTTP 状态码（网络失败为 0）。 */
+/**
+ * 业务错误：code 为外壳业务码（网络/解析失败为 -1），status 为 HTTP 状态码
+ * （仅网络失败为 0；响应体不是 JSON 时保留真实 HTTP 状态）。
+ */
 export class ApiError extends Error {
   readonly code: number;
   readonly status: number;
@@ -50,7 +53,10 @@ interface Envelope {
 /**
  * 发起同源请求并解包 data。
  * - 外壳 code !== 0：抛 ApiError{code, message, status}；
- * - 网络失败或响应体不是 JSON：抛 ApiError{code: -1, message: "网络错误", status: 0}；
+ * - 网络失败：抛 ApiError{code: -1, message: "网络错误", status: 0}；
+ * - 响应体不是 JSON（如反代/网关的错误页）：抛 ApiError{code: -1, message: "网络错误",
+ *   status: 真实 HTTP 状态}；其中 status === 401 视同 20001 先触发未授权回调
+ *   （携带我们的 Bearer 却被网关拒绝，会话已不可用，与 XHR 上传通道同语义）；
  * - 业务码 20001（未鉴权/凭证失效）：先触发 setUnauthorizedHandler 注册的回调再抛错。
  */
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -74,7 +80,12 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   } catch (error) {
     if (init.signal?.aborted || (error instanceof DOMException && error.name === "AbortError"))
       throw error;
-    throw new ApiError(-1, "网络错误", 0);
+    // 非 JSON 响应：保留真实 HTTP 状态。401 说明「携带我们的 Bearer 却被反代/网关拒绝」，
+    // 会话已失效，按 20001 同语义清会话（同 XHR 上传通道 parseUploadResponse）。
+    if (response.status === 401) {
+      notifyUnauthorized(20001, token, init.signal);
+    }
+    throw new ApiError(-1, "网络错误", response.status);
   }
 
   const code = typeof envelope.code === "number" ? envelope.code : -1;

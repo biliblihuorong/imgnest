@@ -61,7 +61,12 @@ export const useAuthStore = defineStore("auth", {
         if (!current()) throw cancelledLogin();
         this.token = data.token;
         this.user = data.user;
-        localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
+        // 隐私模式/配额满等场景 localStorage 可能不可写：静默降级为仅内存会话，不算登录失败。
+        try {
+          localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
+        } catch {
+          // token 已在内存中，本会话仍可用；刷新后需重新登录。
+        }
         return data.user;
       } catch (error) {
         if (!current()) throw cancelledLogin();
