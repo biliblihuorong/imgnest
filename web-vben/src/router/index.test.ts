@@ -74,11 +74,58 @@ describe("router 守卫", () => {
 
   it("已登录访问受保护路由时放行", async () => {
     localStorage.setItem(TOKEN_STORAGE_KEY, "7|token");
+    useAuthStore().user = { id: 1, role: "user" } as never;
     const router = setupRouter();
     await router.push("/upload");
     await router.isReady();
 
     expect(router.currentRoute.value.path).toBe("/upload");
+  });
+
+  it("身份尚未恢复时守卫先等待 restore 再放行", async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|token");
+    const user = { id: 1, role: "user" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ code: 0, message: "ok", data: user }), {
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    try {
+      const router = setupRouter();
+      await router.push("/upload");
+      await router.isReady();
+
+      expect(router.currentRoute.value.path).toBe("/upload");
+      expect(useAuthStore().user).toEqual(user);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("恢复身份失败时跳转登录", async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ code: 20001, message: "expired", data: null }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    try {
+      const router = setupRouter();
+      await router.push("/images");
+      await router.isReady();
+
+      expect(router.currentRoute.value.path).toBe("/login");
+      expect(router.currentRoute.value.query.redirect).toBe("/images");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("未知路径重定向到 /upload 并受守卫约束", async () => {
@@ -105,6 +152,7 @@ describe("router 守卫", () => {
     await router.push("/gallery");
     expect(router.currentRoute.value.path).toBe("/gallery");
     localStorage.setItem(TOKEN_STORAGE_KEY, "7|token");
+    useAuthStore().user = { id: 1, role: "user" } as never;
     await router.push("/upload");
     await router.push("/gallery");
     expect(router.currentRoute.value.path).toBe("/gallery");

@@ -91,6 +91,17 @@ describe("upload queue session lifetime", () => {
     expect(DeferredXHR.instances).toHaveLength(1);
   });
 
+  it("reports files added while an upload is running instead of dropping them silently", () => {
+    const queue = mountQueue();
+    queue.onFiles([new File(["a"], "a.png")]);
+    queue.startUpload();
+    queue.onFiles([new File(["b"], "b.png")]);
+    expect(queue.items.value).toHaveLength(1);
+    expect(queue.preflightErrors.value).toHaveLength(1);
+    queue.clearPreflight();
+    expect(queue.preflightErrors.value).toEqual([]);
+  });
+
   it("removes the session listener when the queue unmounts", () => {
     const remove = vi.spyOn(window, "removeEventListener");
     mountQueue();

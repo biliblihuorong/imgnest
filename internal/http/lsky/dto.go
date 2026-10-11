@@ -110,7 +110,9 @@ func buildImageItem(view service.ImageView, album any, now time.Time) imageItem 
 		Height:     view.Height,
 		Links:      buildLinks(view),
 		HumanDate:  humanDate(now, created),
-		Date:       created.UTC().Format("2006-01-02 15:04:05"),
+		// Lsky renders created_at in the application time zone; ours is the
+		// server's local zone (TZ), which is UTC in the default image.
+		Date: created.In(time.Local).Format("2006-01-02 15:04:05"),
 	}
 }
 

@@ -57,6 +57,12 @@ func (h *imageHandler) upload(c *gin.Context) {
 		fail(c, service.ErrInvalidInput)
 		return
 	}
+	userID := identity(c).User.ID
+	if limits.PerMinute > 0 && h.options.Uploads.Exceeded(ratelimit.UploadKey(userID), limits.PerMinute) {
+		// An exhausted allowance is refused before the body is read.
+		fail(c, errUploadRateLimited)
+		return
+	}
 	if c.Request.ContentLength > h.options.MaxRequestBytes {
 		fail(c, errUploadTooLarge)
 		return
@@ -69,6 +75,9 @@ func (h *imageHandler) upload(c *gin.Context) {
 	}
 	files, fields, err := readUpload(ctx, reader, limits.MaxFileBytes, h.options.MaxRequestBytes)
 	if err != nil {
+		// A rejected body still spends one attempt, so malformed or
+		// oversized requests cannot be repeated without limit.
+		h.allowUpload(userID, limits.PerMinute)
 		fail(c, err)
 		return
 	}

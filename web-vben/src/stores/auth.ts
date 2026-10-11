@@ -10,6 +10,8 @@ interface AuthState {
 }
 
 const pendingLogins = new WeakMap<object, AbortController>();
+/** 进行中的 restore()：启动流程与路由守卫并发调用时共用同一次 /api/auth/me。 */
+const pendingRestores = new WeakMap<object, Promise<void>>();
 function cancelledLogin(): DOMException {
   return new DOMException("Authentication attempt cancelled", "AbortError");
 }
@@ -88,18 +90,27 @@ export const useAuthStore = defineStore("auth", {
       }
     },
     /** 启动恢复：有 token 时用 me() 校验，失败清空状态。 */
-    async restore(): Promise<void> {
+    restore(): Promise<void> {
       if (!this.token) {
-        return;
+        return Promise.resolve();
       }
+      const pending = pendingRestores.get(this);
+      if (pending) return pending;
       const restoredToken = this.token;
       const generation = this.sessionGeneration;
-      try {
-        const user = await meApi();
-        if (this.token === restoredToken && this.sessionGeneration === generation) this.user = user;
-      } catch {
-        if (this.token === restoredToken && this.sessionGeneration === generation) this.clear();
-      }
+      const run = (async () => {
+        try {
+          const user = await meApi();
+          if (this.token === restoredToken && this.sessionGeneration === generation)
+            this.user = user;
+        } catch {
+          if (this.token === restoredToken && this.sessionGeneration === generation) this.clear();
+        } finally {
+          pendingRestores.delete(this);
+        }
+      })();
+      pendingRestores.set(this, run);
+      return run;
     },
     /** 用服务端返回的最新用户视图覆盖当前会话用户；仅供本人资料更新使用。 */
     setUser(user: UserView): void {

@@ -21,6 +21,9 @@ type ImageOptions struct {
 	// Uploads, when set, is the upload limiter shared with the Lsky v1 API so
 	// one account's per-minute quota spans both entry points.
 	Uploads *ratelimit.Limiter
+	// Slots, when set, is the upload concurrency semaphore shared with the
+	// Lsky v1 API so MaxConcurrent bounds both entry points together.
+	Slots chan struct{}
 }
 
 // ImageService is the shared image business API consumed by native routes.
@@ -62,7 +65,10 @@ func (h *Handler) RegisterImageRoutes(ctx context.Context, router gin.IRouter, i
 	if opts.Uploads == nil {
 		opts.Uploads = h.limits
 	}
-	image := &imageHandler{auth: h, images: images, options: opts, slots: make(chan struct{}, opts.MaxConcurrent), searchSlots: make(chan struct{}, 4)}
+	if opts.Slots == nil {
+		opts.Slots = make(chan struct{}, opts.MaxConcurrent)
+	}
+	image := &imageHandler{auth: h, images: images, options: opts, slots: opts.Slots, searchSlots: make(chan struct{}, 4)}
 	protected := router.Group("/api", h.authenticate)
 	protected.POST("/upload", image.upload)
 	protected.GET("/policies", image.listPolicies)

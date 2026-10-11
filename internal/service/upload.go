@@ -196,7 +196,8 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 		}
 		scrubbed = policy.ScrubMode != "none"
 	}
-	result, err := s.deps.Imaging.Process(ctx, input.Data, imaging.Options{WebPMode: mode, Quality: policy.WebPQuality, Effort: policy.WebPEffort, Lossless: policy.WebPLossless, MaxWidth: policy.MaxWidth, MaxHeight: policy.MaxHeight, SkipIfLarger: policy.SkipIfLarger, ThumbEnabled: policy.ThumbEnabled, ThumbSize: policy.ThumbSize})
+	// input.Data is the buffer Probe validated above; reuse that decode.
+	result, err := s.deps.Imaging.Process(ctx, input.Data, imaging.Options{Probed: &info, WebPMode: mode, Quality: policy.WebPQuality, Effort: policy.WebPEffort, Lossless: policy.WebPLossless, MaxWidth: policy.MaxWidth, MaxHeight: policy.MaxHeight, SkipIfLarger: policy.SkipIfLarger, ThumbEnabled: policy.ThumbEnabled, ThumbSize: policy.ThumbSize})
 	if err != nil {
 		return ImageView{}, processingError(ctx, err)
 	}

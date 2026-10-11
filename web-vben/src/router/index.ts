@@ -219,6 +219,12 @@ export function setupRouter(): Router {
       return true;
     }
     if (to.matched.some((record) => record.meta.admin)) return adminGuard(to);
+    // 启动时不再阻塞挂载等待 /api/auth/me，受保护页面在这里等身份就绪。
+    const auth = useAuthStore();
+    if (!isPublic && !auth.user) {
+      await auth.restore();
+      if (!auth.user) return { path: "/login", query: { redirect: to.fullPath } };
+    }
     return true;
   });
 

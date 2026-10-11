@@ -27,6 +27,9 @@ type Options struct {
 	// Uploads, when set, is the upload limiter shared with the native API so
 	// one account's per-minute quota spans both entry points.
 	Uploads *ratelimit.Limiter
+	// Slots, when set, is the upload concurrency semaphore shared with the
+	// native API so MaxConcurrent bounds both entry points together.
+	Slots chan struct{}
 }
 
 // Dependencies bind the v1 handlers to the shared services.
@@ -88,11 +91,15 @@ func NewHandler(ctx context.Context, deps Dependencies) (*Handler, error) {
 	if uploads == nil {
 		uploads = limits
 	}
+	slots := deps.Options.Slots
+	if slots == nil {
+		slots = make(chan struct{}, deps.Options.MaxConcurrent)
+	}
 	return &Handler{
 		proxies: proxies,
 		users:   deps.Users, tokens: deps.Tokens, images: deps.Images,
 		albums: deps.Albums, lsky: deps.Lsky, now: deps.Now, options: deps.Options,
-		slots:  make(chan struct{}, deps.Options.MaxConcurrent),
+		slots:  slots,
 		limits: limits, uploads: uploads,
 		logins: ratelimit.New(deps.Now, loginFailureWindow, ratelimit.DefaultCapacity),
 	}, nil
@@ -135,7 +142,6 @@ func (h *Handler) apiEnabled(c *gin.Context) {
 func (h *Handler) authenticate(c *gin.Context) {
 	id, ok := h.verifyAuthorization(c)
 	if !ok {
-		c.JSON(401, failure("Unauthenticated."))
 		c.Abort()
 		return
 	}
@@ -152,20 +158,32 @@ func (h *Handler) optionalIdentity(c *gin.Context) {
 	}
 	id, ok := h.verifyAuthorization(c)
 	if !ok {
-		c.JSON(401, failure("Unauthenticated."))
 		c.Abort()
 		return
 	}
 	c.Set(identityKey, id)
 }
 
+// verifyAuthorization resolves the bearer token and writes the failure
+// response itself: 401 only for a missing or rejected token, so a database
+// outage never tells clients such as PicGo to discard a valid token.
 func (h *Handler) verifyAuthorization(c *gin.Context) (*service.Identity, bool) {
 	parts := splitBearer(c.GetHeader("Authorization"))
 	if parts == "" {
+		c.JSON(401, failure("Unauthenticated."))
 		return nil, false
 	}
 	id, err := h.tokens.Authenticate(c.Request.Context(), parts)
-	if err != nil {
+	switch {
+	case err == nil:
+	case errors.Is(err, service.ErrUnauthenticated):
+		c.JSON(401, failure("Unauthenticated."))
+		return nil, false
+	case isCanceled(err):
+		c.JSON(200, failure("请求超时或已取消"))
+		return nil, false
+	default:
+		h.serverError(c)
 		return nil, false
 	}
 	return &id, true

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -86,6 +87,15 @@ func (f *driverFactory) DriverFor(ctx context.Context, backend model.Storage) (s
 		driver = s3
 	default:
 		return nil, service.ErrInvalidInput
+	}
+	// A changed configuration (for example a rotated S3 key) supersedes the
+	// backend's earlier driver. It is only dropped from the cache, not closed:
+	// requests still holding it finish normally and the GC reclaims it.
+	prefix := fmt.Sprintf("%d/", backend.ID)
+	for key := range f.drivers {
+		if strings.HasPrefix(key, prefix) {
+			delete(f.drivers, key)
+		}
 	}
 	f.drivers[cacheKey] = driver
 	return driver, nil

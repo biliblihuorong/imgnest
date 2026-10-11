@@ -135,6 +135,7 @@
     "selectFiles": "请先选择要上传的文件",
     "tooMany": "单次最多上传 {max} 个文件，当前选择了 {count} 个",
     "fileLimit": "单文件上限 {limit}，超限文件：{files}",
+    "busyIgnored": "上传进行中，新加入的文件已忽略，请在本次上传结束后再添加",
     "totalLimit": "单次合计上限 {limit}，本次共 {total}",
     "copyAll": "全部复制",
     "copiedAll": "已复制 {count} 条链接",

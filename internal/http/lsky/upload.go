@@ -64,6 +64,11 @@ func (h *Handler) upload(c *gin.Context) {
 
 	guest := c.GetHeader("Authorization") == ""
 	subject, userID, limits, err := h.preuploadLimits(ctx, c, guest)
+	if err == nil && !h.allowUpload(guest, userID, c.ClientIP(), limits.PerMinute) {
+		// Counted before the body is read, so malformed or oversized
+		// requests spend the per-minute allowance like successful ones.
+		err = errRateLimited
+	}
 	if err != nil {
 		h.uploadFailure(c, err)
 		return
@@ -91,7 +96,7 @@ func (h *Handler) upload(c *gin.Context) {
 		subject, userID, limits, err = h.preupload(ctx, c, guest, strategyID)
 	}
 	if err == nil {
-		err = h.checkUploadFields(ctx, guest, userID, c.ClientIP(), fields, limits)
+		err = h.checkUploadFields(ctx, guest, userID, fields)
 	}
 	if err != nil {
 		h.uploadFailure(c, err)
@@ -159,19 +164,13 @@ func (h *Handler) preupload(ctx context.Context, c *gin.Context, guest bool, pol
 	return id.Subject, id.User.ID, limits, err
 }
 
-// checkUploadFields validates size, rate limit and album ownership.
-func (h *Handler) checkUploadFields(ctx context.Context, guest bool, userID uint64, ip string, fields uploadFields, limits service.UploadLimits) error {
+// checkUploadFields validates guest restrictions and album ownership.
+func (h *Handler) checkUploadFields(ctx context.Context, guest bool, userID uint64, fields uploadFields) error {
 	if guest {
-		if !h.uploads.Allow("upload:guest:"+ratelimit.ClientKey(ip), limits.PerMinute) {
-			return errRateLimited
-		}
 		if fields.albumID != 0 {
 			return errGuestAlbum
 		}
 	} else {
-		if !h.uploads.Allow(ratelimit.UploadKey(userID), limits.PerMinute) {
-			return errRateLimited
-		}
 		if fields.albumID != 0 {
 			if _, err := h.albums.FindOwned(ctx, userID, fields.albumID); err != nil {
 				return errAlbumUnavailable
@@ -179,6 +178,15 @@ func (h *Handler) checkUploadFields(ctx context.Context, guest bool, userID uint
 		}
 	}
 	return nil
+}
+
+// allowUpload counts one upload attempt against the group's per-minute limit,
+// keyed by account, or by client address for guests.
+func (h *Handler) allowUpload(guest bool, userID uint64, ip string, perMinute int) bool {
+	if guest {
+		return h.uploads.Allow("upload:guest:"+ratelimit.ClientKey(ip), perMinute)
+	}
+	return h.uploads.Allow(ratelimit.UploadKey(userID), perMinute)
 }
 
 // uploadFailure maps every upload failure to the v1 failure envelope. Only

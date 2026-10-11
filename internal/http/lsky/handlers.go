@@ -136,8 +136,15 @@ func (h *Handler) listImages(c *gin.Context) {
 	}
 	var album any
 	if albumID > 0 {
-		if view, findErr := h.albums.FindOwned(c.Request.Context(), id.User.ID, albumID); findErr == nil {
+		view, findErr := h.albums.FindOwned(c.Request.Context(), id.User.ID, albumID)
+		switch {
+		case findErr == nil:
 			album = albumRef{ID: view.ID, Name: view.Name}
+		case errors.Is(findErr, service.ErrNotFound), errors.Is(findErr, service.ErrForbidden):
+			// A foreign or deleted album lists as album: null, like an empty filter.
+		default:
+			h.serverError(c)
+			return
 		}
 	}
 	now := h.now()

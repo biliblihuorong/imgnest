@@ -20,6 +20,8 @@ export function useUploadQueue(
   const items = ref<UploadQueueItem[]>([]);
   const uploading = ref(false);
   const rejectedFiles = ref<File[] | null>(null);
+  /** 上传进行中拖入或选择的文件不会入队，需要明确告诉用户。 */
+  const ignoredWhileUploading = ref(false);
   let nextId = 1;
   let active = true;
   let controller: AbortController | undefined;
@@ -28,6 +30,7 @@ export function useUploadQueue(
     controller?.abort();
     items.value = [];
     rejectedFiles.value = null;
+    ignoredWhileUploading.value = false;
     uploading.value = false;
   }
   window.addEventListener("imgnest:session-cleared", endSession);
@@ -43,6 +46,7 @@ export function useUploadQueue(
       items.value.some((item) => item.state === "queued"),
   );
   const preflightErrors = computed(() => {
+    if (ignoredWhileUploading.value) return [t("user.upload.busyIgnored")];
     const files = rejectedFiles.value;
     if (!files) return [];
     const errors: string[] = [];
@@ -69,9 +73,14 @@ export function useUploadQueue(
   });
   function clearPreflight() {
     rejectedFiles.value = null;
+    ignoredWhileUploading.value = false;
   }
   function onFiles(files: File[]) {
-    if (uploading.value || !active) return;
+    if (!active) return;
+    if (uploading.value) {
+      if (files.length) ignoredWhileUploading.value = true;
+      return;
+    }
     const pending = [
       ...items.value.filter((item) => item.state === "queued").map((item) => item.file),
       ...files,

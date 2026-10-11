@@ -92,6 +92,17 @@ describe("auth store", () => {
     expect(authApiMock.me).toHaveBeenCalledTimes(1);
   });
 
+  it("并发 restore 只请求一次 /api/auth/me", async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|token");
+    authApiMock.me.mockResolvedValue(userFixture);
+    const store = useAuthStore();
+
+    await Promise.all([store.restore(), store.restore()]);
+
+    expect(store.user).toEqual(userFixture);
+    expect(authApiMock.me).toHaveBeenCalledTimes(1);
+  });
+
   it("restore 时无效 token 清空全部状态", async () => {
     localStorage.setItem(TOKEN_STORAGE_KEY, "7|expired");
     authApiMock.me.mockRejectedValue(new ApiError(20001, "未登录", 401));
