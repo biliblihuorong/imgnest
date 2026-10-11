@@ -93,7 +93,7 @@ func v1Escape(value string) string {
 }
 
 // buildImageItem maps one image view to its v1 shape without EXIF or GPS.
-func buildImageItem(view service.ImageView, album any, now time.Time) imageItem {
+func buildImageItem(view service.ImageView, album any, now time.Time, zone *time.Location) imageItem {
 	created := view.CreatedAt
 	return imageItem{
 		Album:      album,
@@ -109,10 +109,10 @@ func buildImageItem(view service.ImageView, album any, now time.Time) imageItem 
 		Width:      view.Width,
 		Height:     view.Height,
 		Links:      buildLinks(view),
-		HumanDate:  humanDate(now, created),
-		// Lsky renders created_at in the application time zone; ours is the
-		// server's local zone (TZ), which is UTC in the default image.
-		Date: created.In(time.Local).Format("2006-01-02 15:04:05"),
+		HumanDate:  humanDate(now, created, zone),
+		// Lsky renders created_at in the application time zone; ours follows
+		// the injected zone, which is the server's TZ in production.
+		Date: created.In(zone).Format("2006-01-02 15:04:05"),
 	}
 }
 
@@ -134,7 +134,7 @@ func buildUploadData(view service.ImageView) gin.H {
 }
 
 // humanDate renders the Chinese relative time shown in the v1 list.
-func humanDate(now, created time.Time) string {
+func humanDate(now, created time.Time, zone *time.Location) string {
 	difference := now.Sub(created)
 	switch {
 	case difference < time.Minute:
@@ -146,7 +146,7 @@ func humanDate(now, created time.Time) string {
 	case difference < 30*24*time.Hour:
 		return strconv.Itoa(int(difference.Hours()/24)) + " 天前"
 	default:
-		return created.Format("2006-01-02")
+		return created.In(zone).Format("2006-01-02")
 	}
 }
 

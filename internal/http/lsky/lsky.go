@@ -40,6 +40,10 @@ type Dependencies struct {
 	Albums *service.AlbumService
 	Lsky   *service.LskyService
 	Now    func() time.Time
+	// Zone renders the v1 dates; nil means the server's local zone (TZ),
+	// matching Lsky's application timezone. Tests inject UTC so the golden
+	// files stay independent of the host zone.
+	Zone *time.Location
 	// Options may be zero; defaults match the native upload handler.
 	Options Options
 }
@@ -52,6 +56,7 @@ type Handler struct {
 	albums  *service.AlbumService
 	lsky    *service.LskyService
 	now     func() time.Time
+	zone    *time.Location
 	options Options
 	slots   chan struct{}
 	limits  *ratelimit.Limiter
@@ -95,10 +100,14 @@ func NewHandler(ctx context.Context, deps Dependencies) (*Handler, error) {
 	if slots == nil {
 		slots = make(chan struct{}, deps.Options.MaxConcurrent)
 	}
+	zone := deps.Zone
+	if zone == nil {
+		zone = time.Local
+	}
 	return &Handler{
 		proxies: proxies,
 		users:   deps.Users, tokens: deps.Tokens, images: deps.Images,
-		albums: deps.Albums, lsky: deps.Lsky, now: deps.Now, options: deps.Options,
+		albums: deps.Albums, lsky: deps.Lsky, now: deps.Now, zone: zone, options: deps.Options,
 		slots:  slots,
 		limits: limits, uploads: uploads,
 		logins: ratelimit.New(deps.Now, loginFailureWindow, ratelimit.DefaultCapacity),

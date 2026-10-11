@@ -151,7 +151,7 @@ func (h *Handler) listImages(c *gin.Context) {
 	data := make([]imageItem, 0, len(items))
 	for _, item := range items {
 		attached := album
-		data = append(data, buildImageItem(item.Image, attached, now))
+		data = append(data, buildImageItem(item.Image, attached, now, h.zone))
 	}
 	c.JSON(200, success("success", buildPaginator(baseURL(c.Request.Host, h.forwardedProto(c), c.Request.TLS != nil)+"/api/v1/images", page, 40, total, data)))
 }
