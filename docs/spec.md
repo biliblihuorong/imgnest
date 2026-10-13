@@ -249,10 +249,10 @@ CDN 缓存不在本程序处理范围内。
 本地全留、云端抹掉敏感项，而且抹除是无损的：不重新编码原图，画质与上传文件完全一致。
 
 - **读取**：imagemeta解析常用字段；从原始容器字节提取全部EXIF/XMP/未知字段/MakerNote原始块，以base64归档到本地raw。WebP直接解析RIFF块，避免锁定vipsgen的GetBlob借用内存释放风险；该风险由源码推断，未原生复现。
-- **默认抹除**（`scrub_mode = gps`）：GPS 全部字段；作者/所有人（Artist、CameraOwnerName）；序列号（BodySerialNumber、LensSerialNumber）；整个 XMP 块（常带 GPS 和编辑软件历史）；MakerNote不透明载荷也清零/移除，防止厂商身份字段泄漏。本地归档在此之前完成。
+- **默认抹除**（`scrub_mode = gps`）：GPS 全部字段；作者/所有人（Artist、CameraOwnerName）；序列号（BodySerialNumber、LensSerialNumber、TIFF/DNG 的 CameraSerialNumber）；整个 XMP 块（常带 GPS 和编辑软件历史）；MakerNote不透明载荷也清零/移除，防止厂商身份字段泄漏。本地归档在此之前完成。完整 TIFF 不按高位标签一律删除，保留 DNG 的版本、相机型号等安全结构标签。
 - **保留**：相机型号、镜头、曝光参数、拍摄时间、方向、ICC 色彩配置。
 - **其他档位**：`none` 不清理；`all` 清空全部 EXIF，只留方向和 ICC。
-- **实现方式**：原位改写。JPEG 在 APP1 段的 TIFF 结构里把上述条目的值清零、GPS IFD 条目数置 0，字节长度不变；XMP 段整段移除；PNG 的 `eXIf` 块和 WebP 的 `EXIF` 块同样处理（PNG 重算 CRC）。全程不解码像素。
+- **实现方式**：原位改写。JPEG 在 APP1 段的 TIFF 结构里把上述条目的值清零、GPS IFD 条目数置 0，字节长度不变；XMP 段整段移除；PNG 的 `eXIf` 块和 WebP 的 `EXIF` 块同样处理（PNG 重算 CRC）。全程不解码像素。待清理值与任何保留值（含跨 IFD 的 ColorMap、ICC、相机参数）共享字节时拒绝脱敏，避免清理通过别名改变像素或安全元数据。
 - **HEIC/AVIF**：首版不做原位改写，规则里选「只存 WebP（默认）/ 原样保存不脱敏 / 拒绝上传」。
 - **可见性**：GPS 与 `raw` 只有本人和管理员能看；公开接口、画廊、蓝空 v1 接口一律不返回 EXIF。
 - **历史图片**：从蓝空接管的 B2 原图仍带 GPS。补处理任务先提取 EXIF 入库，再按开关决定是否原位清理并覆盖云端原图（覆盖后链接不变，`md5` 会变）。
@@ -408,7 +408,7 @@ imgnest/
 - 普通复制仍是服务端复制；源已404的遗留删除操作，仅恢复时流式核对目标与持久 SHA256，以免把同长度的错误副本当作成功。正常上传/删除不下载云副本。
 - 本机持久对象使用 `IMGNST01 + uint32 header length + ObjectInfo JSON + 原始 bytes` 的原子单文件封装；内容本身无重新编码，驱动 Open 只返回图片 bytes。备份需保留整个存储根，不能绕过驱动用静态文件服务器直接输出物理 .jpg/.webp。data/thumbs 缓存仍是普通 WebP 文件；详见 internal/storage/README.md。
 - Image 的 size/ext/mime/md5/sha1/width/height/frames 描述实际保存的主图；webp_only 取真实 WebP 主图，both/none 取原图的视觉尺寸。src_md5 和 EXIF/raw 始终来自上传源。上传原生 DTO、直接图片和缩略图不返回 EXIF。
-- 完整 raw 归档保存容器元数据原始块。classic TIFF 的不透明私有布局可用明确标记的 full-source-fallback（输入至多20MiB）保存在 owner/admin 私有 raw；该情况 gps/all 原图脱敏拒绝。BigTIFF 和不能完整解析的 ISOBMFF 布局明确拒绝，不默默漏存元数据。
+- 完整 raw 归档保存容器元数据原始块。classic TIFF 先合并所有可达 header/IFD/value 的重叠区间，再克隆区间原始字节，累计归档字节不超过输入大小；相同偏移的不同长度值均完整保留，跨块类型的重叠区间标记为 `tiff-range`。不透明私有布局可用明确标记的 full-source-fallback（输入至多20MiB）保存在 owner/admin 私有 raw；该情况 gps/all 原图脱敏拒绝。BigTIFF 和不能完整解析的 ISOBMFF 布局明确拒绝，不默默漏存元数据。
 - M2 native 以数值 id 提供图片/EXIF/权限与批量回收站接口；稳定随机 key 用于缩略图及未来 v1。POST /api/upload 接受重复 file/files[]，字段 policy_id/album_id/is_public，单文件201，批量207逐项结果。默认整请求64MiB、单文件20MiB、至多20文件、2并发请求、5min处理期限、100MP含动画帧；这些限制先于完整读取。
 - M2 新码：10002=请求/文件过大(413)、10004=请求取消/超时(408)、30004=容量(403)、30005=路径冲突(409)、30006=图片繁忙(409)、30007=格式不支持(415)、50002=存储(502)、50003=处理/脱敏拒绝(422)。保留 M1 外壳与错误码。
 - M2 提供主机管理员 CLI init-local/init-storage/init-policy；S3 配置用部署32-byte base64主密钥 AES-256-GCM 加密，输入只能 stdin/未跟踪配置。主密钥不入库/日志；连接测试验证实际不覆盖写、复制和清理。本机访问前缀为 /i/{storage_id}，BaseURL 实时读出。

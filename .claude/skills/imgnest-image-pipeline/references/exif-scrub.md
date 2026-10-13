@@ -4,6 +4,10 @@ Goal: remove location and identity data from the stored original without
 touching compressed image data. The output must decode to exactly the same
 pixels as the input.
 
+Before zeroing TIFF values, reject aliases with any retained value in any IFD.
+ColorMap and ICC values affect decoded pixels even when their bytes lie outside
+the pixel strips; safe camera fields must also remain unchanged.
+
 ## What to remove (`scrub_mode = gps`)
 
 | Data | Where | Action |
@@ -13,6 +17,7 @@ pixels as the input.
 | CameraOwnerName | Exif IFD `0xA430` | Zero the value bytes |
 | BodySerialNumber | Exif IFD `0xA431` | Zero the value bytes |
 | LensSerialNumber | Exif IFD `0xA435` | Zero the value bytes |
+| CameraSerialNumber | TIFF/DNG IFD `0xC62F` | Zero/drop identity value; retain safe DNG version/model structure tags |
 | MakerNote | Exif IFD `0x927C` | Archive original locally, then zero/drop opaque payload; vendor owner/serial fields are not limited to standard tags |
 | XMP packet | separate block (see below) | Remove the whole block |
 
@@ -72,7 +77,11 @@ identity/MakerNote/XMP, multiple blocks, post-SOS JPEG metadata, PNG CRC, GIF
 XMP, TIFF pixel aliases, missing terminators and ISOBMFF item extent bounds.
 The camera exports above remain future fixtures and are not claimed tested.
 
-Classic TIFF metadata is archived by reachable IFD/value ranges, with explicit
+Classic TIFF metadata is archived by the union of reachable header/IFD/value
+ranges before cloning, so each source byte is archived at most once and
+same-offset values of different lengths remain complete. Cross-kind overlaps
+are marked `tiff-range`; ordinary header/IFD/value kinds remain available.
+Opaque private layouts use explicit
 20MiB full-source-fallback only for opaque private layouts; enabled original
 scrub rejects unsupported layouts. BigTIFF rejects. HEIC/AVIF capture supports
 iinfv2/v3, iloc0/1/2 and data construction0/1; unsupported layouts reject.

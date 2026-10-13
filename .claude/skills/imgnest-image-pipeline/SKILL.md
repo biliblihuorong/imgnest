@@ -114,12 +114,19 @@ Archive original EXIF/XMP/unknown/MakerNote blocks from container bytes;
 imagemeta's structured result alone does not preserve all data. Avoid locked
 vipsgen GetBlob until ownership is validated; its borrowed-pointer free risk
 was found from source, not yet reproduced natively. GPS/all scrub removes
-MakerNote identity payloads too. Reload and reparse scrubbed bytes; any failure
+MakerNote identity payloads and TIFF/DNG CameraSerialNumber (`0xC62F`) too.
+Keep safe DNG structure tags in whole TIFFs; do not strip all high tag IDs.
+Reject scrub when a removed TIFF value overlaps any retained value across all
+IFDs, including ColorMap and ICC; shared bytes cannot be safely zeroed in place.
+Reload and reparse scrubbed bytes; any failure
 rejects the upload. Never keep an unmodified original under an enabled scrub
 mode. WebP/thumbnails explicitly strip metadata; Keep(0) does not strip.
 
 Reject missing container terminators even if native decoders repair them.
-Opaque classic TIFF layouts may archive at most20MiB as explicit private
+Union all overlapping classic TIFF header/IFD/value ranges before cloning;
+retain every referenced byte, including longer values sharing an offset.
+Archived payload bytes must not exceed source bytes; mark cross-kind unions
+as `tiff-range`. Opaque classic TIFF layouts may archive at most20MiB as explicit private
 full-source-fallback; enabled original scrub rejects unsupported layouts.
 BigTIFF and unsupported ISOBMFF layouts reject rather than lose metadata.
 M2 fixtures are synthetic/native-generated, not camera-brand samples.
