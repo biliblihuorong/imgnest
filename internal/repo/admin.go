@@ -46,11 +46,11 @@ func (r *AdminRepository) ListUsers(ctx context.Context, keyword string, page, s
 	}
 	query := r.db.WithContext(ctx).Model(&model.User{}).Where("id <> 0")
 	if strings.TrimSpace(keyword) != "" {
-		pattern := "%" + escapeLike(strings.ToLower(strings.TrimSpace(keyword))) + "%"
-		// LOWER on both sides keeps SQLite's ASCII-insensitive LIKE and
-		// PostgreSQL's case-sensitive LIKE answering the same results.
+		pattern := "%" + escapeLike(strings.TrimSpace(keyword)) + "%"
+		// Fold both operands in the database: SQLite LOWER only folds
+		// ASCII, whereas Go's Unicode folding can change an exact keyword.
 		query = query.Where(
-			"(LOWER(username) LIKE ? ESCAPE '\\' OR LOWER(email) LIKE ? ESCAPE '\\')",
+			"(LOWER(username) LIKE LOWER(?) ESCAPE '\\' OR LOWER(email) LIKE LOWER(?) ESCAPE '\\')",
 			pattern, pattern,
 		)
 	}

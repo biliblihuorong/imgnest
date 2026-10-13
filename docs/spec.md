@@ -250,10 +250,10 @@ CDN 缓存不在本程序处理范围内。
 本地全留、云端抹掉敏感项，而且抹除是无损的：不重新编码原图，画质与上传文件完全一致。
 
 - **读取**：imagemeta解析常用字段；从原始容器字节提取全部EXIF/XMP/未知字段/MakerNote原始块，以base64归档到本地raw。WebP直接解析RIFF块，避免锁定vipsgen的GetBlob借用内存释放风险；该风险由源码推断，未原生复现。
-- **默认抹除**（`scrub_mode = gps`）：GPS 全部字段；作者/所有人（Artist、CameraOwnerName）；序列号（BodySerialNumber、LensSerialNumber）；整个 XMP 块（常带 GPS 和编辑软件历史）；MakerNote不透明载荷也清零/移除，防止厂商身份字段泄漏。本地归档在此之前完成。
+- **默认抹除**（`scrub_mode = gps`）：GPS 全部字段；作者/所有人（Artist、CameraOwnerName）；序列号（BodySerialNumber、LensSerialNumber、TIFF/DNG 的 CameraSerialNumber）；整个 XMP 块（常带 GPS 和编辑软件历史）；MakerNote不透明载荷也清零/移除，防止厂商身份字段泄漏。本地归档在此之前完成。完整 TIFF 不按高位标签一律删除，保留 DNG 的版本、相机型号等安全结构标签。
 - **保留**：相机型号、镜头、曝光参数、拍摄时间、方向、ICC 色彩配置。
 - **其他档位**：`none` 不清理；`all` 清空全部 EXIF，只留方向和 ICC。
-- **实现方式**：原位改写。JPEG 在 APP1 段的 TIFF 结构里把上述条目的值清零、GPS IFD 条目数置 0，字节长度不变；XMP 段整段移除；PNG 的 `eXIf` 块和 WebP 的 `EXIF` 块同样处理（PNG 重算 CRC）。全程不解码像素。
+- **实现方式**：原位改写。JPEG 在 APP1 段的 TIFF 结构里把上述条目的值清零、GPS IFD 条目数置 0，字节长度不变；XMP 段整段移除；PNG 的 `eXIf` 块和 WebP 的 `EXIF` 块同样处理（PNG 重算 CRC）。全程不解码像素。待清理值与任何保留值（含跨 IFD 的 ColorMap、ICC、相机参数）共享字节时拒绝脱敏，避免清理通过别名改变像素或安全元数据。保留的外部值也可能引用 TIFF header/IFD 的计数或条目字节；完成临时输出后，按合并区间比较其原始字节，任何变化均拒绝，不返回可存储的原图。保留条目的内联值可随目录重排，外部值引用未改动的目录字节仍允许；合并后的比较总字节不超过输入大小。
 - **HEIC/AVIF**：首版不做原位改写，规则里选「只存 WebP（默认）/ 原样保存不脱敏 / 拒绝上传」。
 - **可见性**：GPS 与 `raw` 只有本人和管理员能看；公开接口、画廊、蓝空 v1 接口一律不返回 EXIF。
 - **历史图片**：从蓝空接管的 B2 原图仍带 GPS。补处理任务先提取 EXIF 入库，再按开关决定是否原位清理并覆盖云端原图（覆盖后链接不变，`md5` 会变）。
@@ -394,7 +394,7 @@ imgnest/
 - logout 仅吊销当前 Token；改密与 reset-password 原子更新密码并吊销该用户全部 Token。用户不能查看或吊销其他用户 Token。
 - Token 签发绑定服务层产生的不透明认证证明，事务内锁定用户并重新检查密码哈希、enabled 状态及来源 Token 的存在/所有权/过期时间（过期时间用取得锁之后的当前时间判断，而不是请求开始时间）；签发与吊销共用用户锁。不能仅凭 middleware 早先读出的 userID 签发新凭证，撤销完成后的在途旧请求必须被拒绝。
 - 改密/重置以读取并验证的旧哈希为 CAS 条件，原子更新与全 Token 删除同事务；旧改密请求不能覆盖已完成的重置。
-- 新增 `PATCH /api/auth/password`，输入 current_password/new_password，成功需重新登录。登录和注册分别按可信客户端 IP 限流，每分钟 3 次；默认不信任代理头。
+- 新增 `PATCH /api/auth/password`，输入 current_password/new_password，成功需重新登录。原生登录和注册分别按可信客户端 IP 限流，每分钟 3 次；原生登录成功后清空该 IP 的登录尝试窗口，失败不清空。蓝空 v1 换 Token 的 3 次/分钟窗口不因成功重置；默认不信任代理头。
 - 原生错误码：10001 参数、20001 未鉴权、20002 凭证错误、20003 权限不足、30001 注册关闭、30002 用户重复、30003 请求限流、50001 内部失败。成功 code=0；失败 data=null，空列表 data=[]。普通注册成功 HTTP 201、重复 409、注册关闭 403、无效凭证 401、限流 429。
 - 时间存 UTC，对外 RFC3339；native DTO 不含 password_hash/token_hash；API Token 只在创建响应返回明文。业务哨兵在共享 model 声明、service 别名引用，避免 repo 反向引用 service。
 - 对外 Go 函数 context 置首；main、Gin handler、http.Handler、SQL driver 等固定接口签名遵守框架契约，业务内部继续传 context。
@@ -409,7 +409,7 @@ imgnest/
 - 普通复制仍是服务端复制；源已404的遗留删除操作，仅恢复时流式核对目标与持久 SHA256，以免把同长度的错误副本当作成功。正常上传/删除不下载云副本。
 - 本机持久对象使用 `IMGNST01 + uint32 header length + ObjectInfo JSON + 原始 bytes` 的原子单文件封装；内容本身无重新编码，驱动 Open 只返回图片 bytes。备份需保留整个存储根，不能绕过驱动用静态文件服务器直接输出物理 .jpg/.webp。data/thumbs 缓存仍是普通 WebP 文件；详见 internal/storage/README.md。
 - Image 的 size/ext/mime/md5/sha1/width/height/frames 描述实际保存的主图；webp_only 取真实 WebP 主图，both/none 取原图的视觉尺寸。src_md5 和 EXIF/raw 始终来自上传源。上传原生 DTO、直接图片和缩略图不返回 EXIF。
-- 完整 raw 归档保存容器元数据原始块。classic TIFF 的不透明私有布局可用明确标记的 full-source-fallback（输入至多20MiB）保存在 owner/admin 私有 raw；该情况 gps/all 原图脱敏拒绝。BigTIFF 和不能完整解析的 ISOBMFF 布局明确拒绝，不默默漏存元数据。
+- 完整 raw 归档保存容器元数据原始块。classic TIFF 先合并所有可达 header/IFD/value 的重叠区间，再克隆区间原始字节，累计归档字节不超过输入大小；相同偏移的不同长度值均完整保留，跨块类型的重叠区间标记为 `tiff-range`。不透明私有布局可用明确标记的 full-source-fallback（输入至多20MiB）保存在 owner/admin 私有 raw；该情况 gps/all 原图脱敏拒绝。BigTIFF 和不能完整解析的 ISOBMFF 布局明确拒绝，不默默漏存元数据。
 - M2 native 以数值 id 提供图片/EXIF/权限与批量回收站接口；稳定随机 key 用于缩略图及未来 v1。POST /api/upload 接受重复 file/files[]，字段 policy_id/album_id/is_public，单文件201，批量207逐项结果。默认整请求64MiB、单文件20MiB、至多20文件、2并发请求、5min处理期限、100MP含动画帧；这些限制先于完整读取。
 - M2 新码：10002=请求/文件过大(413)、10004=请求取消/超时(408)、30004=容量(403)、30005=路径冲突(409)、30006=图片繁忙(409)、30007=格式不支持(415)、50002=存储(502)、50003=处理/脱敏拒绝(422)。保留 M1 外壳与错误码。
 - 扩展插件新码：10005=插件设置值需要管理员修正(400，message 由插件提供、可直接显示)、30013=上传未通过插件的内容审核(422)、30014=未配置主密钥时保存密钥类插件设置(409)、30015=超出插件设定的上传次数(429)、50005=内容审核暂不可用(503)。

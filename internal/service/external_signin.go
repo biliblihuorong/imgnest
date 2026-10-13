@@ -17,7 +17,7 @@ import (
 // IdentityRepository persists links between external subjects and accounts.
 type IdentityRepository interface {
 	FindUserByIdentity(ctx context.Context, provider, subject string) (model.User, error)
-	LinkIdentity(ctx context.Context, identity model.UserIdentity) error
+	LinkIdentity(ctx context.Context, identity model.UserIdentity, grant model.TokenGrant) (model.User, error)
 	CreateUserWithIdentity(ctx context.Context, user model.User, identity model.UserIdentity) (model.User, error)
 }
 
@@ -82,10 +82,13 @@ func (s *UserService) SignInExternal(ctx context.Context, in ExternalSignIn) (Ve
 				return VerifiedCredentials{}, ErrIdentityNotLinked
 			}
 			identity.UserID = existing.ID
-			if err := s.identities.LinkIdentity(ctx, identity); err != nil {
+			linked, err := s.identities.LinkIdentity(ctx, identity, model.TokenGrant{
+				UserID: existing.ID, ExpectedPasswordHash: existing.PasswordHash, ExpectedAccountState: accountState(existing),
+			})
+			if err != nil {
 				return s.afterLinkConflict(ctx, in, err)
 			}
-			return s.externalCredentials(ctx, existing)
+			return s.externalCredentials(ctx, linked)
 		case !errors.Is(err, ErrNotFound):
 			return VerifiedCredentials{}, fmt.Errorf("find account by email: %w", err)
 		}

@@ -17,6 +17,7 @@ import {
   zhCN,
 } from "naive-ui";
 import AppLayout from "@/components/layout/AppLayout.vue";
+import { useAuthStore } from "@/stores/auth";
 
 const { locale } = useI18n();
 const naiveLocale = computed(() => (locale.value === "en-US" ? enUS : zhCN));
@@ -26,6 +27,7 @@ const { commonTokens } = useNaiveDesignTokens();
 const theme = computed(() => (isDark.value ? darkTheme : null));
 const themeOverrides = computed(() => ({ common: commonTokens }));
 const route = useRoute();
+const auth = useAuthStore();
 const isBare = computed(() => route.meta.bare === true);
 </script>
 
@@ -42,7 +44,7 @@ const isBare = computed(() => route.meta.bare === true);
         <NDialogProvider>
           <NGlobalStyle />
           <RouterView v-if="isBare" />
-          <AppLayout v-else />
+          <AppLayout v-else :key="auth.sessionGeneration" />
         </NDialogProvider>
       </NMessageProvider>
     </NNotificationProvider>

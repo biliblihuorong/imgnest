@@ -1,12 +1,18 @@
-import { flushPromises, mount } from "@vue/test-utils";
-import { createPinia } from "pinia";
-import { beforeEach, expect, it, vi } from "vitest";
+import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import { createPinia, disposePinia, type Pinia } from "pinia";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { listAlbums, type AlbumPage, type AlbumView } from "@/api/albums";
 import { useAuthStore } from "@/stores/auth";
 import SidebarAlbums from "./SidebarAlbums.vue";
 import { shellTestRouter, testUser } from "./testing";
 
 vi.mock("@/api/albums", () => ({ listAlbums: vi.fn() }));
+const mountedPinia = new Set<Pinia>();
+enableAutoUnmount(afterEach);
+afterEach(() => {
+  mountedPinia.forEach(disposePinia);
+  mountedPinia.clear();
+});
 
 const formStub = {
   name: "AlbumFormModal",
@@ -29,6 +35,7 @@ beforeEach(() => {
 
 async function mountAlbums(options: { anonymous?: boolean; path?: string } = {}) {
   const pinia = createPinia();
+  mountedPinia.add(pinia);
   const auth = useAuthStore(pinia);
   if (!options.anonymous) {
     auth.token = "token";

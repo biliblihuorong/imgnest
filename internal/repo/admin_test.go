@@ -102,6 +102,21 @@ func TestListUsersFiltersKeywordAndPages(t *testing.T) {
 	})
 }
 
+func TestListUsersFindsExactUnicodeUsername(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		admin, _, _, _, _, _, _ := newAdminRepositories(t, db)
+		var group model.Group
+		if err := db.WithContext(t.Context()).First(&group, "is_default = ?", true).Error; err != nil {
+			t.Fatal(err)
+		}
+		user := seedAdminUser(t, db, "Émile", "emile@example.com", group.ID)
+		users, total, err := admin.ListUsers(t.Context(), " Émile ", 1, 20)
+		if err != nil || total != 1 || len(users) != 1 || users[0].ID != user.ID {
+			t.Fatalf("exact username returned total=%d rows=%+v err=%v, want user %d", total, users, err, user.ID)
+		}
+	})
+}
+
 func TestSetUserStatusRevokesTokens(t *testing.T) {
 	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
 		admin, users, _, _, _, _, tokens := newAdminRepositories(t, db)
