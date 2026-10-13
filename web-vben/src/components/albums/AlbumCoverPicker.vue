@@ -1,15 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from "@vben/locales";
-import {
-  NAlert,
-  NButton,
-  NEmpty,
-  NInput,
-  NModal,
-  NPagination,
-  NSpin,
-  NTag,
-} from "naive-ui";
+import { NAlert, NButton, NEmpty, NInput, NModal, NPagination, NSpin, NTag } from "naive-ui";
 import { onMounted, onScopeDispose, ref, shallowRef } from "vue";
 import { watchDebounced } from "@vueuse/core";
 import { listImages, type ImageView } from "@/api/images";
@@ -32,18 +23,25 @@ const size = 24;
 const total = shallowRef(0);
 let requestId = 0;
 let active = true;
+let controller: AbortController | undefined;
 
 async function load(): Promise<void> {
-  if (loading.value || !active) return;
+  if (!active) return;
   const current = ++requestId;
+  controller?.abort();
+  controller = new AbortController();
+  const signal = controller.signal;
   loading.value = true;
   error.value = null;
   try {
-    const data = await listImages({
-      page: page.value,
-      size,
-      q: search.value.trim() || undefined,
-    });
+    const data = await listImages(
+      {
+        page: page.value,
+        size,
+        q: search.value.trim() || undefined,
+      },
+      signal,
+    );
     if (!active || current !== requestId) return;
     images.value = data.items;
     total.value = data.total;
@@ -71,6 +69,7 @@ watchDebounced(
 onMounted(() => void load());
 onScopeDispose(() => {
   active = false;
+  controller?.abort();
   requestId++;
 });
 </script>
@@ -100,7 +99,12 @@ onScopeDispose(() => {
       </NTag>
     </div>
     <div class="album-cover-picker__body">
-      <NSpin :show="loading" size="small" class="album-cover-picker__spin" content-style="min-height: 0; flex: 1;">
+      <NSpin
+        :show="loading"
+        size="small"
+        class="album-cover-picker__spin"
+        content-style="min-height: 0; flex: 1;"
+      >
         <NAlert v-if="error" type="error" :title="formatApiError(error, 'albums.pickerFailed')">
           <NButton size="small" :disabled="loading" @click="load">{{ t("albums.retry") }}</NButton>
         </NAlert>

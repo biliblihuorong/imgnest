@@ -174,7 +174,7 @@ describe("AlbumFormModal", () => {
     await bodyButton("从我的图片选择").click();
     await flushPromises();
 
-    expect(listImagesMock).toHaveBeenCalledWith({ page: 1, size: 24 });
+    expect(listImagesMock).toHaveBeenCalledWith({ page: 1, size: 24 }, expect.any(AbortSignal));
     const items = document.body.querySelectorAll(".album-form__picker-item");
     expect(items).toHaveLength(2);
 

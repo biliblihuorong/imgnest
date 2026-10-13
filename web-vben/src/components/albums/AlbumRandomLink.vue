@@ -32,6 +32,7 @@ const url = computed(() => (link.value ? window.location.origin + link.value.pat
 async function load(): Promise<void> {
   const current = ++session;
   loading.value = true;
+  saving.value = false;
   loadFailed.value = false;
   link.value = null;
   try {

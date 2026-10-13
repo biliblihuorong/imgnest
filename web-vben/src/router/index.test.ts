@@ -81,6 +81,33 @@ describe("router 守卫", () => {
 
     expect(router.currentRoute.value.path).toBe("/upload");
   });
+  it("storage 写失败后的内存会话仍可访问受保护路由", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: 0,
+          data: {
+            token: "7|memory",
+            user: { id: 1, role: "user" },
+            expires_at: "2026-10-14T00:00:00Z",
+          },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("quota", "QuotaExceededError");
+    });
+    try {
+      await useAuthStore().login("alice@example.com", "password-123");
+      const router = setupRouter();
+      await router.push("/images");
+      expect(router.currentRoute.value.path).toBe("/images");
+    } finally {
+      setItem.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
 
   it("身份尚未恢复时守卫先等待 restore 再放行", async () => {
     localStorage.setItem(TOKEN_STORAGE_KEY, "7|token");

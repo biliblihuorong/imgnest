@@ -38,8 +38,8 @@ export function register(payload: RegisterPayload, signal?: AbortSignal): Promis
 }
 
 /** 当前登录用户信息。 */
-export function me(): Promise<UserView> {
-  return request<UserView>("/api/auth/me");
+export function me(signal?: AbortSignal): Promise<UserView> {
+  return signal ? request<UserView>("/api/auth/me", { signal }) : request<UserView>("/api/auth/me");
 }
 
 /** 吊销当前 bearer token；失败可忽略（本地登出不受影响）。 */
