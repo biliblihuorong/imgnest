@@ -1371,6 +1371,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/plugins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the settings cards of server plugins
+         * @description Requires the administrator role. Each plugin that implements
+         *     `extension.Configurable` and currently shows its card is listed with
+         *     its field schema and current values. Secret values are never returned:
+         *     a stored secret reads as `__imgnest_secret_kept__`, an unset one as
+         *     an empty string. List items carry a `_key` that keeps their secrets
+         *     across saves. The community edition returns an empty list.
+         */
+        get: operations["adminListPluginSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/plugins/{name}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save one plugin's settings
+         * @description Requires the administrator role. `values` replaces the plugin's
+         *     settings: missing keys take their defaults and unknown keys are
+         *     dropped. Send `__imgnest_secret_kept__` (with the item's `_key` inside
+         *     lists) to keep a stored secret. The server checks types, bounds,
+         *     options and required fields, the plugin checks the rest, and only
+         *     accepted values are stored (encrypted when `security.master_key` is
+         *     set). 400/10005 carries a message for the administrator; 409/30014
+         *     means a secret was entered but no master key is configured.
+         */
+        put: operations["adminSavePluginSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/trash/purge-all": {
         parameters: {
             query?: never;
@@ -1810,6 +1862,59 @@ export interface components {
             code: 0;
             message: string;
             data: components["schemas"]["PolicyPreviewResult"];
+        };
+        PluginSettingOption: {
+            label: string;
+            value: string | number;
+        };
+        PluginSettingField: {
+            key: string;
+            label: string;
+            help?: string;
+            /** @enum {string} */
+            type: "text" | "textarea" | "secret" | "bool" | "int" | "number" | "select" | "tags" | "list";
+            placeholder?: string;
+            required?: boolean;
+            default?: unknown;
+            min?: number;
+            max?: number;
+            options?: components["schemas"]["PluginSettingOption"][];
+            /** @enum {string} */
+            options_from?: "groups" | "policies" | "storages";
+            multiple?: boolean;
+            /** @description Item fields of a list field. */
+            fields?: components["schemas"]["PluginSettingField"][];
+            item_label?: string;
+        };
+        PluginSettingStatus: {
+            label: string;
+            value: string;
+            /** @enum {string} */
+            level: "info" | "success" | "warning" | "error";
+        };
+        PluginSettings: {
+            name: string;
+            title: string;
+            description?: string;
+            fields: components["schemas"]["PluginSettingField"][];
+            values: {
+                [key: string]: unknown;
+            };
+            status: components["schemas"]["PluginSettingStatus"][];
+            /** @description False when no master key is configured, so secret fields cannot be saved. */
+            secrets_available: boolean;
+        };
+        PluginSettingsEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["PluginSettings"];
+        };
+        PluginSettingsListEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["PluginSettings"][];
         };
         AdminSettingsEnvelope: {
             /** @enum {integer} */
@@ -2497,7 +2602,7 @@ export interface components {
         };
         ErrorEnvelope: {
             /** @enum {integer} */
-            code: 10001 | 10002 | 10004 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30010 | 30011 | 30012 | 50001 | 50002 | 50003 | 50004;
+            code: 10001 | 10002 | 10004 | 10005 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30010 | 30011 | 30012 | 30013 | 30014 | 50001 | 50002 | 50003 | 50004 | 50005;
             /** @description Human-readable error message without technical or credential details. */
             message: string;
             data: components["schemas"]["NullData"];
@@ -2606,8 +2711,10 @@ export interface components {
          *     413/10002 byte limit; 408/10004 cancellation/deadline; 429/30003 upload
          *     rate; 403/30004 quota; 409/30005 path conflict; 409/30006 in-progress
          *     image operation; 415/30007 disallowed format; 502/50002 storage failure;
-         *     422/50003 processing or privacy-sanitization failure; 500/50001 other
-         *     internal failure. No private source data or provider diagnostics are returned.
+         *     422/50003 processing or privacy-sanitization failure; 422/30013 refused
+         *     by a plugin's content review; 503/50005 content review unavailable;
+         *     500/50001 other internal failure. No private source data or provider
+         *     diagnostics are returned.
          */
         ImageFailure: {
             headers: {
@@ -4915,6 +5022,81 @@ export interface operations {
             409: components["responses"]["ImageBusy"];
             500: components["responses"]["InternalError"];
             502: components["responses"]["StorageFailed"];
+        };
+    };
+    adminListPluginSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Visible plugin settings cards. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginSettingsListEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminSavePluginSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    values: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description The saved card. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginSettingsEnvelope"];
+                };
+            };
+            /** @description Invalid JSON (10001) or a value the administrator must fix (10005, with a displayable message). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description A secret was entered but `security.master_key` is not configured; code 30014. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            500: components["responses"]["InternalError"];
         };
     };
     adminPurgeAllTrash: {

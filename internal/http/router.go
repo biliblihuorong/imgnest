@@ -42,6 +42,9 @@ type Dependencies struct {
 	// Web is the built single-page app rooted at its dist directory. When nil
 	// the router keeps returning JSON 404 for unmatched paths.
 	Web fs.FS
+	// PluginSettings serves the console's plugin settings cards; nil omits
+	// the routes.
+	PluginSettings native.PluginSettings
 	// Plugins are out-of-tree extensions, each mounted under /api/ext/{name}.
 	Plugins []extension.Plugin
 	// ExternalSignIn signs in identities that plugins verified; without it
@@ -123,6 +126,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.Admin != nil {
 		if err := handler.RegisterAdminRoutes(ctx, router, deps.Admin, deps.AdminImages); err != nil {
 			return nil, fmt.Errorf("register admin routes: %w", err)
+		}
+	}
+	if deps.PluginSettings != nil {
+		if err := handler.RegisterPluginSettingsRoutes(ctx, router, deps.PluginSettings); err != nil {
+			return nil, fmt.Errorf("register plugin settings routes: %w", err)
 		}
 	}
 	if deps.Lsky != nil {

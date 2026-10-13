@@ -18,6 +18,7 @@ import (
 	"github.com/biliblihuorong/imgnest/internal/pathtpl"
 	"github.com/biliblihuorong/imgnest/internal/randompool"
 	"github.com/biliblihuorong/imgnest/internal/repo"
+	"github.com/biliblihuorong/imgnest/internal/secret"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
@@ -77,11 +78,18 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := usePluginCounters(cmd.Context(), db, plugins, logger); err != nil {
+				return err
+			}
+			pluginSettings, err := newPluginSettings(cmd.Context(), db, cfg, plugins, logger)
+			if err != nil {
+				return err
+			}
 			webFS, err := frontendDistFS()
 			if err != nil {
 				return fmt.Errorf("open embedded web app: %w", err)
 			}
-			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, ExternalSignIn: users})
+			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, PluginSettings: pluginSettings, ExternalSignIn: users})
 			if err != nil {
 				return err
 			}
@@ -243,6 +251,53 @@ func newAdminService(ctx context.Context, db *gorm.DB, cfg config.Config) (*serv
 		return nil, fmt.Errorf("create admin service: %w", err)
 	}
 	return adminService, nil
+}
+
+// newPluginSettings stores plugin settings next to the site settings and
+// applies the saved values before the server takes requests.
+func newPluginSettings(ctx context.Context, db *gorm.DB, cfg config.Config, plugins []extension.Plugin, logger *slog.Logger) (*service.PluginSettingsService, error) {
+	settingsRepo, err := repo.NewSettingsRepository(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("create settings repository: %w", err)
+	}
+	codec, err := secret.NewCodec(ctx, cfg.Security.MasterKey)
+	if err != nil {
+		return nil, fmt.Errorf("create secret codec: %w", err)
+	}
+	settings, err := service.NewPluginSettingsService(ctx, settingsRepo, codec, configurablePlugins(plugins))
+	if err != nil {
+		return nil, fmt.Errorf("create plugin settings: %w", err)
+	}
+	fallbacks, err := settings.ApplyStored(ctx)
+	for _, name := range fallbacks {
+		logger.WarnContext(ctx, "saved plugin settings refused; using defaults", "plugin", name)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("apply plugin settings: %w", err)
+	}
+	return settings, nil
+}
+
+// usePluginCounters hands each CounterUser plugin its own durable counters
+// and prunes counters no plugin has touched for a long time.
+func usePluginCounters(ctx context.Context, db *gorm.DB, plugins []extension.Plugin, logger *slog.Logger) error {
+	counters, err := repo.NewPluginCounterRepository(db, time.Now)
+	if err != nil {
+		return fmt.Errorf("create plugin counters: %w", err)
+	}
+	used := false
+	for _, plugin := range plugins {
+		if user, ok := plugin.(extension.CounterUser); ok {
+			user.UseCounters(pluginCounters{plugin: plugin.Name(), store: counters})
+			used = true
+		}
+	}
+	if used {
+		if _, err := counters.Prune(ctx); err != nil {
+			logger.WarnContext(ctx, "prune plugin counters failed", "code", 50001)
+		}
+	}
+	return nil
 }
 
 func runServer(ctx context.Context, server *http.Server, listener net.Listener, timeout time.Duration) error {

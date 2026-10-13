@@ -314,6 +314,18 @@ func errorResponse(err error) (int, Response) {
 		status, code, message = 502, 50002, "storage operation failed"
 	case errors.Is(err, service.ErrProcessing):
 		status, code, message = 422, 50003, "image processing failed"
+	case errors.Is(err, service.ErrContentRejected):
+		status, code, message = 422, 30013, "image rejected by content review"
+	case errors.Is(err, service.ErrReviewUnavailable):
+		status, code, message = 503, 50005, "content review unavailable; try again later"
+	case errors.Is(err, service.ErrUploadLimitReached):
+		status, code, message = 429, 30015, "upload limit reached"
+	case errors.Is(err, service.ErrPluginSecretsUnavailable):
+		status, code, message = 409, 30014, "saving secrets requires security.master_key"
+	}
+	var settingsErr *service.PluginSettingsError
+	if errors.As(err, &settingsErr) {
+		return 400, Response{Code: 10005, Message: settingsErr.Message, Data: nil}
 	}
 	return status, Response{Code: code, Message: message, Data: nil}
 }
