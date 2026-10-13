@@ -41,7 +41,7 @@ P0 = 首个可用版本必须有；P1 = 紧接着做；P2 = 看心情。
 | 缩略图 | 本地一份（后台列表、预览用）+ 云端一份 `{文件名}_thumbs.webp`（API `thumbnail_url`、画廊用） | P0 |
 | EXIF | 完整 EXIF 存本地数据库（含 GPS）；云端原图无损抹除 GPS/序列号/作者；详情页展示相机参数，GPS 仅本人和管理员可见 | P0 |
 | 图片管理 | 网格浏览、搜索、按相册筛选、批量删除/移动/改权限；管理员可看全站图片 | P0 |
-| 回收站 | 删除即不可访问，默认保留 7 天可恢复，到期物理删除；可「彻底删除」 | P0 |
+| 回收站 | 删除即不可访问，默认保留 7 天可恢复（扩展插件可按用户组改天数，见 `TrashPolicy`），到期物理删除；可「彻底删除」 | P0 |
 | API Token | 用户自助创建/吊销；可设过期时间；最后使用时间 | P0 |
 | 蓝空 v1 API | upload / images / albums / strategies / profile / tokens，字段对齐 | P0 |
 | 蓝空迁移 | （延后，v1 不做）CLI 读蓝空数据库，导入用户（保留 bcrypt 密码）、相册、图片记录；B2 上的原图原位接管，不搬文件 | P1 |
@@ -143,6 +143,7 @@ v1 用方案 A 快速跑通，M6 再评估是否换 B。运行参数参照 imago
 | `random_links` | id, user\_id, album\_id(唯一), token(唯一, 明文), enabled | 相册随机图片链接，一个相册一条；删除相册时同事务删除；另有 `users.public_id`（10 位 base62，首次创建链接时惰性生成）。见 7.5 |
 | `settings` | key, value(JSON) | 站点名、开放注册、游客上传、画廊开关、默认组、回收站保留天数等 |
 | `user_identities` | id, user\_id, provider, subject, created\_at | 外部登录（SSO 扩展）身份；`(provider, subject)` 唯一，`provider` 形如 `sso:github`；不复制外部资料，只存稳定的 subject。见 `docs/development.md` 的「扩展插件」 |
+| `plugin_counters` | plugin, name, subject, value, updated\_at | 扩展插件的持久计数器（例如每用户每月上传数），主键 `(plugin, name, subject)`，多实例共享；400 天未更新的行启动时清理 |
 
 访问 URL 不存库，实时拼接：`storage.base_url + "/" + image.path + "." + ext`，换域名只改存储配置即可。表结构变更用版本化迁移脚本，不依赖 `AutoMigrate` 上生产。
 
@@ -296,7 +297,7 @@ CDN 缓存不在本程序处理范围内。
 | 随机图片 | `GET/HEAD /random/{uid}/{token}`（307 跳转） | 公开（凭链接） |
 | Token | `GET/POST /api/tokens`、`DELETE /api/tokens/{id}` | 本人 |
 | 画廊 | `GET /api/gallery`、`GET /api/site` | 公开（受开关控制） |
-| 管理 | `/api/admin/users`、`groups`、`storages`（含 `POST /{id}/test`）、`policies`（含 `POST /preview` 模板预览）、`images`、`trash`（清空全站回收站）、`settings`、`tasks/backfill`（补 WebP/缩略图/EXIF） | 管理员 |
+| 管理 | `/api/admin/users`、`groups`、`storages`（含 `POST /{id}/test`）、`policies`（含 `POST /preview` 模板预览）、`images`、`trash`（清空全站回收站）、`settings`、`plugins`（扩展插件的设置卡片，`PUT /{name}/settings` 保存）、`tasks/backfill`（补 WebP/缩略图/EXIF） | 管理员 |
 
 **约定**
 
@@ -411,6 +412,7 @@ imgnest/
 - 完整 raw 归档保存容器元数据原始块。classic TIFF 的不透明私有布局可用明确标记的 full-source-fallback（输入至多20MiB）保存在 owner/admin 私有 raw；该情况 gps/all 原图脱敏拒绝。BigTIFF 和不能完整解析的 ISOBMFF 布局明确拒绝，不默默漏存元数据。
 - M2 native 以数值 id 提供图片/EXIF/权限与批量回收站接口；稳定随机 key 用于缩略图及未来 v1。POST /api/upload 接受重复 file/files[]，字段 policy_id/album_id/is_public，单文件201，批量207逐项结果。默认整请求64MiB、单文件20MiB、至多20文件、2并发请求、5min处理期限、100MP含动画帧；这些限制先于完整读取。
 - M2 新码：10002=请求/文件过大(413)、10004=请求取消/超时(408)、30004=容量(403)、30005=路径冲突(409)、30006=图片繁忙(409)、30007=格式不支持(415)、50002=存储(502)、50003=处理/脱敏拒绝(422)。保留 M1 外壳与错误码。
+- 扩展插件新码：10005=插件设置值需要管理员修正(400，message 由插件提供、可直接显示)、30013=上传未通过插件的内容审核(422)、30014=未配置主密钥时保存密钥类插件设置(409)、30015=超出插件设定的上传次数(429)、50005=内容审核暂不可用(503)。
 - M2 提供主机管理员 CLI init-local/init-storage/init-policy；S3 配置用部署32-byte base64主密钥 AES-256-GCM 加密，输入只能 stdin/未跟踪配置。主密钥不入库/日志；连接测试验证实际不覆盖写、复制和清理。本机访问前缀为 /i/{storage_id}，BaseURL 实时读出。
 - 固定 vips8.18.6 的 imagor-base 实际缺 BMP 加载器，M2 在同版本官方源码上启用 Magick，并固定源码校验和；不升级 vipsgen。默认 StripMeta 始终保留 ICC 且保护衍生版本，源 WebP 复用按 scrub_mode 无损处理。输入缺少 terminator、恶意 IFD、像素别名及越界 item 都拒绝。
 - M2 单实例、Linux amd64 已实际验证；真实 MinIO 不代表 B2/COS/R2 账户联调已完成。Vue 页面/相册CRUD与蓝空v1/完整管理后台仍按 M3/M4；多架构发布按 M5。

@@ -12,6 +12,10 @@ vi.mock("@/components/admin/CaptchaSettingsCard.vue", () => ({
   default: { template: '<section data-testid="captcha-settings" />' },
 }));
 
+vi.mock("@/components/admin/PluginSettingsSection.vue", () => ({
+  default: { template: '<section data-testid="plugin-settings" />' },
+}));
+
 vi.mock("@/api/admin", () => ({
   getSettings: vi.fn(),
   putSettings: vi.fn(),

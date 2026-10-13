@@ -147,14 +147,17 @@ func (s *ImageService) trash(ctx context.Context, subject TokenSubject, key stri
 	if err != nil {
 		return err
 	}
-	days, err := s.deps.Settings.TrashDays(ctx)
-	if err != nil {
-		return fmt.Errorf("read trash retention: %w", err)
-	}
 	if image.State == model.ImageStateTrash && image.Operation == "" {
 		return nil
 	}
 	if image.Operation != model.ImageOperationTrash {
+		days, err := s.deps.Settings.TrashDays(ctx)
+		if err != nil {
+			return fmt.Errorf("read trash retention: %w", err)
+		}
+		if days, err = s.trashDays(ctx, image, days); err != nil {
+			return err
+		}
 		op, err := operationID()
 		if err != nil {
 			return err
@@ -169,7 +172,9 @@ func (s *ImageService) trash(ctx context.Context, subject TokenSubject, key stri
 	if err = s.moveToTrash(ctx, image); err != nil {
 		return err
 	}
-	if days == 0 {
+	// A retry uses the retention recorded by BeginTrash, even when the site
+	// setting or the owner's plugin policy has changed since the failed move.
+	if image.DeletedAt != nil && image.PurgeAt != nil && image.PurgeAt.Equal(*image.DeletedAt) {
 		op, err := operationID()
 		if err != nil {
 			return err
@@ -181,6 +186,24 @@ func (s *ImageService) trash(ctx context.Context, subject TokenSubject, key stri
 		return s.purgeObjects(ctx, image)
 	}
 	return nil
+}
+
+// trashDays asks the trash policies for the owner's retention; guest images
+// and owners no policy answers for keep the site setting.
+func (s *ImageService) trashDays(ctx context.Context, image model.Image, site int) (int, error) {
+	if len(s.deps.TrashPolicies) == 0 || image.UserID == 0 {
+		return site, nil
+	}
+	owner, err := s.deps.Users.FindUserByID(ctx, image.UserID)
+	if err != nil {
+		return 0, fmt.Errorf("find image owner: %w", err)
+	}
+	for _, policy := range s.deps.TrashPolicies {
+		if days, ok := policy.TrashDays(ctx, owner.ID, owner.GroupID); ok {
+			return min(max(days, 0), maxTrashDays), nil
+		}
+	}
+	return site, nil
 }
 
 func (s *ImageService) moveToTrash(ctx context.Context, image model.Image) error {

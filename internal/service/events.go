@@ -55,9 +55,31 @@ type DisplayImage struct {
 	Lossless                             bool
 }
 
+// TrashPolicy may override the recycle-bin retention of one owner's image;
+// ok=false keeps the site setting.
+type TrashPolicy interface {
+	TrashDays(ctx context.Context, userID, groupID uint64) (days int, ok bool)
+}
+
 // DisplayTransformer may rewrite an upload's separately encoded display WebP.
 type DisplayTransformer interface {
 	TransformDisplay(ctx context.Context, image DisplayImage, webp []byte) ([]byte, error)
+}
+
+// UploadInspection describes an upload an UploadInspector checks before
+// anything is stored.
+type UploadInspection struct {
+	UserID, GroupID, PolicyID, StorageID uint64
+	Filename, Format                     string
+	Width, Height, Frames                int
+	Size                                 int64
+}
+
+// UploadInspector may refuse an upload with ErrContentRejected or
+// ErrReviewUnavailable; any other error fails the upload as a processing
+// error. image is the display copy (the encoded WebP, else the original).
+type UploadInspector interface {
+	InspectUpload(ctx context.Context, upload UploadInspection, image []byte) error
 }
 
 func (s *ImageService) emit(ctx context.Context, kind string, image model.Image, backend model.Storage) {
