@@ -170,7 +170,7 @@ func newV1Fixture(t *testing.T, driver string) *v1Fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, err := lsky.NewHandler(ctx, lsky.Dependencies{Users: users, Tokens: tokens, Images: images, Albums: albums, Lsky: lskyService, Now: func() time.Time { return fixedNow }})
+	handler, err := lsky.NewHandler(ctx, lsky.Dependencies{Users: users, Tokens: tokens, Images: images, Albums: albums, Lsky: lskyService, Now: func() time.Time { return fixedNow }, Zone: time.UTC})
 	if err != nil {
 		t.Fatal(err)
 	}

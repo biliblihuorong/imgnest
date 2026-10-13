@@ -43,6 +43,7 @@ type ImageRepository interface {
 // PolicyRepository selects allowed upload rules and reads rules for existing images.
 type PolicyRepository interface {
 	UploadPolicy(context.Context, uint64, uint64) (model.Policy, model.Storage, model.Group, error)
+	UploadGroup(context.Context, uint64) (model.Group, error)
 	Find(context.Context, uint64) (model.Policy, error)
 	CreateAndBind(context.Context, model.Policy, uint64, bool) (model.Policy, error)
 	GroupPolicies(context.Context, uint64) ([]model.Policy, error)

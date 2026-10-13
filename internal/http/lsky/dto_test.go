@@ -56,7 +56,7 @@ func TestHumanDateMatchesTheContractText(t *testing.T) {
 		{45 * 24 * time.Hour, "2026-08-20"},
 	}
 	for _, testCase := range cases {
-		if got := humanDate(now, now.Add(-testCase.age)); got != testCase.want {
+		if got := humanDate(now, now.Add(-testCase.age), time.UTC); got != testCase.want {
 			t.Fatalf("humanDate(age=%v) = %q, want %q", testCase.age, got, testCase.want)
 		}
 	}
@@ -134,7 +134,7 @@ func TestBuildImageItemFieldMapping(t *testing.T) {
 		Links:     service.ImageLinks{URL: "https://img.test/u.webp", Original: "https://img.test/u.png", WebP: "https://img.test/u.webp", Thumbnail: "https://img.test/u_thumbs.webp"},
 		CreatedAt: created,
 	}
-	item := buildImageItem(view, albumRef{ID: 3, Name: "博客"}, created)
+	item := buildImageItem(view, albumRef{ID: 3, Name: "博客"}, created, time.UTC)
 	if item.Album.(albumRef) != (albumRef{ID: 3, Name: "博客"}) {
 		t.Fatalf("album = %v", item.Album)
 	}
@@ -163,10 +163,10 @@ func TestBuildImageItemFieldMapping(t *testing.T) {
 	// Without a cloud thumbnail the thumbnail URL falls back to the image URL.
 	noThumb := view
 	noThumb.Links.Thumbnail = ""
-	if got := buildImageItem(noThumb, nil, created).Links.ThumbnailURL; got != "https://img.test/u.webp" {
+	if got := buildImageItem(noThumb, nil, created, time.UTC).Links.ThumbnailURL; got != "https://img.test/u.webp" {
 		t.Fatalf("thumbnail fallback = %s, want the image URL", got)
 	}
-	if got := buildImageItem(noThumb, nil, created).Album; got != nil {
+	if got := buildImageItem(noThumb, nil, created, time.UTC).Album; got != nil {
 		t.Fatalf("album = %v, want null", got)
 	}
 }

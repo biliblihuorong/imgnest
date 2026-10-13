@@ -86,8 +86,9 @@ function pageQuery(params: ListParams): string {
 }
 
 /** 分页列出当前用户的未删除图片（可按相册过滤）。 */
-export function listImages(params: ListParams = {}): Promise<ImagePage> {
-  return request<ImagePage>(`/api/images${pageQuery(params)}`);
+export function listImages(params: ListParams = {}, signal?: AbortSignal): Promise<ImagePage> {
+  const path = `/api/images${pageQuery(params)}`;
+  return signal ? request<ImagePage>(path, { signal }) : request<ImagePage>(path);
 }
 
 /** 读取单张图片的安全元数据。 */

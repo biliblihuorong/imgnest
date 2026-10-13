@@ -7,16 +7,10 @@ import (
 	"github.com/biliblihuorong/imgnest/internal/model"
 )
 
-// AlbumBrief names the album an image belongs to in the v1 list.
-type AlbumBrief struct {
-	ID   uint64
-	Name string
-}
-
-// V1Image pairs an image view with its album reference for the v1 list.
+// V1Image is one entry of the v1 list; the handler derives its album from
+// the album filter, because unfiltered v1 lists only unassigned images.
 type V1Image struct {
 	Image ImageView
-	Album *AlbumBrief
 }
 
 // V1ImageLister is the optional repository capability backing the v1 image

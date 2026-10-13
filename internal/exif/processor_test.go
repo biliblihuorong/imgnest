@@ -80,6 +80,30 @@ func TestArchiveFullMetadataAndScrubJPEG(t *testing.T) {
 	}
 }
 
+// Vendor-private tags (IDs at or above 0xC000) inside embedded EXIF may hold
+// device or owner identifiers beyond the named scrub list; the gps profile
+// strips them from JPEGs, PNGs and WebPs without touching pixels.
+func TestScrubStripsEmbeddedVendorTags(t *testing.T) {
+	p, err := NewProcessor(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := jpegMetadata(t, metadataTIFF())
+	out, err := p.Scrub(t.Context(), data, "jpeg", "gps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(out, []byte("opaque-unknown")) {
+		t.Fatal("vendor-private tag survived the gps scrub")
+	}
+	if !bytes.Equal(jpegScan(data), jpegScan(out)) {
+		t.Fatal("JPEG compressed pixels changed")
+	}
+	if _, err := p.Extract(t.Context(), out, imaging.Info{Format: "jpeg", Orientation: 6}); err != nil {
+		t.Fatalf("scrubbed EXIF no longer parses: %v", err)
+	}
+}
+
 func TestPNGAndWebPMetadataContainers(t *testing.T) {
 	p, err := NewProcessor(t.Context())
 	if err != nil {

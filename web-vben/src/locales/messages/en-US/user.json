@@ -135,6 +135,7 @@
     "selectFiles": "Choose files to upload first",
     "tooMany": "At most {max} files per upload; {count} selected",
     "fileLimit": "Per-file limit {limit}; oversized files: {files}",
+    "busyIgnored": "An upload is in progress; the files you just added were ignored. Add them again when it finishes",
     "totalLimit": "Total upload limit {limit}; selected {total}",
     "copyAll": "Copy all",
     "copiedAll": "Copied {count} links",

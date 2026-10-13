@@ -85,6 +85,27 @@ func (r *PolicyRepository) UploadPolicy(ctx context.Context, userID, policyID ui
 	return policy, storage, group, nil
 }
 
+// UploadGroup resolves the group bounding a user's uploads without requiring
+// any of its rules to be usable, for the pre-read of a multipart body whose
+// selected rule is not known yet.
+func (r *PolicyRepository) UploadGroup(ctx context.Context, userID uint64) (model.Group, error) {
+	var group model.Group
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		user, err := lockUser(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
+		if user.Status != model.UserStatusEnabled {
+			return model.ErrForbidden
+		}
+		return tx.First(&group, "id = ?", user.GroupID).Error
+	})
+	if err != nil {
+		return model.Group{}, imageError("resolve upload group", err)
+	}
+	return group, nil
+}
+
 // Find resolves an existing rule even when disabled, for previously uploaded image links.
 func (r *PolicyRepository) Find(ctx context.Context, id uint64) (model.Policy, error) {
 	if err := checkRecordID(ctx, id); err != nil {

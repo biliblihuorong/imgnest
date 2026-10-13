@@ -20,6 +20,9 @@ func (g *guestPolicyStub) GuestUploadPolicy(context.Context, uint64) (model.Poli
 	g.calls++
 	return g.policy, g.backend, g.group, g.err
 }
+func (g *guestPolicyStub) GuestUploadGroup(context.Context) (model.Group, error) {
+	return g.group, g.err
+}
 
 // guestStoreStub adds the guest image capability on top of the shared upload
 // repository stub, mirroring the user_id = 0 rows of the real adapter.

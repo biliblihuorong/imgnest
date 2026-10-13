@@ -1,7 +1,7 @@
 import { i18n } from "@vben/locales";
-import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
-import naive, { NMessageProvider, NSelect } from "naive-ui";
-import { defineComponent, h } from "vue";
+import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from "@vue/test-utils";
+import naive, { NMessageProvider, NSelect, type MessageProviderInst } from "naive-ui";
+import { defineComponent, h, onBeforeUnmount, ref } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/api/client";
 import { listAlbums } from "@/api/albums";
@@ -28,6 +28,7 @@ vi.mock("@/api/upload", async (importOriginal) => ({
 const policiesApiMock = vi.mocked(policiesApi);
 const listAlbumsMock = vi.mocked(listAlbums);
 const uploadImagesMock = vi.mocked(uploadApi.uploadImages);
+enableAutoUnmount(afterEach);
 
 function makeFile(name: string, size: number): File {
   const file = new File(["x"], name, { type: "image/png" });
@@ -76,7 +77,12 @@ function makeImage(name: string): ImageView {
 // useMessage 需要 NMessageProvider 祖先；naive-ui 组件按提示整体挂载
 function mountView() {
   const host = defineComponent({
-    render: () => h(NMessageProvider, () => [h(UploadView)]),
+    setup() {
+      const messages = ref<MessageProviderInst | null>(null);
+      // Naive UI 2.45.3 的消息计时器需要通过 destroyAll 主动撤销。
+      onBeforeUnmount(() => messages.value?.destroyAll());
+      return () => h(NMessageProvider, { ref: messages }, () => [h(UploadView)]);
+    },
   });
   return mount(host, { global: { plugins: [naive] } });
 }
@@ -212,13 +218,13 @@ describe("UploadView", () => {
     await selectSegmented(wrapper, "Markdown");
     await findButton(actions, "复制").trigger("click");
     await flushPromises();
-    expect(writeText).toHaveBeenLastCalledWith(`![a.png](${image.links.webp})`);
+    expect(writeText).toHaveBeenLastCalledWith(`![a.png](<${image.links.webp}>)`);
 
     // 头部全局切回原图（格式仍是 Markdown），行内复制跟随
     await selectSegmented(wrapper, "原图");
     await findButton(actions, "复制").trigger("click");
     await flushPromises();
-    expect(writeText).toHaveBeenLastCalledWith(`![a.png](${image.links.original})`);
+    expect(writeText).toHaveBeenLastCalledWith(`![a.png](<${image.links.original}>)`);
   });
 
   it("207 部分失败逐项呈现：成功项可复制、失败项有 code/message 与重试", async () => {
@@ -408,4 +414,23 @@ it("can retry loading upload rules after a transient failure without losing the 
   expect(wrapper.text()).toContain("Recovered");
   expect(findButton(wrapper, "开始上传").attributes("disabled")).toBeUndefined();
   wrapper.unmount();
+});
+
+it("销毁测试页面时提前清理真实消息组件的关闭计时器", async () => {
+  policiesApiMock.listPolicies.mockResolvedValue([{ id: 1, name: "Default" }]);
+  const schedule = vi.spyOn(window, "setTimeout");
+  const cancel = vi.spyOn(window, "clearTimeout");
+  const wrapper = mountView();
+  try {
+    await flushPromises();
+    await chooseFiles(wrapper, [makeFile("a.png", 100)]);
+    const index = schedule.mock.calls.findIndex((call) => call[1] === 3000);
+    expect(index).toBeGreaterThanOrEqual(0);
+    const timer = schedule.mock.results[index]!.value;
+    wrapper.unmount();
+    expect(cancel).toHaveBeenCalledWith(timer);
+  } finally {
+    schedule.mockRestore();
+    cancel.mockRestore();
+  }
 });

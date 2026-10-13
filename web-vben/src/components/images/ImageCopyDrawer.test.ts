@@ -64,7 +64,7 @@ describe("ImageCopyDrawer", () => {
     button.click();
     await flushPromises();
 
-    expect(writeText).toHaveBeenCalledWith(`![photo.png](${image.links.webp})`);
+    expect(writeText).toHaveBeenCalledWith(`![photo.png](<${image.links.webp}>)`);
     wrapper.unmount();
     vi.unstubAllGlobals();
   });

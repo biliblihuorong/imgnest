@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/biliblihuorong/imgnest/internal/imaging"
 	"github.com/biliblihuorong/imgnest/internal/model"
@@ -107,6 +108,9 @@ type uploadPolicy struct {
 
 func (p *uploadPolicy) UploadPolicy(context.Context, uint64, uint64) (model.Policy, model.Storage, model.Group, error) {
 	return p.policy, p.backend, p.group, nil
+}
+func (p *uploadPolicy) UploadGroup(context.Context, uint64) (model.Group, error) {
+	return p.group, nil
 }
 func (p *uploadPolicy) Find(context.Context, uint64) (model.Policy, error) { return p.policy, nil }
 
@@ -229,6 +233,39 @@ func (p resizedUploadProcessor) Probe(ctx context.Context, data []byte) (imaging
 		info.Height = 3
 	}
 	return info, err
+}
+
+// The service-layer allowlist check canonicalizes aliases the same way the
+// reservation check does, so "jpeg"/"tif" entries govern jpg/tiff uploads.
+func TestUploadAllowedExtAliases(t *testing.T) {
+	svc, rows, policy, _, subject := uploadFixture(t, "jpg")
+	policy.group.AllowedExts = []string{"jpeg"}
+	view, err := svc.Upload(t.Context(), subject, UploadInput{Data: []byte("source"), Filename: "a.jpg"})
+	if err != nil {
+		t.Fatalf(`allowlist ["jpeg"] refused a JPG upload: %v`, err)
+	}
+	if len(rows.rows) != 1 || view.Key == "" {
+		t.Fatal("upload not committed")
+	}
+	policy.group.AllowedExts = []string{"tif"}
+	if _, err := svc.Upload(t.Context(), subject, UploadInput{Data: []byte("source"), Filename: "b.jpg"}); !errors.Is(err, ErrUnsupportedFormat) {
+		t.Fatalf(`allowlist ["tif"] accepted a JPG upload: %v`, err)
+	}
+}
+
+// The stored original filename is bounded: multipart part headers have no
+// independent limit, so one request must not park megabytes in origin_name.
+func TestUploadOriginNameClamped(t *testing.T) {
+	svc, _, policy, _, subject := uploadFixture(t, "png")
+	policy.policy.NameTpl = "{uniqid}"
+	long := strings.Repeat("\u56fe", 400) + ".png"
+	view, err := svc.Upload(t.Context(), subject, UploadInput{Data: []byte("source"), Filename: long})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Name) > 255 || !utf8.ValidString(view.Name) || view.Name == "" {
+		t.Fatalf("origin name not clamped to a valid prefix: %d bytes", len(view.Name))
+	}
 }
 
 func TestUploadPrimaryDimensionsAndCollisionNames(t *testing.T) {

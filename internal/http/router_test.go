@@ -225,6 +225,17 @@ func TestForwardedHeaderCannotBypassLimit(t *testing.T) {
 		}
 	}
 }
+func TestTokenCreationIsLimitedPerAccount(t *testing.T) {
+	router, _, _, _ := routerFixture(t)
+	for i := range 11 {
+		w := request(t, router, "POST", "/api/tokens", `{"name":"ci"}`, testBearer)
+		if i == 10 {
+			expectCode(t, w, 429, 30003)
+		} else if w.Code == 429 {
+			t.Fatalf("token %d rejected inside the per-account limit", i+1)
+		}
+	}
+}
 func TestMalformedJSONAndExtraBodyRejected(t *testing.T) {
 	router, _, _, _ := routerFixture(t)
 	for _, body := range []string{`{broken`, `{} {}`, strings.Repeat("x", 65537)} {

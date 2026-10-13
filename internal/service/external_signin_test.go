@@ -1,14 +1,91 @@
 package service_test
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
+	"github.com/biliblihuorong/imgnest/internal/repo"
 	"github.com/biliblihuorong/imgnest/internal/service"
 )
+
+// A completed account edit between lookup and insert must invalidate a new
+// email-based identity link, even if token issuance would reject the old proof.
+type externalLookupInterleave struct {
+	service.UserRepository
+	change func()
+}
+
+func (r *externalLookupInterleave) FindUserByEmail(ctx context.Context, email string) (model.User, error) {
+	user, err := r.UserRepository.FindUserByEmail(ctx, email)
+	if err == nil && r.change != nil {
+		change := r.change
+		r.change = nil
+		change()
+	}
+	return user, err
+}
+
+func TestExternalSignInDoesNotLinkAfterAccountEdit(t *testing.T) {
+	for _, edit := range []string{"promotion", "email", "disabled", "password", "authorization-roundtrip"} {
+		t.Run(edit, func(t *testing.T) {
+			forExternalDatabases(t, func(t *testing.T, f *authFixture) {
+				root, err := f.service.InitAdmin(t.Context(), service.RegisterInput{Username: "root", Email: "root@example.com", Password: testPassword})
+				if err != nil {
+					t.Fatal(err)
+				}
+				target := registerUser(t, f, "alice")
+				admin, err := repo.NewAdminRepository(t.Context(), f.db)
+				if err != nil {
+					t.Fatal(err)
+				}
+				interleaved := &externalLookupInterleave{UserRepository: f.users, change: func() {
+					role, email, status := model.UserRoleAdmin, "new-owner@example.com", model.UserStatusDisabled
+					var patch model.UserChanges
+					switch edit {
+					case "promotion", "authorization-roundtrip":
+						patch.Role = &role
+					case "email":
+						patch.Email = &email
+					case "disabled":
+						patch.Status = &status
+					case "password":
+						if err := f.service.ChangePassword(t.Context(), target.ID, testPassword, "replacement-password-123"); err != nil {
+							t.Fatal(err)
+						}
+						return
+					}
+					if _, err := admin.UpdateAdminUser(t.Context(), root.ID, target.ID, patch); err != nil {
+						t.Fatal(err)
+					}
+					if edit == "authorization-roundtrip" {
+						role = model.UserRoleUser
+						if _, err := admin.UpdateAdminUser(t.Context(), root.ID, target.ID, model.UserChanges{Role: &role}); err != nil {
+							t.Fatal(err)
+						}
+					}
+				}}
+				users, err := service.NewUserService(t.Context(), interleaved, f.settings)
+				if err != nil {
+					t.Fatal(err)
+				}
+				users.UseIdentities(f.users)
+				in := githubIdentity("pending-link", "alice@example.com")
+				in.LinkByEmail = true
+				_, signInErr := users.SignInExternal(t.Context(), in)
+				if _, err := f.users.FindUserByIdentity(t.Context(), in.Provider, in.Subject); !errors.Is(err, service.ErrNotFound) {
+					t.Fatalf("account edit must not leave a usable identity: %v", err)
+				}
+				if !errors.Is(signInErr, service.ErrIdentityNotLinked) {
+					t.Fatalf("sign-in after completed %s = %v, want not linked", edit, signInErr)
+				}
+			})
+		})
+	}
+}
 
 func externalFixture(t *testing.T, driver string) *authFixture {
 	t.Helper()

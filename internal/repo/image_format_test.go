@@ -54,3 +54,27 @@ func TestWebPOnlyUploadChecksSourceFormat(t *testing.T) {
 		}
 	})
 }
+
+// Allowlist entries of "jpeg" or "tif" govern the same uploads as the
+// canonical "jpg" and "tiff" the imaging pipeline reports: the reservation
+// check must agree with the service-layer allowlist check.
+func TestAllowedExtAliasesAccepted(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		f := newImageFixture(t, db, "ext-alias")
+		if err := db.Exec("UPDATE groups SET allowed_exts = ? WHERE id = ?", `["jpeg"]`, f.user.GroupID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.images.ReserveUpload(t.Context(), f.request("alias-jpg", "2026/01/alias-jpg")); err != nil {
+			t.Fatalf(`allowlist ["jpeg"] refused a JPG upload: %v`, err)
+		}
+		if _, err := f.images.ReserveUpload(t.Context(), f.webpOnlyRequest("alias-tif", "2026/01/alias-tif", "tiff")); !errors.Is(err, model.ErrUnsupportedFormat) {
+			t.Fatalf(`allowlist ["jpeg"] accepted a TIFF upload: %v`, err)
+		}
+		if err := db.Exec("UPDATE groups SET allowed_exts = ? WHERE id = ?", `["tif"]`, f.user.GroupID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.images.ReserveUpload(t.Context(), f.webpOnlyRequest("alias-tiff", "2026/01/alias-tiff", "tiff")); err != nil {
+			t.Fatalf(`allowlist ["tif"] refused a TIFF upload: %v`, err)
+		}
+	})
+}

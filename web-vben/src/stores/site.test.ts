@@ -36,6 +36,14 @@ describe("site store", () => {
     expect(store.registerEnabled).toBe(false);
   });
 
+  it("并发调用共用同一次在途请求", async () => {
+    siteApiMock.fetchSite.mockResolvedValue({ site_name: "ImgNest", register_enabled: false, gallery_enabled: false, login_providers: [] });
+    const store = useSiteStore();
+
+    await Promise.all([store.ensureLoaded(), store.ensureLoaded(), store.refresh()]);
+    expect(siteApiMock.fetchSite).toHaveBeenCalledTimes(1);
+  });
+
   it("成功加载后重复调用不再发起请求", async () => {
     siteApiMock.fetchSite.mockResolvedValue({ site_name: "ImgNest", register_enabled: false, gallery_enabled: false, login_providers: [] });
     const store = useSiteStore();

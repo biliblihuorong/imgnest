@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	cryptorand "crypto/rand"
 	"errors"
 	"fmt"
 	"net/mail"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unicode"
@@ -29,6 +31,21 @@ func passwordCostFor(testBinary bool) int {
 	}
 	return productionPasswordCost
 }
+
+// unregisteredPasswordHash prices the dummy bcrypt comparison run for unknown
+// addresses or disabled accounts, so login timing cannot separate them from a
+// wrong password. The hash is of per-process random bytes and matches nothing.
+var unregisteredPasswordHash = sync.OnceValue(func() string {
+	raw := make([]byte, 24)
+	if _, err := cryptorand.Read(raw); err != nil {
+		panic("seed dummy password comparison: " + err.Error())
+	}
+	hash, err := bcrypt.GenerateFromPassword(raw, passwordCost)
+	if err != nil {
+		panic("hash dummy password: " + err.Error())
+	}
+	return string(hash)
+})
 
 // maxDisplayNameRunes bounds the self-chosen profile name in Unicode
 // characters, not bytes.
@@ -154,12 +171,17 @@ func (s *UserService) VerifyCredentials(ctx context.Context, email, password str
 	}
 	user, err := s.users.FindUserByEmail(ctx, normalized)
 	if errors.Is(err, ErrNotFound) {
+		// Burn the same bcrypt work on a dummy hash so the response time of
+		// an unknown address matches a wrong password and cannot enumerate
+		// registered accounts.
+		_ = bcrypt.CompareHashAndPassword([]byte(unregisteredPasswordHash()), []byte(password))
 		return VerifiedCredentials{}, ErrInvalidCredentials
 	}
 	if err != nil {
 		return VerifiedCredentials{}, fmt.Errorf("find credential user: %w", err)
 	}
 	if user.Status != model.UserStatusEnabled {
+		_ = bcrypt.CompareHashAndPassword([]byte(unregisteredPasswordHash()), []byte(password))
 		return VerifiedCredentials{}, ErrInvalidCredentials
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
@@ -279,6 +301,9 @@ func (s *UserService) ResetPassword(ctx context.Context, email, next string) err
 		return ErrInvalidInput
 	}
 	user, err := s.users.FindUserByEmail(ctx, normalized)
+	if errors.Is(err, ErrNotFound) {
+		return fmt.Errorf("find password reset user: %w", ErrInvalidInput)
+	}
 	if err != nil {
 		return fmt.Errorf("find password reset user: %w", err)
 	}

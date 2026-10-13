@@ -279,7 +279,9 @@ paths:
         A successful login issues a web token that expires in 24 hours.
         Copy the token from this response; it cannot be retrieved later.
         Limited to three requests per minute per client IP, independently
-        of the registration limit. Disabled users cannot log in. The rate limit
+        of the registration limit. A successful native login clears that IP's
+        login-attempt window; failed attempts do not reset it. Disabled users
+        cannot log in. The rate limit
         runs before provider verification. When CAPTCHA is enabled, captcha_token
         must pass the active provider for action login before password checking
         and token issuance. Failure never falls back to password-only login.

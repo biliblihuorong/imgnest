@@ -22,6 +22,10 @@ type Options struct {
 	WebPMode                                        string
 	Quality, Effort, MaxWidth, MaxHeight, ThumbSize int
 	Lossless, SkipIfLarger, ThumbEnabled            bool
+	// Probed, when set, is the result of Probe on this exact buffer. Process
+	// then skips its own full validation decode; the source is still decoded
+	// with FailOnError by every derivative it produces.
+	Probed *Info
 }
 
 // Result contains safe derivatives and the source image information.
@@ -108,8 +112,13 @@ func (p *VipsProcessor) Process(ctx context.Context, data []byte, opts Options) 
 	if invalidQuality || invalidEffort || invalidSize {
 		return Result{}, ErrInvalidOptions
 	}
-	info, err := p.probe(data)
-	if err != nil {
+	var (
+		info Info
+		err  error
+	)
+	if format, _, _ := magic(data); opts.Probed != nil && opts.Probed.Format != "" && opts.Probed.Format == format {
+		info = *opts.Probed
+	} else if info, err = p.probe(data); err != nil {
 		return Result{}, err
 	}
 	result := Result{Info: info, WebP: []byte{}, Thumbnail: []byte{}}

@@ -39,7 +39,9 @@ func (r *AlbumRepository) ListByOwner(ctx context.Context, ownerID uint64, page,
 		query := r.db.WithContext(ctx).Table("albums").Where("albums.user_id = ?", ownerID)
 		if keyword != "" {
 			pattern := "%" + escapeLike(keyword) + "%"
-			query = query.Where("(albums.name LIKE ? ESCAPE '\\' OR albums.intro LIKE ? ESCAPE '\\')", pattern, pattern)
+			// Fold both operands in the database: SQLite LOWER only folds
+			// ASCII, whereas Go's Unicode folding can change an exact keyword.
+			query = query.Where("(LOWER(albums.name) LIKE LOWER(?) ESCAPE '\\' OR LOWER(albums.intro) LIKE LOWER(?) ESCAPE '\\')", pattern, pattern)
 		}
 		return query
 	}

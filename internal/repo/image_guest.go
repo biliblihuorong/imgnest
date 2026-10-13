@@ -15,6 +15,28 @@ import (
 // the per-user row lock serializes account uploads.
 const guestLockKey = 1229801283
 
+// GuestUploadGroup resolves the guest group without requiring any of its
+// rules to be usable, for the pre-read of a multipart body whose selected
+// rule is not known yet.
+func (r *PolicyRepository) GuestUploadGroup(ctx context.Context) (model.Group, error) {
+	var group model.Group
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		resolved, ok, err := resolveGuestGroup(ctx, tx)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return model.ErrForbidden
+		}
+		group = resolved
+		return nil
+	})
+	if err != nil {
+		return model.Group{}, imageError("resolve guest upload group", err)
+	}
+	return group, nil
+}
+
 // GuestUploadPolicy resolves an enabled rule for the guest group without
 // reading or locking any user row. policyID zero selects the group default.
 func (r *PolicyRepository) GuestUploadPolicy(ctx context.Context, policyID uint64) (model.Policy, model.Storage, model.Group, error) {

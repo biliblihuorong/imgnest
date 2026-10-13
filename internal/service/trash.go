@@ -25,6 +25,16 @@ func (s *ImageService) lockOperations(ctx context.Context) error {
 func (s *ImageService) unlockOperations() { <-s.operations }
 
 func (s *ImageService) ownedImage(ctx context.Context, subject TokenSubject, key string) (model.Image, error) {
+	return s.actedImage(ctx, subject, key, true)
+}
+
+// strictlyOwnedImage resolves an image without the admin cross-owner bypass.
+// The Lsky-compatible v1 tokens are owner-scoped, unlike the native console.
+func (s *ImageService) strictlyOwnedImage(ctx context.Context, subject TokenSubject, key string) (model.Image, error) {
+	return s.actedImage(ctx, subject, key, false)
+}
+
+func (s *ImageService) actedImage(ctx context.Context, subject TokenSubject, key string, allowAdmin bool) (model.Image, error) {
 	actor, err := s.actor(ctx, subject)
 	if err != nil {
 		return model.Image{}, err
@@ -33,7 +43,7 @@ func (s *ImageService) ownedImage(ctx context.Context, subject TokenSubject, key
 	if err != nil {
 		return model.Image{}, fmt.Errorf("read image: %w", err)
 	}
-	if image.UserID != actor.ID && actor.Role != model.UserRoleAdmin {
+	if image.UserID != actor.ID && (!allowAdmin || actor.Role != model.UserRoleAdmin) {
 		return model.Image{}, ErrForbidden
 	}
 	if image.State == model.ImageStatePending {
@@ -112,11 +122,28 @@ func verifyObjectDigest(ctx context.Context, driver storage.Driver, key string, 
 
 // Trash moves each live object into the recycle bin before returning success.
 func (s *ImageService) Trash(ctx context.Context, subject TokenSubject, key string) error {
+	return s.trash(ctx, subject, key, true)
+}
+
+// TrashOwned moves one image into the recycle bin under strict ownership:
+// administrators acting through a v1 token cannot recycle another owner's
+// image, matching the owner scope of Lsky Pro tokens.
+func (s *ImageService) TrashOwned(ctx context.Context, subject TokenSubject, key string) error {
+	return s.trash(ctx, subject, key, false)
+}
+
+func (s *ImageService) trash(ctx context.Context, subject TokenSubject, key string, allowAdmin bool) error {
 	if err := s.lockOperations(ctx); err != nil {
 		return err
 	}
 	defer s.unlockOperations()
-	image, err := s.ownedImage(ctx, subject, key)
+	var image model.Image
+	var err error
+	if allowAdmin {
+		image, err = s.ownedImage(ctx, subject, key)
+	} else {
+		image, err = s.strictlyOwnedImage(ctx, subject, key)
+	}
 	if err != nil {
 		return err
 	}

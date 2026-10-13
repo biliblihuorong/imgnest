@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -115,9 +116,19 @@ func (h *Handler) RegisterRoutes(ctx context.Context, router gin.IRouter) error 
 	protected.POST("/auth/logout", h.logout)
 	protected.PATCH("/auth/password", h.password)
 	protected.GET("/tokens", h.listTokens)
-	protected.POST("/tokens", h.createToken)
+	protected.POST("/tokens", h.tokenRateLimit, h.createToken)
 	protected.DELETE("/tokens/:id", h.revokeToken)
 	return nil
+}
+
+// tokensPerMinute bounds API token creation per account: each token is a
+// stored row, while a per-IP limit would also throttle users behind one NAT.
+const tokensPerMinute = 10
+
+func (h *Handler) tokenRateLimit(c *gin.Context) {
+	if !h.limits.Allow("tokens:"+strconv.FormatUint(identity(c).User.ID, 10), tokensPerMinute) {
+		c.AbortWithStatusJSON(429, Response{Code: 30003, Message: "too many requests", Data: nil})
+	}
 }
 
 func (h *Handler) rateLimit(c *gin.Context) {
@@ -195,6 +206,9 @@ func (h *Handler) login(c *gin.Context) {
 		fail(c, err)
 		return
 	}
+	// A successful login frees the shared window so one NAT address can sign
+	// in several accounts inside a minute, matching the v1 endpoint.
+	h.limits.Reset(c.FullPath() + ":" + ratelimit.ClientKey(c.ClientIP()))
 	issued, err := h.tokens.Issue(c.Request.Context(), user.Subject, service.TokenInput{Name: "web", Kind: "web", Abilities: []string{"*"}})
 	if err != nil {
 		fail(c, err)

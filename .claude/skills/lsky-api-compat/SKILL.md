@@ -71,6 +71,11 @@ request cannot bypass completed revocation or overwrite a completed reset.
 | DELETE | `/api/v1/albums/{id}` | token | images stay, `album_id` set to null |
 | GET | `/api/v1/profile` | token | user info and capacity |
 
+The v1 token-attempt window remains at three requests per minute after a
+successful issuance. Native `/api/auth/login` instead clears its client-IP
+login window on success; failures do not reset it. Do not copy that native
+reset into the v1 compatibility route.
+
 Filter values:
 - images `order`: `newest` (default) | `earliest` | `utmost` (size desc) | `least`
 - images `permission`: `all` (default) | `public` | `private`

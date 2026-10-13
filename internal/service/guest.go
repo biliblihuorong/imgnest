@@ -12,6 +12,7 @@ import (
 // stay untouched.
 type GuestPolicySource interface {
 	GuestUploadPolicy(ctx context.Context, policyID uint64) (model.Policy, model.Storage, model.Group, error)
+	GuestUploadGroup(ctx context.Context) (model.Group, error)
 }
 
 // GuestImageStore is the optional image capability behind guest uploads.
@@ -35,6 +36,29 @@ func (s *ImageService) GuestPreflight(ctx context.Context, policyID uint64) (Upl
 	if !policy.Enabled || !backend.Enabled {
 		return UploadLimits{}, ErrForbidden
 	}
+	limits, err := s.guestLimits(ctx, store, group)
+	if err != nil {
+		return UploadLimits{}, err
+	}
+	return limits, nil
+}
+
+// GuestPreflightLimits resolves the guest group's capacity-derived bounds
+// without requiring its default rule to be usable; the rule named in the form
+// fields is judged by GuestPreflight once they have been read.
+func (s *ImageService) GuestPreflightLimits(ctx context.Context) (UploadLimits, error) {
+	policies, store, err := s.guestCapabilities()
+	if err != nil {
+		return UploadLimits{}, err
+	}
+	group, err := policies.GuestUploadGroup(ctx)
+	if err != nil {
+		return UploadLimits{}, fmt.Errorf("resolve guest upload group: %w", err)
+	}
+	return s.guestLimits(ctx, store, group)
+}
+
+func (s *ImageService) guestLimits(ctx context.Context, store GuestImageStore, group model.Group) (UploadLimits, error) {
 	used, err := store.GuestUsedBytes(ctx)
 	if err != nil {
 		return UploadLimits{}, fmt.Errorf("read guest usage: %w", err)
@@ -42,11 +66,7 @@ func (s *ImageService) GuestPreflight(ctx context.Context, policyID uint64) (Upl
 	if group.CapacityBytes > 0 && used >= group.CapacityBytes {
 		return UploadLimits{}, ErrQuotaExceeded
 	}
-	cap := s.deps.MaxFileBytes
-	if group.MaxFileBytes > 0 && group.MaxFileBytes < cap {
-		cap = group.MaxFileBytes
-	}
-	return UploadLimits{MaxFileBytes: cap, PerMinute: group.UploadPerMin}, nil
+	return s.groupLimits(group), nil
 }
 
 // GuestUpload publishes anonymous content under user_id = 0. Reservation,

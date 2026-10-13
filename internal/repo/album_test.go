@@ -8,6 +8,33 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestAlbumKeywordFindsExactUnicodeText(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		fixture := newImageFixture(t, db, "album-unicode-keyword")
+		albums, err := NewAlbumRepository(t.Context(), db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range []struct{ name, intro, keyword string }{
+			{"Été", "", "Été"},
+			{"travel", "MÜNCHEN", "MÜNCHEN"},
+			{"Blog", "", "blog"},
+			{"100%_Été", "", "100%_Été"},
+		} {
+			t.Run(item.keyword, func(t *testing.T) {
+				album, err := albums.Create(t.Context(), model.Album{UserID: fixture.user.ID, Name: item.name, Intro: item.intro})
+				if err != nil {
+					t.Fatal(err)
+				}
+				found, total, err := albums.ListByOwner(t.Context(), fixture.user.ID, 1, 40, "newest", item.keyword)
+				if err != nil || total != 1 || len(found) != 1 || found[0].ID != album.ID {
+					t.Fatalf("keyword %q returned total=%d rows=%+v err=%v, want album %d", item.keyword, total, found, err, album.ID)
+				}
+			})
+		}
+	})
+}
+
 // TestAlbumListLiveCounts covers the listing behind GET /api/v1/albums and is
 // the regression test for the duplicated image_count output column that broke
 // PostgreSQL (SELECT albums.*, COUNT(...) AS image_count).

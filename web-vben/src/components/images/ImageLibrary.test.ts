@@ -318,7 +318,7 @@ describe("ImageLibrary", () => {
     // 二级复制：原图 Markdown
     await dropdown.vm.$emit("select", "copy-original:markdown");
     await flushPromises();
-    expect(writeText).toHaveBeenLastCalledWith(`![a.png](${makeImage().links.original})`);
+    expect(writeText).toHaveBeenLastCalledWith(`![a.png](<${makeImage().links.original}>)`);
 
     await dropdown.vm.$emit("select", "props");
     await flushPromises();

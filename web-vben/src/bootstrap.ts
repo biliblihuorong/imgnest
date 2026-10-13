@@ -23,7 +23,8 @@ export async function bootstrap(): Promise<void> {
   const auth = useAuthStore(pinia);
   const site = useSiteStore(pinia);
   connectVbenSession(pinia, router);
-  await auth.restore();
+  // 不阻塞首屏：公开页面直接渲染，受保护路由由守卫等待同一次 restore()。
+  void auth.restore();
   app.use(router);
 
   setUnauthorizedHandler(() => {

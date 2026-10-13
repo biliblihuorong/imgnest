@@ -3,8 +3,10 @@ package native
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/biliblihuorong/imgnest/extension"
+	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -38,8 +40,10 @@ func (h *Handler) RegisterRandomLinkRoutes(ctx context.Context, router gin.IRout
 	}
 	random := &randomHandler{
 		links: links,
-		// A private table keeps a flood here from filling the login limiter's.
-		limiter: newFixedWindowLimiter(randomRequestsPerMinute, randomLimiterCapacity, h.now),
+		// A private table keeps a flood here from filling the login limiter's;
+		// the evicting limiter keeps a flood of distinct clients from locking
+		// everyone else out, and ClientKey folds IPv6 into /64 blocks.
+		limiter: ratelimit.New(h.now, time.Minute, randomLimiterCapacity),
 	}
 	guard := h.guardAccess(extension.AccessRandom)
 	router.GET("/random/:uid/:token", random.rateLimit, guard, random.redirect)
@@ -54,11 +58,11 @@ func (h *Handler) RegisterRandomLinkRoutes(ctx context.Context, router gin.IRout
 
 type randomHandler struct {
 	links   RandomLinks
-	limiter *fixedWindowLimiter
+	limiter *ratelimit.Limiter
 }
 
 func (h *randomHandler) rateLimit(c *gin.Context) {
-	if !h.limiter.allow(c.ClientIP()) {
+	if !h.limiter.Allow(ratelimit.ClientKey(c.ClientIP()), randomRequestsPerMinute) {
 		c.AbortWithStatusJSON(http.StatusTooManyRequests, Response{Code: 30003, Message: "too many requests", Data: nil})
 	}
 }

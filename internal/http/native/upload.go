@@ -10,10 +10,16 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"time"
 )
 
 var errUploadTooLarge = errors.New("upload exceeds size limit")
 var errUploadRateLimited = errors.New("upload rate exceeded")
+
+// uploadSlotWait bounds how long an upload waits for a processing slot
+// before answering with throttling instead of holding the caller for the
+// whole processing timeout.
+const uploadSlotWait = 10 * time.Second
 
 type uploadFile struct {
 	name string
@@ -32,17 +38,29 @@ func (h *imageHandler) upload(c *gin.Context) {
 	select {
 	case h.slots <- struct{}{}:
 		defer func() { <-h.slots }()
+	case <-time.After(uploadSlotWait):
+		fail(c, errUploadRateLimited)
+		return
 	case <-ctx.Done():
 		fail(c, ctx.Err())
 		return
 	}
-	limits, err := h.images.Preflight(ctx, identity(c).Subject, 0)
+	// The first gate only bounds the body read: the group's default rule may
+	// be unusable while the request names an explicit, usable rule in its
+	// fields, so the terminal rule check waits for the second preflight.
+	limits, err := h.images.PreflightLimits(ctx, identity(c).Subject)
 	if err != nil {
 		fail(c, err)
 		return
 	}
 	if limits.MaxFileBytes <= 0 {
 		fail(c, service.ErrInvalidInput)
+		return
+	}
+	userID := identity(c).User.ID
+	if limits.PerMinute > 0 && h.options.Uploads.Exceeded(ratelimit.UploadKey(userID), limits.PerMinute) {
+		// An exhausted allowance is refused before the body is read.
+		fail(c, errUploadRateLimited)
 		return
 	}
 	if c.Request.ContentLength > h.options.MaxRequestBytes {
@@ -53,6 +71,13 @@ func (h *imageHandler) upload(c *gin.Context) {
 	reader, err := c.Request.MultipartReader()
 	if err != nil {
 		fail(c, service.ErrInvalidInput)
+		return
+	}
+	// Reserve the first file's attempt before reading or draining the body.
+	// Per-file rejection, epilogue errors and an unusable selected rule still
+	// spend this allowance; cheap header-only rejections above do not.
+	if !h.allowUpload(userID, limits.PerMinute) {
+		fail(c, errUploadRateLimited)
 		return
 	}
 	files, fields, err := readUpload(ctx, reader, limits.MaxFileBytes, h.options.MaxRequestBytes)
@@ -71,14 +96,16 @@ func (h *imageHandler) upload(c *gin.Context) {
 		return
 	}
 	results := make([]imageResult, 0, len(files))
-	for _, file := range files {
+	for index, file := range files {
 		result := imageResult{Filename: file.name, Status: 201, Response: Response{Code: 0, Message: "ok"}}
 		err := file.err
+		// The first attempt was reserved before parsing. Every additional
+		// batch file spends its own attempt, including rejected files.
+		if index > 0 && !h.allowUpload(userID, limits.PerMinute) {
+			err = errUploadRateLimited
+		}
 		if err == nil && int64(len(file.data)) > limits.MaxFileBytes {
 			err = errUploadTooLarge
-		}
-		if err == nil && !h.allowUpload(identity(c).User.ID, limits.PerMinute) {
-			err = errUploadRateLimited
 		}
 		if err == nil {
 			result.Data, err = h.images.Upload(ctx, identity(c).Subject, service.UploadInput{Data: file.data, Filename: file.name, IP: c.ClientIP(), PolicyID: fields.policyID, AlbumID: fields.albumID, IsPublic: fields.public})
