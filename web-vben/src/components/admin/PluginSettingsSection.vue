@@ -37,7 +37,8 @@ async function loadSources(used: Set<string>): Promise<void> {
   await Promise.all(
     [...used].map(async (source) => {
       try {
-        sources.value = { ...sources.value, [source]: await (loaders[source]?.() ?? []) };
+        const options = await (loaders[source]?.() ?? []);
+        sources.value = { ...sources.value, [source]: options };
       } catch {
         // 选项加载失败时仍可编辑其它设置；下拉框为空。
       }

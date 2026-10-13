@@ -120,14 +120,14 @@ func (s *ImageService) Trash(ctx context.Context, subject TokenSubject, key stri
 	if err != nil {
 		return err
 	}
-	days, err := s.deps.Settings.TrashDays(ctx)
-	if err != nil {
-		return fmt.Errorf("read trash retention: %w", err)
-	}
 	if image.State == model.ImageStateTrash && image.Operation == "" {
 		return nil
 	}
 	if image.Operation != model.ImageOperationTrash {
+		days, err := s.deps.Settings.TrashDays(ctx)
+		if err != nil {
+			return fmt.Errorf("read trash retention: %w", err)
+		}
 		if days, err = s.trashDays(ctx, image, days); err != nil {
 			return err
 		}
@@ -145,7 +145,9 @@ func (s *ImageService) Trash(ctx context.Context, subject TokenSubject, key stri
 	if err = s.moveToTrash(ctx, image); err != nil {
 		return err
 	}
-	if days == 0 {
+	// A retry uses the retention recorded by BeginTrash, even when the site
+	// setting or the owner's plugin policy has changed since the failed move.
+	if image.DeletedAt != nil && image.PurgeAt != nil && image.PurgeAt.Equal(*image.DeletedAt) {
 		op, err := operationID()
 		if err != nil {
 			return err

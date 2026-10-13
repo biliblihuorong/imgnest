@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 )
 
@@ -44,6 +45,9 @@ const (
 	maxPluginTags     = 200
 	maxPluginDocument = 64 << 10
 )
+
+// Compensation must finish even after the saving request is canceled.
+const pluginSettingsRollbackTimeout = 5 * time.Second
 
 var (
 	pluginFieldKey = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
@@ -138,6 +142,7 @@ type PluginSettingsService struct {
 	sealing bool
 	plugins []ConfigurablePlugin
 	mu      sync.Mutex
+	applied map[string]json.RawMessage
 }
 
 type storedPluginSettings struct {
@@ -155,7 +160,7 @@ func NewPluginSettingsService(ctx context.Context, store PluginSettingsStore, se
 	if store == nil {
 		return nil, errors.New("create plugin settings: missing settings repository")
 	}
-	s := &PluginSettingsService{store: store, secrets: secrets, plugins: plugins}
+	s := &PluginSettingsService{store: store, secrets: secrets, plugins: plugins, applied: map[string]json.RawMessage{}}
 	if secrets != nil {
 		if _, err := secrets.Seal(ctx, "plugin:probe", []byte("{}")); err == nil {
 			s.sealing = true
@@ -192,7 +197,7 @@ func (s *PluginSettingsService) ApplyStored(ctx context.Context) ([]string, erro
 			values, err = normalizePluginValues(schema.Fields, values, values, false)
 		}
 		if err == nil {
-			err = plugin.Apply(ctx, pluginApplyDocument(schema.Fields, values))
+			err = s.apply(ctx, plugin, pluginApplyDocument(schema.Fields, values))
 		}
 		if err == nil {
 			continue
@@ -202,7 +207,7 @@ func (s *PluginSettingsService) ApplyStored(ctx context.Context) ([]string, erro
 		if err != nil {
 			return fallbacks, fmt.Errorf("plugin %q default settings: %w", plugin.Name(), err)
 		}
-		if err := plugin.Apply(ctx, pluginApplyDocument(schema.Fields, defaults)); err != nil {
+		if err := s.apply(ctx, plugin, pluginApplyDocument(schema.Fields, defaults)); err != nil {
 			return fallbacks, fmt.Errorf("plugin %q refused its default settings: %w", plugin.Name(), err)
 		}
 	}
@@ -289,7 +294,20 @@ func (s *PluginSettingsService) Save(ctx context.Context, name string, raw json.
 	if err != nil {
 		return PluginSettingsView{}, err
 	}
-	if err := plugin.Apply(ctx, pluginApplyDocument(schema.Fields, values)); err != nil {
+	oldDocument, applied := s.applied[name]
+	if !applied {
+		// Callers normally run ApplyStored first. Until then, the previous
+		// saved values (or defaults) are the only known baseline.
+		oldValues, normErr := normalizePluginValues(schema.Fields, previous, previous, false)
+		if normErr != nil {
+			oldValues, normErr = normalizePluginValues(schema.Fields, nil, nil, false)
+			if normErr != nil {
+				return PluginSettingsView{}, fmt.Errorf("plugin %q default settings: %w", name, normErr)
+			}
+		}
+		oldDocument = pluginApplyDocument(schema.Fields, oldValues)
+	}
+	if err := s.apply(ctx, plugin, pluginApplyDocument(schema.Fields, values)); err != nil {
 		var settingsErr *PluginSettingsError
 		if errors.As(err, &settingsErr) {
 			return PluginSettingsView{}, settingsErr
@@ -297,16 +315,29 @@ func (s *PluginSettingsService) Save(ctx context.Context, name string, raw json.
 		return PluginSettingsView{}, fmt.Errorf("apply plugin settings: %w", ErrInvalidInput)
 	}
 	if err := s.store.UpdateSettings(ctx, map[string]json.RawMessage{pluginSettingsKey(name): encoded}); err != nil {
-		// Put the plugin back on what is still stored.
-		if old, decodeErr := s.decode(ctx, name, stored); decodeErr == nil {
-			if old, normErr := normalizePluginValues(schema.Fields, old, old, false); normErr == nil {
-				_ = plugin.Apply(ctx, pluginApplyDocument(schema.Fields, old))
-			}
+		// Restore what was actually active, which can differ from a refused
+		// or unreadable saved document. A canceled request must not prevent it.
+		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), pluginSettingsRollbackTimeout)
+		defer cancel()
+		if rollbackErr := s.apply(rollbackCtx, plugin, oldDocument); rollbackErr != nil {
+			// Plugin errors can contain credentials or a SettingsError whose
+			// message would otherwise be displayed by the HTTP error mapper.
+			return PluginSettingsView{}, errors.Join(fmt.Errorf("write plugin settings: %w", err), errors.New("restore plugin settings failed"))
 		}
 		return PluginSettingsView{}, fmt.Errorf("write plugin settings: %w", err)
 	}
 	stored[pluginSettingsKey(name)] = encoded
 	return s.view(ctx, plugin, schema, stored)
+}
+
+// apply records only configurations the plugin has accepted. Its caller holds
+// mu; plugins receive a copy so they cannot change the compensation snapshot.
+func (s *PluginSettingsService) apply(ctx context.Context, plugin ConfigurablePlugin, document json.RawMessage) error {
+	if err := plugin.Apply(ctx, append(json.RawMessage(nil), document...)); err != nil {
+		return err
+	}
+	s.applied[plugin.Name()] = append(json.RawMessage(nil), document...)
+	return nil
 }
 
 func (s *PluginSettingsService) view(ctx context.Context, plugin ConfigurablePlugin, schema PluginSchema, stored map[string]json.RawMessage) (PluginSettingsView, error) {
@@ -326,7 +357,52 @@ func (s *PluginSettingsService) view(ctx context.Context, plugin ConfigurablePlu
 	if status == nil {
 		status = []PluginStatus{}
 	}
-	return PluginSettingsView{Name: plugin.Name(), Title: schema.Title, Description: schema.Description, Fields: schema.Fields, Values: maskPluginSecrets(schema.Fields, values), Status: status, SecretsAvailable: s.sealing}, nil
+	fields, err := pluginResponseFields(schema.Fields)
+	if err != nil {
+		return PluginSettingsView{}, fmt.Errorf("plugin %q response schema: %w", plugin.Name(), ErrInvalidInput)
+	}
+	return PluginSettingsView{Name: plugin.Name(), Title: schema.Title, Description: schema.Description, Fields: fields, Values: maskPluginSecrets(schema.Fields, values), Status: status, SecretsAvailable: s.sealing}, nil
+}
+
+// pluginResponseFields copies the wire schema before removing secret defaults;
+// the plugin's defaults remain available for validation and application.
+func pluginResponseFields(fields []PluginField) ([]PluginField, error) {
+	raw, err := json.Marshal(fields)
+	if err != nil {
+		return nil, err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var copied []PluginField
+	if err := decoder.Decode(&copied); err != nil {
+		return nil, err
+	}
+	if copied == nil {
+		copied = []PluginField{}
+	}
+	omitPluginSecretDefaults(copied)
+	return copied, nil
+}
+
+func omitPluginSecretDefaults(fields []PluginField) {
+	for index := range fields {
+		field := &fields[index]
+		if field.Type == PluginFieldSecret {
+			field.Default = nil
+		}
+		omitPluginSecretDefaults(field.Fields)
+		if field.Type == PluginFieldList {
+			items, _ := field.Default.([]any)
+			for _, item := range items {
+				object, _ := item.(map[string]any)
+				for _, child := range field.Fields {
+					if child.Type == PluginFieldSecret {
+						delete(object, child.Key)
+					}
+				}
+			}
+		}
+	}
 }
 
 func pluginSettingsKey(name string) string { return "plugin." + name }
@@ -427,14 +503,16 @@ func checkPluginFields(fields []PluginField, topLevel bool) error {
 }
 
 // normalizePluginValues returns exactly the schema's keys with checked values:
-// missing ones take their defaults, secrets equal to PluginSecretKept take
-// their previous value, and list items get stable keys. required enforces
-// Required (on save only, so defaults may leave required fields empty).
+// missing ones take their defaults, explicit null clears single selects,
+// secrets equal to PluginSecretKept take their previous value, and list items
+// get stable keys. required enforces Required on save only, so defaults may
+// leave required fields empty.
 func normalizePluginValues(fields []PluginField, input, previous map[string]any, required bool) (map[string]any, error) {
 	out := make(map[string]any, len(fields))
 	for _, field := range fields {
 		value, present := input[field.Key]
-		if !present || value == nil {
+		clearSelect := field.Type == PluginFieldSelect && !field.Multiple && present && value == nil
+		if !present || (value == nil && !clearSelect) {
 			var err error
 			value, err = pluginDefault(field)
 			if err != nil {
