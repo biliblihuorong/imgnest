@@ -125,6 +125,7 @@ Remove-Variable taskPlainPassword, taskPassword
 - `CompleteSignIn(c, identity)`：按 `{插件名}:{Provider}` + `Subject` 查 `user_identities`。已绑定直接登录；未绑定时，若插件声明 `LinkByEmail` 且邮箱已验证，绑定到同邮箱的**非管理员**账号；否则在开放注册时用已验证邮箱新建普通账号。成功后 303 跳到 `/auth/sso#ticket=…`，前端用 `POST /api/auth/sso/exchange` 换 web token。票据只在内存里，2 分钟有效、只能用一次。
 - 失败一律跳回 `/login?sso_error=not_linked|email_required|disabled|unavailable|failed`，`FailSignIn(c)` 用于插件自己拒绝的情况（state 不匹配、用户拒绝授权）。
 - `Subject` 必须是提供方稳定且不会复用的用户 ID，不能用邮箱或可改名的登录名。
+- 邮箱自动绑定在账户事务锁内复核邮箱、普通用户角色、启用状态、密码哈希与授权版本，再原子写入身份。查找后完成的升权、改邮箱、禁用或改密会拒绝本次绑定，不留下可以在下次登录复用的身份记录。
 
 ### 可选接口
 

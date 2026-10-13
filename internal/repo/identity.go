@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
@@ -21,17 +22,40 @@ func (r *UserRepository) FindUserByIdentity(ctx context.Context, provider, subje
 	return user, nil
 }
 
-// LinkIdentity attaches an external subject to an existing account. A subject
-// already linked anywhere reports model.ErrUserExists.
-func (r *UserRepository) LinkIdentity(ctx context.Context, identity model.UserIdentity) error {
+// LinkIdentity attaches an external subject only while the ordinary account
+// still matches the verified email and authorization proof. Account edits and
+// the insert share the user lock, so a rejected proof never leaves a link.
+// A subject already linked anywhere reports model.ErrUserExists.
+func (r *UserRepository) LinkIdentity(ctx context.Context, identity model.UserIdentity, grant model.TokenGrant) (model.User, error) {
 	if err := checkRecordID(ctx, identity.UserID); err != nil {
-		return fmt.Errorf("link identity: %w", err)
+		return model.User{}, fmt.Errorf("link identity: %w", err)
 	}
+	if grant.UserID != identity.UserID || grant.ExpectedAccountState == nil || grant.ExpectedPasswordHash == "" {
+		return model.User{}, fmt.Errorf("link identity: %w", model.ErrInvalidInput)
+	}
+	var user model.User
 	identity.ID = 0
-	if err := r.db.WithContext(ctx).Create(&identity).Error; err != nil {
-		return userWriteError("link identity", err)
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		user, err = lockUser(ctx, tx, identity.UserID)
+		if err != nil {
+			return err
+		}
+		if user.Role != model.UserRoleUser {
+			return model.ErrIdentityNotLinked
+		}
+		if err := validateGrant(ctx, tx, user, grant); err != nil {
+			if errors.Is(err, model.ErrUnauthenticated) {
+				return model.ErrIdentityNotLinked
+			}
+			return err
+		}
+		return tx.Create(&identity).Error
+	})
+	if err != nil {
+		return model.User{}, userWriteError("link identity", err)
 	}
-	return nil
+	return user, nil
 }
 
 // CreateUserWithIdentity creates an account and its first identity in one
