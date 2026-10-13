@@ -2,11 +2,12 @@
  * 同源 HTTP 客户端：自动携带 Bearer token、解析 {code,message,data} 外壳、
  * 统一错误与 401/20001/20002 未授权回调。
  *
- * 注意：本模块不得 import 任何 store（避免循环依赖）；token 只读
- * localStorage["imgnest.token"]，由 stores/auth 负责写入与清除。
+ * 注意：本模块不得 import 任何 store（避免循环依赖）；当前 Token
+ * 统一由 lib/session 提供，持久化失败时同样可使用内存会话。
  */
 
-export const TOKEN_STORAGE_KEY = "imgnest.token";
+import { getSessionToken } from "@/lib/session";
+export { TOKEN_STORAGE_KEY } from "@/lib/session";
 
 /**
  * 业务错误：code 为外壳业务码（网络/解析失败为 -1），status 为 HTTP 状态码
@@ -37,11 +38,7 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): voi
 
 /** 读取当前 bearer token；无 token 返回 null。 */
 export function getToken(): string | null {
-  try {
-    return localStorage.getItem(TOKEN_STORAGE_KEY);
-  } catch {
-    return null;
-  }
+  return getSessionToken();
 }
 
 interface Envelope {

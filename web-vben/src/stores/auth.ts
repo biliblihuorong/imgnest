@@ -1,132 +1,169 @@
 import { defineStore } from "pinia";
+import { onScopeDispose, ref, shallowRef, watch } from "vue";
 import { exchangeSsoTicket, login as loginApi, logout as logoutApi, me as meApi } from "@/api/auth";
-import { TOKEN_STORAGE_KEY } from "@/api/client";
 import type { LoginData, UserView } from "@/api/types";
+import { getSessionToken, setSessionToken, subscribeSession } from "@/lib/session";
 
-interface AuthState {
-  token: string | null;
-  user: UserView | null;
-  sessionGeneration: number;
-}
-
-const pendingLogins = new WeakMap<object, AbortController>();
-/** 进行中的 restore()：启动流程与路由守卫并发调用时共用同一次 /api/auth/me。 */
-const pendingRestores = new WeakMap<object, Promise<void>>();
 function cancelledLogin(): DOMException {
   return new DOMException("Authentication attempt cancelled", "AbortError");
 }
 
-function readStoredToken(): string | null {
-  try {
-    return localStorage.getItem(TOKEN_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
+export const useAuthStore = defineStore("auth", () => {
+  const token = shallowRef(getSessionToken());
+  const user = ref<UserView | null>(null);
+  const sessionGeneration = shallowRef(0);
+  let pendingLogin: AbortController | undefined;
+  let pendingRestore: { controller: AbortController; promise: Promise<void> } | undefined;
+  let projecting = false;
 
-export const useAuthStore = defineStore("auth", {
-  state: (): AuthState => ({
-    token: readStoredToken(),
-    user: null,
-    sessionGeneration: 0,
-  }),
-  actions: {
-    /** 登录：保存 token/user 并持久化 token；失败抛 ApiError。 */
-    login(
-      email: string,
-      password: string,
-      captchaToken?: string,
-      signal?: AbortSignal,
-    ): Promise<UserView> {
-      return this.establish(signal, (abort) => loginApi(email, password, captchaToken, abort));
+  function cancelRestore(): void {
+    pendingRestore?.controller.abort();
+    pendingRestore = undefined;
+  }
+
+  function finishRestore(controller: AbortController): void {
+    if (pendingRestore?.controller === controller) pendingRestore = undefined;
+  }
+
+  function invalidate(): void {
+    sessionGeneration.value++;
+    pendingLogin?.abort();
+    pendingLogin = undefined;
+    cancelRestore();
+    user.value = null;
+  }
+
+  const unsubscribe = subscribeSession((next) => {
+    if (next === token.value && next !== null) return;
+    invalidate();
+    projecting = true;
+    token.value = next;
+    projecting = false;
+    if (next) void restore();
+  });
+
+  // Pinia 状态也是 session 的同步投影，所有写入都经同一持久化/内存降级入口。
+  watch(
+    token,
+    (next) => {
+      if (projecting) return;
+      invalidate();
+      setSessionToken(next);
     },
-    /** 单点登录回调：用一次性票据换 token，之后与密码登录完全一致。 */
-    loginWithSsoTicket(ticket: string, signal?: AbortSignal): Promise<UserView> {
-      return this.establish(signal, (abort) => exchangeSsoTicket(ticket, abort));
-    },
-    /** 建立会话的共用流程：新请求取消旧请求，过期结果一律按取消处理。 */
-    async establish(
-      signal: AbortSignal | undefined,
-      fetchSession: (signal: AbortSignal) => Promise<LoginData>,
-    ): Promise<UserView> {
-      const generation = ++this.sessionGeneration;
-      pendingLogins.get(this)?.abort();
-      const controller = new AbortController();
-      pendingLogins.set(this, controller);
-      const abort = () => controller.abort();
-      signal?.addEventListener("abort", abort, { once: true });
-      if (signal?.aborted) abort();
-      const current = () => !controller.signal.aborted && this.sessionGeneration === generation;
+    { flush: "sync" },
+  );
+
+  function login(
+    email: string,
+    password: string,
+    captchaToken?: string,
+    signal?: AbortSignal,
+  ): Promise<UserView> {
+    return establish(signal, (abort) => loginApi(email, password, captchaToken, abort));
+  }
+
+  function loginWithSsoTicket(ticket: string, signal?: AbortSignal): Promise<UserView> {
+    return establish(signal, (abort) => exchangeSsoTicket(ticket, abort));
+  }
+
+  /** 新登录取消旧请求；过期结果不能重建已清除或已切换的会话。 */
+  async function establish(
+    signal: AbortSignal | undefined,
+    fetchSession: (signal: AbortSignal) => Promise<LoginData>,
+  ): Promise<UserView> {
+    const generation = ++sessionGeneration.value;
+    pendingLogin?.abort();
+    cancelRestore();
+    const controller = new AbortController();
+    pendingLogin = controller;
+    const abort = () => controller.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) abort();
+    const current = () => !controller.signal.aborted && sessionGeneration.value === generation;
+    try {
+      if (!current()) throw cancelledLogin();
+      const data = await fetchSession(controller.signal);
+      if (!current()) throw cancelledLogin();
+      projecting = true;
+      token.value = data.token;
+      projecting = false;
+      setSessionToken(data.token);
+      user.value = data.user;
+      return data.user;
+    } catch (error) {
+      if (!current()) throw cancelledLogin();
+      throw error;
+    } finally {
+      signal?.removeEventListener("abort", abort);
+      if (pendingLogin === controller) pendingLogin = undefined;
+    }
+  }
+
+  async function logout(): Promise<void> {
+    // API 同步捕获旧 Bearer 后清态，迟到的退出响应不能影响新会话。
+    const request = logoutApi();
+    clear();
+    try {
+      await request;
+    } catch {
+      // 服务端吊销失败不阻塞本地退出。
+    }
+  }
+
+  /** 同会话恢复合并请求；跨会话更换会撤销旧请求和去重记录。 */
+  function restore(): Promise<void> {
+    if (!token.value) return Promise.resolve();
+    if (pendingRestore) return pendingRestore.promise;
+    const restoredToken = token.value;
+    const generation = sessionGeneration.value;
+    const controller = new AbortController();
+    const current = () =>
+      !controller.signal.aborted &&
+      token.value === restoredToken &&
+      sessionGeneration.value === generation;
+    const promise = (async () => {
       try {
-        if (!current()) throw cancelledLogin();
-        const data = await fetchSession(controller.signal);
-        if (!current()) throw cancelledLogin();
-        this.token = data.token;
-        this.user = data.user;
-        // 隐私模式/配额满等场景 localStorage 可能不可写：静默降级为仅内存会话，不算登录失败。
-        try {
-          localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
-        } catch {
-          // token 已在内存中，本会话仍可用；刷新后需重新登录。
-        }
-        return data.user;
-      } catch (error) {
-        if (!current()) throw cancelledLogin();
-        throw error;
-      } finally {
-        signal?.removeEventListener("abort", abort);
-        if (pendingLogins.get(this) === controller) pendingLogins.delete(this);
-      }
-    },
-    /** 登出：调用 API（失败忽略）并清空本地状态。 */
-    async logout(): Promise<void> {
-      // Capture/send the current bearer before clearing; an old response cannot clear a new login.
-      const request = logoutApi();
-      this.clear();
-      try {
-        await request;
+        const restoredUser = await meApi(controller.signal);
+        if (current()) user.value = restoredUser;
       } catch {
-        // 服务端吊销失败不阻塞本地登出
+        if (current()) clear();
+      } finally {
+        finishRestore(controller);
       }
-    },
-    /** 启动恢复：有 token 时用 me() 校验，失败清空状态。 */
-    restore(): Promise<void> {
-      if (!this.token) {
-        return Promise.resolve();
-      }
-      const pending = pendingRestores.get(this);
-      if (pending) return pending;
-      const restoredToken = this.token;
-      const generation = this.sessionGeneration;
-      const run = (async () => {
-        try {
-          const user = await meApi();
-          if (this.token === restoredToken && this.sessionGeneration === generation)
-            this.user = user;
-        } catch {
-          if (this.token === restoredToken && this.sessionGeneration === generation) this.clear();
-        } finally {
-          pendingRestores.delete(this);
-        }
-      })();
-      pendingRestores.set(this, run);
-      return run;
-    },
-    /** 用服务端返回的最新用户视图覆盖当前会话用户；仅供本人资料更新使用。 */
-    setUser(user: UserView): void {
-      if (this.token && this.user?.id === user.id) {
-        this.user = user;
-      }
-    },
-    /** 清空登录态（401 回调与 logout 共用；不发起任何请求）。 */
-    clear(): void {
-      this.sessionGeneration++;
-      pendingLogins.get(this)?.abort();
-      pendingLogins.delete(this);
-      this.token = null;
-      this.user = null;
-      localStorage.removeItem(TOKEN_STORAGE_KEY);
-      window.dispatchEvent(new Event("imgnest:session-cleared"));
-    },
-  },
+    })();
+    pendingRestore = { controller, promise };
+    return promise;
+  }
+
+  function setUser(next: UserView): void {
+    if (token.value && user.value?.id === next.id) user.value = next;
+  }
+
+  function clear(): void {
+    invalidate();
+    projecting = true;
+    token.value = null;
+    projecting = false;
+    // 即使 removeItem 失败或原本已匿名，也通知敏感数据清理。
+    setSessionToken(null, true);
+  }
+
+  onScopeDispose(() => {
+    unsubscribe();
+    pendingLogin?.abort();
+    cancelRestore();
+  });
+
+  return {
+    token,
+    user,
+    sessionGeneration,
+    login,
+    loginWithSsoTicket,
+    establish,
+    logout,
+    restore,
+    setUser,
+    clear,
+  };
 });

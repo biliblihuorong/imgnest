@@ -351,3 +351,141 @@ func TestImageUploadSharesV1RateLimit(t *testing.T) {
 		t.Fatal("rate-limited upload reached the service")
 	}
 }
+
+type selectedPolicyRejectedImages struct{ *imagesStub }
+
+func (s selectedPolicyRejectedImages) Preflight(ctx context.Context, subject service.TokenSubject, policy uint64) (service.UploadLimits, error) {
+	if policy == 7 {
+		return service.UploadLimits{}, service.ErrForbidden
+	}
+	return s.imagesStub.Preflight(ctx, subject, policy)
+}
+
+type failedUploadEpilogue struct{}
+
+func (failedUploadEpilogue) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+
+func TestRejectedImageUploadConsumesAttemptBeforeNextBody(t *testing.T) {
+	for _, testCase := range []struct {
+		name           string
+		entries        []multipartEntry
+		failedEpilogue bool
+		status, code   int
+	}{
+		{"oversized-file", []multipartEntry{{"file", "large.png", "12345"}}, false, 413, 10002},
+		{"epilogue-read-failure", []multipartEntry{{"file", "a.png", "123"}}, true, 400, 10001},
+		{"selected-policy-rejected", []multipartEntry{{"file", "a.png", "123"}, {name: "policy_id", value: "7"}}, false, 403, 20003},
+		{"malformed-field", []multipartEntry{{name: "unknown", value: "x"}, {"file", "a.png", "123"}}, false, 400, 10001},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			images := selectedPolicyRejectedImages{&imagesStub{maxFile: 4, perMinute: 1}}
+			shared := ratelimit.New(time.Now, time.Minute, ratelimit.DefaultCapacity)
+			router, err := httpapi.NewRouter(t.Context(), httpapi.Dependencies{Users: &usersStub{}, Tokens: &tokensStub{}, Images: images, ImageOptions: native.ImageOptions{MaxRequestBytes: 4096, Uploads: shared}, Logger: slog.New(slog.NewJSONHandler(io.Discard, nil)), Now: time.Now, Health: func(context.Context) error { return nil }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, contentType := multipartBody(t, testCase.entries...)
+			var requestBody io.Reader = bytes.NewReader(body)
+			if testCase.failedEpilogue {
+				requestBody = io.MultiReader(requestBody, failedUploadEpilogue{})
+			}
+			r := httptest.NewRequest("POST", "/api/upload", requestBody)
+			r.Header.Set("Content-Type", contentType)
+			r.Header.Set("Authorization", "Bearer "+testBearer)
+			first := httptest.NewRecorder()
+			router.ServeHTTP(first, r)
+			expectCode(t, first, testCase.status, testCase.code)
+
+			nextBody := &monitoredBody{}
+			next := httptest.NewRequest("POST", "/api/upload", nextBody)
+			next.Header.Set("Content-Type", contentType)
+			next.Header.Set("Authorization", "Bearer "+testBearer)
+			second := httptest.NewRecorder()
+			router.ServeHTTP(second, next)
+			expectCode(t, second, 429, 30003)
+			if nextBody.read.Load() {
+				t.Fatal("exhausted upload allowance still read the next request body")
+			}
+			// The same account window also refuses the next v1 attempt.
+			if shared.Allow(ratelimit.UploadKey(testUser().ID), 1) {
+				t.Fatal("rejected native upload did not spend the shared v1 allowance")
+			}
+		})
+	}
+}
+
+func TestImageUploadReservesAttemptWhileBodyIsStillReading(t *testing.T) {
+	router := imageRouter(t, &imagesStub{perMinute: 1}, native.ImageOptions{MaxConcurrent: 2})
+	data, contentType := multipartBody(t, multipartEntry{"file", "a.png", "123"})
+	gate := &heldBody{reader: bytes.NewReader(data), ready: make(chan struct{}), release: make(chan struct{})}
+	r := httptest.NewRequest("POST", "/api/upload", gate)
+	r.Header.Set("Content-Type", contentType)
+	r.Header.Set("Authorization", "Bearer "+testBearer)
+	first := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, r)
+		first <- response
+	}()
+	defer func() {
+		close(gate.release)
+		select {
+		case response := <-first:
+			expectCode(t, response, 201, 0)
+		case <-time.After(time.Second):
+			t.Error("first upload did not finish after its body was released")
+		}
+	}()
+	select {
+	case <-gate.ready:
+	case <-time.After(time.Second):
+		t.Fatal("first upload did not start reading")
+	}
+	secondBody := &monitoredBody{}
+	next := httptest.NewRequest("POST", "/api/upload", secondBody)
+	next.Header.Set("Content-Type", contentType)
+	next.Header.Set("Authorization", "Bearer "+testBearer)
+	second := httptest.NewRecorder()
+	router.ServeHTTP(second, next)
+	expectCode(t, second, 429, 30003)
+	if secondBody.read.Load() {
+		t.Fatal("another request read a body while the account's only attempt was reserved")
+	}
+}
+
+func TestImageUploadChargesSingleFileOnceAndBatchPerFile(t *testing.T) {
+	t.Run("single-file", func(t *testing.T) {
+		router := imageRouter(t, &imagesStub{perMinute: 2}, native.ImageOptions{})
+		body, contentType := multipartBody(t, multipartEntry{"file", "a.png", "123"})
+		expectCode(t, uploadRequest(router, body, contentType), 201, 0)
+		expectCode(t, uploadRequest(router, body, contentType), 201, 0)
+		expectCode(t, uploadRequest(router, body, contentType), 429, 30003)
+	})
+	for _, testCase := range []struct {
+		name, first  string
+		limit        int
+		wantStatuses []int
+	}{
+		{"three-valid-files", "123", 2, []int{201, 201, 429}},
+		{"rejected-first-file", "12345", 1, []int{413, 429, 429}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			router := imageRouter(t, &imagesStub{maxFile: 4, perMinute: testCase.limit}, native.ImageOptions{})
+			body, contentType := multipartBody(t, multipartEntry{"files[]", "first.png", testCase.first}, multipartEntry{"files[]", "second.png", "123"}, multipartEntry{"files[]", "third.png", "123"})
+			response := uploadRequest(router, body, contentType)
+			expectCode(t, response, 207, 0)
+			var results []struct{ Status int }
+			if err := json.Unmarshal(envelope(t, response)["data"], &results); err != nil {
+				t.Fatal(err)
+			}
+			if len(results) != len(testCase.wantStatuses) {
+				t.Fatalf("batch response: %s", response.Body.String())
+			}
+			for i, want := range testCase.wantStatuses {
+				if results[i].Status != want {
+					t.Fatalf("file %d status = %d, want %d", i, results[i].Status, want)
+				}
+			}
+		})
+	}
+}

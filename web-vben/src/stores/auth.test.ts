@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, TOKEN_STORAGE_KEY } from "@/api/client";
+import { ApiError, getToken, request, TOKEN_STORAGE_KEY } from "@/api/client";
+import { flushPromises } from "@vue/test-utils";
 import * as authApi from "@/api/auth";
 import type { LoginData, UserView } from "@/api/types";
 import { useAuthStore } from "./auth";
@@ -74,6 +75,7 @@ describe("auth store", () => {
 
       expect(store.token).toBe("7|token");
       expect(store.user).toEqual(userFixture);
+      expect(getToken()).toBe("7|token");
       expect(setItem).toHaveBeenCalledWith(TOKEN_STORAGE_KEY, "7|token");
     } finally {
       setItem.mockRestore();
@@ -158,6 +160,172 @@ describe("auth store", () => {
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener.mock.calls[0]?.[0]).not.toHaveProperty("detail");
     window.removeEventListener("imgnest:session-cleared", listener);
+  });
+  it("storage 删除失败仍清理所有会话来源并通知敏感预览", async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|token");
+    const store = useAuthStore();
+    store.user = userFixture;
+    const listener = vi.fn();
+    window.addEventListener("imgnest:session-cleared", listener);
+    const remove = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new DOMException("denied", "SecurityError");
+    });
+    try {
+      expect(() => store.clear()).not.toThrow();
+      expect(store.token).toBeNull();
+      expect(store.user).toBeNull();
+      expect(getToken()).toBeNull();
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      remove.mockRestore();
+      window.removeEventListener("imgnest:session-cleared", listener);
+    }
+  });
+  it("跨标签切换立即丢弃旧身份和预览，用新 Token 恢复真实用户", async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|alice");
+    const store = useAuthStore();
+    store.user = userFixture;
+    const bob = { ...userFixture, id: 2, username: "bob" };
+    let finish!: (value: UserView) => void;
+    authApiMock.me.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const listener = vi.fn();
+    window.addEventListener("imgnest:session-cleared", listener);
+    try {
+      localStorage.setItem(TOKEN_STORAGE_KEY, "8|bob");
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: TOKEN_STORAGE_KEY,
+          oldValue: "7|alice",
+          newValue: "8|bob",
+          storageArea: localStorage,
+        }),
+      );
+      expect(store.token).toBe("8|bob");
+      expect(store.user).toBeNull();
+      expect(listener).toHaveBeenCalledTimes(1);
+      finish(bob);
+      await flushPromises();
+      expect(store.user).toEqual(bob);
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ code: 0, data: null })));
+      vi.stubGlobal("fetch", fetchMock);
+      await request("/api/images");
+      expect((fetchMock.mock.calls[0]![1].headers as Headers).get("Authorization")).toBe(
+        "Bearer 8|bob",
+      );
+    } finally {
+      vi.unstubAllGlobals();
+      window.removeEventListener("imgnest:session-cleared", listener);
+    }
+  });
+  it("跨标签清空 storage 撤销未完成登录", async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|alice");
+    const store = useAuthStore();
+    let finish!: (value: LoginData) => void;
+    authApiMock.login.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const login = store.login("alice@example.com", "password-123").catch((error: unknown) => error);
+    localStorage.clear();
+    window.dispatchEvent(new StorageEvent("storage", { key: null, storageArea: localStorage }));
+    finish({ token: "7|late", user: userFixture, expires_at: "2026-10-05T00:00:00Z" });
+    expect(await login).toMatchObject({ name: "AbortError" });
+    expect(store.token).toBeNull();
+    expect(store.user).toBeNull();
+  });
+  it("迟到的 storage.clear 事件不撤销已经建立的新会话", async () => {
+    authApiMock.login.mockResolvedValue({
+      token: "7|new",
+      user: userFixture,
+      expires_at: "2026-10-14T00:00:00Z",
+    });
+    const store = useAuthStore();
+    await store.login("alice@example.com", "password-123");
+    const cleared = vi.fn();
+    window.addEventListener("imgnest:session-cleared", cleared);
+    try {
+      window.dispatchEvent(new StorageEvent("storage", { key: null, storageArea: localStorage }));
+      expect(cleared).not.toHaveBeenCalled();
+      expect(store.token).toBe("7|new");
+      expect(store.user).toEqual(userFixture);
+    } finally {
+      window.removeEventListener("imgnest:session-cleared", cleared);
+    }
+  });
+  it("storage 事件送达前不把旧账号的动作改用另一账号的 Token", async () => {
+    authApiMock.login.mockResolvedValue({
+      token: "7|alice",
+      user: userFixture,
+      expires_at: "2026-10-14T00:00:00Z",
+    });
+    const store = useAuthStore();
+    await store.login("alice@example.com", "password-123");
+    const bob = { ...userFixture, id: 2, username: "bob" };
+    authApiMock.me.mockResolvedValue(bob);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ code: 0, data: null })));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      localStorage.setItem(TOKEN_STORAGE_KEY, "8|bob");
+      await request("/api/auth/profile", {
+        method: "PATCH",
+        body: JSON.stringify({ display_name: "Alice" }),
+      });
+      expect((fetchMock.mock.calls[0]![1].headers as Headers).get("Authorization")).toBe(
+        "Bearer 7|alice",
+      );
+      expect(store.user).toEqual(userFixture);
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: TOKEN_STORAGE_KEY,
+          oldValue: "7|alice",
+          newValue: "8|bob",
+          storageArea: localStorage,
+        }),
+      );
+      await store.restore();
+      expect(store.user).toEqual(bob);
+      expect(getToken()).toBe("8|bob");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it("旧 restore 完成后不会阻止新会话 restore 或覆盖新身份", async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|alice");
+    let finishOld!: (value: UserView) => void;
+    authApiMock.me.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishOld = resolve;
+      }),
+    );
+    const store = useAuthStore();
+    const oldRestore = store.restore();
+    store.clear();
+    const bob = { ...userFixture, id: 2, username: "bob" };
+    authApiMock.me.mockResolvedValueOnce(bob);
+    localStorage.setItem(TOKEN_STORAGE_KEY, "8|bob");
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: TOKEN_STORAGE_KEY,
+        oldValue: null,
+        newValue: "8|bob",
+        storageArea: localStorage,
+      }),
+    );
+    await store.restore();
+    expect(store.user).toEqual(bob);
+    finishOld(userFixture);
+    await oldRestore;
+    expect(store.user).toEqual(bob);
+    expect(authApiMock.me).toHaveBeenCalledTimes(2);
   });
   it("forwards CAPTCHA only to login without persisting the challenge", async () => {
     authApiMock.login.mockResolvedValue({

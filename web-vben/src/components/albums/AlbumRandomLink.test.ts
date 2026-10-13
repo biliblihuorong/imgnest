@@ -53,7 +53,9 @@ function button(wrapper: Awaited<ReturnType<typeof mountLink>>["wrapper"], text:
 
 /** Popconfirm 面板 teleport 到 body；按文案取最后一个（最新弹出的）按钮。 */
 async function confirmInBody(text: string): Promise<void> {
-  const candidates = [...document.body.querySelectorAll<HTMLButtonElement>(".n-popconfirm__panel button")];
+  const candidates = [
+    ...document.body.querySelectorAll<HTMLButtonElement>(".n-popconfirm__panel button"),
+  ];
   const target = candidates.filter((node) => node.textContent?.trim() === text).at(-1);
   if (!target) throw new Error(`Popconfirm 中找不到按钮：${text}`);
   target.click();
@@ -100,9 +102,7 @@ describe("AlbumRandomLink", () => {
 
     await button(wrapper, "启用随机链接").trigger("click");
     expect(putMock).not.toHaveBeenCalled();
-    expect(document.body.querySelector(".n-popconfirm__panel")?.textContent).toContain(
-      "私有图片",
-    );
+    expect(document.body.querySelector(".n-popconfirm__panel")?.textContent).toContain("私有图片");
 
     await confirmInBody("确认启用");
 
@@ -238,5 +238,27 @@ describe("AlbumRandomLink", () => {
     await flushPromises();
 
     expect(wrapper.find("input[readonly]").exists()).toBe(false);
+  });
+  it("写请求中切换相册，新相册可继续操作且不受旧请求完成影响", async () => {
+    getMock.mockResolvedValue(link());
+    let finish!: (value: RandomLinkView) => void;
+    putMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    putMock.mockResolvedValueOnce(link({ path: NEW_PATH, enabled: false }));
+    const { wrapper, id } = await mountLink("7");
+    await wrapper.find(".n-switch").trigger("click");
+    id.value = "8";
+    await flushPromises();
+    expect(wrapper.find(".n-switch").classes()).not.toContain("n-switch--loading");
+    await wrapper.find(".n-switch").trigger("click");
+    await flushPromises();
+    expect(putMock).toHaveBeenLastCalledWith("8", false);
+    expect(shownUrl(wrapper)).toBe(window.location.origin + NEW_PATH);
+    finish(link({ enabled: false }));
+    await flushPromises();
+    expect(shownUrl(wrapper)).toBe(window.location.origin + NEW_PATH);
   });
 });

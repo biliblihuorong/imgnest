@@ -3,6 +3,7 @@ package exif
 import (
 	"bytes"
 	"encoding/binary"
+	"sort"
 )
 
 type tiffEntry struct {
@@ -241,39 +242,77 @@ func typeWidth(kind uint16) int {
 }
 
 func (d *tiffDocument) archive() []rawBlock {
-	blocks := []rawBlock{{Kind: "tiff-header", Offset: 0, Data: bytes.Clone(d.data[:8])}}
-	seen := map[int]bool{}
+	type archiveRange struct {
+		byteRange
+		kind string
+	}
+	ranges := []archiveRange{{byteRange: byteRange{start: 0, end: 8}, kind: "tiff-header"}}
 	for _, dir := range d.dirs {
 		size := 2 + len(dir.entries)*12 + 4
-		blocks = append(blocks, rawBlock{Kind: "tiff-ifd", Offset: dir.offset, Data: bytes.Clone(d.data[dir.offset : dir.offset+size])})
+		ranges = append(ranges, archiveRange{
+			byteRange: byteRange{start: dir.offset, end: dir.offset + size}, kind: "tiff-ifd",
+		})
 		for _, entry := range dir.entries {
-			if entry.size > 4 && !seen[entry.offset] {
-				seen[entry.offset] = true
-				blocks = append(blocks, rawBlock{Kind: "tiff-value", Offset: entry.offset, Data: bytes.Clone(d.data[entry.offset : entry.offset+entry.size])})
+			if entry.size > 4 {
+				ranges = append(ranges, archiveRange{
+					byteRange: byteRange{start: entry.offset, end: entry.offset + entry.size}, kind: "tiff-value",
+				})
 			}
 		}
+	}
+	// Union every reachable range before allocating metadata payloads. A TIFF
+	// can reference the same bytes at different offsets or with different
+	// lengths; keeping the union preserves every value while ensuring the
+	// total archived bytes never exceed the bounded source buffer.
+	sort.Slice(ranges, func(i, j int) bool { return ranges[i].start < ranges[j].start })
+	merged := ranges[:0]
+	for _, span := range ranges {
+		if len(merged) == 0 || span.start >= merged[len(merged)-1].end {
+			merged = append(merged, span)
+			continue
+		}
+		last := &merged[len(merged)-1]
+		last.end = max(last.end, span.end)
+		if last.kind != span.kind {
+			last.kind = "tiff-range"
+		}
+	}
+	blocks := make([]rawBlock, 0, len(merged))
+	for _, span := range merged {
+		blocks = append(blocks, rawBlock{Kind: span.kind, Offset: span.start, Data: bytes.Clone(d.data[span.start:span.end])})
 	}
 	return blocks
 }
 
 func (d *tiffDocument) scrub(mode string, wholeTIFF bool) ([]byte, error) {
+	retained := []byteRange{}
+	retainedExternal := []byteRange{}
+	for _, dir := range d.dirs {
+		for _, entry := range dir.entries {
+			if entry.size > 0 && !entry.removeForScrub(mode, wholeTIFF) {
+				span := byteRange{start: entry.offset, end: entry.offset + entry.size}
+				retained = append(retained, span)
+				if entry.size > 4 {
+					retainedExternal = append(retainedExternal, span)
+				}
+			}
+		}
+	}
+	// Identity values may alias ColorMap, ICC or metadata kept in another IFD.
+	// Clearing those bytes would change pixels or safe metadata. Union the
+	// retained values once so every removed value can be checked in O(log n).
+	retained = unionByteRanges(retained)
 	out := bytes.Clone(d.data)
 	for _, dir := range d.dirs {
 		kept := []tiffEntry{}
 		for _, entry := range dir.entries {
-			// Embedded EXIF may carry vendor-private tags (IDs at or above
-			// 0xC000) that hold device or owner identifiers beyond the named
-			// list; the gps profile strips them too. Whole-TIFF documents
-			// never reach this branch with such tags: parseTIFF flags them
-			// and the upload is refused instead.
-			remove := dir.role == "gps" || entry.id == 0x8825 || entry.id == 0x13b || entry.id == 0xa430 || entry.id == 0xa431 || entry.id == 0xa435 || entry.id == 0x927c || entry.id == 0xc634 || entry.id == 700 || (!wholeTIFF && entry.id >= 0xc000)
-			if mode == "all" {
-				remove = entry.id != 0x112 && entry.id != 0x8773
-				if wholeTIFF && structuralTag(entry.id) {
-					remove = false
+			if entry.removeForScrub(mode, wholeTIFF) {
+				index := sort.Search(len(retained), func(i int) bool { return retained[i].end > entry.offset })
+				aliasesRetained := index < len(retained) &&
+					overlaps(entry.offset, entry.offset+entry.size, retained[index].start, retained[index].end)
+				if entry.size > 0 && aliasesRetained {
+					return nil, ErrInvalidMetadata
 				}
-			}
-			if remove {
 				if entry.size > 4 && overlaps(entry.offset, entry.offset+entry.size, 0, 8) {
 					return nil, ErrInvalidMetadata
 				}
@@ -309,10 +348,47 @@ func (d *tiffDocument) scrub(mode string, wholeTIFF bool) ([]byte, error) {
 		d.order.PutUint16(out[dir.offset:], uint16(len(kept)&65535))
 		d.order.PutUint32(out[start+len(kept)*12:], dir.next)
 	}
+	// Out-of-line retained values can alias directory counts or entry bytes,
+	// not just removed values. Check the completed scratch buffer so aliases
+	// to unchanged bytes stay valid and ordinary inline entries can relocate.
+	// Union before comparing: even repeated long aliases cost at most one
+	// source buffer's worth of byte comparisons.
+	for _, span := range unionByteRanges(retainedExternal) {
+		if !bytes.Equal(out[span.start:span.end], d.data[span.start:span.end]) {
+			return nil, ErrInvalidMetadata
+		}
+	}
 	if _, err := parseTIFF(out); err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+func unionByteRanges(ranges []byteRange) []byteRange {
+	sort.Slice(ranges, func(i, j int) bool { return ranges[i].start < ranges[j].start })
+	merged := ranges[:0]
+	for _, span := range ranges {
+		if len(merged) == 0 || span.start > merged[len(merged)-1].end {
+			merged = append(merged, span)
+			continue
+		}
+		last := &merged[len(merged)-1]
+		last.end = max(last.end, span.end)
+	}
+	return merged
+}
+
+func (e tiffEntry) removeForScrub(mode string, wholeTIFF bool) bool {
+	if mode == "all" {
+		return e.id != 0x112 && e.id != 0x8773 && (!wholeTIFF || !structuralTag(e.id))
+	}
+	// Embedded EXIF may carry vendor-private identity tags beyond this list.
+	// Whole TIFFs use high IDs for DNG structure too; keep safe structure tags.
+	ownerOrSerial := e.id == 0x13b || e.id == 0xa430 ||
+		e.id == 0xa431 || e.id == 0xa435 || e.id == 0xc62f
+	opaque := e.id == 0x927c || e.id == 0xc634 || (!wholeTIFF && e.id >= 0xc000)
+	locationOrXMP := e.role == "gps" || e.id == 0x8825 || e.id == 700
+	return ownerOrSerial || opaque || locationOrXMP
 }
 
 func structuralTag(id uint16) bool {

@@ -73,11 +73,15 @@ func (h *imageHandler) upload(c *gin.Context) {
 		fail(c, service.ErrInvalidInput)
 		return
 	}
+	// Reserve the first file's attempt before reading or draining the body.
+	// Per-file rejection, epilogue errors and an unusable selected rule still
+	// spend this allowance; cheap header-only rejections above do not.
+	if !h.allowUpload(userID, limits.PerMinute) {
+		fail(c, errUploadRateLimited)
+		return
+	}
 	files, fields, err := readUpload(ctx, reader, limits.MaxFileBytes, h.options.MaxRequestBytes)
 	if err != nil {
-		// A rejected body still spends one attempt, so malformed or
-		// oversized requests cannot be repeated without limit.
-		h.allowUpload(userID, limits.PerMinute)
 		fail(c, err)
 		return
 	}
@@ -92,14 +96,16 @@ func (h *imageHandler) upload(c *gin.Context) {
 		return
 	}
 	results := make([]imageResult, 0, len(files))
-	for _, file := range files {
+	for index, file := range files {
 		result := imageResult{Filename: file.name, Status: 201, Response: Response{Code: 0, Message: "ok"}}
 		err := file.err
+		// The first attempt was reserved before parsing. Every additional
+		// batch file spends its own attempt, including rejected files.
+		if index > 0 && !h.allowUpload(userID, limits.PerMinute) {
+			err = errUploadRateLimited
+		}
 		if err == nil && int64(len(file.data)) > limits.MaxFileBytes {
 			err = errUploadTooLarge
-		}
-		if err == nil && !h.allowUpload(identity(c).User.ID, limits.PerMinute) {
-			err = errUploadRateLimited
 		}
 		if err == nil {
 			result.Data, err = h.images.Upload(ctx, identity(c).Subject, service.UploadInput{Data: file.data, Filename: file.name, IP: c.ClientIP(), PolicyID: fields.policyID, AlbumID: fields.albumID, IsPublic: fields.public})

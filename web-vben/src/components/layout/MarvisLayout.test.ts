@@ -1,9 +1,9 @@
-import { flushPromises, mount } from "@vue/test-utils";
+import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { updatePreferences } from "@vben/preferences";
 import { createPinia } from "pinia";
 import { NMessageProvider } from "naive-ui";
 import { h, nextTick, ref } from "vue";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { logout as logoutApi } from "@/api/auth";
 import { useAuthStore } from "@/stores/auth";
 import MarvisLayout from "./MarvisLayout.vue";
@@ -11,6 +11,7 @@ import MarvisSidebar from "./marvis/MarvisSidebar.vue";
 import { shellTestRouter, testUser } from "./marvis/testing";
 
 const narrow = ref(false);
+enableAutoUnmount(afterEach);
 vi.mock("./marvis/useNarrowViewport", () => ({ useViewportBelow: () => narrow }));
 vi.mock("@/api/auth", () => ({ logout: vi.fn(), login: vi.fn(), me: vi.fn() }));
 vi.mock("@/api/site", () => ({ fetchSite: vi.fn().mockRejectedValue(new Error("offline")) }));

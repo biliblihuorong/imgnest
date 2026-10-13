@@ -5,7 +5,7 @@ import {
   type RouteLocationRaw,
   type Router,
 } from "vue-router";
-import { TOKEN_STORAGE_KEY } from "@/api/client";
+import { getToken } from "@/api/client";
 import { landingPath } from "./landing";
 import { useAuthStore } from "@/stores/auth";
 
@@ -202,12 +202,7 @@ export function setupRouter(): Router {
   router.beforeEach(async (to) => {
     // 单点登录回调要用票据换新会话，即使本地已有旧 token 也要放行。
     if (to.path === "/gallery" || to.path === "/auth/sso") return true;
-    let token: string | null = null;
-    try {
-      token = localStorage.getItem(TOKEN_STORAGE_KEY);
-    } catch {
-      token = null;
-    }
+    const token = getToken();
     const isPublic = PUBLIC_PATHS.has(to.path);
     if (!isPublic && !token) {
       return { path: "/login", query: { redirect: to.fullPath } };

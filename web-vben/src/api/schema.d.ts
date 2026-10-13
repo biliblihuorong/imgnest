@@ -230,7 +230,9 @@ export interface paths {
          * @description A successful login issues a web token that expires in 24 hours.
          *     Copy the token from this response; it cannot be retrieved later.
          *     Limited to three requests per minute per client IP, independently
-         *     of the registration limit. Disabled users cannot log in. The rate limit
+         *     of the registration limit. A successful native login clears that IP's
+         *     login-attempt window; failed attempts do not reset it. Disabled users
+         *     cannot log in. The rate limit
          *     runs before provider verification. When CAPTCHA is enabled, captcha_token
          *     must pass the active provider for action login before password checking
          *     and token issuance. Failure never falls back to password-only login.
@@ -2602,7 +2604,7 @@ export interface components {
         };
         ErrorEnvelope: {
             /** @enum {integer} */
-            code: 10001 | 10002 | 10004 | 10005 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30010 | 30011 | 30012 | 30013 | 30014 | 50001 | 50002 | 50003 | 50004 | 50005;
+            code: 10001 | 10002 | 10004 | 10005 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30010 | 30011 | 30012 | 30013 | 30014 | 30015 | 50001 | 50002 | 50003 | 50004 | 50005;
             /** @description Human-readable error message without technical or credential details. */
             message: string;
             data: components["schemas"]["NullData"];
@@ -2712,7 +2714,8 @@ export interface components {
          *     rate; 403/30004 quota; 409/30005 path conflict; 409/30006 in-progress
          *     image operation; 415/30007 disallowed format; 502/50002 storage failure;
          *     422/50003 processing or privacy-sanitization failure; 422/30013 refused
-         *     by a plugin's content review; 503/50005 content review unavailable;
+         *     by a plugin's content review; 429/30015 over a plugin's upload
+         *     allowance; 503/50005 content review unavailable;
          *     500/50001 other internal failure. No private source data or provider
          *     diagnostics are returned.
          */
