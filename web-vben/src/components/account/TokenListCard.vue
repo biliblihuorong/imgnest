@@ -51,12 +51,17 @@ const columns = computed<DataTableColumns<TokenView>>(() => [
   {
     title: t("account.kind"),
     key: "kind",
-    width: 90,
+    width: 110,
     render: (row) =>
       h(
         NTag,
-        { size: "small", bordered: false, type: row.kind === "web" ? "info" : "success" },
-        { default: () => row.kind },
+        {
+          size: "small",
+          bordered: false,
+          type: row.kind === "web" ? "info" : "success",
+          title: t(row.kind === "web" ? "account.kindWebHint" : "account.kindApiHint"),
+        },
+        { default: () => t(row.kind === "web" ? "account.kindWeb" : "account.kindApi") },
       ),
   },
   {

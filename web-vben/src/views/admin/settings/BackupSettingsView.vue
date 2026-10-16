@@ -24,6 +24,7 @@ import {
   type BackupOverview,
 } from "@/api/backups";
 import { formatDateTime } from "@/components/admin/format";
+import LskyImportPanel from "@/components/admin/LskyImportPanel.vue";
 import { formatBytes } from "@/lib/format";
 import { formatApiError } from "@/locales/errors";
 
@@ -253,6 +254,8 @@ onMounted(() => void load());
     <NCard :bordered="false" :title="t('admin.backups.restoreTitle')">
       <p class="hint">{{ t("admin.backups.restoreHint") }}</p>
     </NCard>
+
+    <LskyImportPanel />
   </div>
 </template>
 

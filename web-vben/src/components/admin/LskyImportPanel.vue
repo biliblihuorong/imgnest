@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
 import {
   NAlert,
@@ -181,12 +180,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <Page
-    :title="t('admin.lskyImport.title')"
-    :description="t('admin.lskyImport.description')"
-    class="lsky-import min-w-0"
-    content-class="min-w-0"
-  >
+  <!-- 蓝空迁移：放在 站点设置 → 备份/导出 页的末尾。 -->
+  <section class="lsky-import min-w-0" data-testid="lsky-import">
+    <header class="lsky-import__header">
+      <h2 class="lsky-import__title">{{ t("admin.lskyImport.title") }}</h2>
+      <p class="lsky-import__hint">{{ t("admin.lskyImport.description") }}</p>
+    </header>
     <div class="lsky-import__stack">
       <NAlert v-if="error" type="error" class="lsky-import__alert">
         {{ formatApiError(error, errorKey) }}
@@ -375,10 +374,18 @@ onBeforeUnmount(() => {
         </NCollapse>
       </NCard>
     </div>
-  </Page>
+  </section>
 </template>
 
 <style scoped>
+.lsky-import__header {
+  margin: 8px 0 12px;
+}
+.lsky-import__title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
 .lsky-import__stack {
   display: flex;
   flex-direction: column;

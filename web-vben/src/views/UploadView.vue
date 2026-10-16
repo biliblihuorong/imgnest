@@ -20,7 +20,12 @@ import ImageCopyDrawer from "@/components/images/ImageCopyDrawer.vue";
 import UploadDropzone from "@/components/upload/UploadDropzone.vue";
 import UploadQueueList from "@/components/upload/UploadQueueList.vue";
 import { useUploadQueue } from "@/components/upload/useUploadQueue";
-import { buildLinkText, resolveImageLink, type LinkFormat, type LinkVersion } from "@/components/upload/linkText";
+import {
+  buildLinkText,
+  resolveImageLink,
+  type LinkFormat,
+  type LinkVersion,
+} from "@/components/upload/linkText";
 import { listPolicies } from "@/api/policies";
 import type { AlbumView } from "@/api/albums";
 import { listAllAlbums } from "@/api/allAlbums";
@@ -169,7 +174,11 @@ async function loadAlbums() {
         <div v-for="error in preflightErrors" :key="error">{{ error }}</div>
       </NAlert>
 
-      <NCard :title="t('user.upload.choose')" :bordered="false" :content-style="{ padding: '14px 18px 18px' }">
+      <NCard
+        :title="t('user.upload.choose')"
+        :bordered="false"
+        :content-style="{ padding: '14px 18px 18px' }"
+      >
         <UploadDropzone :disabled="uploading" @files="handleFiles" />
         <p class="upload-view__limits">
           {{
@@ -276,12 +285,20 @@ async function loadAlbums() {
           role="group"
           :aria-label="t('user.upload.linkFormat')"
         >
-          <NRadioGroup v-model:value="linkVersion" size="small" :aria-label="t('user.upload.linkVersion')">
+          <NRadioGroup
+            v-model:value="linkVersion"
+            size="small"
+            :aria-label="t('user.upload.linkVersion')"
+          >
             <NRadioButton value="original">{{ t("user.upload.original") }}</NRadioButton>
             <NRadioButton value="webp">{{ t("user.upload.webp") }}</NRadioButton>
             <NRadioButton value="thumbnail">{{ t("user.upload.thumbnail") }}</NRadioButton>
           </NRadioGroup>
-          <NRadioGroup v-model:value="linkFormat" size="small" :aria-label="t('user.upload.linkFormat')">
+          <NRadioGroup
+            v-model:value="linkFormat"
+            size="small"
+            :aria-label="t('user.upload.linkFormat')"
+          >
             <NRadioButton value="url">URL</NRadioButton>
             <NRadioButton value="markdown">Markdown</NRadioButton>
             <NRadioButton value="html">HTML</NRadioButton>
@@ -323,28 +340,33 @@ async function loadAlbums() {
   line-height: 1.7;
 }
 
+/* 上传选项排成一行紧凑的工具条：标签在控件左侧，下拉框定宽，按钮紧跟在后面。 */
 .upload-view__options {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
-  margin-top: 16px;
+  align-items: center;
+  gap: 10px 20px;
+  margin-top: 14px;
 }
 
 .upload-view__album-field,
-.upload-view__policy-field {
-  flex: 1 1 240px;
+.upload-view__policy-field,
+.upload-view__visibility-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
-.upload-view__label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 13px;
+.upload-view__policy,
+.upload-view__album {
+  width: 200px;
 }
 
-.upload-view__visibility-field {
-  padding-bottom: 6px;
+.upload-view__label {
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
 }
 
 .upload-view__empty-policy {
@@ -390,13 +412,21 @@ async function loadAlbums() {
 }
 
 @media (max-width: 640px) {
-  .upload-view__options {
-    gap: 12px;
-  }
-
   .upload-view__album-field,
   .upload-view__policy-field {
     flex-basis: 100%;
+  }
+
+  .upload-view__label {
+    flex-shrink: 0;
+    width: 4.5em;
+  }
+
+  .upload-view__policy,
+  .upload-view__album {
+    flex: 1;
+    width: auto;
+    min-width: 0;
   }
 
   .upload-view__submit {

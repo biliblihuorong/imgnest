@@ -269,7 +269,7 @@
       },
       "backup": {
         "title": "备份/导出",
-        "description": "数据库与配置备份、下载和定时备份。"
+        "description": "数据库与配置备份、下载、定时备份，以及从蓝空迁移。"
       }
     },
     "emailVerification": "注册邮箱验证",

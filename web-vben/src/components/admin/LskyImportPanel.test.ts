@@ -2,7 +2,7 @@ import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "@/api/admin";
 import type { LskyImportStatus } from "@/api/admin";
-import LskyImportView from "./LskyImportView.vue";
+import LskyImportView from "./LskyImportPanel.vue";
 
 vi.mock("@/api/admin", () => ({
   getLskyImport: vi.fn(),

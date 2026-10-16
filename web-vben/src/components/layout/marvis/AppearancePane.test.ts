@@ -2,6 +2,7 @@ import { mount } from "@vue/test-utils";
 import { preferences, updatePreferences } from "@vben/preferences";
 import { beforeEach, expect, it, vi } from "vitest";
 import { initShell, setShell, shell, SHELL_DEFAULTS } from "@/integrations/shell/useShell";
+import { LOCALE_MODE_STORAGE_KEY, setLocaleMode } from "@/integrations/locale/useLocaleMode";
 import { loadLocaleMessages } from "@vben/locales";
 import AppearancePane, { ACCENT_PRESETS, RADIUS_PRESETS } from "./AppearancePane.vue";
 
@@ -98,13 +99,16 @@ it("keeps a picked accent when the layout is switched from the pane", async () =
   expect(preferences.theme.colorPrimary).toBe(ACCENT_PRESETS[3]);
 });
 
-it("switches the interface language like the classic header toggle", async () => {
-  updatePreferences({ app: { locale: "zh-CN" } });
+it("switches the interface language and can follow the browser again", async () => {
+  await setLocaleMode("zh-CN");
   const { click, pressed } = mountPane();
   expect(pressed("locale-zh-CN")).toBe("true");
   await click("locale-en-US");
   expect(preferences.app.locale).toBe("en-US");
   expect(loadLocaleMessages).toHaveBeenCalledWith("en-US");
   expect(pressed("locale-en-US")).toBe("true");
-  updatePreferences({ app: { locale: "zh-CN" } });
+  await click("locale-auto");
+  expect(pressed("locale-auto")).toBe("true");
+  expect(localStorage.getItem(LOCALE_MODE_STORAGE_KEY)).toBe("auto");
+  await setLocaleMode("zh-CN");
 });

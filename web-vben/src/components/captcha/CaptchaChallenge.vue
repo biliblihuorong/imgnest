@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from "@vben/locales";
+import { usePreferences } from "@vben/preferences";
 import { NButton } from "naive-ui";
 import { computed, onBeforeUnmount, shallowRef, useTemplateRef, watch } from "vue";
 import type { CaptchaAction, PublicCaptchaConfig } from "@/api/captcha";
@@ -19,6 +20,8 @@ const { t, locale } = useI18n();
 const container = useTemplateRef<HTMLElement>("container");
 const state = shallowRef<"loading" | "waiting" | "verified" | "expired" | "unavailable">("loading");
 const language = computed(() => (locale.value === "en-US" ? "en" : "zh-CN"));
+const { isDark } = usePreferences();
+const theme = computed(() => (isDark.value ? "dark" : "light"));
 let api: TurnstileApi | undefined;
 let widgetId: string | undefined;
 let generation = 0;
@@ -68,6 +71,7 @@ async function render(): Promise<void> {
       action: props.action,
       language: language.value,
       size: props.size,
+      theme: theme.value,
       "response-field": false,
       retry: "never",
       "refresh-expired": "manual",
@@ -124,6 +128,7 @@ watch(
     props.action,
     props.size,
     language.value,
+    theme.value,
   ],
   () => {
     void render();
@@ -143,16 +148,20 @@ onBeforeUnmount(() => {
     <div ref="container" class="captcha-container" />
     <p
       v-if="state === 'loading' || state === 'waiting' || state === 'verified'"
+      class="captcha-status"
+      :class="`is-${state}`"
       role="status"
       aria-live="polite"
     >
-      {{ t(`captcha.challenge.${state}`) }}
+      <span class="captcha-status__dot" aria-hidden="true" />{{ t(`captcha.challenge.${state}`) }}
     </p>
-    <div v-else role="alert">
-      <p>{{ t(`captcha.challenge.${state}`) }}</p>
-      <NButton size="small" attr-type="button" @click="reset">{{ t("captcha.retry") }}</NButton>
+    <div v-else class="captcha-problem" role="alert">
+      <span>{{ t(`captcha.challenge.${state}`) }}</span>
+      <NButton size="tiny" secondary attr-type="button" @click="reset">{{
+        t("captcha.retry")
+      }}</NButton>
     </div>
-    <p class="privacy">
+    <p class="captcha-privacy">
       {{ t("captcha.challenge.privacy") }}
       <a
         href="https://www.cloudflare.com/turnstile-privacy-policy/"
@@ -166,16 +175,70 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .captcha-challenge {
-  margin: 0 0 18px;
+  display: grid;
+  gap: 6px;
   min-width: 0;
+  margin: 0 0 18px;
 }
+/* Turnstile 自带边框；外面只裁圆角，与输入框保持一致。 */
 .captcha-container {
   width: 100%;
   min-width: 0;
+  overflow: hidden;
+  line-height: 0;
+  border-radius: 8px;
 }
-.captcha-challenge p {
-  margin: 8px 0;
-  font-size: 13px;
+.captcha-container:empty {
+  display: none;
+}
+.captcha-status,
+.captcha-privacy {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
   overflow-wrap: anywhere;
+}
+.captcha-status {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.captcha-status__dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  background: hsl(var(--muted-foreground) / 0.6);
+  border-radius: 50%;
+}
+.captcha-status.is-verified {
+  color: hsl(var(--success));
+}
+.captcha-status.is-verified .captcha-status__dot {
+  background: hsl(var(--success));
+}
+.captcha-problem {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: hsl(var(--destructive));
+  overflow-wrap: anywhere;
+  background: hsl(var(--destructive) / 0.08);
+  border-radius: 8px;
+}
+.captcha-privacy {
+  font-size: 11px;
+  opacity: 0.85;
+}
+.captcha-privacy a {
+  color: hsl(var(--primary));
+  white-space: nowrap;
+}
+.captcha-privacy a:hover {
+  text-decoration: underline;
 }
 </style>

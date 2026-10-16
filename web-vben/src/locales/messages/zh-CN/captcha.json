@@ -5,11 +5,11 @@
   "challenge": {
     "label": "人机验证",
     "loading": "正在加载验证码…",
-    "waiting": "请完成下方人机验证",
+    "waiting": "完成上方验证后即可提交",
     "verified": "验证已完成，提交后由服务器核验",
     "expired": "验证码已失效，请重新验证",
     "unavailable": "验证码服务无法加载或验证失败，请重试。请检查网络与浏览器设置。",
-    "privacy": "验证码由 Cloudflare 提供，会接收浏览器 IP 和安全信号。",
+    "privacy": "人机验证由 Cloudflare Turnstile 提供，会接收你的 IP 和浏览器安全信号。",
     "privacyLink": "隐私政策"
   },
   "admin": {

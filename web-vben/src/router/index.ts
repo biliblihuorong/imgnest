@@ -121,7 +121,8 @@ export function setupRouter(): Router {
         path: "/images",
         name: ROUTER_NAMES.images,
         component: () => import("@/views/ImagesView.vue"),
-        meta: { title: "common.nav.images" },
+        // 搜索条件写在 query 里；经典布局的标签页按路径区分，否则每搜一次就多一个标签。
+        meta: { title: "common.nav.images", fullPathKey: false },
       },
       {
         path: "/tokens",
@@ -145,7 +146,7 @@ export function setupRouter(): Router {
         path: "/albums/:id(\\d+)",
         name: "album-detail",
         component: () => import("@/views/AlbumDetailView.vue"),
-        meta: { title: "common.nav.albums" },
+        meta: { title: "common.nav.albums", fullPathKey: false },
       },
       {
         path: "/gallery",
@@ -210,11 +211,11 @@ export function setupRouter(): Router {
             component: () => import("@/views/admin/ImagesAdminView.vue"),
             meta: { title: "common.nav.allImages" },
           },
+          // 蓝空迁移已并入 站点设置 → 备份/导出；保留旧地址的跳转。
           {
             path: "lsky-import",
             name: ADMIN_ROUTER_NAMES.adminLskyImport,
-            component: () => import("@/views/admin/LskyImportView.vue"),
-            meta: { title: "common.nav.lskyImport" },
+            redirect: { name: "admin-settings-backup" },
           },
         ],
       },

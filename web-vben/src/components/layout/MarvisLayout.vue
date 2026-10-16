@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Menu } from "@vben/icons";
 import { useI18n } from "@vben/locales";
-import { preferences } from "@vben/preferences";
+import { preferences, updatePreferences } from "@vben/preferences";
 import { computed, onBeforeUnmount, shallowRef, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useSiteStore } from "@/stores/site";
@@ -24,6 +24,10 @@ const drawerOpen = shallowRef(false);
 const paletteOpen = shallowRef(false);
 const settingsOpen = shallowRef(false);
 const collapsed = computed(() => !narrow.value && preferences.sidebar.collapsed);
+
+function toggleCollapsed(): void {
+  updatePreferences({ sidebar: { collapsed: !preferences.sidebar.collapsed } });
+}
 
 watch(narrow, (value) => {
   if (!value) drawerOpen.value = false;
@@ -57,6 +61,8 @@ onBeforeUnmount(stopAfterEach);
       data-testid="marvis-sidebar"
       :class="{ 'is-open': drawerOpen }"
       :collapsed="collapsed"
+      :collapsible="!narrow"
+      @toggle-collapse="toggleCollapsed"
       @navigate="drawerOpen = false"
       @open-search="((drawerOpen = false), (paletteOpen = true))"
       @open-settings="((drawerOpen = false), (settingsOpen = true))"

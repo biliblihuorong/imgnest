@@ -152,7 +152,7 @@ function closeIssuedModal(): void {
         >
       </div>
       <p class="token-create__hint">
-        <NTag size="small" :bordered="false" type="success">api</NTag
+        <NTag size="small" :bordered="false" type="success">{{ t("account.kindApi") }}</NTag
         ><span>{{ t("account.creationHint") }}</span>
       </p>
     </NForm>

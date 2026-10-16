@@ -125,8 +125,8 @@ describe("TokensView", () => {
     const text = wrapper.text();
     expect(text).toContain("浏览器会话");
     expect(text).toContain("blog-client");
-    expect(text).toContain("web");
-    expect(text).toContain("api");
+    expect(text).toContain("网页登录");
+    expect(text).toContain("API 调用");
     expect(text).toContain("*");
     expect(text).toContain("永不过期");
     expect(text).toContain("—");

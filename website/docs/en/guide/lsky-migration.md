@@ -1,6 +1,6 @@
 # Migrating from Lsky Pro
 
-Upload the `.sql` export of your Lsky Pro database under **Site admin → Lsky migration** to import its groups, users, tokens, albums and images. Every image **runs through the regular ImgNest upload pipeline under its original path**: format detection, EXIF archiving, WebP, local and cloud thumbnails, responsive versions (when the rule enables them) and quota, exactly like a new upload.
+Upload the `.sql` export of your Lsky Pro database under **Site admin → Settings → Backup / export → Lsky migration** to import its groups, users, tokens, albums and images. Every image **runs through the regular ImgNest upload pipeline under its original path**: format detection, EXIF archiving, WebP, local and cloud thumbnails, responsive versions (when the rule enables them) and quota, exactly like a new upload.
 
 Images can be imported in two ways:
 
@@ -36,7 +36,7 @@ Accounts match by email. Create the ImgNest administrator with the same email as
    - Adopting: add the S3 bucket Lsky used under Storages (for B2 the endpoint is `https://s3.<region>.backblazeb2.com` with Path Style on) and **set its Base URL to the URL in the Lsky strategy** (for example `https://img.example.com/ShellBlogImg`) so old links and ImgNest links match. If the files sit under a folder of the bucket (keys like `ShellBlogImg/1/2025/...`), set the path prefix to that folder. If unsure, leave it empty: the import first checks a few images and tells you what to set when it cannot find them.
    - Storing again: add a new bucket. Its rule's WebP mode must not be WebP only, or original links would be lost.
    - Then create a rule on that storage with thumbnails and responsive versions on.
-3. **Upload the export**: open **Site admin → Lsky migration**, check the time zone (default `Asia/Shanghai`) and choose the `.sql` file. It is parsed in server memory and never written to disk; the page shows how many users, images and storage strategies it holds.
+3. **Upload the export**: open **Site admin → Settings → Backup / export → Lsky migration**, check the time zone (default `Asia/Shanghai`) and choose the `.sql` file. It is parsed in server memory and never written to disk; the page shows how many users, images and storage strategies it holds.
 4. **Choose the mode and rule**: when adopting, pick only the Lsky storage strategy kept in this bucket (it is preselected when the Base URLs match); images of other strategies would fail because the bucket does not have them.
 5. **Start the import**: progress refreshes every two seconds and you can stop at any time. At the end the page lists failed and skipped images; fix the cause and press Start import again, and only what is still missing is retried. After a server restart, upload the export again.
 
