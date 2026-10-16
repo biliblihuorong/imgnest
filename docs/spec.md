@@ -365,7 +365,7 @@ CDN 缓存不在本程序处理范围内。
 - 设置项 `email_verification_enabled`（默认关）：开启且 SMTP 可用时，注册必须带 `email_code`，人机验证移到发送验证码那一步，注册请求本身不再要 `captcha_token`。`GET /api/site` 新增 `email_verification`（仅在开放注册时为 true）与 `password_reset`（SMTP 可用即为 true）。
 - 找回密码：`POST /api/auth/email-code`（`purpose=reset_password`）与 `POST /api/auth/password-reset`（每 IP 每分钟 3 次）。未注册、已停用的邮箱和冷却期内都静默返回成功，不泄露账号是否存在；重置成功后撤销该账号全部 Token（与改密同一路径）。
 - 人机验证改为一步配置 `PUT /api/admin/captcha`：填 Site Key、Secret（留空沿用已保存的），开启时在页面上用这把 Site Key 完成一次验证，服务端用 Secret 核验通过后立即生效；关闭不需要验证。允许的域名默认取当前访问域名，放在高级选项。旧的 draft/test/activation 三个接口保留兼容。
-- 新码：30017=邮件未配置(409)、30018=邮箱验证码错误或过期(422)、30019=验证码发送过于频繁(429)、50006=邮件暂不可用(503；管理端测试失败为 502 带 reason)。SMTP 密码、验证码明文与邮箱内容不进日志。
+- 新码（30016 已用于蓝空导入忙）：30017=邮件未配置(409)、30018=邮箱验证码错误或过期(422)、30019=验证码发送过于频繁(429)、50006=邮件暂不可用(503；管理端测试失败为 502 带 reason)。SMTP 密码、验证码明文与邮箱内容不进日志。
 
 ## 8. 工程规范
 

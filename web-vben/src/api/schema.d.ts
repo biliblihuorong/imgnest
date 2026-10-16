@@ -3071,7 +3071,7 @@ export interface components {
         };
         ErrorEnvelope: {
             /** @enum {integer} */
-            code: 10001 | 10002 | 10004 | 10005 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30010 | 30011 | 30012 | 30013 | 30014 | 30015 | 30016 | 30017 | 30018 | 50001 | 50002 | 50003 | 50004 | 50005 | 50006;
+            code: 10001 | 10002 | 10004 | 10005 | 10006 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30010 | 30011 | 30012 | 30013 | 30014 | 30015 | 30016 | 30017 | 30018 | 30019 | 50001 | 50002 | 50003 | 50004 | 50005 | 50006;
             /** @description Human-readable error message without technical or credential details. */
             message: string;
             data: components["schemas"]["NullData"];
@@ -3141,7 +3141,7 @@ export interface components {
                 "application/json": components["schemas"]["MailSettingsEnvelope"];
             };
         };
-        /** @description Outgoing email is off or incomplete (30016), or for registration codes the address is already registered (30002). */
+        /** @description Outgoing email is off or incomplete (30017), or for registration codes the address is already registered (30002). */
         MailNotConfiguredOrUserExists: {
             headers: {
                 [name: string]: unknown;
@@ -3150,7 +3150,7 @@ export interface components {
                 "application/json": components["schemas"]["ErrorEnvelope"];
             };
         };
-        /** @description Wrong, expired, overused or already used email code; code 30017. Request a new code. */
+        /** @description Wrong, expired, overused or already used email code; code 30018. Request a new code. */
         EmailCodeInvalid: {
             headers: {
                 [name: string]: unknown;
@@ -3159,7 +3159,7 @@ export interface components {
                 "application/json": components["schemas"]["ErrorEnvelope"];
             };
         };
-        /** @description Code 30018 when the same address asked less than a minute ago; code 30003 for the per-IP limit. */
+        /** @description Code 30019 when the same address asked less than a minute ago; code 30003 for the per-IP limit. */
         EmailCodeThrottled: {
             headers: {
                 [name: string]: unknown;
@@ -3805,7 +3805,7 @@ export interface operations {
             400: components["responses"]["InvalidInput"];
             403: components["responses"]["RegistrationDisabled"];
             409: components["responses"]["UserExists"];
-            /** @description CAPTCHA failed (30010) or wrong, expired or used email code (30017). */
+            /** @description CAPTCHA failed (30010) or wrong, expired or used email code (30018). */
             422: {
                 headers: {
                     [name: string]: unknown;
