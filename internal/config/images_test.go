@@ -30,3 +30,25 @@ func TestImageDeploymentSettings(t *testing.T) {
 		}
 	}
 }
+
+func TestVariantLookupSettings(t *testing.T) {
+	cfg, err := Load(t.Context(), "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Images.VariantCORSOrigins == nil || len(cfg.Images.VariantCORSOrigins) != 0 || cfg.Images.VariantLookupPerMinute != 60 {
+		t.Fatalf("variant defaults = %+v", cfg.Images)
+	}
+	cfg, err = Load(t.Context(), "", []string{"IMGNEST_IMAGES_VARIANT_CORS_ORIGINS=https://blog.example, http://localhost:8090", "IMGNEST_IMAGES_VARIANT_LOOKUP_PER_MINUTE=10"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(cfg.Images.VariantCORSOrigins, ",") != "https://blog.example,http://localhost:8090" || cfg.Images.VariantLookupPerMinute != 10 {
+		t.Fatalf("variant env ignored: %+v", cfg.Images)
+	}
+	for _, assignment := range []string{"IMGNEST_IMAGES_VARIANT_CORS_ORIGINS=https://blog.example/path", "IMGNEST_IMAGES_VARIANT_CORS_ORIGINS=blog.example", "IMGNEST_IMAGES_VARIANT_LOOKUP_PER_MINUTE=0"} {
+		if _, err = Load(t.Context(), "", []string{assignment}); err == nil {
+			t.Fatalf("bad variant config accepted: %s", assignment)
+		}
+	}
+}

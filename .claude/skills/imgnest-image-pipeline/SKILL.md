@@ -30,6 +30,11 @@ checklist; if the two disagree, the spec wins and this file must be updated.
 8. **Make WebP** per `webp_mode`; skip storing it if larger than the original
    and `skip_if_larger` is on (except `webp_only`).
 9. **Make the thumbnail** (static WebP, long edge `thumb_size`, default 400).
+9b. **Responsive variants** (only when the policy has `responsive_variants`
+   and the source is a still): encode 400/800/1600 px wide WebP from the final
+   display WebP (else the stored original), shrink only, skip widths ≥ the
+   source width, reuse the main WebP when its width matches exactly. Never
+   for animations. Each variant is an object in the same manifest.
 10. **Write objects**, then the DB row in one transaction (image + exif +
    `users.used_bytes += unique_cloud_object_bytes`). Original/WebP/cloud
    thumbnail all count; an uploaded WebP's shared key counts once. Local
@@ -52,9 +57,10 @@ cleaners must never affect a replacement image at the same path.
 | WebP | `{path}.webp` |
 | Cloud thumbnail | `{path}_thumbs.webp` |
 | Local thumbnail | `data/thumbs/{storage_id}/{path}_thumbs.webp` (served at `/t/{key}.webp`) |
+| Responsive variant | `{path}_w{width}_v{version}.webp` (e.g. `_w800_v1`) |
 | Recycle bin | `_trash/` + any of the above |
 
-`_thumbs` is a reserved name suffix; random filenames rerender up to 5 times,
+`_thumbs` and `_w{n}_v{n}` are reserved name suffixes; random filenames rerender up to 5 times,
 deterministic names append `-1`. Internal `_trash`/`.trash` namespaces cannot
 be rendered by user templates. URLs are never stored: base URL plus correctly
 escaped key segments. Private images hide public display; their direct links
@@ -152,6 +158,27 @@ Written twice. Admin list, preview and recycle bin read the **local** copy; API
 are regenerated lazily from the cloud thumbnail or WebP. The local thumbs
 folder is a cache — safe to delete.
 
+## Responsive variants
+
+- Stored in `images.variants` as `{key,width,height,bytes,mime}` with the real
+  encoded size; URLs are joined from the storage `base_url` at read time.
+  The long-edge thumbnail is never listed as a width variant.
+- Variant keys are written with `PutNew` only. Changing the encoding means
+  bumping `model.VariantVersion` and writing new keys, never overwriting, so
+  the immutable cache header stays true.
+- `repo.ReserveUpload` validates every declared variant against the manifest
+  (key shape, size, MIME, unique width) and rejects keys owned by a legacy
+  image path (`ErrPathConflict`).
+- Backfill of historic images goes through the `image_variant_jobs` journal:
+  Begin reserves quota → write objects (record each receipt) → Finish appends
+  them to the manifest. Startup recovery deletes objects of unfinished jobs
+  and releases the reservation before other lifecycle recovery. Trash is
+  refused (`ErrImageBusy`) while a job is open. Progress lives in the single
+  `variant_backfill` row (pausable, resumes after restart).
+- Lookup by link (`/api/variants`) only matches configured storage base URLs
+  against the database; it never fetches a URL and never returns EXIF,
+  owner or keys.
+
 ## Delete, restore, purge (recycle bin, default 7 days)
 
 - **Delete**: set `deleted_at`, `purge_at = now + trash.days`; server-side
@@ -204,3 +231,6 @@ is still raw WebP. See internal/storage/README.md and docs/spec.md§8.2.
   S3 driver against MinIO (put/copy/delete/purge with versioning on).
 - Upload service: inject a failing storage on the 2nd write and assert the 1st
   object was removed (compensation).
+- Variants: landscape, portrait, small (no upscale), alpha, orientation 6,
+  animation skipped, failure on a variant write compensates every object,
+  local + MinIO lifecycle (trash/restore/purge) in `internal/cli/variants_test.go`.

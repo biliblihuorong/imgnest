@@ -54,6 +54,7 @@ const policyFixture: adminApi.PolicyView = {
   path_tpl: "{Y}/{m}/{d}",
   name_tpl: "{uniqid}",
   webp_mode: "both",
+  responsive_variants: false,
   webp_quality: 80,
   webp_lossless: false,
   webp_effort: 4,

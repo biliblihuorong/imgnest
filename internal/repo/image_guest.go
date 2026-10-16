@@ -142,6 +142,9 @@ func (r *ImageRepository) ReserveGuestUpload(ctx context.Context, req model.Uplo
 		if err := checkGuestQuota(tx, group, image.ChargedBytes); err != nil {
 			return err
 		}
+		if err := checkVariantKeys(tx, image.StorageID, ownVariantKeys(image)); err != nil {
+			return err
+		}
 		if err := tx.Create(&image).Error; err != nil {
 			if errors.Is(err, gorm.ErrDuplicatedKey) {
 				return model.ErrPathConflict

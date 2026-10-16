@@ -186,7 +186,7 @@ v1 用方案 A 快速跑通，M6 再评估是否换 B。运行参数参照 imago
 
 常用组合：个人博客 `{y}/{m}` + `{uniqid}`；大量图片防单目录过大 `{Y}/{m}/{hash:2}` + `{md5-16}`；保留原名 `{Y}/{m}/{d}` + `{filename}`。
 
-文件名以 `_thumbs` 结尾为保留后缀，随机文件名重生成最多5次，确定性名字追加 `-1`。一个存储配一个 `base_url`；多个存储想共用一个域名时，交给反向代理按路径前缀分流，程序不做处理。
+文件名以 `_thumbs` 结尾、或匹配 `_w{数字}_v{数字}`（响应式衍生版本，见 6.3）均为保留后缀，随机文件名重生成最多5次，确定性名字追加 `-1`。一个存储配一个 `base_url`；多个存储想共用一个域名时，交给反向代理按路径前缀分流，程序不做处理。
 
 ### 5.1 删除与回收站
 
@@ -200,6 +200,8 @@ v1 用方案 A 快速跑通，M6 再评估是否换 B。运行参数参照 imago
 6. **B2 特别注意**：不带 `versionId` 的 DeleteObject 只会插入删除标记，旧版本仍在、仍计费（[B2 文档](https://www.backblaze.com/apidocs/s3-delete-object)）。物理删除要先列出该 Key 的所有版本逐个删；同时建议桶设生命周期规则「只保留最新版本」兜底。
 
 CDN 缓存不在本程序处理范围内。
+
+响应式衍生版本（6.3）登记在同一份对象清单里，删除、恢复、物理删除和 B2 逐版本删除自动覆盖它们，无需单独处理。
 
 ## 6. 图片处理规范：WebP、缩略图、EXIF
 
@@ -259,6 +261,17 @@ CDN 缓存不在本程序处理范围内。
 - **可见性**：GPS 与 `raw` 只有本人和管理员能看；公开接口、画廊、蓝空 v1 接口一律不返回 EXIF。
 - **历史图片**：从蓝空接管的 B2 原图仍带 GPS。补处理任务先提取 EXIF 入库，再按开关决定是否原位清理并覆盖云端原图（覆盖后链接不变，`md5` 会变）。
 
+### 6.3 响应式衍生版本（2026-10-16）
+
+给博客 `srcset` 用的预生成宽度版本，按规则开启（`policies.responsive_variants`，默认关闭，迁移 0011）。CDN 只负责缓存，所有文件都由本程序生成。
+
+- **生成**：首期只处理静态图，目标宽度 400 / 800 / 1600 px，WebP。保持比例、只缩不放；目标宽度不小于源图宽度的跳过，重复宽度只出一份。源图取最终展示的 WebP（含水印等展示变换），没有 WebP 时取已存原图。主 WebP 宽度恰好等于某个目标宽度时直接复用为该版本，不重复编码。动图（帧数 > 1）一律不生成，绝不变成静态首帧。原图、主 WebP、`_thumbs.webp` 和现有链接行为完全不变。
+- **时机**：上传时在同一请求内生成、一次落盘，沿用转码信号量、像素上限与元数据剥离（只保留 ICC）。上传响应只返回已写入的版本。
+- **数据**：`images.variants` 存 `[{key,width,height,bytes,mime}]`，`width/height` 取编码后图像的真实尺寸；URL 不入库，按存储当前 `base_url` 实时拼接。对外字段为 `variants: [{url,width,height,bytes,mime}]`，按宽度升序，原生 `ImageView`、上传响应和蓝空 v1 图片/上传数据都只是新增该字段，其他字段与单位不变。现有「长边 400」缩略图不计入 `variants`，不能当作「宽 400」。
+- **文件名与缓存**：`{path}_w{宽度}_v{处理版本}.webp`，当前处理版本 `v1`。对象只用不覆盖的写入（`PutNew`）创建，处理逻辑变化时提升版本号写新文件，因此可按 immutable 长缓存。本机与 S3 存储都可直接访问。
+- **生命周期**：衍生文件写入对象清单，参与容量预占和 `charged_bytes`/`used_bytes`；上传任一对象或事务失败时与原图一起补偿删除；回收站、恢复、物理删除与 S3 逐版本删除都按清单覆盖它们。
+- **历史图片**：管理员在后台「历史图片补生成」开始、暂停、继续或从头开始（`/api/admin/variants/backfill`）。单协程、每批 20 张、批间暂停，进度游标存 `variant_backfill`，重启后自动继续。每张图先在 `image_variant_jobs` 记日志并预占容量，再写对象，最后把对象并入清单；进程中途崩溃时，启动恢复会先删除未完成日志里已写的对象并释放预占。日志未完成时该图不能进回收站（返回忙）。尚未补生成的图返回空数组 `variants: []`，原有链接照常可用。
+
 ## 7. API 规范
 
 两套接口共用同一套 Service：`/api/v1` 字段与蓝空完全一致，只多不少；`/api` 是自己前端用的原生接口。鉴权统一 `Authorization: Bearer <token>`。
@@ -296,9 +309,10 @@ CDN 缓存不在本程序处理范围内。
 | 相册 | `GET/POST /api/albums`、`PATCH/DELETE /api/albums/{id}` | 本人 |
 | 随机图片链接 | `GET/PUT/DELETE /api/albums/{id}/random-link`、`POST /api/albums/{id}/random-link/reset` | 本人 |
 | 随机图片 | `GET/HEAD /random/{uid}/{token}`（307 跳转） | 公开（凭链接） |
+| 响应式版本 | `GET/POST /api/variants`（按已有链接批量查衍生版本，见 7.6） | 公开（限流，可配 CORS） |
 | Token | `GET/POST /api/tokens`、`DELETE /api/tokens/{id}` | 本人 |
 | 画廊 | `GET /api/gallery`、`GET /api/site` | 公开（受开关控制） |
-| 管理 | `/api/admin/users`、`groups`、`storages`（含 `POST /{id}/test`）、`policies`（含 `POST /preview` 模板预览）、`images`、`trash`（清空全站回收站）、`settings`、`plugins`（扩展插件的设置卡片，`PUT /{name}/settings` 保存）、`tasks/backfill`（补 WebP/缩略图/EXIF） | 管理员 |
+| 管理 | `/api/admin/users`、`groups`、`storages`（含 `POST /{id}/test`）、`policies`（含 `POST /preview` 模板预览）、`images`、`trash`（清空全站回收站）、`settings`、`plugins`（扩展插件的设置卡片，`PUT /{name}/settings` 保存）、`tasks/backfill`（补 WebP/缩略图/EXIF）、`variants/backfill`（补响应式版本，见 6.3） | 管理员 |
 
 **约定**
 
@@ -333,6 +347,14 @@ CDN 缓存不在本程序处理范围内。
 - 随机接口响应一律 `Cache-Control: no-store`，不返回图片元数据与 EXIF。`uid`/`token` 格式不符、未知、链接停用、用户被禁用、相册无可用图片，统一返回相同的 404/10001，不区分原因。日志只记路由模板，不记 `uid` 与 `token`。
 - 限流：每客户端地址每分钟 600 次，使用独立的限流表（上限 16384 条），超限 429/30003；与登录注册的限流互不挤占。
 - 候选图经 `RandomPool` 接口缓存：每相册最多 5000 张（超出时随机采样），TTL 60 秒；上传到相册、移入移出相册、进回收站、恢复、新建或删除链接时主动失效。链接本身每次请求都查库，停用、重置、禁用用户立即生效。本轮只有进程内实现；多实例部署且未接共享缓存时，其他实例上的失效最多延迟 60 秒（此时跳转目标已是 404，不泄露内容）。Redis 等共享实现只需满足同一接口，目前未引入依赖。
+
+### 7.6 响应式版本查询（2026-10-16）
+
+- `GET /api/variants?url=…&url=…` 或 `POST /api/variants`（`{"urls":[…]}`），公开只读，每批 1–50 个链接、单个 ≤ 2048 字节，返回 `{"items":[{"url","found","variants"}]}`，顺序与请求一致。
+- 只按已配置存储的 `base_url`（主机 + 最长路径前缀，忽略协议、查询串与片段）在库内匹配，**从不抓取外部 URL**。原图、`.webp`、`_thumbs.webp` 和衍生版本链接都能反查到同一张图；不在清单里的 Key、`_trash/` 前缀、回收站或已删除的图一律 `found=false`。
+- 只返回 `variants` 数组，不返回 EXIF、上传者、IP、key 或任何凭据。持有链接即可直接访问图片，所以查询不额外区分图片公开性。
+- 每客户端地址每分钟 60 次（`images.variant_lookup_per_minute`），超限 429/30003；成功响应 `Cache-Control: public, max-age=300`、`Vary: Origin`，进回收站后缓存的查询结果最多滞后 5 分钟，但其中的文件地址已立即 404。
+- 浏览器跨域读取需在 `images.variant_cors_origins` 列出来源（`https://blog.example.com`，或 `*`），默认不发 CORS 头。用法示例见 [`docs/examples/responsive-images.html`](examples/responsive-images.html)。
 
 ## 8. 工程规范
 

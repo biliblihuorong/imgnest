@@ -97,6 +97,7 @@ const imageView: ImageView = {
     webp: "https://img.example/2026/10/a.webp",
     thumbnail_url: "https://img.example/2026/10/a_thumbs.webp",
   },
+  variants: [],
   local_thumb_url: "/t/2026/10/a.png",
   deleted_at: null,
   purge_at: null,

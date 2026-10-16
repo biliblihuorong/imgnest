@@ -154,16 +154,32 @@ func (s *ImageService) OpenPublic(ctx context.Context, storageID uint64, key str
 	if storageID == 0 || key == "" || path.Clean(key) != key || strings.HasPrefix(key, "/") || strings.Contains(key, "\\") || strings.HasPrefix(key, "../") || strings.HasPrefix(key, "_trash/") || strings.HasPrefix(key, ".trash/") {
 		return PublicObject{}, ErrNotFound
 	}
-	base := strings.TrimSuffix(key, path.Ext(key))
-	if strings.HasSuffix(key, "_thumbs.webp") {
-		base = strings.TrimSuffix(key, "_thumbs.webp")
+	var (
+		image   model.Image
+		found   bool
+		lastErr = ErrNotFound
+	)
+	for _, base := range directBases(key) {
+		candidate, err := s.deps.Images.FindByPath(ctx, storageID, base)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if candidate.State != model.ImageStateActive {
+			continue
+		}
+		if !found || declaresCloudKey(candidate, key) {
+			image, found = candidate, true
+		}
+		if declaresCloudKey(candidate, key) {
+			break
+		}
 	}
-	image, err := s.deps.Images.FindByPath(ctx, storageID, base)
-	if err != nil {
-		return PublicObject{}, fmt.Errorf("find direct image: %w", err)
-	}
-	if image.State != model.ImageStateActive {
-		return PublicObject{}, ErrNotFound
+	if !found {
+		if errors.Is(lastErr, ErrNotFound) {
+			return PublicObject{}, ErrNotFound
+		}
+		return PublicObject{}, fmt.Errorf("find direct image: %w", lastErr)
 	}
 	driver, backend, err := s.imageDriver(ctx, image)
 	if err != nil {
@@ -172,14 +188,7 @@ func (s *ImageService) OpenPublic(ctx context.Context, storageID uint64, key str
 	if backend.Driver != "local" {
 		return PublicObject{}, ErrNotFound
 	}
-	declared := false
-	for _, receipt := range image.ObjectManifest {
-		if receipt.Location == model.ObjectLocationCloud && receipt.Key == key {
-			declared = true
-			break
-		}
-	}
-	if !declared {
+	if !declaresCloudKey(image, key) {
 		if key == image.Path+".webp" && !image.HasWebP && image.HasOriginal {
 			return PublicObject{Redirect: objectURL(backend.BaseURL, image.Path+"."+image.Ext)}, nil
 		}

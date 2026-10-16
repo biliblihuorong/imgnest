@@ -182,3 +182,31 @@ func TestBaseURLHonoursProxyScheme(t *testing.T) {
 		t.Fatalf("tls base = %s", got)
 	}
 }
+
+// Variants are an additive v1 field: the Lsky fields and their units stay
+// unchanged, and an image without variants carries an empty list, not null.
+func TestV1VariantsAreAdditive(t *testing.T) {
+	view := service.ImageView{Key: "k", Name: "a.jpg", Path: "2026/a", Ext: "jpg", MIME: "image/jpeg", Size: 2048, Width: 1600, Height: 800,
+		Links:    service.ImageLinks{URL: "https://cdn.test/2026/a.webp", Original: "https://cdn.test/2026/a.jpg", WebP: "https://cdn.test/2026/a.webp"},
+		Variants: []service.VariantView{{URL: "https://cdn.test/2026/a_w400_v1.webp", Width: 400, Height: 200, Bytes: 3000, MIME: "image/webp"}}}
+	encoded, err := json.Marshal(buildUploadData(view))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var upload map[string]any
+	if err := json.Unmarshal(encoded, &upload); err != nil {
+		t.Fatal(err)
+	}
+	if upload["size"] != 2.0 || upload["links"].(map[string]any)["url"] != view.Links.URL {
+		t.Fatalf("existing v1 fields changed: %s", encoded)
+	}
+	variants := upload["variants"].([]any)
+	if len(variants) != 1 || variants[0].(map[string]any)["bytes"] != 3000.0 || variants[0].(map[string]any)["width"] != 400.0 {
+		t.Fatalf("variants = %s", encoded)
+	}
+	view.Variants = nil
+	item, err := json.Marshal(buildImageItem(view, nil, time.Now(), time.UTC))
+	if err != nil || !strings.Contains(string(item), `"variants":[]`) || !strings.Contains(string(item), `"size":2`) {
+		t.Fatalf("list item: %s %v", item, err)
+	}
+}

@@ -13,6 +13,9 @@ server:
 
 images:
   thumb_cache: data/thumbs
+  # Browser origins (your blog) allowed to call /api/variants; "*" allows any.
+  variant_cors_origins: []
+  variant_lookup_per_minute: 60
 
 security:
   # Empty is sufficient for local-only storage. For S3, inject a base64 32-byte

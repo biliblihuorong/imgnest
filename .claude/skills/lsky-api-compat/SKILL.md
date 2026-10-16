@@ -97,6 +97,10 @@ Filter values:
 - `links.thumbnail_url` → the cloud `_thumbs.webp`, or the image URL if none.
 - List responses are Laravel paginators (see reference): `current_page`,
   `data`, `last_page`, `per_page`, `total`, plus the url fields.
+- Image items and upload data carry an extra `variants` array
+  (`[{url,width,height,bytes,mime}]`, `bytes` in bytes, sorted by width,
+  `[]` when none — never `null`). It is additive only; no existing field or
+  unit changes because of it.
 - Never return EXIF or GPS from any v1 route.
 
 ## Checklist for any change under /api/v1

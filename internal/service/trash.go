@@ -151,6 +151,9 @@ func (s *ImageService) trash(ctx context.Context, subject TokenSubject, key stri
 		return nil
 	}
 	if image.Operation != model.ImageOperationTrash {
+		if err := s.variantJobPending(ctx, image); err != nil {
+			return err
+		}
 		days, err := s.deps.Settings.TrashDays(ctx)
 		if err != nil {
 			return fmt.Errorf("read trash retention: %w", err)
@@ -410,11 +413,13 @@ func (s *ImageService) recoverOperations(ctx context.Context, startup bool) erro
 		return err
 	}
 	defer s.unlockOperations()
+	// Abandoned variant journals go first: their objects are not yet in any
+	// manifest, so no other recovery step would remove them.
+	failures := s.recoverVariantJobs(ctx)
 	pending, err := s.deps.Images.PendingOperations(ctx)
 	if err != nil {
-		return fmt.Errorf("read image recovery journal: %w", err)
+		return errors.Join(append(failures, fmt.Errorf("read image recovery journal: %w", err))...)
 	}
-	var failures []error
 	for _, image := range pending {
 		if image.Operation == model.ImageOperationUpload && !startup {
 			continue

@@ -23,23 +23,25 @@ import (
 var errInvalid = errors.New("invalid configuration")
 
 var environmentKeys = map[string]string{
-	"IMGNEST_SERVER_ADDR":                "server.addr",
-	"IMGNEST_SERVER_TRUSTED_PROXIES":     "server.trusted_proxies",
-	"IMGNEST_SERVER_READ_HEADER_TIMEOUT": "server.read_header_timeout",
-	"IMGNEST_SERVER_SHUTDOWN_TIMEOUT":    "server.shutdown_timeout",
-	"IMGNEST_SERVER_MAX_UPLOAD_MB":       "server.max_upload_mb",
-	"IMGNEST_SERVER_MAX_REQUEST_MB":      "server.max_request_mb",
-	"IMGNEST_SERVER_UPLOAD_CONCURRENCY":  "server.upload_concurrency",
-	"IMGNEST_SERVER_PROCESSING_TIMEOUT":  "server.processing_timeout",
-	"IMGNEST_SERVER_MAX_PIXELS":          "server.max_pixels",
-	"IMGNEST_IMAGES_THUMB_CACHE":         "images.thumb_cache",
-	"IMGNEST_SECURITY_MASTER_KEY":        "security.master_key",
-	"IMGNEST_DATABASE_DRIVER":            "database.driver",
-	"IMGNEST_DATABASE_DSN":               "database.dsn",
-	"IMGNEST_DATABASE_MAX_OPEN":          "database.max_open",
-	"IMGNEST_DATABASE_MAX_IDLE":          "database.max_idle",
-	"IMGNEST_DATABASE_MAX_LIFETIME":      "database.max_lifetime",
-	"IMGNEST_DATABASE_BUSY_TIMEOUT":      "database.busy_timeout",
+	"IMGNEST_SERVER_ADDR":                      "server.addr",
+	"IMGNEST_SERVER_TRUSTED_PROXIES":           "server.trusted_proxies",
+	"IMGNEST_SERVER_READ_HEADER_TIMEOUT":       "server.read_header_timeout",
+	"IMGNEST_SERVER_SHUTDOWN_TIMEOUT":          "server.shutdown_timeout",
+	"IMGNEST_SERVER_MAX_UPLOAD_MB":             "server.max_upload_mb",
+	"IMGNEST_SERVER_MAX_REQUEST_MB":            "server.max_request_mb",
+	"IMGNEST_SERVER_UPLOAD_CONCURRENCY":        "server.upload_concurrency",
+	"IMGNEST_SERVER_PROCESSING_TIMEOUT":        "server.processing_timeout",
+	"IMGNEST_SERVER_MAX_PIXELS":                "server.max_pixels",
+	"IMGNEST_IMAGES_THUMB_CACHE":               "images.thumb_cache",
+	"IMGNEST_IMAGES_VARIANT_CORS_ORIGINS":      "images.variant_cors_origins",
+	"IMGNEST_IMAGES_VARIANT_LOOKUP_PER_MINUTE": "images.variant_lookup_per_minute",
+	"IMGNEST_SECURITY_MASTER_KEY":              "security.master_key",
+	"IMGNEST_DATABASE_DRIVER":                  "database.driver",
+	"IMGNEST_DATABASE_DSN":                     "database.dsn",
+	"IMGNEST_DATABASE_MAX_OPEN":                "database.max_open",
+	"IMGNEST_DATABASE_MAX_IDLE":                "database.max_idle",
+	"IMGNEST_DATABASE_MAX_LIFETIME":            "database.max_lifetime",
+	"IMGNEST_DATABASE_BUSY_TIMEOUT":            "database.busy_timeout",
 }
 
 // Config contains the HTTP server and database deployment settings.
@@ -63,8 +65,16 @@ type Server struct {
 	MaxPixels         int
 }
 
-// Images configures the replaceable local preview cache.
-type Images struct{ ThumbCache string }
+// Images configures the replaceable local preview cache and the public
+// responsive-variant lookup.
+type Images struct {
+	ThumbCache string
+	// VariantCORSOrigins are the browser origins (such as a blog) allowed to
+	// read variant lookups; "*" allows any origin, empty allows none.
+	VariantCORSOrigins []string
+	// VariantLookupPerMinute bounds lookups per client address.
+	VariantLookupPerMinute int
+}
 
 // Security contains the deployment key used for encrypted cloud credentials.
 type Security struct{ MasterKey string }
@@ -126,7 +136,7 @@ func Load(ctx context.Context, path string, environ []string) (Config, error) {
 		EnvironFunc: func() []string { return assignments },
 		TransformFunc: func(name, value string) (string, any) {
 			key := environmentKeys[name]
-			if key == "server.trusted_proxies" {
+			if key == "server.trusted_proxies" || key == "images.variant_cors_origins" {
 				proxies := []string{}
 				if value != "" {
 					for _, proxy := range strings.Split(value, ",") {
@@ -154,23 +164,25 @@ func Load(ctx context.Context, path string, environ []string) (Config, error) {
 	}
 
 	defaults := map[string]any{
-		"server.addr":                ":8080",
-		"server.trusted_proxies":     []string{},
-		"server.read_header_timeout": "5s",
-		"server.shutdown_timeout":    "10s",
-		"server.max_upload_mb":       20,
-		"server.max_request_mb":      64,
-		"server.upload_concurrency":  2,
-		"server.processing_timeout":  "5m",
-		"server.max_pixels":          100000000,
-		"images.thumb_cache":         "data/thumbs",
-		"security.master_key":        "",
-		"database.driver":            driver,
-		"database.dsn":               "data/imgnest.db",
-		"database.max_open":          1,
-		"database.max_idle":          1,
-		"database.max_lifetime":      "0s",
-		"database.busy_timeout":      "5000ms",
+		"server.addr":                      ":8080",
+		"server.trusted_proxies":           []string{},
+		"server.read_header_timeout":       "5s",
+		"server.shutdown_timeout":          "10s",
+		"server.max_upload_mb":             20,
+		"server.max_request_mb":            64,
+		"server.upload_concurrency":        2,
+		"server.processing_timeout":        "5m",
+		"server.max_pixels":                100000000,
+		"images.thumb_cache":               "data/thumbs",
+		"images.variant_cors_origins":      []string{},
+		"images.variant_lookup_per_minute": 60,
+		"security.master_key":              "",
+		"database.driver":                  driver,
+		"database.dsn":                     "data/imgnest.db",
+		"database.max_open":                1,
+		"database.max_idle":                1,
+		"database.max_lifetime":            "0s",
+		"database.busy_timeout":            "5000ms",
 	}
 	if driver == "postgres" {
 		defaults["database.dsn"] = ""
@@ -229,6 +241,7 @@ func decode(k *koanf.Koanf) (Config, error) {
 		{key: "server.max_request_mb", value: &cfg.Server.MaxRequestMB},
 		{key: "server.upload_concurrency", value: &cfg.Server.UploadConcurrency},
 		{key: "server.max_pixels", value: &cfg.Server.MaxPixels},
+		{key: "images.variant_lookup_per_minute", value: &cfg.Images.VariantLookupPerMinute},
 	} {
 		switch value := k.Get(field.key).(type) {
 		case int:
@@ -263,22 +276,33 @@ func decode(k *koanf.Koanf) (Config, error) {
 		}
 		*field.value = duration
 	}
-	cfg.Server.TrustedProxies = []string{}
-	switch values := k.Get("server.trusted_proxies").(type) {
-	case []string:
-		cfg.Server.TrustedProxies = append(cfg.Server.TrustedProxies, values...)
-	case []any:
-		for _, value := range values {
-			proxy, ok := value.(string)
-			if !ok {
-				return Config{}, invalid("server.trusted_proxies", "must be a list of IP addresses or CIDRs")
-			}
-			cfg.Server.TrustedProxies = append(cfg.Server.TrustedProxies, proxy)
-		}
-	default:
-		return Config{}, invalid("server.trusted_proxies", "must be a list of IP addresses or CIDRs")
+	var err error
+	if cfg.Server.TrustedProxies, err = stringList(k, "server.trusted_proxies", "must be a list of IP addresses or CIDRs"); err != nil {
+		return Config{}, err
+	}
+	if cfg.Images.VariantCORSOrigins, err = stringList(k, "images.variant_cors_origins", "must be a list of origins"); err != nil {
+		return Config{}, err
 	}
 	return cfg, nil
+}
+
+func stringList(k *koanf.Koanf, key, reason string) ([]string, error) {
+	list := []string{}
+	switch values := k.Get(key).(type) {
+	case []string:
+		list = append(list, values...)
+	case []any:
+		for _, value := range values {
+			item, ok := value.(string)
+			if !ok {
+				return nil, invalid(key, reason)
+			}
+			list = append(list, item)
+		}
+	default:
+		return nil, invalid(key, reason)
+	}
+	return list, nil
 }
 
 func validate(cfg Config) error {
@@ -299,6 +323,14 @@ func validate(cfg Config) error {
 	}
 	if strings.TrimSpace(cfg.Images.ThumbCache) == "" {
 		return invalid("images.thumb_cache", "must not be empty")
+	}
+	if cfg.Images.VariantLookupPerMinute < 1 || cfg.Images.VariantLookupPerMinute > 10000 {
+		return invalid("images.variant_lookup_per_minute", "must be between 1 and 10000")
+	}
+	for _, origin := range cfg.Images.VariantCORSOrigins {
+		if !validOrigin(origin) {
+			return invalid("images.variant_cors_origins", "must contain only * or scheme://host[:port] origins")
+		}
 	}
 	if cfg.Security.MasterKey != "" {
 		key, err := base64.StdEncoding.DecodeString(cfg.Security.MasterKey)
@@ -345,6 +377,18 @@ func validate(cfg Config) error {
 		return invalid("database.busy_timeout", "must not be negative")
 	}
 	return nil
+}
+
+// validOrigin accepts "*" or an exact browser origin without a path.
+func validOrigin(origin string) bool {
+	if origin == "*" {
+		return true
+	}
+	scheme, host, ok := strings.Cut(origin, "://")
+	if !ok || (scheme != "http" && scheme != "https") || host == "" {
+		return false
+	}
+	return !strings.ContainsAny(host, "/?#@ *")
 }
 
 func invalid(field, reason string) error {

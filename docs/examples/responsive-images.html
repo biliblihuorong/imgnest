@@ -1,0 +1,163 @@
+<!doctype html>
+<!--
+  ImgNest 响应式图片示例（可直接用于 Halo 等博客主题）
+
+  1. 上传规则里打开「响应式衍生图」，历史图片在「规则管理 → 响应式图片补生成」里补齐。
+  2. 博客在浏览器里查询时，把博客域名加入 images.variant_cors_origins
+     （如 IMGNEST_IMAGES_VARIANT_CORS_ORIGINS=https://blog.example.com）。
+  3. 把下面的 IMGNEST_ORIGIN 改成 ImgNest 站点地址（不是存储的 base_url）。
+
+  两种写法：
+  A. 静态写法（推荐）：上传接口已返回 variants，直接写出 srcset，零请求。
+  B. 动态写法：只有原图链接时，用 data-imgnest-src 标记，脚本调用
+     /api/variants 批量查询（每批最多 50 个），查到就写 srcset，查不到就回退原链接。
+     用 data-imgnest-src 而不是 src，浏览器在查询完成前不会先下载原图。
+  两种写法里点击图片都会打开灯箱，这时才加载原图。
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ImgNest 响应式图片示例</title>
+    <style>
+      body {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 16px;
+        font: 16px/1.7 system-ui, sans-serif;
+      }
+      figure {
+        margin: 24px 0;
+      }
+      .imgnest-zoom {
+        display: block;
+        width: 100%;
+        height: auto;
+        cursor: zoom-in;
+        background: #f2f2f2;
+      }
+      .imgnest-lightbox {
+        width: 100vw;
+        max-width: 100vw;
+        height: 100vh;
+        max-height: 100vh;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: rgb(0 0 0 / 0.9);
+        cursor: zoom-out;
+      }
+      .imgnest-lightbox img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>响应式图片示例</h1>
+
+    <!-- A. 静态写法：把上传响应里的 variants 写进 srcset；data-full 是原图，只在放大时加载。 -->
+    <figure>
+      <img
+        class="imgnest-zoom"
+        src="https://img.example.com/2026/10/66ff1b2a3c4d5_w800_v1.webp"
+        srcset="
+          https://img.example.com/2026/10/66ff1b2a3c4d5_w400_v1.webp   400w,
+          https://img.example.com/2026/10/66ff1b2a3c4d5_w800_v1.webp   800w,
+          https://img.example.com/2026/10/66ff1b2a3c4d5_w1600_v1.webp 1600w
+        "
+        sizes="(max-width: 832px) calc(100vw - 32px), 800px"
+        width="1600"
+        height="900"
+        loading="lazy"
+        decoding="async"
+        data-full="https://img.example.com/2026/10/66ff1b2a3c4d5.jpg"
+        alt="静态写法"
+      />
+    </figure>
+
+    <!-- B. 动态写法：只写原图链接，由脚本查询衍生版本。 -->
+    <figure>
+      <img
+        class="imgnest-zoom"
+        data-imgnest-src="https://img.example.com/2026/10/66ff1b2a3c4d6.png"
+        alt="动态写法"
+      />
+    </figure>
+
+    <dialog class="imgnest-lightbox" aria-label="原图">
+      <img alt="" />
+    </dialog>
+
+    <script>
+      (() => {
+        const IMGNEST_ORIGIN = "https://img.example.com"; // ImgNest 站点地址
+        const SIZES = "(max-width: 832px) calc(100vw - 32px), 800px";
+        const BATCH = 50;
+
+        // 选一个默认 src：不超过 800px 的最大版本，旧浏览器只认 src。
+        function applyVariants(img, original, variants) {
+          img.dataset.full = original;
+          if (!variants.length) {
+            img.src = original;
+            return;
+          }
+          const fallback = variants.filter((v) => v.width <= 800).pop() || variants[0];
+          const largest = variants[variants.length - 1];
+          img.width = largest.width;
+          img.height = largest.height;
+          img.sizes = SIZES;
+          img.srcset = variants.map((v) => `${v.url} ${v.width}w`).join(", ");
+          img.src = fallback.url;
+        }
+
+        async function lookup(urls) {
+          const response = await fetch(`${IMGNEST_ORIGIN}/api/variants`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ urls }),
+          });
+          const body = await response.json();
+          if (!response.ok || body.code !== 0) {
+            throw new Error(body.message || response.statusText);
+          }
+          return body.data.items;
+        }
+
+        async function resolveAll() {
+          const images = [...document.querySelectorAll("img[data-imgnest-src]")];
+          for (let i = 0; i < images.length; i += BATCH) {
+            const batch = images.slice(i, i + BATCH);
+            const urls = batch.map((img) => img.dataset.imgnestSrc);
+            let items = [];
+            try {
+              items = await lookup([...new Set(urls)]);
+            } catch (err) {
+              console.warn("ImgNest 查询失败，回退原图", err);
+            }
+            const byURL = new Map(items.map((item) => [item.url, item.variants]));
+            batch.forEach((img, index) => applyVariants(img, urls[index], byURL.get(urls[index]) || []));
+          }
+        }
+
+        // 灯箱：点击时才把原图地址交给 <img>，浏览前不下载原图。
+        const dialog = document.querySelector(".imgnest-lightbox");
+        const full = dialog.querySelector("img");
+        document.addEventListener("click", (event) => {
+          const img = event.target.closest(".imgnest-zoom");
+          if (!img || !img.dataset.full) {
+            return;
+          }
+          full.src = img.dataset.full;
+          full.alt = img.alt;
+          dialog.showModal();
+        });
+        dialog.addEventListener("click", () => dialog.close());
+        dialog.addEventListener("close", () => full.removeAttribute("src"));
+
+        resolveAll();
+      })();
+    </script>
+  </body>
+</html>

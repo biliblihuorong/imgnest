@@ -201,7 +201,9 @@
     "previewInvalid": "Template error: {error}",
     "deleted": "Policy “{name}” deleted",
     "created": "Policy “{name}” created",
-    "saved": "Policy “{name}” saved"
+    "saved": "Policy “{name}” saved",
+    "responsiveVariants": "Responsive variants",
+    "responsiveVariantsHint": "For still images, also store 400/800/1600px wide WebP files; never enlarged, animations unchanged. Fill in older images with the backfill below."
   },
   "settings": {
     "title": "Site settings",
@@ -299,5 +301,22 @@
     "itemTitle": "Item {index}",
     "emptyList": "Nothing added yet",
     "tagPlaceholder": "Type and press Enter"
+  },
+  "variants": {
+    "title": "Responsive variant backfill",
+    "intro": "Generates the 400/800/1600px WebP variants of existing images whose rule has responsive variants on, one image at a time. It can be paused and resumes where it stopped after a restart.",
+    "status": {
+      "idle": "Not started",
+      "running": "Running",
+      "paused": "Paused",
+      "done": "Done"
+    },
+    "progress": "{processed} processed: {generated} generated, {skipped} skipped, {failed} failed",
+    "start": "Start backfill",
+    "resume": "Resume",
+    "pause": "Pause",
+    "restart": "Start over",
+    "restartConfirm": "Check every image again from the first one and reset the counters? Images that already have variants are skipped.",
+    "loadFailed": "Could not load the backfill status"
   }
 }

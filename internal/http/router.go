@@ -51,12 +51,19 @@ type Dependencies struct {
 	// ExternalSignIn signs in identities that plugins verified; without it
 	// plugin sign-ins end on the login page with an "unavailable" error.
 	ExternalSignIn native.ExternalSignIn
+	// Variants serves the public responsive-variant lookup and the admin
+	// backfill when configured.
+	Variants       native.Variants
+	VariantOptions native.VariantOptions
 }
 
 var pluginName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 
 // ImageOptions configures bounded native image uploads.
 type ImageOptions = native.ImageOptions
+
+// VariantOptions configures the public responsive-variant lookup.
+type VariantOptions = native.VariantOptions
 
 // NewRouter constructs the native API without depending on a concrete repository.
 func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) {
@@ -118,6 +125,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.Images != nil {
 		if err := handler.RegisterImageRoutes(ctx, router, deps.Images, deps.ImageOptions); err != nil {
 			return nil, fmt.Errorf("register image routes: %w", err)
+		}
+	}
+	if deps.Variants != nil {
+		if err := handler.RegisterVariantRoutes(ctx, router, deps.Variants, deps.VariantOptions); err != nil {
+			return nil, fmt.Errorf("register variant routes: %w", err)
 		}
 	}
 	if deps.Albums != nil {

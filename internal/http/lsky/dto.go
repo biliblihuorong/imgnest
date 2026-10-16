@@ -59,6 +59,9 @@ type imageItem struct {
 	Links      imageLinks `json:"links"`
 	HumanDate  string     `json:"human_date"`
 	Date       string     `json:"date"`
+	// Variants is an ImgNest addition: stored responsive renditions with
+	// their byte size (bytes, unlike the KB float size field).
+	Variants []service.VariantView `json:"variants"`
 }
 
 // v1Name is the stored file name with extension.
@@ -112,7 +115,8 @@ func buildImageItem(view service.ImageView, album any, now time.Time, zone *time
 		HumanDate:  humanDate(now, created, zone),
 		// Lsky renders created_at in the application time zone; ours follows
 		// the injected zone, which is the server's TZ in production.
-		Date: created.In(zone).Format("2006-01-02 15:04:05"),
+		Date:     created.In(zone).Format("2006-01-02 15:04:05"),
+		Variants: variantList(view),
 	}
 }
 
@@ -130,7 +134,16 @@ func buildUploadData(view service.ImageView) gin.H {
 		"md5":         view.MD5,
 		"sha1":        view.SHA1,
 		"links":       links,
+		"variants":    variantList(view),
 	}
+}
+
+// variantList never encodes null, so clients can iterate it unconditionally.
+func variantList(view service.ImageView) []service.VariantView {
+	if view.Variants == nil {
+		return []service.VariantView{}
+	}
+	return view.Variants
 }
 
 // humanDate renders the Chinese relative time shown in the v1 list.

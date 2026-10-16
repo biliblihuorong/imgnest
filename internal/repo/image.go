@@ -103,6 +103,9 @@ func (r *ImageRepository) ReserveUpload(ctx context.Context, req model.UploadRes
 		if err := checkQuota(tx, user, image.ChargedBytes); err != nil {
 			return err
 		}
+		if err := checkVariantKeys(tx, image.StorageID, ownVariantKeys(image)); err != nil {
+			return err
+		}
 		filenameSearch := searchquery.Normalize(image.OriginName)
 		image.FilenameSearch = &filenameSearch
 		if err := tx.Create(&image).Error; err != nil {
@@ -535,6 +538,13 @@ func preparedImage(req model.UploadReservation) (model.Image, error) {
 	if len(allowedCloud) == 0 {
 		return model.Image{}, model.ErrInvalidInput
 	}
+	variantBytes, err := declaredVariants(image)
+	if err != nil {
+		return model.Image{}, err
+	}
+	for key := range variantBytes {
+		allowedCloud[key] = true
+	}
 	cacheKey := image.Path + "_thumbs.webp"
 	objects := make([]model.ObjectReceipt, 0, len(req.Objects))
 	seen := map[string]model.ObjectReceipt{}
@@ -584,7 +594,11 @@ func preparedImage(req model.UploadReservation) (model.Image, error) {
 		objects = append(objects, object)
 	}
 	for key := range allowedCloud {
-		if _, exists := seen[model.ObjectLocationCloud+"\x00"+key]; !exists {
+		object, exists := seen[model.ObjectLocationCloud+"\x00"+key]
+		if !exists {
+			return model.Image{}, model.ErrInvalidInput
+		}
+		if size, variant := variantBytes[key]; variant && (object.Size != size || object.MIME != model.VariantMIME) {
 			return model.Image{}, model.ErrInvalidInput
 		}
 	}
@@ -608,7 +622,7 @@ func validImagePath(value string) bool {
 		return false
 	}
 	segments := strings.Split(value, "/")
-	if segments[0] == "_trash" || segments[0] == ".trash" || strings.HasSuffix(path.Base(value), "_thumbs") {
+	if segments[0] == "_trash" || segments[0] == ".trash" || strings.HasSuffix(path.Base(value), "_thumbs") || model.ReservedVariantName(path.Base(value)) {
 		return false
 	}
 	for _, segment := range segments {
@@ -622,6 +636,63 @@ func validImagePath(value string) bool {
 		}
 	}
 	return true
+}
+
+// declaredVariants validates an image's variant list against its path and
+// returns the declared byte size per object key. A variant either has its own
+// versioned key or reuses the primary WebP when that already has the size.
+func declaredVariants(image model.Image) (map[string]int64, error) {
+	keys := map[string]int64{}
+	widths := map[int]bool{}
+	for _, variant := range image.Variants {
+		if variant.Width < 1 || variant.Height < 1 || variant.Bytes < 1 || variant.MIME != model.VariantMIME || widths[variant.Width] {
+			return nil, model.ErrInvalidInput
+		}
+		widths[variant.Width] = true
+		switch variant.Key {
+		case image.Path + ".webp":
+			if !image.HasWebP || variant.Bytes != image.WebPSize {
+				return nil, model.ErrInvalidInput
+			}
+		case model.VariantKey(image.Path, variant.Width):
+			keys[variant.Key] = variant.Bytes
+		default:
+			return nil, model.ErrInvalidInput
+		}
+	}
+	return keys, nil
+}
+
+// checkVariantKeys rejects variant keys that an existing image already uses
+// as its own path's WebP: such rows predate the reserved variant suffix.
+// ErrPathConflict lets the upload choose another path.
+func checkVariantKeys(tx *gorm.DB, storageID uint64, keys []string) error {
+	bases := []string{}
+	for _, key := range keys {
+		bases = append(bases, strings.TrimSuffix(key, ".webp"))
+	}
+	if len(bases) == 0 {
+		return nil
+	}
+	var count int64
+	if err := tx.Model(&model.Image{}).Where("storage_id = ? AND path IN ?", storageID, bases).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return model.ErrPathConflict
+	}
+	return nil
+}
+
+// ownVariantKeys lists the variant objects an image writes itself.
+func ownVariantKeys(image model.Image) []string {
+	keys := []string{}
+	for _, variant := range image.Variants {
+		if variant.Key != image.Path+".webp" {
+			keys = append(keys, variant.Key)
+		}
+	}
+	return keys
 }
 
 func objectDigest(value string) (string, error) {

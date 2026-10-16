@@ -772,6 +772,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/variants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Look up responsive variants of existing image links
+         * @description Public and read-only. Each `url` is matched against the configured
+         *     storage base URLs (host plus longest path prefix; scheme, query and
+         *     fragment are ignored) and then the database; no URL is ever fetched.
+         *     Original, WebP, thumbnail and variant links of one image resolve to the
+         *     same variants. Recycled, deleted, `_trash/` and unknown links answer
+         *     `found: false`. Never returns EXIF, owner, key or credentials. Limited
+         *     per client address (`images.variant_lookup_per_minute`, default 60).
+         *     Success carries `Cache-Control: public, max-age=300` and `Vary: Origin`;
+         *     `Access-Control-Allow-Origin` is sent only for origins listed in
+         *     `images.variant_cors_origins`.
+         */
+        get: operations["lookupVariants"];
+        put?: never;
+        /** Same lookup with the links in a JSON body */
+        post: operations["lookupVariantsBatch"];
+        delete?: never;
+        /** CORS preflight for configured origins */
+        options: operations["preflightVariants"];
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/variants/backfill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the historic responsive-variant backfill progress */
+        get: operations["adminVariantBackfillStatus"];
+        put?: never;
+        /**
+         * Start, resume, restart or pause the backfill
+         * @description `start` resumes from the saved cursor (`restart: true` starts from the
+         *     first image and resets the counters); `pause` stops the worker and keeps the
+         *     cursor. One low-concurrency worker processes active images of rules
+         *     with `responsive_variants`, and resumes after a restart while running.
+         */
+        post: operations["adminControlVariantBackfill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/gallery": {
         parameters: {
             query?: never;
@@ -1691,6 +1746,8 @@ export interface components {
             on_conflict: "rename" | "reject";
             strip_meta: boolean;
             skip_if_larger: boolean;
+            /** @description Also store 400/800/1600 px wide WebP variants of still images. */
+            responsive_variants: boolean;
             enabled: boolean;
             created_at: components["schemas"]["Timestamp"];
             updated_at: components["schemas"]["Timestamp"];
@@ -1746,6 +1803,8 @@ export interface components {
             strip_meta: boolean;
             /** @default true */
             skip_if_larger: boolean;
+            /** @default false */
+            responsive_variants: boolean;
         };
         PolicyPatch: {
             name?: string;
@@ -1772,6 +1831,7 @@ export interface components {
             on_conflict?: "rename" | "reject";
             strip_meta?: boolean;
             skip_if_larger?: boolean;
+            responsive_variants?: boolean;
         };
         PolicyPreviewRequest: {
             path_tpl: string;
@@ -2001,10 +2061,68 @@ export interface components {
             /** @description MD5 of the original uploaded bytes before sanitization. */
             src_md5: string;
             links: components["schemas"]["ImageLinks"];
+            variants: components["schemas"]["ImageVariantList"];
             local_thumb_url: string;
             deleted_at: components["schemas"]["NullableTimestamp"];
             purge_at: components["schemas"]["NullableTimestamp"];
             created_at: components["schemas"]["Timestamp"];
+        };
+        /** @description A pre-generated responsive WebP. `width`/`height` are the real encoded dimensions; the long-edge thumbnail is never listed here. */
+        ImageVariant: {
+            /** @description Built from the storage's current base URL; never stored. */
+            url: string;
+            width: number;
+            height: number;
+            /** Format: int64 */
+            bytes: number;
+            /** @enum {string} */
+            mime: "image/webp";
+        };
+        /** @description Responsive variants sorted by width; empty (never null) for animations, rules without variants and images not backfilled yet. */
+        ImageVariantList: components["schemas"]["ImageVariant"][];
+        VariantLookupRequest: {
+            urls: string[];
+        };
+        VariantLookupEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: {
+                /** @description One entry per requested link, in request order. */
+                items: {
+                    /** @description The link exactly as requested. */
+                    url: string;
+                    /** @description True only for an active image managed by this site that owns the linked object. */
+                    found: boolean;
+                    variants: components["schemas"]["ImageVariantList"];
+                }[];
+            };
+        };
+        VariantBackfill: {
+            /** @enum {string} */
+            status: "idle" | "running" | "paused" | "done";
+            /**
+             * Format: int64
+             * @description Last image ID processed.
+             */
+            cursor: number;
+            /** Format: int64 */
+            processed: number;
+            /** Format: int64 */
+            generated: number;
+            /** Format: int64 */
+            skipped: number;
+            /** Format: int64 */
+            failed: number;
+            updated_at: components["schemas"]["Timestamp"];
+            /** @description True while this process is running the backfill. */
+            active: boolean;
+        };
+        VariantBackfillEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["VariantBackfill"];
         };
         SearchAlbum: {
             /** @description Decimal ID string preserved without JavaScript number conversion. */
@@ -2491,6 +2609,7 @@ export interface components {
             /** @description SHA-1 of the stored original after metadata scrubbing. */
             sha1: string;
             links: components["schemas"]["LskyUploadLinks"];
+            variants: components["schemas"]["ImageVariantList"];
         };
         LskyUploadLinks: components["schemas"]["LskyImageLinks"] & {
             /** @description ImgNest extra; stored original URL */
@@ -2558,6 +2677,7 @@ export interface components {
             width: number;
             height: number;
             links: components["schemas"]["LskyImageLinks"];
+            variants: components["schemas"]["ImageVariantList"];
             /** @description Relative text such as 刚刚 or 3 分钟前. */
             human_date: string;
             /** @description Y-m-d H:i:s. */
@@ -4031,6 +4151,133 @@ export interface operations {
             };
             404: components["responses"]["NotFound"];
             429: components["responses"]["RateLimited"];
+        };
+    };
+    lookupVariants: {
+        parameters: {
+            query: {
+                /** @description Image link; repeat up to 50 times. */
+                url: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One item per link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariantLookupEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    lookupVariantsBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariantLookupRequest"];
+            };
+        };
+        responses: {
+            /** @description One item per link. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariantLookupEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    preflightVariants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Allowed methods and headers are sent only for configured origins. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    adminVariantBackfillStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current progress. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariantBackfillEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminControlVariantBackfill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    action: "start" | "pause";
+                    /** @default false */
+                    restart?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Progress after the change. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariantBackfillEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
         };
     };
     listGallery: {

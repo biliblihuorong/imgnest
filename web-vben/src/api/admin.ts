@@ -166,6 +166,8 @@ export interface PolicyView {
   on_conflict: OnConflict;
   strip_meta: boolean;
   skip_if_larger: boolean;
+  /** 上传时生成 400/800/1600px 的响应式 WebP 衍生版本。 */
+  responsive_variants: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -411,4 +413,38 @@ export function deleteAdminImage(id: number): Promise<null> {
 /** 清空全站回收站；返回彻底删除的图片数。 */
 export function purgeAllTrash(): Promise<TrashPurgeResult> {
   return request<TrashPurgeResult>("/api/admin/trash/purge-all", { method: "POST" });
+}
+
+// ---------- 响应式衍生版本补生成 ----------
+
+/** 历史图片补生成状态：idle 未开始、running 运行中、paused 已暂停、done 已完成。 */
+export type VariantBackfillStatus = "idle" | "running" | "paused" | "done";
+
+/** 补生成进度；cursor 为已处理到的图片 ID，active 表示当前进程正在生成。 */
+export interface VariantBackfill {
+  status: VariantBackfillStatus;
+  cursor: number;
+  processed: number;
+  generated: number;
+  skipped: number;
+  failed: number;
+  updated_at: string;
+  active: boolean;
+}
+
+/** 读取历史图片补生成进度。 */
+export function getVariantBackfill(): Promise<VariantBackfill> {
+  return request<VariantBackfill>("/api/admin/variants/backfill");
+}
+
+/** 开始/继续（restart 为 true 时从头开始）或暂停补生成。 */
+export function controlVariantBackfill(
+  action: "start" | "pause",
+  restart = false,
+): Promise<VariantBackfill> {
+  return request<VariantBackfill>("/api/admin/variants/backfill", {
+    method: "POST",
+    headers: { ...JSON_HEADERS },
+    body: JSON.stringify(action === "start" ? { action, restart } : { action }),
+  });
 }
