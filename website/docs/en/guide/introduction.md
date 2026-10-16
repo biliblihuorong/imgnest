@@ -13,8 +13,8 @@ ImgNest is a self-hosted image host with a Go backend and a Vue 3 interface. It 
 
 ## Current status
 
-::: warning No stable release yet
-ImgNest is under active development and version 1.0.0 has not been released. A Docker image is available: the `edge` tag follows the latest commit on `main` and may be unstable.
+::: warning Preview release
+ImgNest is under active development. The current preview release is **v0.0.2** (image tag `0.0.2`, also `latest`); version 1.0.0 has not been released. The `edge` tag follows the latest commit on `main` and may be unstable.
 :::
 
 What is implemented:
@@ -23,9 +23,9 @@ What is implemented:
 | --- | --- |
 | Accounts | Users, groups, tokens, login rate limiting, captcha |
 | Storage | Local storage, S3-compatible storage, upload policies and path templates |
-| Image processing | WebP conversion, two thumbnails, EXIF archiving and lossless scrubbing |
+| Image processing | WebP conversion, two thumbnails, EXIF archiving and lossless scrubbing, responsive versions (400/800/1600 wide, with a backfill for older images) |
 | Management | Recycle bin, albums, public gallery, admin panel |
-| Compatibility | Lsky Pro v1 API |
+| Compatibility | Lsky Pro v1 API, plus the responsive versions field |
 
 Not done yet: a migration tool (`import-lsky`) that imports users, albums and image records from Lsky Pro is planned but not part of v1.
 
