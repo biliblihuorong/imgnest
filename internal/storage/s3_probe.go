@@ -34,14 +34,18 @@ func (d *S3) check(ctx context.Context, copyRequired bool) (result error) {
 	source := ".imgnest-probe/" + owner + "/source"
 	target := ".imgnest-probe/" + owner + "/target"
 	copied := ".imgnest-probe/" + owner + "/copy"
+	history := ".imgnest-probe/" + owner + "/history"
 	opts := PutOptions{OwnerID: owner, MIME: "application/octet-stream", CacheControl: "no-store"}
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
-		for _, key := range []string{source, target, copied} {
+		for _, key := range []string{source, target, copied, history} {
 			if err := d.purgeOwned(cleanup, key, owner); err != nil {
 				result = errors.Join(result, err)
 			}
+		}
+		if result != nil && !d.putVerified {
+			d.emulateConditional = false
 		}
 		if result == nil {
 			d.putVerified = true
@@ -50,7 +54,17 @@ func (d *S3) check(ctx context.Context, copyRequired bool) (result error) {
 			}
 		}
 	}()
-	if _, err := d.putNew(ctx, source, strings.NewReader("source"), opts); err != nil {
+	_, err := d.putNew(ctx, source, strings.NewReader("source"), opts)
+	if errors.Is(err, ErrUnsupported) && !d.emulateConditional {
+		// The endpoint refuses If-None-Match itself (B2). Emulate it only on
+		// a bucket that keeps every overwritten version.
+		d.emulateConditional = true
+		if err := d.checkHistoryKept(ctx, history, opts); err != nil {
+			return err
+		}
+		_, err = d.putNew(ctx, source, strings.NewReader("source"), opts)
+	}
+	if err != nil {
 		return err
 	}
 	if _, err := d.putNew(ctx, source, strings.NewReader("overwritten"), opts); !errors.Is(err, ErrExists) {
@@ -80,6 +94,32 @@ func (d *S3) check(ctx context.Context, copyRequired bool) (result error) {
 	}
 	return d.checkProbeBytes(ctx, copied, "source")
 }
+
+// checkHistoryKept writes one key twice without a precondition and requires
+// both versions to remain listed, proving that an overwrite cannot lose data.
+func (d *S3) checkHistoryKept(ctx context.Context, key string, opts PutOptions) error {
+	for _, content := range []string{"first", "second"} {
+		input := &s3.PutObjectInput{Bucket: aws.String(d.bucket), Key: aws.String(key), Body: strings.NewReader(content), ContentLength: aws.Int64(int64(len(content))), ContentType: aws.String(opts.MIME), CacheControl: aws.String(opts.CacheControl), Metadata: map[string]string{"imgnest-owner": opts.OwnerID}}
+		if _, err := d.client.PutObject(ctx, input); err != nil {
+			return s3Error("put S3 history probe", err)
+		}
+	}
+	versions, err := d.listVersions(ctx, key)
+	if err != nil {
+		return err
+	}
+	kept := 0
+	for _, version := range versions {
+		if !version.marker {
+			kept++
+		}
+	}
+	if kept < 2 {
+		return fmt.Errorf("S3 rejects conditional writes and does not keep overwritten versions: %w", ErrUnsupported)
+	}
+	return nil
+}
+
 func (d *S3) checkProbeBytes(ctx context.Context, key, want string) error {
 	output, err := d.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(d.bucket), Key: aws.String(key)})
 	if err != nil {

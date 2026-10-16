@@ -89,7 +89,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 		if path == "" {
 			path = "unmatched"
 		}
-		deps.Logger.InfoContext(c.Request.Context(), "http request", "method", c.Request.Method, "route", path, "status", c.Writer.Status(), "duration_ms", time.Since(started).Milliseconds())
+		attrs := []any{"method", c.Request.Method, "route", path, "status", c.Writer.Status(), "duration_ms", time.Since(started).Milliseconds()}
+		if last := c.Errors.Last(); last != nil {
+			attrs = append(attrs, "error", last.Error())
+		}
+		deps.Logger.InfoContext(c.Request.Context(), "http request", attrs...)
 	})
 	router.Use(func(c *gin.Context) {
 		defer func() {

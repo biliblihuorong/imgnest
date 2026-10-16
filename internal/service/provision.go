@@ -100,7 +100,7 @@ func (s *ProvisionService) CreateStorage(ctx context.Context, input StorageInput
 	candidate := model.Storage{Name: name, Driver: input.Driver, BaseURL: strings.TrimRight(input.BaseURL, "/"), Config: config, Enabled: true}
 	driver, err := s.drivers.DriverFor(ctx, candidate)
 	if err != nil {
-		return StorageView{}, storageError(ctx, err)
+		return StorageView{}, probeError(ctx, err)
 	}
 	if err = checkStorage(ctx, driver); err != nil {
 		return StorageView{}, err
@@ -173,6 +173,16 @@ func (s *ProvisionService) CreatePolicy(ctx context.Context, policy model.Policy
 	return created, nil
 }
 
+// probeError maps a connectivity-check failure like storageError but keeps
+// the redacted driver cause, so the operator log can name the failing step.
+func probeError(ctx context.Context, err error) error {
+	mapped := storageError(ctx, err)
+	if errors.Is(mapped, ErrStorage) {
+		return fmt.Errorf("%w: %w", ErrStorage, err)
+	}
+	return mapped
+}
+
 func checkStorage(ctx context.Context, driver storage.Driver) (result error) {
 	owner, err := operationID()
 	if err != nil {
@@ -196,17 +206,17 @@ func checkStorage(ctx context.Context, driver storage.Driver) (result error) {
 	}()
 	options := storage.PutOptions{OwnerID: owner, MIME: "application/octet-stream", CacheControl: "no-store"}
 	if _, err = driver.PutNew(ctx, key, bytes.NewReader(content), options); err != nil {
-		return storageError(ctx, err)
+		return probeError(ctx, err)
 	}
 	if _, err = driver.PutNew(ctx, key, bytes.NewReader([]byte("must not replace")), options); !errors.Is(err, storage.ErrExists) {
 		return ErrStorage
 	}
 	if _, err = driver.Copy(ctx, key, copyKey, options); err != nil {
-		return storageError(ctx, err)
+		return probeError(ctx, err)
 	}
 	body, info, err := driver.Open(ctx, copyKey)
 	if err != nil {
-		return storageError(ctx, err)
+		return probeError(ctx, err)
 	}
 	got, readErr := io.ReadAll(io.LimitReader(body, 1024))
 	closeErr := body.Close()
@@ -214,7 +224,7 @@ func checkStorage(ctx context.Context, driver storage.Driver) (result error) {
 		return ErrStorage
 	}
 	if err = driver.DeleteCurrent(ctx, key); err != nil {
-		return storageError(ctx, err)
+		return probeError(ctx, err)
 	}
 	if _, err = driver.Stat(ctx, key); !errors.Is(err, storage.ErrNotFound) {
 		return ErrStorage
@@ -225,7 +235,7 @@ func checkStorage(ctx context.Context, driver storage.Driver) (result error) {
 	}
 	for _, probeKey := range []string{key, copyKey} {
 		if err = purger.PurgeImage(ctx, probeKey, owner); err != nil {
-			return storageError(ctx, err)
+			return probeError(ctx, err)
 		}
 	}
 	return nil

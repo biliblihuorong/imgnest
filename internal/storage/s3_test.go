@@ -53,8 +53,8 @@ func TestS3ErrorsRedacted(t *testing.T) {
 		_, _ = io.WriteString(w, `<Error><Code>NotImplemented</Code><Message>private-secret-url</Message></Error>`)
 	})
 	_, err := d.putNew(t.Context(), "a.jpg", strings.NewReader("bytes"), PutOptions{OwnerID: "one"})
-	if !errors.Is(err, ErrUnsupported) || strings.Contains(err.Error(), "private-secret-url") {
-		t.Fatalf("unsafe error %v", err)
+	if !errors.Is(err, ErrUnsupported) || strings.Contains(err.Error(), "private-secret-url") || !strings.Contains(err.Error(), "(NotImplemented)") {
+		t.Fatalf("unsafe or unnamed error %v", err)
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

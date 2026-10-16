@@ -14,7 +14,7 @@ ImgNest is a self-hosted image host with a Go backend and a Vue 3 interface. It 
 ## Current status
 
 ::: warning Preview release
-ImgNest is under active development. The current preview release is **v0.0.3** (image tag `0.0.3`, also `latest`); version 1.0.0 has not been released. The `edge` tag follows the latest commit on `main` and may be unstable.
+ImgNest is under active development. The current preview release is **v0.0.4** (image tag `0.0.4`, also `latest`); version 1.0.0 has not been released. The `edge` tag follows the latest commit on `main` and may be unstable.
 :::
 
 What is implemented:

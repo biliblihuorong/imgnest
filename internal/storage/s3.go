@@ -37,11 +37,19 @@ var (
 )
 
 // S3 provides conditional owned objects in an S3-compatible bucket.
+//
+// Endpoints that reject If-None-Match outright (Backblaze B2 answers
+// NotImplemented) are driven in emulated mode: the destination is checked
+// with HEAD before an unconditional write. That is only safe because ImgNest
+// runs as a single instance that reserves every key in the database first,
+// and the capability probe only enables it on a bucket that keeps overwritten
+// versions, so a foreign object raced in between is never lost.
 type S3 struct {
 	client                    *s3.Client
 	bucket                    string
 	probeGate                 chan struct{}
 	putVerified, copyVerified bool
+	emulateConditional        bool
 }
 
 // NewS3 constructs the pinned SDK adapter. Capabilities are checked before first writes.
@@ -113,13 +121,34 @@ func (d *S3) putNew(ctx context.Context, key string, body io.ReadSeeker, opts Pu
 	if _, err := body.Seek(0, io.SeekStart); err != nil {
 		return Receipt{}, safeError("rewind S3 content", err)
 	}
+	if d.emulateConditional {
+		if err := d.requireAbsent(ctx, "put S3 object", key); err != nil {
+			return Receipt{}, err
+		}
+	}
 	receipt := Receipt{Key: key, Size: size, OwnerID: opts.OwnerID}
-	output, err := d.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(d.bucket), Key: aws.String(key), Body: body, ContentLength: aws.Int64(size), ContentType: aws.String(opts.MIME), CacheControl: aws.String(cacheControl(opts.CacheControl)), IfNoneMatch: aws.String("*"), Metadata: map[string]string{"imgnest-owner": opts.OwnerID, "imgnest-sha256": hex.EncodeToString(digest.Sum(nil))}})
+	input := &s3.PutObjectInput{Bucket: aws.String(d.bucket), Key: aws.String(key), Body: body, ContentLength: aws.Int64(size), ContentType: aws.String(opts.MIME), CacheControl: aws.String(cacheControl(opts.CacheControl)), Metadata: map[string]string{"imgnest-owner": opts.OwnerID, "imgnest-sha256": hex.EncodeToString(digest.Sum(nil))}}
+	if !d.emulateConditional {
+		input.IfNoneMatch = aws.String("*")
+	}
+	output, err := d.client.PutObject(ctx, input)
 	if err != nil {
 		return receipt, s3Error("put S3 object", err)
 	}
 	receipt.VersionID = aws.ToString(output.VersionId)
 	return receipt, nil
+}
+
+// requireAbsent is the emulated precondition: the key must not exist now.
+func (d *S3) requireAbsent(ctx context.Context, operation, key string) error {
+	_, err := d.stat(ctx, key)
+	if err == nil {
+		return fmt.Errorf("%s: %w", operation, ErrExists)
+	}
+	if errors.Is(err, ErrNotFound) {
+		return nil
+	}
+	return err
 }
 
 // Open returns original bytes and persisted ownership metadata.
@@ -208,6 +237,11 @@ func (d *S3) copyNew(ctx context.Context, source, target string, info ObjectInfo
 	if info.Size == 0 {
 		return d.putNew(ctx, target, strings.NewReader(""), opts)
 	}
+	if d.emulateConditional {
+		if err := d.requireAbsent(ctx, "complete S3 copy", target); err != nil {
+			return Receipt{}, err
+		}
+	}
 	created, err := d.client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{Bucket: aws.String(d.bucket), Key: aws.String(target), ContentType: aws.String(opts.MIME), CacheControl: aws.String(cacheControl(opts.CacheControl)), Metadata: map[string]string{"imgnest-owner": opts.OwnerID, "imgnest-sha256": info.digest}})
 	if err != nil {
 		return Receipt{}, s3Error("begin S3 copy", err)
@@ -249,7 +283,11 @@ func (d *S3) copyNew(ctx context.Context, source, target string, info ObjectInfo
 		parts = append(parts, types.CompletedPart{ETag: copied.CopyPartResult.ETag, PartNumber: aws.Int32(number)})
 	}
 	receipt = Receipt{Key: target, Size: info.Size, OwnerID: opts.OwnerID}
-	output, err := d.client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{Bucket: aws.String(d.bucket), Key: aws.String(target), UploadId: created.UploadId, IfNoneMatch: aws.String("*"), MultipartUpload: &types.CompletedMultipartUpload{Parts: parts}})
+	complete := &s3.CompleteMultipartUploadInput{Bucket: aws.String(d.bucket), Key: aws.String(target), UploadId: created.UploadId, MultipartUpload: &types.CompletedMultipartUpload{Parts: parts}}
+	if !d.emulateConditional {
+		complete.IfNoneMatch = aws.String("*")
+	}
+	output, err := d.client.CompleteMultipartUpload(ctx, complete)
 	if err != nil {
 		return receipt, s3Error("complete S3 copy", err)
 	}
@@ -380,14 +418,33 @@ func s3Error(operation string, err error) error {
 		return fmt.Errorf("%s: %w", operation, ErrNotFound)
 	}
 	if errors.As(err, &api) {
-		switch api.ErrorCode() {
+		// Provider error codes are fixed identifiers, never credentials or
+		// URLs, so they are kept for the operator log; messages are not.
+		code := api.ErrorCode()
+		switch code {
 		case "PreconditionFailed", "ConditionalRequestConflict":
 			return fmt.Errorf("%s: %w", operation, ErrExists)
 		case "NotImplemented", "UnsupportedOperation", "InvalidRequest":
-			return fmt.Errorf("%s: %w", operation, ErrUnsupported)
+			return fmt.Errorf("%s (%s): %w", operation, code, ErrUnsupported)
+		}
+		if safeCode(code) {
+			return safeError(operation+" ("+code+")", err)
 		}
 	}
 	return safeError(operation, err)
+}
+
+// safeCode accepts only the short identifier shape of S3 error codes.
+func safeCode(code string) bool {
+	if code == "" || len(code) > 64 {
+		return false
+	}
+	for _, r := range code {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '.' {
+			return false
+		}
+	}
+	return true
 }
 
 type s3Reader struct {

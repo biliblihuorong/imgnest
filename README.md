@@ -26,7 +26,7 @@ git clone https://github.com/biliblihuorong/imgnest
 cd imgnest
 
 # 1. 启动（容器启动时会自动执行数据库迁移）
-IMGNEST_TAG=0.0.3 docker compose -f deploy/compose.sqlite.yaml up -d
+IMGNEST_TAG=0.0.4 docker compose -f deploy/compose.sqlite.yaml up -d
 
 # 2. 创建管理员，密码从标准输入读取，长度 12–72 字节
 read -rsp '管理员密码: ' password; echo
@@ -60,7 +60,7 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest \
 
 ## 当前状态
 
-当前预览版本 **v0.0.3**（镜像 `ghcr.io/biliblihuorong/imgnest:0.0.3`，`latest` 同步指向它；`edge` 跟随 `main`），尚未发布 v1.0.0。
+当前预览版本 **v0.0.4**（镜像 `ghcr.io/biliblihuorong/imgnest:0.0.4`，`latest` 同步指向它；`edge` 跟随 `main`），尚未发布 v1.0.0。
 
 | 已完成 | 内容 |
 | --- | --- |

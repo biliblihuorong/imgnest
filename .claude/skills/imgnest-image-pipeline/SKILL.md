@@ -222,6 +222,10 @@ Conditional PUT and multipart completion are probed on the real backend. The
 pinned MinIO ignores destination conditions on ordinary CopyObject, so copy
 uses CreateMultipartUpload/UploadPartCopy/CompleteMultipartUpload(IfNoneMatch).
 Unsupported vendor capability fails; MinIO success does not prove B2/COS/R2.
+Exception: an endpoint answering `If-None-Match` with `NotImplemented` (B2)
+runs emulated HEAD-then-write, enabled by the probe only on a bucket shown to
+keep overwritten versions; an endpoint that silently ignores the header is
+still rejected. `b2Fixture` in `s3_integration_test.go` covers both.
 
 Local durable objects use a single owned envelope (IMGNST01, uint32 header
 length, ObjectInfo JSON, unchanged image bytes); only Driver.Open serves their

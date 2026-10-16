@@ -5,6 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -17,7 +22,41 @@ import (
 
 func minioFixture(t *testing.T) *S3 {
 	t.Helper()
+	return minioBucket(t, os.Getenv("IMGNEST_TEST_S3_ENDPOINT"), true)
+}
+
+// b2Fixture puts a proxy in front of MinIO that refuses If-None-Match with
+// NotImplemented, as Backblaze B2's S3 API does.
+func b2Fixture(t *testing.T, versioned bool) *S3 {
+	t.Helper()
 	endpoint := os.Getenv("IMGNEST_TEST_S3_ENDPOINT")
+	if endpoint == "" {
+		t.Skip("IMGNEST_TEST_S3_ENDPOINT is not set")
+	}
+	target, err := url.Parse(endpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Keep the signed Host header so MinIO accepts the forwarded signature.
+	proxy := &httputil.ReverseProxy{Rewrite: func(r *httputil.ProxyRequest) {
+		r.SetURL(target)
+		r.Out.Host = r.In.Host
+	}}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("If-None-Match") != "" {
+			w.Header().Set("Content-Type", "application/xml")
+			w.WriteHeader(http.StatusNotImplemented)
+			_, _ = io.WriteString(w, `<Error><Code>NotImplemented</Code><Message>A header you provided implies functionality that is not implemented</Message></Error>`)
+			return
+		}
+		proxy.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+	return minioBucket(t, server.URL, versioned)
+}
+
+func minioBucket(t *testing.T, endpoint string, versioned bool) *S3 {
+	t.Helper()
 	if endpoint == "" {
 		t.Skip("IMGNEST_TEST_S3_ENDPOINT is not set")
 	}
@@ -57,6 +96,9 @@ func minioFixture(t *testing.T) *S3 {
 			t.Error(s3Error("delete isolated test bucket", err))
 		}
 	})
+	if !versioned {
+		return d
+	}
 	if _, err := d.client.PutBucketVersioning(t.Context(), &s3.PutBucketVersioningInput{Bucket: aws.String(bucket), VersioningConfiguration: &types.VersioningConfiguration{Status: types.BucketVersioningStatusEnabled}}); err != nil {
 		t.Fatal(s3Error("enable test versions", err))
 	}
@@ -68,6 +110,39 @@ func TestS3MinIOVersionedLifecycle(t *testing.T) {
 	if err := d.Check(t.Context()); err != nil {
 		t.Fatal(err)
 	}
+	if d.emulateConditional {
+		t.Fatal("MinIO enforces If-None-Match; emulation must stay off")
+	}
+	versionedLifecycle(t, d)
+}
+
+func TestS3B2LikeEndpointEmulatesConditionalWrites(t *testing.T) {
+	d := b2Fixture(t, true)
+	if err := d.Check(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if !d.emulateConditional {
+		t.Fatal("NotImplemented If-None-Match did not switch to emulation")
+	}
+	versionedLifecycle(t, d)
+	probes, err := d.client.ListObjectVersions(t.Context(), &s3.ListObjectVersionsInput{Bucket: aws.String(d.bucket), Prefix: aws.String(".imgnest-probe/")})
+	if err != nil || len(probes.Versions) != 0 {
+		t.Fatalf("capability probe left %d versions behind: %v", len(probes.Versions), err)
+	}
+}
+
+func TestS3B2LikeEndpointWithoutHistoryRejected(t *testing.T) {
+	d := b2Fixture(t, false)
+	if err := d.Check(t.Context()); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("emulation accepted a bucket that loses overwritten objects: %v", err)
+	}
+	if d.emulateConditional || d.putVerified {
+		t.Fatal("failed probe left the driver usable")
+	}
+}
+
+func versionedLifecycle(t *testing.T, d *S3) {
+	t.Helper()
 	opts := PutOptions{OwnerID: "image-one", MIME: "image/png"}
 	key := "2026/旅行 #.png"
 	first, err := d.PutNew(t.Context(), key, strings.NewReader("original-bytes"), opts)

@@ -53,7 +53,7 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest \
   imgnest init-policy --storage-id 2 --name cloud
 ```
 
-Use the ID printed by the first command for `--storage-id`. Creation runs a real connection test: one write, one copy and one cleanup. Services that lack a required capability are rejected. Credentials are encrypted in the database and no API returns them afterwards.
+Use the ID printed by the first command for `--storage-id`. Creation runs a real connection test: one write, one copy and one cleanup. Services that lack a required capability are rejected. Backblaze B2 does not support the "refuse if the key exists" write condition; ImgNest detects this and checks before writing instead, provided the bucket keeps old versions (B2 does by default). Credentials are encrypted in the database and no API returns them afterwards.
 
 You can also create and test storages under **Administration → Storage**.
 
