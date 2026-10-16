@@ -52,7 +52,12 @@
     "created": "用户「{name}」已创建",
     "updated": "用户「{name}」已更新",
     "selfEditHint": "修改自己的用户名、邮箱、角色、状态或用户组后，需要重新登录。仅修改显示名称不会退出登录。",
-    "signInAgain": "账户已更新，请重新登录"
+    "signInAgain": "账户已更新，请重新登录",
+    "resetPassword": "重置密码",
+    "generatePassword": "随机生成",
+    "resetPasswordConfirm": "确定给 {name} 设置这个新密码吗？该用户会在所有设备上退出登录。",
+    "resetPasswordHint": "设置后请把新密码转交给用户；用户的所有登录和 API Token 会立即失效。",
+    "passwordReset": "已重置 {name} 的密码"
   },
   "groups": {
     "title": "用户组管理",
@@ -351,7 +356,8 @@
     "policySave": "保存规则失败",
     "preview": "路径预览失败",
     "purge": "清空回收站失败",
-    "templateInvalid": "模板无效，请检查路径与文件名模板"
+    "templateInvalid": "模板无效，请检查路径与文件名模板",
+    "passwordReset": "重置密码失败"
   },
   "plugins": {
     "title": "扩展功能",

@@ -136,6 +136,30 @@ func (s *AdminService) PatchUser(ctx context.Context, callerID, targetID uint64,
 	return view, nil
 }
 
+// ResetUserPassword sets a new password for another account. It follows the
+// signup password rules and bcrypt cost, and signs the account out
+// everywhere by revoking all of its tokens. Administrators change their own
+// password from their account settings, which asks for the current one.
+func (s *AdminService) ResetUserPassword(ctx context.Context, callerID, targetID uint64, password string) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("reset user password: %w", err)
+	}
+	if callerID == 0 || targetID == 0 || !validPassword(password) {
+		return ErrInvalidInput
+	}
+	if callerID == targetID {
+		return ErrForbidden
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), passwordCost)
+	if err != nil {
+		return fmt.Errorf("hash account password: %w", err)
+	}
+	if err := s.deps.Users.ResetUserPassword(ctx, callerID, targetID, string(hash)); err != nil {
+		return fmt.Errorf("reset user password: %w", err)
+	}
+	return nil
+}
+
 func validAccountRole(role string) bool {
 	return role == model.UserRoleAdmin || role == model.UserRoleUser
 }

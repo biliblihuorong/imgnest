@@ -21,6 +21,7 @@ type adminUsersFake struct {
 	total         int64
 	statusChanges []adminStatusChange
 	groupChanges  []adminGroupChange
+	resetHashes   map[uint64]string
 }
 
 type adminStatusChange struct {
@@ -66,6 +67,17 @@ func (f *adminUsersFake) CreateAdminUser(_ context.Context, _ uint64, user model
 	f.users[user.ID] = user
 	return user, nil
 }
+func (f *adminUsersFake) ResetUserPassword(ctx context.Context, _ uint64, id uint64, hash string) error {
+	if _, err := f.FindUserByID(ctx, id); err != nil {
+		return err
+	}
+	if f.resetHashes == nil {
+		f.resetHashes = map[uint64]string{}
+	}
+	f.resetHashes[id] = hash
+	return nil
+}
+
 func (f *adminUsersFake) UpdateAdminUser(ctx context.Context, _ uint64, id uint64, changes model.UserChanges) (model.User, error) {
 	user, err := f.FindUserByID(ctx, id)
 	if err != nil {

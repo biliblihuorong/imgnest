@@ -52,7 +52,12 @@
     "created": "User “{name}” created",
     "updated": "User “{name}” updated",
     "selfEditHint": "Changing your own username, email, role, status, or group requires signing in again. A display-name-only change keeps you signed in.",
-    "signInAgain": "Account updated. Please sign in again"
+    "signInAgain": "Account updated. Please sign in again",
+    "resetPassword": "Reset password",
+    "generatePassword": "Generate",
+    "resetPasswordConfirm": "Set this new password for {name}? They will be signed out on every device.",
+    "resetPasswordHint": "Hand the new password to the user afterwards; all of their sessions and API tokens stop working immediately.",
+    "passwordReset": "Password reset for {name}"
   },
   "groups": {
     "title": "User groups",
@@ -351,7 +356,8 @@
     "policySave": "Could not save policy",
     "preview": "Could not preview this path",
     "purge": "Could not empty the trash",
-    "templateInvalid": "Invalid template. Check the path and filename templates"
+    "templateInvalid": "Invalid template. Check the path and filename templates",
+    "passwordReset": "Could not reset the password"
   },
   "plugins": {
     "title": "Extensions",

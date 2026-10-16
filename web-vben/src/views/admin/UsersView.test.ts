@@ -23,6 +23,7 @@ vi.mock("@/api/admin", () => ({
   listUsers: vi.fn(),
   createUser: vi.fn(),
   patchUser: vi.fn(),
+  resetUserPassword: vi.fn(),
   listGroups: vi.fn(),
 }));
 
@@ -441,7 +442,7 @@ describe("admin account forms", () => {
     expect(
       wrapper.findAllComponents(NFormItem).some((item) => item.props("path") === "password"),
     ).toBe(false);
-    expect(document.body.querySelector('input[type="password"]')).toBeNull();
+    expect(document.body.querySelector("#admin-user-password")).toBeNull();
     await setText(wrapper, "username", " alice-new ");
     await setText(wrapper, "email", " NEW@EXAMPLE.COM ");
     await setText(wrapper, "display_name", " New name ");
@@ -786,5 +787,56 @@ describe("admin account forms", () => {
     expect(document.body.textContent).toContain("Initial password");
     expect(document.body.textContent).toContain("Display name");
     expect(document.body.textContent).not.toContain("初始密码");
+  });
+});
+
+describe("admin password reset", () => {
+  function resetInput(wrapper: VueWrapper) {
+    return wrapper
+      .findAllComponents(NInput)
+      .find((node) => node.find("#admin-user-reset-password").exists());
+  }
+
+  it("resets another user's password after confirmation and clears the field", async () => {
+    signInAs(makeUser({ id: 99, username: "root", role: "admin" }));
+    adminApiMock.resetUserPassword.mockResolvedValue(null);
+    const wrapper = mountView();
+    await flushPromises();
+    await openEdit(wrapper);
+    const input = resetInput(wrapper)!;
+    input.vm.$emit("update:value", "replacement-password");
+    await nextTick();
+    bodyButton("重置密码").click();
+    await flushPromises();
+    const confirm = Array.from(document.body.querySelectorAll(".n-popconfirm button")).find(
+      (item) => item.textContent?.trim() === "重置密码",
+    ) as HTMLButtonElement;
+    confirm.click();
+    await flushPromises();
+    expect(adminApiMock.resetUserPassword).toHaveBeenCalledExactlyOnceWith(
+      1,
+      "replacement-password",
+    );
+    expect(resetInput(wrapper)!.props("value")).toBe("");
+    expect(document.body.textContent).toContain("已重置 alice 的密码");
+    expect(adminApiMock.patchUser).not.toHaveBeenCalled();
+  });
+
+  it("generates a 16-character password", async () => {
+    signInAs(makeUser({ id: 99, username: "root", role: "admin" }));
+    const wrapper = mountView();
+    await flushPromises();
+    await openEdit(wrapper);
+    bodyButton("随机生成").click();
+    await nextTick();
+    expect(resetInput(wrapper)!.props("value")).toMatch(/^[A-Za-z2-9]{16}$/);
+  });
+
+  it("hides the reset control when editing your own account", async () => {
+    signInAs(makeUser());
+    const wrapper = mountView();
+    await flushPromises();
+    await openEdit(wrapper);
+    expect(resetInput(wrapper)).toBeUndefined();
   });
 });

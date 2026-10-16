@@ -74,3 +74,46 @@ func TestAdminAccountBodiesRejectUnknownAndNullFields(t *testing.T) {
 		t.Fatalf("password edit accepted: %s", response.Body.String())
 	}
 }
+
+type passwordAdminStub struct {
+	adminServiceStub
+	caller, target uint64
+	password       string
+}
+
+func (s *passwordAdminStub) ResetUserPassword(_ context.Context, caller, target uint64, password string) error {
+	s.caller, s.target, s.password = caller, target, password
+	if len(password) < 12 {
+		return service.ErrInvalidInput
+	}
+	return nil
+}
+
+func TestAdminResetUserPasswordRouteContract(t *testing.T) {
+	svc := &passwordAdminStub{}
+	router := adminRouter(t, svc, &adminImagesStub{})
+	body := `{"password":"replacement-password"}`
+	for _, test := range []struct {
+		bearer string
+		status int
+	}{{"", http.StatusUnauthorized}, {userBearer, http.StatusForbidden}, {adminBearer, http.StatusOK}} {
+		response := adminRequest(t, router, http.MethodPut, "/api/admin/users/8/password", body, test.bearer)
+		if response.Code != test.status {
+			t.Fatalf("reset status=%d want=%d body=%s", response.Code, test.status, response.Body.String())
+		}
+		if test.status == http.StatusOK {
+			if svc.caller != 1 || svc.target != 8 || svc.password != "replacement-password" {
+				t.Fatalf("reset input caller=%d target=%d", svc.caller, svc.target)
+			}
+			if strings.Contains(response.Body.String(), "replacement-password") {
+				t.Fatal("reset response echoed the password")
+			}
+		}
+	}
+	for _, body := range []string{`{"password":"short"}`, `{"password":"replacement-password","role":"admin"}`, `null`} {
+		response := adminRequest(t, router, http.MethodPut, "/api/admin/users/8/password", body, adminBearer)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("body %s status=%d", body, response.Code)
+		}
+	}
+}

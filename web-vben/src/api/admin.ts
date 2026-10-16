@@ -277,6 +277,15 @@ export function patchUser(id: number, patch: AdminUserPatch): Promise<AdminUserV
   });
 }
 
+/** 管理员给其他账户设置新密码；服务端同时吊销该账户全部令牌（各处都要重新登录）。 */
+export function resetUserPassword(id: number, password: string): Promise<null> {
+  return request<null>(`/api/admin/users/${id}/password`, {
+    method: "PUT",
+    headers: { ...JSON_HEADERS },
+    body: JSON.stringify({ password }),
+  });
+}
+
 // ---------- 用户组 ----------
 
 /** 列出全部用户组（含成员数；契约 GET 列表无分页）。 */

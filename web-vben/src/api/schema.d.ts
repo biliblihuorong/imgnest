@@ -608,7 +608,7 @@ export interface paths {
         head?: never;
         /**
          * Change public-list visibility or the display name
-         * @description Send is_public, name, or both. Private images remain accessible to anyone holding their direct object link. Renaming changes only the display name used in lists and searches; the object key, extension and every URL stay the same. A name is trimmed and must be 1-255 bytes with no control characters, "/" or "\\"; an invalid name changes nothing.
+         * @description Send is_public, name, or both. Private images remain accessible to anyone holding their direct object link. Renaming changes only the display name used in lists and searches; the object key, extension and every URL stay the same. A name is trimmed and must be 1-255 bytes with no control characters, "/" or "\"; an invalid name changes nothing.
          */
         patch: operations["setImageVisibility"];
         trace?: never;
@@ -1354,6 +1354,31 @@ export interface paths {
          *     server-owned. Self-service username/email remain read-only.
          */
         patch: operations["adminPatchUser"];
+        trace?: never;
+    };
+    "/api/admin/users/{id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set a new password for another account
+         * @description Requires the administrator role. The password follows the signup rules
+         *     (12-72 bytes) and is hashed with the same bcrypt cost. The new hash and
+         *     the revocation of every token on that account commit together, so the
+         *     account is signed out everywhere. Administrators cannot reset their own
+         *     password here (403); they use PATCH /api/auth/password, which asks for
+         *     the current one. The password is never echoed or logged.
+         */
+        put: operations["adminResetUserPassword"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/admin/groups": {
@@ -5507,6 +5532,40 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminResetUserPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Password replaced; data is null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
         };
     };
