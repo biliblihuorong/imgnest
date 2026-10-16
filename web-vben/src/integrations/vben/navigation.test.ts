@@ -14,7 +14,7 @@ describe("Vben 工作区导航权限", () => {
       "/tokens",
     ]);
   });
-  it("管理员看到七个管理页和真实 M5 相册", () => {
+  it("管理员看到六个管理页和真实 M5 相册", () => {
     const admin = workspaceMenus("admin").find((menu) => menu.path === "/admin");
     expect(admin?.children?.map((menu) => menu.path)).toEqual([
       "/admin/users",
@@ -23,7 +23,6 @@ describe("Vben 工作区导航权限", () => {
       "/admin/policies",
       "/admin/settings",
       "/admin/images",
-      "/admin/lsky-import",
     ]);
     expect(workspaceMenus("admin").some((menu) => menu.path === "/albums")).toBe(true);
   });

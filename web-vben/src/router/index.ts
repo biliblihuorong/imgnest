@@ -211,11 +211,11 @@ export function setupRouter(): Router {
             component: () => import("@/views/admin/ImagesAdminView.vue"),
             meta: { title: "common.nav.allImages" },
           },
+          // 蓝空迁移已并入 站点设置 → 备份/导出；保留旧地址的跳转。
           {
             path: "lsky-import",
             name: ADMIN_ROUTER_NAMES.adminLskyImport,
-            component: () => import("@/views/admin/LskyImportView.vue"),
-            meta: { title: "common.nav.lskyImport" },
+            redirect: { name: "admin-settings-backup" },
           },
         ],
       },

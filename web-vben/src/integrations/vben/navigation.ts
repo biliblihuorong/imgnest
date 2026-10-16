@@ -31,7 +31,6 @@ export function workspaceMenus(
         { name: "common.nav.policies", path: "/admin/policies", icon: "List" },
         { name: "common.nav.settings", path: "/admin/settings", icon: "Settings" },
         { name: "common.nav.allImages", path: "/admin/images", icon: "LayoutGrid" },
-        { name: "common.nav.lskyImport", path: "/admin/lsky-import", icon: "ImagePlus" },
       ],
     });
   return menus;

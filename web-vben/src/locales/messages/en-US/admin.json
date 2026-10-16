@@ -269,7 +269,7 @@
       },
       "backup": {
         "title": "Backup / export",
-        "description": "Database and configuration backups, downloads and schedule."
+        "description": "Database and configuration backups, downloads, schedule, and Lsky Pro migration."
       }
     },
     "emailVerification": "Email verification",
