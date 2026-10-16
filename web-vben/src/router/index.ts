@@ -121,7 +121,8 @@ export function setupRouter(): Router {
         path: "/images",
         name: ROUTER_NAMES.images,
         component: () => import("@/views/ImagesView.vue"),
-        meta: { title: "common.nav.images" },
+        // 搜索条件写在 query 里；经典布局的标签页按路径区分，否则每搜一次就多一个标签。
+        meta: { title: "common.nav.images", fullPathKey: false },
       },
       {
         path: "/tokens",
@@ -145,7 +146,7 @@ export function setupRouter(): Router {
         path: "/albums/:id(\\d+)",
         name: "album-detail",
         component: () => import("@/views/AlbumDetailView.vue"),
-        meta: { title: "common.nav.albums" },
+        meta: { title: "common.nav.albums", fullPathKey: false },
       },
       {
         path: "/gallery",

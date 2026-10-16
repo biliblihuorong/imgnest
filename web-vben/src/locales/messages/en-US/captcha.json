@@ -5,11 +5,11 @@
   "challenge": {
     "label": "Human verification",
     "loading": "Loading verification…",
-    "waiting": "Complete the verification challenge",
+    "waiting": "Complete the check above to continue",
     "verified": "Challenge completed; the server will verify it on submission",
     "expired": "Verification expired. Please verify again.",
     "unavailable": "Verification could not load or failed. Retry and check your connection and browser settings.",
-    "privacy": "Cloudflare provides verification and receives your browser IP address and security signals.",
+    "privacy": "Verification by Cloudflare Turnstile, which receives your IP address and browser security signals.",
     "privacyLink": "Privacy policy"
   },
   "admin": {

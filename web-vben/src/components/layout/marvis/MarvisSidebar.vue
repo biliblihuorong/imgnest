@@ -1,22 +1,33 @@
 <script setup lang="ts">
-import { LogOut, Search, Settings } from "@vben/icons";
+import { Languages, LogOut, PanelLeft, Search, Settings } from "@vben/icons";
 import { useI18n } from "@vben/locales";
+import { NDropdown, type DropdownOption } from "naive-ui";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import logo from "@/assets/imgnest-mark.svg";
 import { useUserAvatar } from "@/components/account/useUserAvatar";
 import { menuIcons } from "@/integrations/vben/menuIcons";
 import { workspaceMenus, type WorkspaceMenu } from "@/integrations/vben/navigation";
+import {
+  LOCALE_OPTIONS,
+  localeMode,
+  setLocaleMode,
+  type LocaleMode,
+} from "@/integrations/locale/useLocaleMode";
 import { landingPath } from "@/router/landing";
 import { useAuthStore } from "@/stores/auth";
 import { useSiteStore } from "@/stores/site";
 
-/** Marvis 外壳的漂浮侧栏：只负责呈现与发出意图，搜索/设置/退出由布局处理。 */
-defineProps<{ collapsed: boolean }>();
+/**
+ * Marvis 外壳的漂浮侧栏：只负责呈现与发出意图，搜索/设置/退出/折叠由布局处理。
+ * 语言切换是自包含的小菜单，直接写语言偏好。
+ */
+const props = defineProps<{ collapsed: boolean; collapsible?: boolean }>();
 const emit = defineEmits<{
   navigate: [];
   "open-search": [];
   "open-settings": [];
+  "toggle-collapse": [];
   logout: [];
 }>();
 
@@ -47,6 +58,26 @@ const displayName = computed(
 );
 const shortcut = /mac/i.test(navigator.userAgent) ? "⌘K" : "Ctrl K";
 
+/** 站点名按显示宽度（中日韩字符算 2）逐级缩小字号；放不下时最多换两行。 */
+const brandWidth = computed(() =>
+  [...site.siteName].reduce((sum, char) => sum + (/[\u2E80-\uFFEF]/.test(char) ? 2 : 1), 0),
+);
+const brandSize = computed(() =>
+  brandWidth.value <= 12 ? "is-lg" : brandWidth.value <= 18 ? "is-md" : "is-sm",
+);
+
+const localeOptions = computed<DropdownOption[]>(() =>
+  LOCALE_OPTIONS.map((option) => ({
+    key: option.value,
+    label: option.label ?? t("shell.appearance.languageAuto"),
+    props: { lang: option.lang, "aria-checked": localeMode.value === option.value },
+    icon: () => (localeMode.value === option.value ? "✓" : ""),
+  })),
+);
+function onLocaleSelect(key: string | number): void {
+  void setLocaleMode(key as LocaleMode);
+}
+
 function goHome(): void {
   emit("navigate");
   void router.push(user.value ? landingPath(user.value.role) : "/gallery");
@@ -55,13 +86,37 @@ function goHome(): void {
 
 <template>
   <aside class="mv-sidebar" :class="{ 'is-collapsed': collapsed }">
-    <button type="button" class="mv-brand" :aria-label="site.siteName" @click="goHome">
-      <img class="mv-brand__mark" :src="logo" alt="" />
-      <template v-if="!collapsed">
-        <b class="mv-brand__name">{{ site.siteName }}</b>
-        <span class="mv-brand__badge">{{ t("shell.brandBadge") }}</span>
-      </template>
-    </button>
+    <div class="mv-brand-row">
+      <button
+        type="button"
+        class="mv-brand"
+        :aria-label="site.siteName"
+        :title="site.siteName"
+        @click="goHome"
+      >
+        <img class="mv-brand__mark" :src="logo" alt="" />
+        <template v-if="!collapsed">
+          <b class="mv-brand__name" :class="brandSize" data-testid="sidebar-brand-name">{{
+            site.siteName
+          }}</b>
+          <span v-if="brandSize === 'is-lg'" class="mv-brand__badge">{{
+            t("shell.brandBadge")
+          }}</span>
+        </template>
+      </button>
+      <button
+        v-if="props.collapsible"
+        type="button"
+        class="mv-icon-btn mv-collapse-btn"
+        data-testid="sidebar-collapse"
+        :aria-label="t(collapsed ? 'shell.expandSidebar' : 'shell.collapseSidebar')"
+        :title="t(collapsed ? 'shell.expandSidebar' : 'shell.collapseSidebar')"
+        :aria-expanded="!collapsed"
+        @click="emit('toggle-collapse')"
+      >
+        <PanelLeft class="mv-icon" />
+      </button>
+    </div>
 
     <button
       v-if="user"
@@ -120,6 +175,22 @@ function goHome(): void {
         {{ t("shell.login") }}
       </button>
       <!-- 匿名访客也能切换深浅色、语言和布局。 -->
+      <NDropdown
+        trigger="click"
+        :placement="collapsed ? 'right-end' : 'top'"
+        :options="localeOptions"
+        @select="onLocaleSelect"
+      >
+        <button
+          type="button"
+          class="mv-icon-btn"
+          data-testid="sidebar-language"
+          :aria-label="t('shell.appearance.language')"
+          :title="t('shell.appearance.language')"
+        >
+          <Languages class="mv-icon" />
+        </button>
+      </NDropdown>
       <button
         type="button"
         class="mv-icon-btn"
@@ -154,7 +225,8 @@ function goHome(): void {
   width: 244px;
   margin: 14px 0 14px 14px;
   padding: 20px 14px 14px;
-  overflow-y: auto;
+  /* 只有菜单区滚动：品牌、搜索和底部账户栏始终可见，矮屏幕上不会互相遮挡。 */
+  overflow: hidden;
   user-select: none;
   background: hsl(var(--sidebar));
   border: 1px solid hsl(var(--border) / 0.6);
@@ -170,25 +242,49 @@ function goHome(): void {
   width: 16px;
   height: 16px;
 }
+.mv-brand-row {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  align-items: flex-start;
+  padding-bottom: 16px;
+}
 .mv-brand {
   display: flex;
+  flex: 1;
   gap: 8px;
   align-items: center;
-  padding: 2px 10px 16px;
+  min-width: 0;
+  padding: 2px 0 0 10px;
   text-align: left;
 }
+.mv-collapse-btn {
+  margin-top: -1px;
+}
 .mv-brand__mark {
+  flex-shrink: 0;
   width: 24px;
   height: 24px;
   border-radius: 8px;
 }
 .mv-brand__name {
+  display: -webkit-box;
+  min-width: 0;
   overflow: hidden;
   font-size: 21px;
   font-weight: 800;
-  text-overflow: ellipsis;
+  line-height: 1.2;
   letter-spacing: -0.02em;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.mv-brand__name.is-md {
+  font-size: 17px;
+}
+.mv-brand__name.is-sm {
+  font-size: 15px;
+  letter-spacing: 0;
 }
 .mv-brand__badge {
   flex-shrink: 0;
@@ -203,6 +299,7 @@ function goHome(): void {
 }
 .mv-search {
   display: flex;
+  flex-shrink: 0;
   gap: 8px;
   align-items: center;
   padding: 8px 11px;
@@ -234,6 +331,14 @@ function goHome(): void {
   flex-direction: column;
   gap: 2px;
   min-height: 0;
+  margin-inline: -4px;
+  padding-inline: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.mv-nav > * {
+  flex-shrink: 0;
 }
 .mv-nav__label {
   padding: 20px 10px 6px;
@@ -311,6 +416,11 @@ function goHome(): void {
 .mv-icon-btn:hover {
   color: hsl(var(--foreground));
   background: hsl(var(--muted));
+}
+.is-collapsed .mv-brand-row {
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
 }
 .is-collapsed .mv-brand,
 .is-collapsed .mv-search,

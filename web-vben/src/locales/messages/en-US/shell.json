@@ -51,12 +51,15 @@
     "reset": "Restore default appearance",
     "resetHint": "Accent colour and radius return to this layout's defaults",
     "resetAction": "Restore",
-    "language": "Language"
+    "language": "Language",
+    "languageAuto": "Follow browser"
   },
   "detailPanel": {
     "empty": "Click the info area under an image to see its details",
     "close": "Close details"
   },
   "layoutBothFailed": "The page layout could not be loaded. Check your connection and reload.",
-  "reload": "Reload"
+  "reload": "Reload",
+  "collapseSidebar": "Collapse sidebar",
+  "expandSidebar": "Expand sidebar"
 }

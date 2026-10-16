@@ -5,6 +5,7 @@ export interface TurnstileOptions {
   action: "login" | "register" | "reset";
   language: "en" | "zh-CN";
   size: "flexible" | "compact";
+  theme: "light" | "dark";
   "response-field": false;
   retry: "never";
   "refresh-expired": "manual";

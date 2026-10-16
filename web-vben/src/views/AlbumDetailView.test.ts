@@ -30,6 +30,10 @@ describe("fixed album route boundary", () => {
     await flushPromises();
     expect(wrapper.findComponent(ImageLibrary).props("lockedAlbumId")).toBe("42");
     expect(wrapper.findComponent(ImageLibrary).props("lockedAlbumName")).toBe("Work");
+    // 随机链接收在标题栏按钮的弹窗里，打开后才挂载。
+    expect(wrapper.findComponent({ name: "AlbumRandomLink" }).exists()).toBe(false);
+    await wrapper.find('[data-testid="album-random-link"]').trigger("click");
+    await flushPromises();
     expect(wrapper.findComponent({ name: "AlbumRandomLink" }).props("albumId")).toBe("42");
     wrapper.unmount();
   });

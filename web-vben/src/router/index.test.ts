@@ -186,3 +186,13 @@ describe("router 守卫", () => {
     expect(router.currentRoute.value.path).toBe("/gallery");
   });
 });
+
+describe("经典布局标签页", () => {
+  it("图片库路由按路径区分标签页，搜索条件变化不新开标签", () => {
+    const router = setupRouter();
+    for (const path of ["/images?q=a", "/albums/7?name=x&q=b"]) {
+      const route = router.resolve(path);
+      expect(route.meta.fullPathKey).toBe(false);
+    }
+  });
+});

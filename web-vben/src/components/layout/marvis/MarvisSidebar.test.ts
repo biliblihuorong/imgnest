@@ -17,6 +17,8 @@ async function mountSidebar(options: {
   user?: UserView;
   gallery?: boolean;
   collapsed?: boolean;
+  collapsible?: boolean;
+  siteName?: string;
   path?: string;
   slots?: Record<string, string>;
 }) {
@@ -28,10 +30,11 @@ async function mountSidebar(options: {
     auth.user = options.user;
   }
   site.galleryEnabled = options.gallery ?? false;
+  if (options.siteName) site.siteName = options.siteName;
   const router = shellTestRouter();
   await router.push(options.path ?? (options.user ? "/upload" : "/gallery"));
   const wrapper = mount(MarvisSidebar, {
-    props: { collapsed: options.collapsed ?? false },
+    props: { collapsed: options.collapsed ?? false, collapsible: options.collapsible },
     slots: options.slots,
     global: { plugins: [pinia, router] },
   });
@@ -94,4 +97,39 @@ it("renders the albums slot under the albums entry only when expanded", async ()
   expect(open.wrapper.find('[data-testid="albums-slot"]').exists()).toBe(true);
   const closed = await mountSidebar({ user: testUser("user"), slots, collapsed: true });
   expect(closed.wrapper.find('[data-testid="albums-slot"]').exists()).toBe(false);
+});
+
+it("offers a collapse toggle on the sidebar itself", async () => {
+  const { wrapper } = await mountSidebar({ user: testUser("user"), collapsible: true });
+  const toggle = wrapper.find('[data-testid="sidebar-collapse"]');
+  expect(toggle.attributes("aria-label")).toBe("收起侧栏");
+  await toggle.trigger("click");
+  expect(wrapper.emitted("toggle-collapse")).toHaveLength(1);
+  const collapsed = await mountSidebar({
+    user: testUser("user"),
+    collapsible: true,
+    collapsed: true,
+  });
+  expect(collapsed.wrapper.find('[data-testid="sidebar-collapse"]').attributes("aria-label")).toBe(
+    "展开侧栏",
+  );
+  const drawer = await mountSidebar({ user: testUser("user") });
+  expect(drawer.wrapper.find('[data-testid="sidebar-collapse"]').exists()).toBe(false);
+});
+
+it("puts a language switcher in the footer, also for anonymous visitors", async () => {
+  const { wrapper } = await mountSidebar({ gallery: true });
+  expect(wrapper.find('[data-testid="sidebar-language"]').attributes("aria-label")).toBe("语言");
+});
+
+it("shrinks a long site name instead of cutting it off", async () => {
+  const short = await mountSidebar({ user: testUser("user"), siteName: "ImgNest" });
+  expect(short.wrapper.find('[data-testid="sidebar-brand-name"]').classes()).toContain("is-lg");
+  expect(short.wrapper.find(".mv-brand__badge").exists()).toBe(true);
+  const long = await mountSidebar({
+    user: testUser("user"),
+    siteName: "我的超级好用个人图床服务站",
+  });
+  expect(long.wrapper.find('[data-testid="sidebar-brand-name"]').classes()).toContain("is-sm");
+  expect(long.wrapper.find(".mv-brand__badge").exists()).toBe(false);
 });

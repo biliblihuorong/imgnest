@@ -16,7 +16,7 @@ import { formatApiError } from "@/locales/errors";
  * 相册的随机图片链接管理：启用/停用、复制、重置、删除。
  * 链接地址由后端返回的站内路径拼上当前域名得到，不落库。
  */
-const props = defineProps<{ albumId: string }>();
+const props = defineProps<{ albumId: string; embedded?: boolean }>();
 const { t } = useI18n();
 const message = useMessage();
 
@@ -91,10 +91,15 @@ onScopeDispose(() => {
 </script>
 
 <template>
-  <section class="album-random-link rounded-lg border border-border bg-card">
+  <section
+    class="album-random-link"
+    :class="embedded ? 'is-embedded' : 'rounded-lg border border-border bg-card'"
+  >
     <header class="album-random-link__header">
       <div>
-        <h2 class="album-random-link__title">{{ t("albums.randomLink.title") }}</h2>
+        <h2 v-if="!embedded" class="album-random-link__title">
+          {{ t("albums.randomLink.title") }}
+        </h2>
         <p class="album-random-link__hint text-muted-foreground">
           {{ t("albums.randomLink.description") }}
         </p>
@@ -172,6 +177,13 @@ onScopeDispose(() => {
   gap: 12px;
   padding: 16px;
   margin-bottom: 16px;
+}
+.album-random-link > .n-button {
+  align-self: flex-start;
+}
+.album-random-link.is-embedded {
+  padding: 0;
+  margin-bottom: 0;
 }
 .album-random-link__header {
   display: flex;
