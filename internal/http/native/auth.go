@@ -381,5 +381,11 @@ func errorResponse(err error) (int, Response) {
 	if errors.As(err, &settingsErr) {
 		return 400, Response{Code: 10005, Message: settingsErr.Message, Data: nil}
 	}
+	// A reason code turns a generic "invalid request" or "storage operation
+	// failed" into a precise hint the console can translate; it is a fixed
+	// identifier, never an input value or provider message.
+	if reason := service.ErrorReason(err); reason != "" {
+		return status, Response{Code: code, Message: message, Data: gin.H{"reason": reason}}
+	}
 	return status, Response{Code: code, Message: message, Data: nil}
 }

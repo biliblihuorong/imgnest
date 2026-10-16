@@ -117,3 +117,23 @@ func TestAdminResetUserPasswordRouteContract(t *testing.T) {
 		}
 	}
 }
+
+type reasonAdminStub struct{ adminServiceStub }
+
+func (s *reasonAdminStub) ResetUserPassword(context.Context, uint64, uint64, string) error {
+	return &service.ReasonError{Reason: "password_length", Err: service.ErrInvalidInput}
+}
+
+func TestErrorResponsesCarryAReasonHint(t *testing.T) {
+	router := adminRouter(t, &reasonAdminStub{}, &adminImagesStub{})
+	response := adminRequest(t, router, http.MethodPut, "/api/admin/users/8/password", `{"password":"x"}`, adminBearer)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d", response.Code)
+	}
+	var data struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.Unmarshal(envelopeOf(t, response)["data"], &data); err != nil || data.Reason != "password_length" {
+		t.Fatalf("data=%s err=%v", envelopeOf(t, response)["data"], err)
+	}
+}

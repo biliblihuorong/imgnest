@@ -240,8 +240,11 @@ func (s *UserService) ChangePassword(ctx context.Context, userID uint64, current
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("change password: %w", err)
 	}
-	if userID == 0 || !validPassword(next) {
+	if userID == 0 {
 		return ErrInvalidInput
+	}
+	if !validPassword(next) {
+		return errPasswordLength
 	}
 	user, err := s.users.FindUserByID(ctx, userID)
 	if err != nil {
@@ -318,7 +321,7 @@ func (s *UserService) ResetPassword(ctx context.Context, email, next string) err
 		return err
 	}
 	if !validPassword(next) {
-		return ErrInvalidInput
+		return errPasswordLength
 	}
 	user, err := s.users.FindUserByEmail(ctx, normalized)
 	if errors.Is(err, ErrNotFound) {
@@ -340,8 +343,11 @@ func (s *UserService) ResetPassword(ctx context.Context, email, next string) err
 
 func (s *UserService) prepareUser(ctx context.Context, input RegisterInput, role string) (model.User, error) {
 	username, err := normalizeUsername(input.Username)
-	if err != nil || !validPassword(input.Password) {
-		return model.User{}, ErrInvalidInput
+	if err != nil {
+		return model.User{}, err
+	}
+	if !validPassword(input.Password) {
+		return model.User{}, errPasswordLength
 	}
 	email, err := normalizeEmail(input.Email)
 	if err != nil {
@@ -388,7 +394,7 @@ func normalizeUsername(raw string) (string, error) {
 	username := strings.TrimSpace(raw)
 	runes := utf8.RuneCountInString(username)
 	if !utf8.ValidString(username) || runes < 3 || runes > 64 {
-		return "", ErrInvalidInput
+		return "", errUsernameLength
 	}
 	return username, nil
 }
@@ -396,7 +402,7 @@ func normalizeUsername(raw string) (string, error) {
 func normalizeDisplayName(raw string) (string, error) {
 	name := strings.TrimSpace(raw)
 	if name != "" && (!utf8.ValidString(name) || containsControlRune(name) || utf8.RuneCountInString(name) > maxDisplayNameRunes) {
-		return "", ErrInvalidInput
+		return "", errDisplayNameInvalid
 	}
 	return name, nil
 }
@@ -409,10 +415,10 @@ func normalizeEmail(raw string) (string, error) {
 	email := strings.ToLower(strings.TrimSpace(raw))
 	address, err := mail.ParseAddress(email)
 	if err != nil {
-		return "", fmt.Errorf("email: %w", ErrInvalidInput)
+		return "", fmt.Errorf("email: %w", errEmailInvalid)
 	}
 	if address.Name != "" || address.Address != email {
-		return "", fmt.Errorf("email: %w", ErrInvalidInput)
+		return "", fmt.Errorf("email: %w", errEmailInvalid)
 	}
 	return email, nil
 }

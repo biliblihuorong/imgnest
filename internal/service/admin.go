@@ -198,6 +198,9 @@ type StorageChecks struct {
 type StorageTestResult struct {
 	OK     bool          `json:"ok"`
 	Checks StorageChecks `json:"checks"`
+	// Reason classifies the first failed step (see ErrorReason), e.g.
+	// "storage_denied"; empty when everything passed or the cause is unknown.
+	Reason string `json:"reason,omitempty"`
 }
 
 // PolicyPatch carries optional rule changes; pointer fields distinguish an

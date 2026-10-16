@@ -41,8 +41,11 @@ func (s *AdminService) CreateUser(ctx context.Context, callerID uint64, input Ad
 	if err := ctx.Err(); err != nil {
 		return UserView{}, fmt.Errorf("create admin user: %w", err)
 	}
-	if callerID == 0 || !validPassword(input.Password) || !validAccountRole(input.Role) || !validAccountStatus(input.Status) {
+	if callerID == 0 || !validAccountRole(input.Role) || !validAccountStatus(input.Status) {
 		return UserView{}, ErrInvalidInput
+	}
+	if !validPassword(input.Password) {
+		return UserView{}, errPasswordLength
 	}
 	username, err := normalizeUsername(input.Username)
 	if err != nil {
@@ -144,8 +147,11 @@ func (s *AdminService) ResetUserPassword(ctx context.Context, callerID, targetID
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("reset user password: %w", err)
 	}
-	if callerID == 0 || targetID == 0 || !validPassword(password) {
+	if callerID == 0 || targetID == 0 {
 		return ErrInvalidInput
+	}
+	if !validPassword(password) {
+		return errPasswordLength
 	}
 	if callerID == targetID {
 		return ErrForbidden

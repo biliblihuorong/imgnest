@@ -3086,6 +3086,9 @@ components:
             put: {type: boolean}
             copy: {type: boolean}
             delete: {type: boolean}
+        reason:
+          allOf: [{$ref: '#/components/schemas/ErrorReason'}]
+          description: Class of the first failed step; omitted when all checks pass or the cause is unknown.
     PolicyView:
       type: object
       additionalProperties: false
@@ -3878,6 +3881,21 @@ components:
         database identifier and its secret is exactly 40 ASCII alphanumeric characters.
         Only login and token creation responses expose this value.
       example: 7|abcdefghijklmnopqrstuvwxyz0123456789ABCD
+    ErrorReason:
+      type: string
+      description: >-
+        Fixed hint code that narrows a generic error, so a client can say what to fix:
+        which form field broke a rule, or why a storage call failed (rejected credentials,
+        missing bucket, unreachable endpoint, full disk...). Never carries input values,
+        credentials or provider messages. Clients must tolerate codes they do not know.
+      enum: [password_length, username_length, email_invalid, display_name_invalid, image_name_invalid, storage_denied, storage_bucket, storage_busy, storage_clock, storage_quota, storage_unsupported, storage_tls, storage_unreachable, storage_timeout, storage_disk_full, storage_read_only, storage_permission]
+    ErrorData:
+      type: object
+      nullable: true
+      additionalProperties: false
+      description: null, or a reason hint for the error.
+      properties:
+        reason: {$ref: '#/components/schemas/ErrorReason'}
     NullData:
       type: object
       nullable: true
@@ -4473,7 +4491,7 @@ components:
           type: string
           description: Human-readable error message without technical or credential details.
         data:
-          $ref: '#/components/schemas/NullData'
+          $ref: '#/components/schemas/ErrorData'
   responses:
     SearchInvalid:
       description: Invalid unified-search syntax, parameters, version, complexity or mixed protocol. No partial query is executed.

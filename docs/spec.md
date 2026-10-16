@@ -318,6 +318,7 @@ CDN 缓存不在本程序处理范围内。
 **约定**
 
 - 错误码分段：`1xxxx` 参数、`2xxxx` 鉴权、`3xxxx` 业务（容量不足、格式不允许）、`5xxxx` 存储/处理失败。
+- 原生接口的错误可在 `data.reason` 附带固定的原因代码（如 `password_length`、`email_invalid`、`storage_denied`、`storage_unreachable`、`storage_disk_full`），让前端给出「哪里填错 / 存储为什么失败」的具体提示；原因代码只是固定标识，不含输入值、密钥、Endpoint 或服务商原文，也不返回调用栈。前端遇到不认识的代码就退回通用文案。存储「测试连接」结果同样带 `reason`。蓝空 v1 接口不变。
 - HTTP 状态码同时语义化（400/401/403/404/413/429/500），蓝空接口除外（蓝空客户端只看 `status`）。
 - 时间一律 RFC 3339；ID 对外用图片 `key`，不暴露自增 ID 给公开接口。
 - 接口文档用 OpenAPI 3 描述，放 `docs/openapi.yaml`，前端类型由它生成。

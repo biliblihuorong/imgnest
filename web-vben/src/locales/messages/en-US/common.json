@@ -107,6 +107,27 @@
     "mailNotConfigured": "Email is not set up on this site",
     "emailCode": "The code is wrong or expired. Request a new one.",
     "emailCodeCooldown": "Please wait a minute before requesting another code",
-    "mailUnavailable": "The email could not be sent. Try again later."
+    "mailUnavailable": "The email could not be sent. Try again later.",
+    "withReason": "{error}: {reason}",
+    "gateway": "The server did not respond (HTTP {status}). Try again later; if it keeps happening, ask the administrator to check the service log.",
+    "reasons": {
+      "password_length": "The password must be 12 to 72 characters.",
+      "username_length": "The username must be 3 to 64 characters.",
+      "email_invalid": "The email address is not valid.",
+      "display_name_invalid": "The nickname can be at most 64 characters with no control characters.",
+      "image_name_invalid": "The name can't be empty, can't contain / or \\, and must be at most 255 bytes.",
+      "storage_denied": "The storage rejected the request; check the access key, secret key and permissions.",
+      "storage_bucket": "The bucket doesn't exist, or its name or region is wrong.",
+      "storage_busy": "The storage service is busy; try again later.",
+      "storage_clock": "The server clock is too far off from the storage service; sync the system time.",
+      "storage_quota": "The storage quota is full.",
+      "storage_unsupported": "This storage doesn't support a required operation (such as copy or versioning).",
+      "storage_tls": "The storage service's HTTPS certificate can't be verified.",
+      "storage_unreachable": "Can't reach the storage service; check the endpoint and network.",
+      "storage_timeout": "The storage service timed out.",
+      "storage_disk_full": "The local disk is full.",
+      "storage_read_only": "The storage directory is read-only.",
+      "storage_permission": "The program can't read or write the storage directory."
+    }
   }
 }

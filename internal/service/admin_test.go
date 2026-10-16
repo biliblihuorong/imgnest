@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -833,6 +835,19 @@ func TestAdminStorageTestReportsEachCheck(t *testing.T) {
 	}
 	if result.OK || result.Checks.Put || result.Checks.Copy || result.Checks.Delete {
 		t.Fatalf("put-failure probe=%+v", result)
+	}
+	if result.Reason != "" {
+		t.Fatalf("unclassified failure reason=%q", result.Reason)
+	}
+
+	driver = &adminProbeDriver{putErr: &os.PathError{Op: "open", Path: "/data/x", Err: syscall.ENOSPC}}
+	svc.deps.Drivers = adminDriverProvider{driver: driver}
+	result, err = svc.TestStorage(t.Context(), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OK || result.Reason != "storage_disk_full" {
+		t.Fatalf("full-disk probe=%+v", result)
 	}
 	if _, err := svc.TestStorage(t.Context(), 99); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing storage test error=%v", err)

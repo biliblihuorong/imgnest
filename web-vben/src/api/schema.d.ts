@@ -1965,6 +1965,8 @@ export interface components {
                 copy: boolean;
                 delete: boolean;
             };
+            /** @description Class of the first failed step; omitted when all checks pass or the cause is unknown. */
+            reason?: components["schemas"]["ErrorReason"];
         };
         PolicyView: {
             id: components["schemas"]["ID"];
@@ -2680,6 +2682,15 @@ export interface components {
          */
         PlaintextToken: string;
         /**
+         * @description Fixed hint code that narrows a generic error, so a client can say what to fix: which form field broke a rule, or why a storage call failed (rejected credentials, missing bucket, unreachable endpoint, full disk...). Never carries input values, credentials or provider messages. Clients must tolerate codes they do not know.
+         * @enum {string}
+         */
+        ErrorReason: "password_length" | "username_length" | "email_invalid" | "display_name_invalid" | "image_name_invalid" | "storage_denied" | "storage_bucket" | "storage_busy" | "storage_clock" | "storage_quota" | "storage_unsupported" | "storage_tls" | "storage_unreachable" | "storage_timeout" | "storage_disk_full" | "storage_read_only" | "storage_permission";
+        /** @description null, or a reason hint for the error. */
+        ErrorData: {
+            reason?: components["schemas"]["ErrorReason"];
+        } | null;
+        /**
          * @description Always the JSON null value.
          * @enum {object|null}
          */
@@ -3105,7 +3116,7 @@ export interface components {
             code: 10001 | 10002 | 10004 | 10005 | 10006 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30010 | 30011 | 30012 | 30013 | 30014 | 30015 | 30016 | 30017 | 30018 | 30019 | 50001 | 50002 | 50003 | 50004 | 50005 | 50006;
             /** @description Human-readable error message without technical or credential details. */
             message: string;
-            data: components["schemas"]["NullData"];
+            data: components["schemas"]["ErrorData"];
         };
     };
     responses: {

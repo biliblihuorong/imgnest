@@ -126,6 +126,8 @@ export interface StoragePatch {
 
 /** POST /api/admin/storages/{id}/test 的连接测试结果。 */
 export interface StorageTestResult {
+  /** 第一个失败步骤的原因代码（如 storage_denied）；全部通过或原因未知时省略。 */
+  reason?: string;
   ok: boolean;
   checks: {
     put: boolean;

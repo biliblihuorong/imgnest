@@ -178,7 +178,7 @@ func normalizeImageName(raw string) (string, error) {
 	name := strings.TrimSpace(raw)
 	if name == "" || len(name) > maxOriginNameBytes || !utf8.ValidString(name) ||
 		containsControlRune(name) || strings.ContainsAny(name, "/\\") {
-		return "", ErrInvalidInput
+		return "", errImageNameInvalid
 	}
 	return name, nil
 }
