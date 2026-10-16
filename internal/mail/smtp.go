@@ -16,6 +16,7 @@ import (
 	"net"
 	netmail "net/mail"
 	"net/smtp"
+	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -86,25 +87,12 @@ func (s *SMTP) Send(ctx context.Context, srv Server, msg Message) error {
 	defer cancel()
 	addr := net.JoinHostPort(srv.Host, strconv.Itoa(srv.Port))
 	tlsConfig := &tls.Config{ServerName: srv.Host, MinVersion: tls.VersionTLS12, RootCAs: s.rootCAs}
-	dialer := &net.Dialer{Timeout: 10 * time.Second}
-	var conn net.Conn
-	switch srv.Encryption {
-	case EncryptionTLS:
-		conn, err = (&tls.Dialer{NetDialer: dialer, Config: tlsConfig}).DialContext(ctx, "tcp", addr)
-		if err != nil {
-			var certErr *tls.CertificateVerificationError
-			if errors.As(err, &certErr) {
-				return ErrTLS
-			}
-			return ErrConnect
-		}
-	case EncryptionSTARTTLS, EncryptionNone:
-		conn, err = dialer.DialContext(ctx, "tcp", addr)
-		if err != nil {
-			return ErrConnect
-		}
-	default:
+	if srv.Encryption != EncryptionTLS && srv.Encryption != EncryptionSTARTTLS && srv.Encryption != EncryptionNone {
 		return ErrInvalid
+	}
+	conn, err := (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return ErrConnect
 	}
 	// The deadline bounds every read and write; cancellation unblocks them.
 	if deadline, ok := ctx.Deadline(); ok {
@@ -112,51 +100,143 @@ func (s *SMTP) Send(ctx context.Context, srv Server, msg Message) error {
 	}
 	stop := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Unix(1, 0)) })
 	defer stop()
+	if srv.Encryption == EncryptionTLS {
+		// Handshake separately from the dial so a wrong port or certificate
+		// reads as a TLS problem rather than an unreachable server.
+		secure := tls.Client(conn, tlsConfig)
+		if err := secure.HandshakeContext(ctx); err != nil {
+			_ = conn.Close()
+			if ctx.Err() != nil {
+				return ErrConnect
+			}
+			return ErrTLS
+		}
+		conn = secure
+	}
 	client, err := smtp.NewClient(conn, srv.Host)
 	if err != nil {
 		_ = conn.Close()
-		return ErrConnect
+		return failure(ErrConnect, err)
 	}
 	defer func() { _ = client.Close() }()
-	if err := client.Hello(heloName(msg.FromAddress)); err != nil {
-		return ErrConnect
+	// Go's default HELO name. Introducing ourselves by the sender's domain
+	// trips the common "don't use my own domain" relay rule.
+	if err := client.Hello("localhost"); err != nil {
+		return failure(ErrRejected, err)
 	}
 	if srv.Encryption == EncryptionSTARTTLS {
 		if ok, _ := client.Extension("STARTTLS"); !ok {
 			return ErrTLS
 		}
 		if err := client.StartTLS(tlsConfig); err != nil {
-			return ErrTLS
+			return failure(ErrTLS, err)
 		}
 	}
 	if srv.Username != "" {
-		if ok, _ := client.Extension("AUTH"); !ok {
+		ok, mechanisms := client.Extension("AUTH")
+		if !ok {
 			return ErrAuth
 		}
-		// PlainAuth refuses to send the password over an unencrypted link.
-		if err := client.Auth(smtp.PlainAuth("", srv.Username, srv.Password, srv.Host)); err != nil {
-			return ErrAuth
+		if err := client.Auth(chooseAuth(mechanisms, srv)); err != nil {
+			return failure(ErrAuth, err)
 		}
 	}
 	if err := client.Mail(msg.FromAddress); err != nil {
-		return ErrRejected
+		return failure(ErrRejected, err)
 	}
 	if err := client.Rcpt(msg.To); err != nil {
-		return ErrRejected
+		return failure(ErrRejected, err)
 	}
 	writer, err := client.Data()
 	if err != nil {
-		return ErrRejected
+		return failure(ErrRejected, err)
 	}
 	if _, err := writer.Write(body); err != nil {
 		_ = writer.Close()
-		return ErrRejected
+		return failure(ErrRejected, err)
 	}
 	if err := writer.Close(); err != nil {
-		return ErrRejected
+		return failure(ErrRejected, err)
 	}
 	_ = client.Quit()
 	return nil
+}
+
+// Error is a classified delivery failure with the relay's numeric reply code,
+// when there was one. It never keeps the reply text, which can echo
+// addresses or account details.
+type Error struct {
+	Kind error
+	Code int
+}
+
+func (e *Error) Error() string {
+	if e.Code == 0 {
+		return e.Kind.Error()
+	}
+	return fmt.Sprintf("%s (SMTP %d)", e.Kind, e.Code)
+}
+
+func (e *Error) Unwrap() error { return e.Kind }
+
+// StatusCode returns the relay's reply code behind err, or 0.
+func StatusCode(err error) int {
+	var failed *Error
+	if errors.As(err, &failed) {
+		return failed.Code
+	}
+	return 0
+}
+
+func failure(kind, err error) error {
+	var reply *textproto.Error
+	if errors.As(err, &reply) {
+		return &Error{Kind: kind, Code: reply.Code}
+	}
+	return kind
+}
+
+// chooseAuth prefers PLAIN and falls back to LOGIN, which Microsoft 365 and
+// some hosted relays offer alone. Both run only over TLS here.
+func chooseAuth(mechanisms string, srv Server) smtp.Auth {
+	for _, name := range strings.Fields(strings.ToUpper(mechanisms)) {
+		if name == "PLAIN" {
+			return smtp.PlainAuth("", srv.Username, srv.Password, srv.Host)
+		}
+	}
+	for _, name := range strings.Fields(strings.ToUpper(mechanisms)) {
+		if name == "LOGIN" {
+			return &loginAuth{username: srv.Username, password: srv.Password}
+		}
+	}
+	return smtp.PlainAuth("", srv.Username, srv.Password, srv.Host)
+}
+
+type loginAuth struct {
+	username, password string
+	step               int
+}
+
+func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	if !server.TLS {
+		return "", nil, errors.New("unencrypted connection")
+	}
+	return "LOGIN", nil, nil
+}
+
+func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	if !more {
+		return nil, nil
+	}
+	// Relays word the prompts differently, so answer by position.
+	a.step++
+	switch a.step {
+	case 1:
+		return []byte(a.username), nil
+	case 2:
+		return []byte(a.password), nil
+	}
+	return nil, errors.New("unexpected LOGIN challenge")
 }
 
 // Build renders msg as an RFC 5322 message with a base64 UTF-8 body.
@@ -211,12 +291,3 @@ func ParseAddress(raw string) (string, error) {
 func hasLineBreak(value string) bool { return strings.ContainsAny(value, "\r\n\x00") }
 
 func domainOf(address string) string { return address[strings.LastIndexByte(address, '@')+1:] }
-
-// heloName introduces the client by the sender's domain, which relays accept
-// more readily than the default "localhost".
-func heloName(from string) string {
-	if i := strings.LastIndexByte(from, '@'); i >= 0 && i < len(from)-1 {
-		return from[i+1:]
-	}
-	return "localhost"
-}

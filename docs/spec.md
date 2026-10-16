@@ -360,7 +360,7 @@ CDN 缓存不在本程序处理范围内。
 ### 7.7 系统设置二级页、SMTP 与邮箱验证码（2026-10-16）
 
 - 后台「系统设置」拆成二级页面 `/admin/settings/{general,auth,access,mail,plugins}`（基本设置、注册与登录、访客与画廊、邮件、插件），`/admin/settings` 跳到基本设置。新增设置页只需在 `web-vben/src/views/admin/settings/sections.ts` 加一项；每页只提交自己的字段，`PUT /api/admin/settings` 本来就是 PATCH 语义。
-- SMTP 配置存在 `settings` 表的 `mail_config` 键，经 `GET/PUT /api/admin/mail` 管理，`POST /api/admin/mail/test` 用已保存的设置发测试信（默认发给当前管理员，每 IP 每分钟 3 次）。加密方式 `tls`（465）/`starttls`（587）/`none`（25，只用于内网中继，不能带用户名密码）；发信只用标准库 `net/smtp`，不引入依赖，单次 20 秒超时。密码只写不读，用 `security.master_key` 加密；未配置主密钥时只能保存无认证的中继。测试失败返回 502/50006，`data.reason` 只给 `connect`/`tls`/`auth`/`rejected` 之一，不回显服务器原文。
+- SMTP 配置存在 `settings` 表的 `mail_config` 键，经 `GET/PUT /api/admin/mail` 管理，`POST /api/admin/mail/test` 用已保存的设置发测试信（默认发给当前管理员，每 IP 每分钟 3 次）。加密方式 `tls`（465）/`starttls`（587）/`none`（25，只用于内网中继，不能带用户名密码）；发信只用标准库 `net/smtp`，不引入依赖，单次 20 秒超时。密码只写不读，用 `security.master_key` 加密；未配置主密钥时只能保存无认证的中继。测试失败返回 422/50006（不用 502，免得被反代或 CDN 换成自己的错误页），`data.reason` 只给 `connect`/`tls`/`auth`/`rejected` 之一，服务器有应答时附数字 `data.smtp_code`，不回显服务器原文。认证优先 PLAIN，服务器只提供 LOGIN（如 Microsoft 365）时改用 LOGIN；HELO 用 `localhost`，不冒用发件域名。
 - 邮箱验证码表 `email_codes`（迁移 0012），用途 `register`/`reset_password`，每个（用途，邮箱）只保留最新一条；只存 `sha256(用途\0邮箱\0验证码)`，6 位数字，10 分钟有效，60 秒内不能重发，错 5 次作废，用掉即删。发送前若开启人机验证需要对应 action（`register` 或新增的 `reset`）的令牌；发信失败时作废本次验证码。
 - 设置项 `email_verification_enabled`（默认关）：开启且 SMTP 可用时，注册必须带 `email_code`，人机验证移到发送验证码那一步，注册请求本身不再要 `captcha_token`。`GET /api/site` 新增 `email_verification`（仅在开放注册时为 true）与 `password_reset`（SMTP 可用即为 true）。
 - 找回密码：`POST /api/auth/email-code`（`purpose=reset_password`）与 `POST /api/auth/password-reset`（每 IP 每分钟 3 次）。未注册、已停用的邮箱和冷却期内都静默返回成功，不泄露账号是否存在；重置成功后撤销该账号全部 Token（与改密同一路径）。

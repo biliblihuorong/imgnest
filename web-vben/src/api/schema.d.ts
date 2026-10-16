@@ -294,8 +294,10 @@ export interface paths {
         /**
          * Send a test email with the saved SMTP settings
          * @description Sends to "to", or to the administrator's own address when it is empty.
-         *     A failed delivery answers 502/50006 with data.reason naming the failed
-         *     step (connect, tls, auth, rejected) and never the server's reply.
+         *     A failed delivery answers 422/50006 with data.reason naming the failed
+         *     step (connect, tls, auth, rejected) and, when the relay replied, its
+         *     numeric data.smtp_code; never the server's reply text. 422 rather than
+         *     502 so reverse proxies and CDNs pass the body through.
          *     Limited to three requests per minute per client IP.
          */
         post: operations["testMailSettings"];
@@ -2731,6 +2733,8 @@ export interface components {
             data: {
                 /** @enum {string} */
                 reason: "connect" | "tls" | "auth" | "rejected";
+                /** @description The relay's numeric reply code */
+                smtp_code?: number;
             };
         };
         SsoExchangeRequest: {
@@ -3774,9 +3778,8 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["MailNotConfiguredOrUserExists"];
-            429: components["responses"]["RateLimited"];
             /** @description Delivery failed; code 50006 with data.reason. */
-            502: {
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3784,6 +3787,7 @@ export interface operations {
                     "application/json": components["schemas"]["MailDeliveryErrorEnvelope"];
                 };
             };
+            429: components["responses"]["RateLimited"];
         };
     };
     registerUser: {

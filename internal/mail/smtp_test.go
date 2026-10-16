@@ -27,9 +27,14 @@ type fakeRelay struct {
 	tls      *tls.Config
 	implicit bool
 	password string
-	mu       sync.Mutex
-	data     string
-	authed   bool
+	// mechanisms is the AUTH line advertised; empty means "PLAIN".
+	mechanisms string
+	// ownDomain makes the relay refuse a HELO that claims its domain, as
+	// Postfix's common "Don't use my own domain" rule does.
+	ownDomain string
+	mu        sync.Mutex
+	data      string
+	authed    bool
 }
 
 func testCertificate(t *testing.T) (*tls.Config, *x509.CertPool) {
@@ -98,11 +103,19 @@ func (r *fakeRelay) serve(conn net.Conn) {
 		upper := strings.ToUpper(cmd)
 		switch {
 		case strings.HasPrefix(upper, "EHLO"):
+			if r.ownDomain != "" && strings.EqualFold(strings.TrimSpace(cmd[4:]), r.ownDomain) {
+				write("550 5.7.1 Helo command rejected: Don't use my own domain")
+				continue
+			}
 			write("250-fake")
 			if !secure {
 				write("250-STARTTLS")
 			}
-			write("250 AUTH PLAIN")
+			mechanisms := r.mechanisms
+			if mechanisms == "" {
+				mechanisms = "PLAIN"
+			}
+			write("250 AUTH " + mechanisms)
 		case upper == "STARTTLS":
 			write("220 go ahead")
 			conn = tls.Server(conn, r.tls)
@@ -112,6 +125,25 @@ func (r *fakeRelay) serve(conn net.Conn) {
 			raw, _ := base64.StdEncoding.DecodeString(strings.TrimSpace(cmd[len("AUTH PLAIN"):]))
 			parts := strings.Split(string(raw), "\x00")
 			if len(parts) == 3 && parts[2] == r.password {
+				r.mu.Lock()
+				r.authed = true
+				r.mu.Unlock()
+				write("235 ok")
+			} else {
+				write("535 bad credentials")
+			}
+		case upper == "AUTH LOGIN":
+			write("334 " + base64.StdEncoding.EncodeToString([]byte("Username:")))
+			if _, err := reader.ReadString('\n'); err != nil {
+				return
+			}
+			write("334 " + base64.StdEncoding.EncodeToString([]byte("Password:")))
+			answer, err := reader.ReadString('\n')
+			if err != nil {
+				return
+			}
+			raw, _ := base64.StdEncoding.DecodeString(strings.TrimSpace(answer))
+			if string(raw) == r.password {
 				r.mu.Lock()
 				r.authed = true
 				r.mu.Unlock()
@@ -218,6 +250,53 @@ func TestSendClassifiesFailures(t *testing.T) {
 	_ = closed.Close()
 	if err := sender.Send(context.Background(), Server{Host: "127.0.0.1", Port: port, Encryption: EncryptionNone}, testMessage()); !errors.Is(err, ErrConnect) {
 		t.Fatalf("closed port: %v", err)
+	}
+}
+
+func TestSendUsesLoginWhenPlainIsNotOffered(t *testing.T) {
+	relay, pool := startRelay(t, true, "s3cret")
+	relay.mechanisms = "LOGIN XOAUTH2"
+	sender := NewSMTP()
+	sender.rootCAs = pool
+	err := sender.Send(context.Background(), Server{Host: "localhost", Port: relay.port(), Encryption: EncryptionTLS,
+		Username: "u", Password: "s3cret"}, testMessage())
+	if err != nil {
+		t.Fatalf("send with AUTH LOGIN: %v", err)
+	}
+	relay.mu.Lock()
+	defer relay.mu.Unlock()
+	if !relay.authed {
+		t.Fatal("relay did not authenticate")
+	}
+}
+
+func TestSendDoesNotClaimTheSenderDomainInHelo(t *testing.T) {
+	relay, pool := startRelay(t, true, "s3cret")
+	relay.ownDomain = "example.com"
+	sender := NewSMTP()
+	sender.rootCAs = pool
+	err := sender.Send(context.Background(), Server{Host: "localhost", Port: relay.port(), Encryption: EncryptionTLS,
+		Username: "u", Password: "s3cret"}, testMessage())
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+}
+
+func TestSendReportsTLSAndStatusCodes(t *testing.T) {
+	// Implicit TLS against a plain listener is a TLS failure, not "unreachable".
+	plain, _ := startRelay(t, false, "s3cret")
+	err := NewSMTP().Send(context.Background(), Server{Host: "localhost", Port: plain.port(), Encryption: EncryptionTLS,
+		Username: "u", Password: "s3cret"}, testMessage())
+	if !errors.Is(err, ErrTLS) {
+		t.Fatalf("TLS to a plain port: %v", err)
+	}
+	relay, pool := startRelay(t, true, "s3cret")
+	sender := NewSMTP()
+	sender.rootCAs = pool
+	err = sender.Send(context.Background(), Server{Host: "localhost", Port: relay.port(), Encryption: EncryptionTLS,
+		Username: "u", Password: "wrong"}, testMessage())
+	if !errors.Is(err, ErrAuth) || StatusCode(err) != 535 {
+		t.Fatalf("wrong password: %v (code %d)", err, StatusCode(err))
 	}
 }
 
