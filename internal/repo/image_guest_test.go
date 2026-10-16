@@ -39,6 +39,7 @@ func newGuestFixture(t *testing.T, db *gorm.DB, name string) guestFixture {
 // guestRequest builds a guest reservation whose objects live on the given backend.
 func guestRequest(storageID uint64, key, path string, size int64) model.UploadReservation {
 	return model.UploadReservation{
+		Storage: model.Storage{ID: storageID, Driver: "local", Config: json.RawMessage(`{}`)},
 		Image: model.Image{
 			UserID: 0, StorageID: storageID, Key: key, Path: path, Ext: "jpg",
 			MIME: "image/jpeg", OriginName: "anon.jpg", OperationID: "guest-" + key,

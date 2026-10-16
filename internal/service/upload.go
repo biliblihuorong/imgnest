@@ -305,7 +305,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 			}
 		}
 		var reservation model.Image
-		reservation, err = plan.reserve(ctx, model.UploadReservation{Image: image, Objects: manifests, SourceExt: sourceExt})
+		reservation, err = plan.reserve(ctx, model.UploadReservation{Image: image, Objects: manifests, SourceExt: sourceExt, Storage: backend})
 		if errors.Is(err, ErrPathConflict) {
 			continue
 		}

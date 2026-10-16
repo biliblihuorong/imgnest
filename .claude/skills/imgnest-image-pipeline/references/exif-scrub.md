@@ -69,6 +69,20 @@ needs rebuilding. Keep the tag entries' type and count; only blank the data.
 Not scrubbed in v1 (EXIF is an `iloc`-addressed item inside ISOBMFF). Policy
 `heif_mode` decides: `webp_only` (default), `keep`, or `reject`.
 
+Extraction archives ISOBMFF items under the existing version-1 raw format.
+Before allocating or parsing any payload, plan all unique blocks and bound
+their total copied payload bytes by 20MiB; base64/JSON overhead is separate.
+Only equal kinds with identical ordered absolute `(offset, length)` extents
+share one archived data block. Its additive `item_ids` list retains all item
+IDs in ascending order. Different source locations, kinds or extent sequences
+remain distinct, even when their bytes happen to match. Within an item,
+repeated or partially overlapping extents retain their concatenation order
+and count their full copied length; applying a range union would lose data.
+Sort blocks by first source offset, breaking ties by the lowest item ID.
+Over-budget extraction returns `ErrInvalidMetadata` before upload reservation
+or object writes, with no truncated archive. Existing raw records need no
+migration; item IDs describe archive aliases, not the complete container graph.
+
 ## Verification (always)
 
 1. libvips loads the scrubbed bytes.

@@ -1,11 +1,19 @@
 import { i18n } from "@vben/locales";
 import { nextTick } from "vue";
+import { createPinia, setActivePinia } from "pinia";
 import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { NInput, NInputNumber, NMessageProvider, NSelect, NSwitch } from "naive-ui";
 import { h } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as adminApi from "@/api/admin";
 import type { AdminSettings, GroupView } from "@/api/admin";
+import { fetchSite } from "@/api/site";
+import { listGallery } from "@/api/gallery";
+import type { SiteInfo } from "@/api/types";
+import { useSiteStore } from "@/stores/site";
+import MarvisSidebar from "@/components/layout/marvis/MarvisSidebar.vue";
+import { shellTestRouter } from "@/components/layout/marvis/testing";
+import GalleryView from "@/views/GalleryView.vue";
 import SettingsView from "./SettingsView.vue";
 
 vi.mock("@/components/admin/CaptchaSettingsCard.vue", () => ({
@@ -21,8 +29,12 @@ vi.mock("@/api/admin", () => ({
   putSettings: vi.fn(),
   listGroups: vi.fn(),
 }));
+vi.mock("@/api/site", () => ({ fetchSite: vi.fn() }));
+vi.mock("@/api/gallery", () => ({ listGallery: vi.fn() }));
 
 const adminApiMock = vi.mocked(adminApi);
+const fetchSiteMock = vi.mocked(fetchSite);
+const listGalleryMock = vi.mocked(listGallery);
 
 // jsdom 未实现 ResizeObserver，naive-ui 表单/弹层依赖它
 class ResizeObserverStub {
@@ -70,16 +82,132 @@ async function mountView(): Promise<VueWrapper> {
   return wrapper;
 }
 
+/** Mount existing public consumers against the same real Pinia as the settings form. */
+async function mountSiteConsumers() {
+  const router = shellTestRouter();
+  await router.push("/admin/settings");
+  const wrapper = mount(
+    () =>
+      h(NMessageProvider, () => [
+        h(SettingsView),
+        h(MarvisSidebar, { collapsed: false }),
+        h(GalleryView),
+      ]),
+    { global: { plugins: [setActivePinia(createPinia()), router] } },
+  );
+  await flushPromises();
+  return wrapper;
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
+  setActivePinia(createPinia());
   adminApiMock.getSettings.mockResolvedValue({ ...settingsFixture });
   adminApiMock.listGroups.mockResolvedValue([
     makeGroup(),
     makeGroup({ id: 3, name: "游客组", is_default: false, is_guest: true }),
   ]);
+  fetchSiteMock.mockResolvedValue({
+    site_name: "Old site",
+    register_enabled: false,
+    gallery_enabled: false,
+    login_providers: [],
+  });
+  listGalleryMock.mockResolvedValue({ items: [], total: 0, page: 1, size: 30 });
 });
 
 describe("SettingsView", () => {
+  it("publishes saved settings to the existing brand, menu and gallery consumers", async () => {
+    const wrapper = await mountSiteConsumers();
+    expect(wrapper.find(".mv-brand__name").text()).toBe("Old site");
+    expect(wrapper.find('nav a[href="/gallery"]').exists()).toBe(false);
+    expect(wrapper.findComponent(GalleryView).text()).toContain("站点未开放公开画廊");
+    adminApiMock.putSettings.mockResolvedValue({ ...settingsFixture, site_name: "Saved site" });
+    adminApiMock.getSettings.mockResolvedValue({ ...settingsFixture, site_name: "Saved site" });
+    fetchSiteMock.mockResolvedValue({
+      site_name: "Saved site",
+      register_enabled: true,
+      gallery_enabled: true,
+      login_providers: [{ id: "sso", name: "SSO", start_url: "/api/ext/sso/start" }],
+    });
+
+    await wrapper.find("input[placeholder='站点名称']").setValue("Saved site");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "保存设置")!
+      .trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find(".mv-brand__name").text()).toBe("Saved site");
+    expect(wrapper.find('nav a[href="/gallery"]').exists()).toBe(true);
+    expect(wrapper.findComponent(GalleryView).text()).toContain("暂无公开图片");
+    expect(useSiteStore().registerEnabled).toBe(true);
+    expect(useSiteStore().loginProviders).toEqual([
+      { id: "sso", name: "SSO", start_url: "/api/ext/sso/start" },
+    ]);
+  });
+
+  it("does not reuse or apply a site read started before settings were saved", async () => {
+    const wrapper = await mountSiteConsumers();
+    let finishOlder!: (value: SiteInfo) => void;
+    fetchSiteMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishOlder = resolve;
+        }),
+    );
+    const older = useSiteStore().refresh();
+    adminApiMock.putSettings.mockResolvedValue({ ...settingsFixture, site_name: "Saved site" });
+    adminApiMock.getSettings.mockResolvedValue({ ...settingsFixture, site_name: "Saved site" });
+    fetchSiteMock.mockResolvedValue({
+      site_name: "Saved site",
+      register_enabled: true,
+      gallery_enabled: true,
+      login_providers: [],
+    });
+    await wrapper.find("input[placeholder='站点名称']").setValue("Saved site");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "保存设置")!
+      .trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find(".mv-brand__name").text()).toBe("Saved site");
+    finishOlder({
+      site_name: "Old site",
+      register_enabled: false,
+      gallery_enabled: false,
+      login_providers: [],
+    });
+    await older;
+    await flushPromises();
+    expect(wrapper.find(".mv-brand__name").text()).toBe("Saved site");
+    expect(wrapper.find('nav a[href="/gallery"]').exists()).toBe(true);
+    expect(wrapper.findComponent(GalleryView).text()).toContain("暂无公开图片");
+  });
+
+  it("keeps shared consumers on their previous configuration when saving fails", async () => {
+    const wrapper = await mountSiteConsumers();
+    adminApiMock.putSettings.mockRejectedValue(new Error("offline"));
+    fetchSiteMock.mockResolvedValue({
+      site_name: "Rejected site",
+      register_enabled: true,
+      gallery_enabled: true,
+      login_providers: [],
+    });
+    await wrapper.find("input[placeholder='站点名称']").setValue("Rejected site");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "保存设置")!
+      .trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find(".mv-brand__name").text()).toBe("Old site");
+    expect(wrapper.find('nav a[href="/gallery"]').exists()).toBe(false);
+    expect(wrapper.findComponent(GalleryView).text()).toContain("站点未开放公开画廊");
+    expect(useSiteStore().registerEnabled).toBe(false);
+  });
+
   it("加载后十字段填充表单，组选项含「未设置（0）」", async () => {
     const wrapper = await mountView();
 

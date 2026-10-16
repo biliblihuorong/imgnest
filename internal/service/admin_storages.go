@@ -60,6 +60,7 @@ func (s *AdminService) PatchStorage(ctx context.Context, id uint64, patch Storag
 	if err != nil {
 		return StorageView{}, fmt.Errorf("find storage: %w", err)
 	}
+	guard := model.StorageUpdateGuard{ExpectedDriver: backend.Driver, ExpectedConfig: backend.Config}
 	if patch.Name != nil {
 		name := strings.TrimSpace(*patch.Name)
 		if name == "" || !utf8.ValidString(name) || utf8.RuneCountInString(name) > 64 {
@@ -80,7 +81,8 @@ func (s *AdminService) PatchStorage(ctx context.Context, id uint64, patch Storag
 		if !json.Valid(patch.Config) || len(patch.Config) > 64<<10 {
 			return StorageView{}, ErrInvalidInput
 		}
-		if err := s.checkStorageLocation(ctx, backend, patch.Config); err != nil {
+		guard.RequireEmpty, err = s.checkStorageLocation(ctx, backend, patch.Config)
+		if err != nil {
 			return StorageView{}, err
 		}
 		config := patch.Config
@@ -102,7 +104,7 @@ func (s *AdminService) PatchStorage(ctx context.Context, id uint64, patch Storag
 		}
 		backend.Config = config
 	}
-	updated, err := s.deps.Storages.Update(ctx, backend)
+	updated, err := s.deps.Storages.Update(ctx, backend, guard)
 	if err != nil {
 		return StorageView{}, fmt.Errorf("update storage: %w", err)
 	}
@@ -123,32 +125,35 @@ type storageLocation struct {
 // holding images at another directory or bucket: existing links would break
 // and the old objects would be orphaned. Moving data needs an explicit
 // migration, which ImgNest does not offer yet.
-func (s *AdminService) checkStorageLocation(ctx context.Context, backend model.Storage, next json.RawMessage) error {
+func (s *AdminService) checkStorageLocation(ctx context.Context, backend model.Storage, next json.RawMessage) (bool, error) {
 	images, err := s.deps.References.CountImagesForStorage(ctx, backend.ID)
 	if err != nil {
-		return fmt.Errorf("count storage images: %w", err)
-	}
-	if images == 0 {
-		return nil
+		return false, fmt.Errorf("count storage images: %w", err)
 	}
 	current := []byte(backend.Config)
 	if backend.Driver == "s3" {
 		current, err = s.deps.Secrets.Open(ctx, backend.Driver, backend.Config)
 		if err != nil {
-			return fmt.Errorf("open storage configuration: %w", ErrStillReferenced)
+			if images == 0 {
+				// Replacing an unreadable empty backend must remain empty until
+				// the guarded update commits, since location cannot be compared.
+				return true, nil
+			}
+			return false, fmt.Errorf("open storage configuration: %w", ErrStillReferenced)
 		}
 	}
 	var before, after storageLocation
 	if json.Unmarshal(current, &before) != nil || json.Unmarshal(next, &after) != nil {
-		return ErrInvalidInput
+		return false, ErrInvalidInput
 	}
 	if backend.Driver == "local" {
 		before.Root, after.Root = filepath.Clean(before.Root), filepath.Clean(after.Root)
 	}
-	if before != after {
-		return fmt.Errorf("move storage with images: %w", ErrStillReferenced)
+	moving := before != after
+	if moving && images != 0 {
+		return false, fmt.Errorf("move storage with images: %w", ErrStillReferenced)
 	}
-	return nil
+	return moving, nil
 }
 
 // DeleteStorage refuses backends that rules still reference; the policies

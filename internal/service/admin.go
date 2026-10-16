@@ -46,7 +46,7 @@ type AdminStorageRepository interface {
 	Create(context.Context, model.Storage) (model.Storage, error)
 	Find(context.Context, uint64) (model.Storage, error)
 	List(context.Context) ([]model.Storage, error)
-	Update(context.Context, model.Storage) (model.Storage, error)
+	Update(context.Context, model.Storage, model.StorageUpdateGuard) (model.Storage, error)
 	Delete(context.Context, uint64) error
 }
 

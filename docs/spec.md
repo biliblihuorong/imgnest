@@ -250,6 +250,7 @@ CDN 缓存不在本程序处理范围内。
 本地全留、云端抹掉敏感项，而且抹除是无损的：不重新编码原图，画质与上传文件完全一致。
 
 - **读取**：imagemeta解析常用字段；从原始容器字节提取全部EXIF/XMP/未知字段/MakerNote原始块，以base64归档到本地raw。WebP直接解析RIFF块，避免锁定vipsgen的GetBlob借用内存释放风险；该风险由源码推断，未原生复现。
+- **ISOBMFF 归档预算**：HEIC/HEIF/AVIF 在分配、复制或解析 metadata payload 前，先检查全部唯一归档块的累计 payload 长度，上限为20MiB（不含 base64/JSON 结构开销）。同类型、相同且有序的绝对 extent 序列只归档一次，以新增的 `item_ids` 保存所有对应 item ID；`raw.version=1` 和现有字段保留。不同类型、不同源位置或不同 extent 顺序分别保留、分别计费；单 item 内重复或部分重叠的 extent 也按顺序拼接并按实际复制长度计费，不能合并区间改变元数据内容。超限返回 `ErrInvalidMetadata` 并整体拒绝，不截断或漏存；失败发生在上传预约和对象写入前。块按源偏移排序，同偏移按最小 item ID 定序。`item_ids` 保留归档别名身份，不代表完整容器 item graph；旧 raw 记录仍可读取。
 - **默认抹除**（`scrub_mode = gps`）：GPS 全部字段；作者/所有人（Artist、CameraOwnerName）；序列号（BodySerialNumber、LensSerialNumber、TIFF/DNG 的 CameraSerialNumber）；整个 XMP 块（常带 GPS 和编辑软件历史）；MakerNote不透明载荷也清零/移除，防止厂商身份字段泄漏。本地归档在此之前完成。完整 TIFF 不按高位标签一律删除，保留 DNG 的版本、相机型号等安全结构标签。
 - **保留**：相机型号、镜头、曝光参数、拍摄时间、方向、ICC 色彩配置。
 - **其他档位**：`none` 不清理；`all` 清空全部 EXIF，只留方向和 ICC。

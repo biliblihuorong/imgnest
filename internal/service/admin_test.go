@@ -201,7 +201,7 @@ func (f *adminStoragesFake) List(context.Context) ([]model.Storage, error) {
 	}
 	return rows, nil
 }
-func (f *adminStoragesFake) Update(_ context.Context, value model.Storage) (model.Storage, error) {
+func (f *adminStoragesFake) Update(_ context.Context, value model.Storage, _ model.StorageUpdateGuard) (model.Storage, error) {
 	if _, ok := f.rows[value.ID]; !ok {
 		return model.Storage{}, ErrNotFound
 	}

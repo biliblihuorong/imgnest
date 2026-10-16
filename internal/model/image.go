@@ -85,6 +85,10 @@ type UploadReservation struct {
 	Image   Image
 	Objects []ObjectReceipt
 	Grant   TokenGrant
+	// Storage is the backend snapshot used to select the object driver.
+	// Reservation verifies it under the same database lock as relocation,
+	// before any bytes may be written through a stale driver.
+	Storage Storage
 	// SourceExt is the probed format of the uploaded bytes. It differs from
 	// Image.Ext when only the WebP conversion is stored, and it is what the
 	// group's allowed formats apply to.

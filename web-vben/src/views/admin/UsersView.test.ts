@@ -1,5 +1,5 @@
 import { i18n } from "@vben/locales";
-import { nextTick } from "vue";
+import { defineComponent, h, nextTick, onBeforeUnmount, ref } from "vue";
 import { enableAutoUnmount, flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import {
   NFormItem,
@@ -9,11 +9,11 @@ import {
   NPagination,
   NSelect,
   NSwitch,
+  type MessageProviderInst,
 } from "naive-ui";
 import { createPinia, setActivePinia } from "pinia";
 import { useAuthStore } from "@/stores/auth";
 import { ApiError, TOKEN_STORAGE_KEY } from "@/api/client";
-import { h } from "vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as adminApi from "@/api/admin";
 import type { AdminUserPage, AdminUserView, GroupView } from "@/api/admin";
@@ -81,7 +81,15 @@ function makePage(items: AdminUserView[], totalCount = items.length): AdminUserP
 }
 
 function mountView(): VueWrapper {
-  return mount(() => h(NMessageProvider, () => h(UsersView)), { global: { plugins: [pinia] } });
+  const host = defineComponent({
+    setup() {
+      const messages = ref<MessageProviderInst | null>(null);
+      // Naive UI 2.45.3 does not cancel message timers on provider unmount.
+      onBeforeUnmount(() => messages.value?.destroyAll());
+      return () => h(NMessageProvider, { ref: messages }, () => h(UsersView));
+    },
+  });
+  return mount(host, { global: { plugins: [pinia] } });
 }
 
 beforeEach(() => {
@@ -112,6 +120,25 @@ beforeEach(() => {
 });
 
 describe("UsersView", () => {
+  it("releases pending feedback timers before its test host is unmounted", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      adminApiMock.patchUser.mockResolvedValue(makeUser({ status: "disabled" }));
+      const wrapper = mountView();
+      await vi.advanceTimersByTimeAsync(0);
+      wrapper.findAllComponents(NSwitch)[0].vm.$emit("update:value", false);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(document.body.textContent).toContain("已禁用「alice」");
+
+      wrapper.unmount();
+      await nextTick();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it("挂载后按 page=1 加载并渲染用户字段", async () => {
     const wrapper = await mountView();
     await flushPromises();

@@ -243,6 +243,7 @@ type rawBlock struct {
 	Data       []byte      `json:"data"`
 	TIFFOffset int         `json:"tiff_offset,omitempty"`
 	Extents    []rawExtent `json:"extents,omitempty"`
+	ItemIDs    []uint64    `json:"item_ids,omitempty"`
 }
 type rawExtent struct {
 	Offset int `json:"offset"`

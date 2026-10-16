@@ -375,13 +375,20 @@ func (r *AdminRepository) UpdateGroup(ctx context.Context, group model.Group, po
 	return group, nil
 }
 
-// DeleteGroup removes a group and its rule bindings. Member accounts and
-// in-use settings references are rejected before this runs, and the users
-// foreign key still guards against races.
+// DeleteGroup removes a group and its rule bindings. It shares a row lock
+// with settings assignment so the final reference check cannot become stale.
+// The users foreign key also guards against concurrent member assignment.
 func (r *AdminRepository) DeleteGroup(ctx context.Context, id uint64) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := checkRecordID(ctx, id); err != nil {
+		if _, err := lockGroup(ctx, tx, id); err != nil {
 			return err
+		}
+		references, err := settingGroupReferences(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if len(references) > 0 {
+			return model.ErrStillReferenced
 		}
 		if err := tx.Where("id = ?", id).Delete(&model.Group{}).Error; err != nil {
 			return err
@@ -392,6 +399,19 @@ func (r *AdminRepository) DeleteGroup(ctx context.Context, id uint64) error {
 		return repositoryError("delete group", err)
 	}
 	return nil
+}
+
+func lockGroup(ctx context.Context, tx *gorm.DB, id uint64) (model.Group, error) {
+	if err := checkRecordID(ctx, id); err != nil {
+		return model.Group{}, err
+	}
+	query := tx.WithContext(ctx)
+	if tx.Name() == "postgres" {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	var group model.Group
+	err := query.First(&group, "id = ?", id).Error
+	return group, err
 }
 
 func replaceGroupPolicies(tx *gorm.DB, groupID uint64, policyIDs []uint64) error {
@@ -446,8 +466,12 @@ func (r *AdminRepository) CountGroupDefaultsForPolicy(ctx context.Context, polic
 // SettingGroupReferences reports which settings keys still point at a group,
 // so deletions cannot leave registration or guest routing dangling.
 func (r *AdminRepository) SettingGroupReferences(ctx context.Context, groupID uint64) ([]string, error) {
+	return settingGroupReferences(ctx, r.db, groupID)
+}
+
+func settingGroupReferences(ctx context.Context, db *gorm.DB, groupID uint64) ([]string, error) {
 	var settings []model.Setting
-	if err := r.db.WithContext(ctx).Where("key IN ?", []string{"default_group_id", "guest_group_id"}).Find(&settings).Error; err != nil {
+	if err := db.WithContext(ctx).Where("key IN ?", []string{"default_group_id", "guest_group_id"}).Find(&settings).Error; err != nil {
 		return nil, databaseError("read group settings", err)
 	}
 	references := []string{}

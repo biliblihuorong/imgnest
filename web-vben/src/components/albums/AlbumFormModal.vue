@@ -194,6 +194,7 @@ async function submit(): Promise<void> {
         v-if="pickerShow && show"
         :selected="model.cover_image_id"
         :disabled="saving"
+        @close="pickerShow = false"
         @select="
           model.cover_image_id = $event;
           pickerShow = false;
