@@ -104,6 +104,56 @@ afterEach(() => {
 });
 
 describe("AlbumFormModal", () => {
+  it.each([
+    ["empty", "close button"],
+    ["empty", "Escape"],
+    ["empty", "mask"],
+    ["failed", "close button"],
+    ["failed", "Escape"],
+    ["failed", "mask"],
+  ] as const)(
+    "cancels a %s cover picker with %s and preserves the album draft",
+    async (result, dismissal) => {
+      if (result === "failed") listImagesMock.mockRejectedValue(new Error("offline"));
+      const album = makeAlbum({ id: 3, cover_image_id: 7 });
+      updateAlbumMock.mockResolvedValue(album);
+      const wrapper = mountModal(album);
+      setInputValue(bodyInput(), "Unsaved name");
+      setInputValue(bodyTextarea(), "Unsaved introduction");
+      bodyButton("从我的图片选择").click();
+      await flushPromises();
+
+      const picker = document.body.querySelector<HTMLElement>(".album-cover-picker")!;
+      expect(picker.textContent).toContain(result === "empty" ? "没有图片" : "图片列表加载失败");
+      if (dismissal === "close button") {
+        picker.querySelector<HTMLButtonElement>(".n-base-close")!.click();
+      } else if (dismissal === "Escape") {
+        document.dispatchEvent(new KeyboardEvent("keydown", { code: "Escape", bubbles: true }));
+      } else {
+        const mask = [...document.body.querySelectorAll<HTMLElement>(".n-modal-mask")].at(-1)!;
+        mask.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+        mask.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+        mask.click();
+      }
+      await flushPromises();
+
+      expect(document.body.querySelector(".album-cover-picker") !== null).toBe(false);
+      expect(modalEmitted(wrapper, "update:show")).toBeUndefined();
+      expect(bodyInput().value).toBe("Unsaved name");
+      expect(bodyTextarea().value).toBe("Unsaved introduction");
+      expect(document.body.querySelector(".album-form__cover")?.textContent).toContain("图片 #7");
+      setInputValue(bodyInput(), "Continued editing");
+      bodyButton("保存").click();
+      await flushPromises();
+      expect(updateAlbumMock).toHaveBeenCalledWith(3, {
+        name: "Continued editing",
+        intro: "Unsaved introduction",
+        is_public: false,
+        cover_image_id: 7,
+      });
+    },
+  );
+
   it("新建模式：名称必填，空名称提交不发请求并就地提示", async () => {
     const wrapper = mountModal();
 
@@ -181,6 +231,7 @@ describe("AlbumFormModal", () => {
     items[1].dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await flushPromises();
     expect(document.body.textContent).toContain("图片 #8");
+    expect(document.body.querySelector(".album-cover-picker")).toBeNull();
 
     await fillAndSubmit("带封面");
     expect(createAlbumMock).toHaveBeenCalledWith({

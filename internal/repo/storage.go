@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // StorageRepository persists backend configuration without exposing its secrets.
@@ -75,20 +77,33 @@ func (r *StorageRepository) SetBaseURL(ctx context.Context, id uint64, baseURL s
 // Update stores management-console changes to a backend's display values,
 // switch state, and (already encrypted) configuration, preserving the
 // creation timestamp.
-func (r *StorageRepository) Update(ctx context.Context, value model.Storage) (model.Storage, error) {
+func (r *StorageRepository) Update(ctx context.Context, value model.Storage, guard model.StorageUpdateGuard) (model.Storage, error) {
 	if err := ctx.Err(); err != nil {
 		return model.Storage{}, fmt.Errorf("update storage: %w", err)
 	}
 	if err := checkRecordID(ctx, value.ID); err != nil {
 		return model.Storage{}, fmt.Errorf("update storage: %w", err)
 	}
-	if strings.TrimSpace(value.Name) == "" || !json.Valid(value.Config) {
+	if strings.TrimSpace(value.Name) == "" || !json.Valid(value.Config) ||
+		guard.ExpectedDriver == "" || value.Driver != guard.ExpectedDriver || !json.Valid(guard.ExpectedConfig) {
 		return model.Storage{}, fmt.Errorf("update storage: %w", model.ErrInvalidInput)
 	}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var existing model.Storage
-		if err := tx.First(&existing, "id = ?", value.ID).Error; err != nil {
+		existing, err := lockStorage(ctx, tx, value.ID)
+		if err != nil {
 			return err
+		}
+		if existing.Driver != guard.ExpectedDriver || !sameStorageConfig(existing.Config, guard.ExpectedConfig) {
+			return model.ErrImageBusy
+		}
+		if guard.RequireEmpty {
+			var images int64
+			if err := tx.Model(&model.Image{}).Where("storage_id = ?", value.ID).Count(&images).Error; err != nil {
+				return err
+			}
+			if images != 0 {
+				return model.ErrStillReferenced
+			}
 		}
 		value.CreatedAt = existing.CreatedAt
 		return tx.Save(&value).Error
@@ -97,6 +112,45 @@ func (r *StorageRepository) Update(ctx context.Context, value model.Storage) (mo
 		return model.Storage{}, repositoryError("update storage", err)
 	}
 	return value, nil
+}
+
+// lockStorage serializes location changes with authenticated and guest upload
+// reservations. SQLite obtains its write lock at BEGIN via _txlock=immediate;
+// PostgreSQL requires an explicit row lock for the same guarantee.
+func lockStorage(ctx context.Context, tx *gorm.DB, id uint64) (model.Storage, error) {
+	query := tx.WithContext(ctx)
+	if tx.Name() == "postgres" {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	var backend model.Storage
+	err := query.First(&backend, "id = ?", id).Error
+	return backend, err
+}
+
+// JSONB may reorder keys and whitespace, so compare configuration values
+// instead of serialized bytes. No configuration is included in errors.
+func sameStorageConfig(a, b json.RawMessage) bool {
+	var first, second any
+	decode := func(raw json.RawMessage, target *any) error {
+		decoder := json.NewDecoder(strings.NewReader(string(raw)))
+		decoder.UseNumber()
+		return decoder.Decode(target)
+	}
+	return decode(a, &first) == nil && decode(b, &second) == nil && reflect.DeepEqual(first, second)
+}
+
+func validateUploadStorage(ctx context.Context, tx *gorm.DB, backend model.Storage, expected model.Storage) error {
+	current, err := lockStorage(ctx, tx, backend.ID)
+	if err != nil {
+		return err
+	}
+	if !current.Enabled {
+		return model.ErrForbidden
+	}
+	if expected.ID != current.ID || expected.Driver != current.Driver || !sameStorageConfig(current.Config, expected.Config) {
+		return model.ErrImageBusy
+	}
+	return nil
 }
 
 // Delete removes a backend configuration. Rules still referencing the

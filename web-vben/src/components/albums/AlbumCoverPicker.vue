@@ -12,7 +12,7 @@ import AlbumCoverOption from "./AlbumCoverOption.vue";
  * 大图网格 + 关键词搜索 + 分页，选中后回填表单并关闭。
  */
 withDefaults(defineProps<{ selected: number; disabled?: boolean }>(), { disabled: false });
-const emit = defineEmits<{ select: [id: number] }>();
+const emit = defineEmits<{ select: [id: number]; close: [] }>();
 const { t } = useI18n();
 const images = shallowRef<ImageView[]>([]);
 const loading = shallowRef(false);
@@ -83,6 +83,7 @@ onScopeDispose(() => {
     :style="{ width: '100vw', height: '100vh', maxWidth: '100vw' }"
     :bordered="false"
     content-style="display: flex; flex-direction: column; min-height: 0;"
+    @update:show="emit('close')"
   >
     <div class="album-cover-picker__toolbar">
       <NInput

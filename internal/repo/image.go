@@ -64,6 +64,9 @@ func (r *ImageRepository) ReserveUpload(ctx context.Context, req model.UploadRes
 		if backend.ID != image.StorageID {
 			return model.ErrForbidden
 		}
+		if err := validateUploadStorage(ctx, tx, backend, req.Storage); err != nil {
+			return err
+		}
 		image.PolicyID = policy.ID
 		if err := checkUploadGroup(image, req.SourceExt, group); err != nil {
 			return err

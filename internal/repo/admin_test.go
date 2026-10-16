@@ -450,11 +450,12 @@ func TestStorageUpdateAndDelete(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		guard := model.StorageUpdateGuard{ExpectedDriver: backend.Driver, ExpectedConfig: backend.Config, RequireEmpty: true}
 		backend.Name = "renamed"
 		backend.BaseURL = "https://cdn.test/i/1"
 		backend.Enabled = false
 		backend.Config = json.RawMessage(`{"root":"elsewhere"}`)
-		updated, err := storages.Update(t.Context(), backend)
+		updated, err := storages.Update(t.Context(), backend, guard)
 		if err != nil {
 			t.Fatal(err)
 		}

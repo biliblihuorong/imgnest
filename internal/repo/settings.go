@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"gorm.io/gorm"
@@ -169,6 +170,9 @@ func (r *SettingsRepository) ReadSettings(ctx context.Context) (map[string]json.
 // single transaction; settings keys not present stay untouched.
 func (r *SettingsRepository) UpdateSettings(ctx context.Context, values map[string]json.RawMessage) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockSettingGroups(ctx, tx, values); err != nil {
+			return err
+		}
 		for key, value := range values {
 			if !json.Valid(value) {
 				return fmt.Errorf("update setting %s: %w", key, model.ErrInvalidInput)
@@ -196,7 +200,53 @@ func (r *SettingsRepository) UpdateSettings(ctx context.Context, values map[stri
 		return nil
 	})
 	if err != nil {
-		return databaseError("update settings", err)
+		return repositoryError("update settings", err)
+	}
+	return nil
+}
+
+// Both settings writes and group deletion lock the referenced group before
+// changing either side of the relationship. SQLite uses BEGIN IMMEDIATE;
+// PostgreSQL holds the row lock until the settings upsert commits.
+func lockSettingGroups(ctx context.Context, tx *gorm.DB, values map[string]json.RawMessage) error {
+	groupIDs := []uint64{}
+	guestByID := map[uint64]bool{}
+	for _, key := range []string{"default_group_id", "guest_group_id"} {
+		value, present := values[key]
+		if !present {
+			continue
+		}
+		var id *uint64
+		if err := json.Unmarshal(value, &id); err != nil || id == nil {
+			return fmt.Errorf("decode %s: %w", key, model.ErrInvalidInput)
+		}
+		if *id == 0 {
+			if key == "guest_group_id" {
+				continue
+			}
+			return fmt.Errorf("decode %s: %w", key, model.ErrInvalidInput)
+		}
+		guest := key == "guest_group_id"
+		if previous, found := guestByID[*id]; found {
+			if previous != guest {
+				return model.ErrInvalidInput
+			}
+			continue
+		}
+		groupIDs = append(groupIDs, *id)
+		guestByID[*id] = guest
+	}
+	// A patch may set both references. Always lock in ID order so two
+	// simultaneous patches cannot acquire the same groups in opposite order.
+	slices.Sort(groupIDs)
+	for _, id := range groupIDs {
+		group, err := lockGroup(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if group.IsGuest != guestByID[id] {
+			return model.ErrInvalidInput
+		}
 	}
 	return nil
 }

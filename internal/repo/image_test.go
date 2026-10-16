@@ -52,7 +52,8 @@ func newImageFixture(t *testing.T, db *gorm.DB, name string) imageFixture {
 
 func (f imageFixture) request(key, path string) model.UploadReservation {
 	return model.UploadReservation{
-		Grant: f.grant,
+		Grant:   f.grant,
+		Storage: f.storage,
 		Image: model.Image{
 			UserID: f.user.ID, PolicyID: f.policy.ID, StorageID: f.storage.ID, Key: key, Path: path,
 			Ext: "jpg", MIME: "image/jpeg", OriginName: "photo.jpg", SrcMD5: "source", MD5: "stored", SHA1: "stored-sha1",

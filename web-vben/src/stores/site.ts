@@ -12,7 +12,7 @@ interface SiteState {
 }
 
 /** 进行中的站点请求：同一页面多处同时触发时只发一次。 */
-const pendingRefresh = new WeakMap<object, Promise<void>>();
+const pendingRefresh = new WeakMap<object, { token: object; promise: Promise<void> }>();
 
 export const useSiteStore = defineStore("site", {
   state: (): SiteState => ({
@@ -30,25 +30,27 @@ export const useSiteStore = defineStore("site", {
       }
       await this.refresh();
     },
-    /** 无论是否加载过都重新拉取站点信息，供登录/注册页等低频入口保持最新开关。 */
-    refresh(): Promise<void> {
+    /** 保存配置后 force 发起新读；仅最新请求可更新状态，其余入口共用在途请求。 */
+    refresh({ force = false }: { force?: boolean } = {}): Promise<void> {
       const pending = pendingRefresh.get(this);
-      if (pending) return pending;
-      const run = (async () => {
+      if (pending && !force) return pending.promise;
+      const token = {};
+      const run = Promise.resolve().then(async () => {
         try {
           const site = await fetchSite();
+          if (pendingRefresh.get(this)?.token !== token) return;
           this.siteName = site.site_name;
           this.registerEnabled = site.register_enabled;
           this.galleryEnabled = site.gallery_enabled;
           this.loginProviders = site.login_providers ?? [];
           this.loaded = true;
         } catch {
-          // 拉取失败不抛错，保持默认值
+          // 拉取失败不抛错，保持当前值，下次刷新重试。
         } finally {
-          pendingRefresh.delete(this);
+          if (pendingRefresh.get(this)?.token === token) pendingRefresh.delete(this);
         }
-      })();
-      pendingRefresh.set(this, run);
+      });
+      pendingRefresh.set(this, { token, promise: run });
       return run;
     },
   },

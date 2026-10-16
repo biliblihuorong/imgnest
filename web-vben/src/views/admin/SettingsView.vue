@@ -28,9 +28,11 @@ import {
   type AdminSettings,
   type GroupView,
 } from "@/api/admin";
+import { useSiteStore } from "@/stores/site";
 
 const { t } = useI18n();
 const message = useMessage();
+const site = useSiteStore();
 const isMobile = useMediaQuery("(max-width: 640px)");
 
 const formRef = ref<FormInst | null>(null);
@@ -149,7 +151,7 @@ async function save(): Promise<void> {
     const snapshot = { ...model, trash_days: model.trash_days ?? 0 };
     await putSettings(snapshot);
     message.success(() => t("admin.settings.saved"));
-    await load(snapshot);
+    await Promise.all([load(snapshot), site.refresh({ force: true })]);
   } catch (error) {
     message.error(() => formatApiError(error, "admin.errors.save"));
   } finally {
