@@ -1,6 +1,6 @@
 # 部署
 
-对外只发布 Docker 镜像：`ghcr.io/biliblihuorong/imgnest`（linux/amd64、linux/arm64）。SQLite 和 PostgreSQL 共用同一个镜像，数据库由环境变量在运行时选择，没有按数据库区分的镜像变体。
+对外只发布 Docker 镜像：`ghcr.io/biliblihuorong/imgnest`（linux/amd64、linux/arm64）。SQLite 和 PostgreSQL 共用同一个镜像，数据库由环境变量在运行时选择，没有按数据库区分的镜像变体。不发布预编译二进制；需要二进制部署时用 `make release` 自行构建，运行机器须装有同版本 libvips 8.18.x，步骤见网站文档「部署」页（`website/docs/guide/deployment.md`）。
 
 ## 镜像 tag
 
@@ -53,6 +53,7 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest imgnest init-local --b
 | `POSTGRES_PASSWORD` | 仅 PostgreSQL，必填 |
 | `IMGNEST_SECURITY_MASTER_KEY` | 仅 S3 存储需要：32 字节随机数的 base64。丢失后已加密的存储凭据无法解密，需私下备份 |
 | `IMGNEST_SERVER_TRUSTED_PROXIES` | 反向代理地址，逗号分隔 |
+| `IMGNEST_IMAGES_VARIANT_CORS_ORIGINS` | 允许在浏览器里调用 `/api/variants` 的来源（如博客），逗号分隔 |
 
 ## 数据与运行约束
 

@@ -12,6 +12,8 @@ services:
       IMGNEST_SECURITY_MASTER_KEY: ${IMGNEST_SECURITY_MASTER_KEY:-}
       # Comma-separated reverse proxy addresses allowed to set the client IP.
       IMGNEST_SERVER_TRUSTED_PROXIES: ${IMGNEST_SERVER_TRUSTED_PROXIES:-}
+      # Comma-separated sites (such as your blog) allowed to call /api/variants from the browser.
+      IMGNEST_IMAGES_VARIANT_CORS_ORIGINS: ${IMGNEST_IMAGES_VARIANT_CORS_ORIGINS:-}
     volumes:
       # Database, local image objects and the thumbnail cache.
       - imgnest-data:/app/data

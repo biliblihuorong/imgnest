@@ -12,6 +12,7 @@ const GUIDE: { title: [zh: string, en: string]; pages: [slug: string, zh: string
     pages: [
       ["introduction", "ImgNest 是什么", "What is ImgNest"],
       ["getting-started", "快速开始", "Getting started"],
+      ["deployment", "部署", "Deployment"],
       ["configuration", "配置", "Configuration"],
     ],
   },
