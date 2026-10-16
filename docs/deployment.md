@@ -1,6 +1,6 @@
 # 部署
 
-对外只发布 Docker 镜像：`ghcr.io/biliblihuorong/imgnest`（linux/amd64、linux/arm64）。SQLite 和 PostgreSQL 共用同一个镜像，数据库由环境变量在运行时选择，没有按数据库区分的镜像变体。
+对外只发布 Docker 镜像：`ghcr.io/biliblihuorong/imgnest`（linux/amd64、linux/arm64）。SQLite 和 PostgreSQL 共用同一个镜像，数据库由环境变量在运行时选择，没有按数据库区分的镜像变体。不发布预编译二进制；需要二进制部署时用 `make release` 自行构建，运行机器须装有同版本 libvips 8.18.x，步骤见网站文档「部署」页（`website/docs/guide/deployment.md`）。
 
 ## 镜像 tag
 

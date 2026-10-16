@@ -84,7 +84,7 @@ A fresh site does not accept sign-ups. An administrator can turn registration on
 | --- | --- |
 | Change the port | Set `IMGNEST_PORT` before starting; the default is 8080 |
 | Stop the server | `docker compose -f deploy/compose.sqlite.yaml down` |
-| Use PostgreSQL | Use `deploy/compose.postgres.yaml` and set `POSTGRES_PASSWORD` first |
+| Use PostgreSQL | Use `deploy/compose.postgres.yaml` and set `POSTGRES_PASSWORD` first; see [Deployment](./deployment) |
 | Build the image yourself | `docker build -f deploy/Dockerfile -t imgnest:local .` |
 
 ::: warning Run a single instance
@@ -93,6 +93,7 @@ Do not start more than one ImgNest container against the same data.
 
 ## Next
 
+- For a production setup (PostgreSQL, binary with systemd, reverse proxy), read [Deployment](./deployment).
 - To change upload limits or the database connection, read [Configuration](./configuration).
 - To store images in an S3-compatible service, read [Storage and policies](./storage-and-policies).
 - To work on the code, read [`docs/development.md`](https://github.com/biliblihuorong/imgnest/blob/main/docs/development.md) in the repository.
