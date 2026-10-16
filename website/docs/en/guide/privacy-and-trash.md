@@ -20,6 +20,10 @@ Cleaning is **lossless**. The metadata section of the file is rewritten in place
 | `all` | All EXIF | Orientation and ICC |
 | `none` | Nothing | Everything |
 
+::: warning Lsky Pro originals adopted in place
+Originals migrated from Lsky Pro with "Adopt in place" stay in the old bucket, and ImgNest never rewrites or scrubs them, so any GPS data they carry stays in the files (EXIF is still stored in the local database and is not returned by public APIs). To scrub them, migrate with "Download and store again" into a new bucket instead; see [Migrating from Lsky Pro](./lsky-migration).
+:::
+
 ::: warning HEIC and AVIF
 In-place cleaning is not available for these two formats yet. A policy can store only the WebP copy (the default), store the file as is, or reject the upload.
 :::

@@ -21,7 +21,10 @@ type Options struct {
 	// PolicyID is the ImgNest upload rule every imported group is bound to
 	// and whose storage receives the re-ingested images.
 	PolicyID uint64
-	Now      func() time.Time
+	// Adopt takes the originals over in place, so a WebP-only rule cannot
+	// break their links.
+	Adopt bool
+	Now   func() time.Time
 }
 
 // Mapping links Lsky IDs to the ImgNest rows that now represent them.
@@ -71,7 +74,7 @@ func ImportAccounts(ctx context.Context, db *gorm.DB, snap Snapshot, opts Option
 		if err := tx.First(&policy, "id = ?", opts.PolicyID).Error; err != nil {
 			return fmt.Errorf("find policy %d: %w", opts.PolicyID, err)
 		}
-		if policy.WebPMode == "webp_only" {
+		if policy.WebPMode == "webp_only" && !opts.Adopt {
 			return errors.New("policy stores only WebP, which would break every non-WebP historic link; pick a rule with webp_mode both or none")
 		}
 		defaultGroup, err := defaultGroupID(tx)

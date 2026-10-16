@@ -588,18 +588,8 @@ function closeTestResult(show: boolean): void {
   margin-bottom: 12px;
 }
 
-.storages-form-modal {
-  width: 560px;
-  max-width: calc(100vw - 32px);
-}
-
 .storages-form-alert {
   margin-bottom: 16px;
-}
-
-.storages-test-modal {
-  width: 420px;
-  max-width: calc(100vw - 32px);
 }
 
 .storages-test-target {
@@ -624,5 +614,18 @@ function closeTestResult(show: boolean): void {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+</style>
+
+<!-- NModal teleports to <body>, out of reach of scoped styles. -->
+<style>
+.storages-form-modal {
+  width: 560px;
+  max-width: calc(100vw - 32px);
+}
+
+.storages-test-modal {
+  width: 420px;
+  max-width: calc(100vw - 32px);
 }
 </style>

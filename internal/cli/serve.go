@@ -15,6 +15,7 @@ import (
 	"github.com/biliblihuorong/imgnest/internal/http/lsky"
 	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/migrate"
+	lskymigrate "github.com/biliblihuorong/imgnest/internal/migrate/lsky"
 	"github.com/biliblihuorong/imgnest/internal/pathtpl"
 	"github.com/biliblihuorong/imgnest/internal/randompool"
 	"github.com/biliblihuorong/imgnest/internal/repo"
@@ -87,11 +88,20 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// Console imports of a Lsky Pro export run in the background and
+			// stop with the server; a rerun resumes with what is missing.
+			importCtx, stopImports := context.WithCancel(cmd.Context())
+			defer stopImports()
+			lskyImport, err := lskymigrate.NewRunner(importCtx, lskymigrate.RunnerDeps{DB: db, Ingest: lskyIngest(images), Adoption: images.AdoptionReader, MaxBytes: int64(cfg.Server.MaxUploadMB) << 20})
+			if err != nil {
+				return err
+			}
+			defer lskyImport.Wait()
 			webFS, err := frontendDistFS()
 			if err != nil {
 				return fmt.Errorf("open embedded web app: %w", err)
 			}
-			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads, Slots: uploadSlots}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, PluginSettings: pluginSettings, ExternalSignIn: users, Variants: images, VariantOptions: httpapi.VariantOptions{CORSOrigins: cfg.Images.VariantCORSOrigins, PerMinute: cfg.Images.VariantLookupPerMinute}})
+			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads, Slots: uploadSlots}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, PluginSettings: pluginSettings, ExternalSignIn: users, LskyImport: lskyImport, Variants: images, VariantOptions: httpapi.VariantOptions{CORSOrigins: cfg.Images.VariantCORSOrigins, PerMinute: cfg.Images.VariantLookupPerMinute}})
 			if err != nil {
 				return err
 			}

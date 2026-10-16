@@ -827,6 +827,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/migrations/lsky": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the uploaded Lsky Pro export and the import progress */
+        get: operations["adminLskyImportStatus"];
+        put?: never;
+        post?: never;
+        /** Forget the uploaded export */
+        delete: operations["adminDiscardLskyDump"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/migrations/lsky/dump": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a Lsky Pro PostgreSQL export
+         * @description Accepts a plain SQL export (pg_dump, DBX or Navicat) of up to 128 MiB in
+         *     the multipart `file` part. It is parsed in memory and never written to
+         *     disk; only groups, users, tokens, albums, images and each strategy's
+         *     public URL are kept. Storage credentials and site configs are dropped.
+         *     It replaces an earlier upload and is lost on restart.
+         */
+        post: operations["adminUploadLskyDump"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/migrations/lsky/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import the uploaded export into a rule in the background
+         * @description Imports groups, users, tokens and albums, then each image under its
+         *     original path. `adopt` keeps originals where they are: the rule's
+         *     storage must be the old S3 bucket with versioning on, and originals are
+         *     never rewritten or scrubbed. `copy` downloads each original from
+         *     `source_url` (default: the strategy's URL) and stores it again; it
+         *     rejects a `webp_only` rule. Already imported images are skipped, so a
+         *     finished or canceled run can be started again.
+         */
+        post: operations["adminStartLskyImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/migrations/lsky/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop the running import after the current image */
+        post: operations["adminCancelLskyImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/gallery": {
         parameters: {
             query?: never;
@@ -2123,6 +2208,68 @@ export interface components {
             code: 0;
             message: string;
             data: components["schemas"]["VariantBackfill"];
+        };
+        LskyImportOptions: {
+            /** Format: int64 */
+            policy_id: number;
+            /** @enum {string} */
+            mode: "adopt" | "copy";
+            /**
+             * Format: int64
+             * @description Import only this Lsky strategy's images; 0 imports all.
+             * @default 0
+             */
+            strategy_id: number;
+            /**
+             * @description Copy mode only; replaces each strategy's public URL.
+             * @default
+             */
+            source_url: string;
+        };
+        LskyStrategySummary: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            url: string;
+            images: number;
+        };
+        LskyDumpSummary: {
+            groups: number;
+            users: number;
+            tokens: number;
+            albums: number;
+            images: number;
+            strategies: components["schemas"]["LskyStrategySummary"][];
+            loaded_at: components["schemas"]["Timestamp"];
+        } | null;
+        LskyImportStatus: {
+            loaded: boolean;
+            summary: components["schemas"]["LskyDumpSummary"];
+            running: boolean;
+            /** @enum {string} */
+            phase: "idle" | "accounts" | "images" | "done" | "failed" | "canceled";
+            options: components["schemas"]["LskyImportOptions"] | null;
+            /** @description Account import report lines. */
+            accounts: string[];
+            total: number;
+            processed: number;
+            imported: number;
+            existing: number;
+            skipped: number;
+            failed: number;
+            /** @description At most 200 lines; counts are exact. */
+            failures: string[];
+            /** @description At most 200 lines. */
+            skips: string[];
+            error: string;
+            started_at: components["schemas"]["Timestamp"] | null;
+            finished_at: components["schemas"]["Timestamp"] | null;
+        };
+        LskyImportEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["LskyImportStatus"];
         };
         SearchAlbum: {
             /** @description Decimal ID string preserved without JavaScript number conversion. */
@@ -4275,6 +4422,190 @@ export interface operations {
                 };
             };
             400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminLskyImportStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyImportEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminDiscardLskyDump: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description State without an export. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyImportEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            /** @description An import is running; code 30016. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminUploadLskyDump: {
+        parameters: {
+            query?: {
+                /** @description IANA zone of the Lsky database's naive timestamps. */
+                timezone?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description State with the parsed export. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyImportEnvelope"];
+                };
+            };
+            /** @description Malformed request or time zone (code 10001), or not a Lsky Pro export (code 10006). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            /** @description An import is running; code 30016. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The export exceeds 128 MiB; code 10002. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminStartLskyImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LskyImportOptions"];
+            };
+        };
+        responses: {
+            /** @description State of the started run. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyImportEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            /** @description The rule does not exist, or no export is uploaded. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description An import is running; code 30016. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminCancelLskyImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description State after stopping. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LskyImportEnvelope"];
+                };
+            };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["AdminForbidden"];
             500: components["responses"]["InternalError"];

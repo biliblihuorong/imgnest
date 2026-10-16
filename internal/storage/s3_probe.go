@@ -156,6 +156,12 @@ func (d *S3) PurgeImage(ctx context.Context, key, owner string) error {
 	if owner == "" {
 		return ErrOwnership
 	}
+	return d.purgeImage(ctx, key, owner, "")
+}
+
+// purgeImage removes the whole history of key once every version belongs to
+// owner; adopted, when set, is the one version allowed to carry no owner.
+func (d *S3) purgeImage(ctx context.Context, key, owner, adopted string) error {
 	versions, err := d.listVersions(ctx, key)
 	if err != nil {
 		return err
@@ -172,7 +178,8 @@ func (d *S3) PurgeImage(ctx context.Context, key, owner string) error {
 		if err != nil {
 			return s3Error("verify final image owner", err)
 		}
-		if output.Metadata["imgnest-owner"] != owner {
+		found := output.Metadata["imgnest-owner"]
+		if found != owner && (adopted == "" || version.id != adopted || found != "") {
 			return ErrOwnership
 		}
 	}

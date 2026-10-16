@@ -26,6 +26,18 @@ type ObjectReceipt struct {
 	MIME      string `json:"mime"`
 	SHA256    string `json:"sha256,omitempty"`
 	Size      int64  `json:"size"`
+	// Adopted marks an original another program wrote before ImgNest took
+	// the bucket over (an adopted Lsky Pro bucket). It carries no owner
+	// metadata, so VersionID pins the exact version that was adopted and
+	// lifecycle operations go through storage.LegacyObjects for it.
+	Adopted bool `json:"adopted,omitempty"`
+}
+
+// AdoptableVersion reports whether a version id can pin an adopted object:
+// unversioned buckets answer "" or "null", where hiding the object on
+// delete could not keep its bytes.
+func AdoptableVersion(version string) bool {
+	return version != "" && version != "null" && len(version) <= 1024
 }
 
 // CanonicalExt maps extension aliases onto the form the imaging pipeline

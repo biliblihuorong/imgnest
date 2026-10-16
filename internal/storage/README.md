@@ -50,6 +50,17 @@ the key has no remaining history. Any foreign history rejects the whole purge.
 `PurgeAllVersions` is reserved for explicitly owned connection-test namespaces;
 it must not be substituted for compensation or user image deletion.
 
+`LegacyObjects` (S3 only) manages objects ImgNest adopted in place, such as
+Lsky originals: no owner metadata, identified by a pinned version ID that the
+caller stores. `CopyLegacy` copies exactly that version to an owned target
+(reusing a matching owned copy on retry); `DeleteLegacy` removes the key without
+a version ID only while the live version is still the pinned unowned one, so the
+legacy bytes stay as history behind a delete marker; `PurgeLegacy` is
+`PurgeImage` that additionally accepts that single pinned unowned version and
+still rejects any other foreign history. A null or empty version ID (an
+unversioned bucket) is never adoptable. Nothing writes to or compensates an
+adopted key.
+
 A write error can occur after the provider committed. The caller must inspect
 the returned receipt and durable ownership, and compensate all attempted keys.
 No B2/COS/R2 account is implied tested by MinIO passing; endpoints lacking the

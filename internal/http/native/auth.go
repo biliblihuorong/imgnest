@@ -326,6 +326,10 @@ func errorResponse(err error) (int, Response) {
 		status, code, message = 409, 30006, "image operation in progress"
 	case errors.Is(err, service.ErrUnsupportedFormat):
 		status, code, message = 415, 30007, "image format not allowed"
+	case errors.Is(err, service.ErrNotLskyDump):
+		status, code, message = 400, 10006, "not a Lsky Pro database export"
+	case errors.Is(err, service.ErrImportBusy):
+		status, code, message = 409, 30016, "import already running"
 	case errors.Is(err, service.ErrGroupHasMembers):
 		status, code, message = 409, 30008, "group still has members"
 	case errors.Is(err, service.ErrStillReferenced):

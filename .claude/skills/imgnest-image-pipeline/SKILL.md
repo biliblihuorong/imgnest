@@ -47,8 +47,22 @@ checklist; if the two disagree, the spec wins and this file must be updated.
 flow for historic images with a pinned path, extension and `created_at`: step 6
 is skipped, a collision is an error (never `-1`), and a stored extension that
 would differ from the historic link (`ErrImportLinkChanged`) rejects the image.
-It writes into a new bucket; the old Lsky objects are never adopted or
-overwritten. See `docs/lsky-migration.md`.
+Two modes (web admin page or CLI, same `lsky.Runner` / `ImportImages`):
+
+- **Copy** (default CLI): downloads from the old URL and writes everything into
+  the policy's (new) bucket with normal scrubbing.
+- **Adopt** (`ImportInput.AdoptVersion`, CLI `--adopt`): the policy's storage is
+  the old bucket (S3, versioning on). The original is never written, scrubbed or
+  overwritten; it is recorded as `ObjectReceipt{Adopted: true, VersionID}` and
+  only WebP/thumbs/variants are new. `webp_only` behaves as `both`. Before
+  publishing, `checkAdoptable` re-stats the live object (no owner, same version,
+  same size) or fails with `ErrPathConflict`. Adopted receipts are skipped by
+  failure compensation; trash/restore/purge use `storage.LegacyObjects`
+  (`CopyLegacy` → `DeleteLegacy` delete marker; `PurgeLegacy` accepts exactly
+  the pinned unowned version). Reads use `ownsObject`, which accepts the pinned
+  unowned version. Never call Put/Purge* on an adopted key directly.
+
+See `docs/lsky-migration.md` and spec §5.1 / §6.2.
 
 Persist each object's SHA256 with its write intent. Foreground compensation,
 background cleanup, recycle-bin IO and preview-cache rebuilding share the

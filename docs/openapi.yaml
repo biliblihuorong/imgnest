@@ -1206,6 +1206,161 @@ paths:
           $ref: '#/components/responses/AdminForbidden'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/admin/migrations/lsky:
+    get:
+      operationId: adminLskyImportStatus
+      tags: [Admin]
+      summary: Read the uploaded Lsky Pro export and the import progress
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Current state.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LskyImportEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: adminDiscardLskyDump
+      tags: [Admin]
+      summary: Forget the uploaded export
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: State without an export.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LskyImportEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '409':
+          description: An import is running; code 30016.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/migrations/lsky/dump:
+    post:
+      operationId: adminUploadLskyDump
+      tags: [Admin]
+      summary: Upload a Lsky Pro PostgreSQL export
+      description: |
+        Accepts a plain SQL export (pg_dump, DBX or Navicat) of up to 128 MiB in
+        the multipart `file` part. It is parsed in memory and never written to
+        disk; only groups, users, tokens, albums, images and each strategy's
+        public URL are kept. Storage credentials and site configs are dropped.
+        It replaces an earlier upload and is lost on restart.
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: timezone
+          in: query
+          required: false
+          description: IANA zone of the Lsky database's naive timestamps.
+          schema: {type: string, default: Asia/Shanghai}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '200':
+          description: State with the parsed export.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LskyImportEnvelope'}
+        '400':
+          description: Malformed request or time zone (code 10001), or not a Lsky Pro export (code 10006).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '409':
+          description: An import is running; code 30016.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '413':
+          description: The export exceeds 128 MiB; code 10002.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/migrations/lsky/start:
+    post:
+      operationId: adminStartLskyImport
+      tags: [Admin]
+      summary: Import the uploaded export into a rule in the background
+      description: |
+        Imports groups, users, tokens and albums, then each image under its
+        original path. `adopt` keeps originals where they are: the rule's
+        storage must be the old S3 bucket with versioning on, and originals are
+        never rewritten or scrubbed. `copy` downloads each original from
+        `source_url` (default: the strategy's URL) and stores it again; it
+        rejects a `webp_only` rule. Already imported images are skipped, so a
+        finished or canceled run can be started again.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LskyImportOptions'}
+      responses:
+        '200':
+          description: State of the started run.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LskyImportEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          description: The rule does not exist, or no export is uploaded.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '409':
+          description: An import is running; code 30016.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/migrations/lsky/cancel:
+    post:
+      operationId: adminCancelLskyImport
+      tags: [Admin]
+      summary: Stop the running import after the current image
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: State after stopping.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LskyImportEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/gallery:
     get:
       operationId: listGallery
@@ -3067,6 +3222,73 @@ components:
         code: {type: integer, enum: [0]}
         message: {type: string}
         data: {$ref: '#/components/schemas/VariantBackfill'}
+    LskyImportOptions:
+      type: object
+      additionalProperties: false
+      required: [policy_id, mode]
+      properties:
+        policy_id: {type: integer, format: int64, minimum: 1}
+        mode: {type: string, enum: [adopt, copy]}
+        strategy_id: {type: integer, format: int64, minimum: 0, default: 0, description: Import only this Lsky strategy's images; 0 imports all.}
+        source_url: {type: string, default: '', description: Copy mode only; replaces each strategy's public URL.}
+    LskyStrategySummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, url, images]
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string}
+        url: {type: string}
+        images: {type: integer, minimum: 0}
+    LskyDumpSummary:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required: [groups, users, tokens, albums, images, strategies, loaded_at]
+      properties:
+        groups: {type: integer, minimum: 0}
+        users: {type: integer, minimum: 0}
+        tokens: {type: integer, minimum: 0}
+        albums: {type: integer, minimum: 0}
+        images: {type: integer, minimum: 0}
+        strategies: {type: array, items: {$ref: '#/components/schemas/LskyStrategySummary'}}
+        loaded_at: {$ref: '#/components/schemas/Timestamp'}
+    LskyImportStatus:
+      type: object
+      additionalProperties: false
+      required: [loaded, summary, running, phase, options, accounts, total, processed, imported, existing, skipped, failed, failures, skips, error, started_at, finished_at]
+      properties:
+        loaded: {type: boolean}
+        summary: {$ref: '#/components/schemas/LskyDumpSummary'}
+        running: {type: boolean}
+        phase: {type: string, enum: [idle, accounts, images, done, failed, canceled]}
+        options:
+          allOf: [{$ref: '#/components/schemas/LskyImportOptions'}]
+          nullable: true
+        accounts: {type: array, items: {type: string}, description: Account import report lines.}
+        total: {type: integer, minimum: 0}
+        processed: {type: integer, minimum: 0}
+        imported: {type: integer, minimum: 0}
+        existing: {type: integer, minimum: 0}
+        skipped: {type: integer, minimum: 0}
+        failed: {type: integer, minimum: 0}
+        failures: {type: array, items: {type: string}, description: At most 200 lines; counts are exact.}
+        skips: {type: array, items: {type: string}, description: At most 200 lines.}
+        error: {type: string}
+        started_at:
+          allOf: [{$ref: '#/components/schemas/Timestamp'}]
+          nullable: true
+        finished_at:
+          allOf: [{$ref: '#/components/schemas/Timestamp'}]
+          nullable: true
+    LskyImportEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/LskyImportStatus'}
     SearchAlbum:
       type: object
       additionalProperties: false

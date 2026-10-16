@@ -26,6 +26,11 @@ type ImportInput struct {
 	AlbumID          uint64
 	IsPublic         bool
 	CreatedAt        time.Time
+	// AdoptVersion, when set, adopts the original already stored at
+	// Path.Ext in the rule's bucket instead of writing it: Data must be the
+	// bytes of exactly that object version. The original is never rewritten
+	// or scrubbed; only the WebP, thumbnail and responsive copies are added.
+	AdoptVersion string
 }
 
 // ImportImage runs one historic image through the regular upload pipeline
@@ -39,7 +44,7 @@ func (s *ImageService) ImportImage(ctx context.Context, input ImportInput) (Imag
 		return ImageView{}, fmt.Errorf("import image: %w", err)
 	}
 	ext := model.CanonicalExt(strings.ToLower(input.Ext))
-	if input.UserID == 0 || input.Path == "" || ext == "" {
+	if input.UserID == 0 || input.Path == "" || ext == "" || (input.AdoptVersion != "" && !model.AdoptableVersion(input.AdoptVersion)) {
 		return ImageView{}, ErrInvalidInput
 	}
 	checked, err := s.deps.Paths.Sanitize(ctx, input.Path)
@@ -68,6 +73,6 @@ func (s *ImageService) ImportImage(ctx context.Context, input ImportInput) (Imag
 		commit: func(ctx context.Context, key, op string, exif model.ImageExif) (model.Image, error) {
 			return s.deps.Images.CommitUpload(ctx, key, op, exif, grant)
 		},
-		pinned: &pinnedPath{path: input.Path, ext: ext, createdAt: input.CreatedAt},
+		pinned: &pinnedPath{path: input.Path, ext: ext, createdAt: input.CreatedAt, adoptVersion: input.AdoptVersion},
 	})
 }

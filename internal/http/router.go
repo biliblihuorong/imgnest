@@ -53,6 +53,8 @@ type Dependencies struct {
 	ExternalSignIn native.ExternalSignIn
 	// Variants serves the public responsive-variant lookup and the admin
 	// backfill when configured.
+	// LskyImport serves the console's Lsky Pro migration when configured.
+	LskyImport     native.LskyImport
 	Variants       native.Variants
 	VariantOptions native.VariantOptions
 }
@@ -149,6 +151,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.Admin != nil {
 		if err := handler.RegisterAdminRoutes(ctx, router, deps.Admin, deps.AdminImages); err != nil {
 			return nil, fmt.Errorf("register admin routes: %w", err)
+		}
+	}
+	if deps.LskyImport != nil {
+		if err := handler.RegisterLskyImportRoutes(ctx, router, deps.LskyImport); err != nil {
+			return nil, fmt.Errorf("register lsky import routes: %w", err)
 		}
 	}
 	if deps.PluginSettings != nil {

@@ -665,11 +665,6 @@ async function runPreview(): Promise<void> {
   margin-top: 16px;
 }
 
-.policies-form-modal {
-  width: 640px;
-  max-width: calc(100vw - 32px);
-}
-
 .policies-preview {
   display: flex;
   flex-wrap: wrap;
@@ -698,5 +693,13 @@ async function runPreview(): Promise<void> {
   .policies-hint {
     margin-left: 0;
   }
+}
+</style>
+
+<!-- NModal teleports to <body>, out of reach of scoped styles. -->
+<style>
+.policies-form-modal {
+  width: 640px;
+  max-width: calc(100vw - 32px);
 }
 </style>

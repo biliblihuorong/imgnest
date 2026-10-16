@@ -448,3 +448,95 @@ export function controlVariantBackfill(
     body: JSON.stringify(action === "start" ? { action, restart } : { action }),
   });
 }
+
+// ---------- 蓝空迁移 ----------
+
+/** 蓝空存储策略摘要：只含公开 URL，从不回显密钥。 */
+export interface LskyStrategySummary {
+  id: number;
+  name: string;
+  url: string;
+  images: number;
+}
+
+/** 已上传导出文件的摘要（不含密码哈希、Token 与存储密钥）。 */
+export interface LskyDumpSummary {
+  groups: number;
+  users: number;
+  tokens: number;
+  albums: number;
+  images: number;
+  strategies: LskyStrategySummary[];
+  loaded_at: string;
+}
+
+/** 导入方式：adopt 原地接管旧存储桶；copy 从旧链接下载后重新保存。 */
+export type LskyImportMode = "adopt" | "copy";
+
+export interface LskyImportOptions {
+  policy_id: number;
+  mode: LskyImportMode;
+  /** 只导入这个蓝空存储策略的图片；0 表示全部。 */
+  strategy_id: number;
+  /** copy 模式下替代各策略 URL 的旧图片地址。 */
+  source_url: string;
+}
+
+export type LskyImportPhase = "idle" | "accounts" | "images" | "done" | "failed" | "canceled";
+
+/** 导入状态：失败与跳过明细最多各 200 行，计数不受限。 */
+export interface LskyImportStatus {
+  loaded: boolean;
+  summary: LskyDumpSummary | null;
+  running: boolean;
+  phase: LskyImportPhase;
+  options: LskyImportOptions | null;
+  accounts: string[] | null;
+  total: number;
+  processed: number;
+  imported: number;
+  existing: number;
+  skipped: number;
+  failed: number;
+  failures: string[] | null;
+  skips: string[] | null;
+  error: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+const LSKY_IMPORT = "/api/admin/migrations/lsky";
+
+/** 读取已上传的导出文件与导入进度。 */
+export function getLskyImport(): Promise<LskyImportStatus> {
+  return request<LskyImportStatus>(LSKY_IMPORT);
+}
+
+/** 上传蓝空数据库导出的 .sql 文件；只在服务器内存里解析，不落盘。 */
+export function uploadLskyDump(file: File, timezone: string): Promise<LskyImportStatus> {
+  const body = new FormData();
+  body.append("file", file);
+  return request<LskyImportStatus>(
+    `${LSKY_IMPORT}/dump?${new URLSearchParams({ timezone }).toString()}`,
+    { method: "POST", body },
+  );
+}
+
+/** 丢弃已上传的导出文件与上次结果。 */
+export function discardLskyDump(): Promise<LskyImportStatus> {
+  return request<LskyImportStatus>(LSKY_IMPORT, { method: "DELETE" });
+}
+
+/** 按所选规则开始导入。 */
+export function startLskyImport(options: LskyImportOptions): Promise<LskyImportStatus> {
+  return request<LskyImportStatus>(`${LSKY_IMPORT}/start`, {
+    method: "POST",
+    headers: { ...JSON_HEADERS },
+    body: JSON.stringify(options),
+  });
+}
+
+/** 处理完当前这张后停止；再次开始会接着导入还没完成的图片。 */
+export function cancelLskyImport(): Promise<LskyImportStatus> {
+  return request<LskyImportStatus>(`${LSKY_IMPORT}/cancel`, { method: "POST" });
+}

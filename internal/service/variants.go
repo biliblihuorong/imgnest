@@ -340,7 +340,7 @@ func (s *ImageService) readOwnedObject(ctx context.Context, driver storage.Drive
 	if readErr != nil || closeErr != nil || int64(len(data)) > limit {
 		return nil, ErrStorage
 	}
-	if info.OwnerID != image.Key {
+	if !ownsObject(image, key, info) {
 		return nil, ErrStorage
 	}
 	for _, receipt := range image.ObjectManifest {
@@ -353,6 +353,23 @@ func (s *ImageService) readOwnedObject(ctx context.Context, driver storage.Drive
 		}
 	}
 	return data, nil
+}
+
+// ownsObject reports whether a stored object belongs to image: written by
+// it, or the adopted original still at the version that was adopted.
+func ownsObject(image model.Image, key string, info storage.ObjectInfo) bool {
+	if info.OwnerID == image.Key {
+		return true
+	}
+	if info.OwnerID != "" {
+		return false
+	}
+	for _, receipt := range image.ObjectManifest {
+		if receipt.Adopted && receipt.Location == model.ObjectLocationCloud && receipt.Key == key {
+			return info.VersionID == receipt.VersionID && info.Size == receipt.Size
+		}
+	}
+	return false
 }
 
 // failVariants removes every object the journal may have written, then

@@ -561,6 +561,11 @@ func preparedImage(req model.UploadReservation) (model.Image, error) {
 		if object.OwnerID != image.Key {
 			return model.Image{}, model.ErrForbidden
 		}
+		// Only the original of an adopted bucket may be a foreign object,
+		// and only pinned to the version that was read.
+		if object.Adopted && (object.Location != model.ObjectLocationCloud || !image.HasOriginal || object.Key != image.Path+"."+image.Ext || !model.AdoptableVersion(object.VersionID) || object.SHA256 == "") {
+			return model.Image{}, model.ErrInvalidInput
+		}
 		if object.Size < 0 {
 			return model.Image{}, model.ErrInvalidInput
 		}
@@ -589,7 +594,9 @@ func preparedImage(req model.UploadReservation) (model.Image, error) {
 			}
 			charged += object.Size
 		}
-		object.VersionID = ""
+		if !object.Adopted {
+			object.VersionID = ""
+		}
 		seen[identity] = object
 		objects = append(objects, object)
 	}

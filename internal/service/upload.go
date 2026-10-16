@@ -133,6 +133,9 @@ type uploadPlan struct {
 type pinnedPath struct {
 	path, ext string
 	createdAt time.Time
+	// adoptVersion, when set, is the version of the original already in
+	// the bucket that the image takes over instead of writing its own.
+	adoptVersion string
 }
 
 // Upload prepares all versions and publishes them with compensating cleanup.
@@ -178,6 +181,9 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	if err != nil {
 		return ImageView{}, processingError(ctx, err)
 	}
+	// An adopted original stays in the bucket exactly as it is, so it is
+	// neither scrubbed nor replaced by its WebP.
+	adopt := plan.pinned != nil && plan.pinned.adoptVersion != ""
 	mode := policy.WebPMode
 	heif := info.Format == "heic" || info.Format == "heif" || info.Format == "avif"
 	if heif {
@@ -185,7 +191,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 		case "webp_only":
 			mode = "webp_only"
 		case "keep":
-			if policy.ScrubMode != "none" {
+			if policy.ScrubMode != "none" && !adopt {
 				return ImageView{}, ErrProcessing
 			}
 		case "reject":
@@ -194,9 +200,12 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 			return ImageView{}, ErrInvalidInput
 		}
 	}
+	if adopt && mode == "webp_only" {
+		mode = "both"
+	}
 	original := input.Data
 	scrubbed := false
-	if mode != "webp_only" || info.Format == "webp" {
+	if !adopt && (mode != "webp_only" || info.Format == "webp") {
 		original, err = s.deps.Scrubber.Scrub(ctx, input.Data, info.Format, policy.ScrubMode)
 		if err != nil || len(original) == 0 {
 			return ImageView{}, processingError(ctx, err)
@@ -295,6 +304,11 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	if err != nil {
 		return ImageView{}, storageError(ctx, err)
 	}
+	if adopt {
+		if err := checkAdoptable(ctx, driver, plan.pinned, int64(len(input.Data))); err != nil {
+			return ImageView{}, err
+		}
+	}
 	vars := pathtpl.Variables{Time: image.CreatedAt, UserID: image.UserID, Filename: input.Filename, MD5: srcMD5, SHA1: srcSHA1}
 	var rendered pathtpl.Result
 	if plan.pinned != nil {
@@ -334,6 +348,9 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 			return ImageView{}, ErrInvalidInput
 		}
 		objects = makeUploadObjects(image, original, webp, result.Thumbnail)
+		if adopt {
+			objects = adoptOriginal(image, objects, plan.pinned.adoptVersion)
+		}
 		var variantObjects []uploadObject
 		image.Variants, variantObjects = variants.variants(image)
 		objects = append(objects, variantObjects...)
@@ -365,6 +382,10 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	}
 	for _, object := range objects {
 		receipt := object.receipt
+		if receipt.Adopted {
+			// Already in the bucket; the reservation recorded its version.
+			continue
+		}
 		if receipt.Location == model.ObjectLocationThumbCache {
 			err = s.deps.Cache.Put(ctx, image.StorageID, receipt.Key, object.data)
 		} else {
@@ -469,6 +490,37 @@ func makeUploadObjects(image model.Image, original, webp, thumbnail []byte) []up
 	return objects
 }
 
+// checkAdoptable requires the original to still be the foreign object
+// version the import read, in a bucket that can keep it on delete.
+func checkAdoptable(ctx context.Context, driver storage.Driver, pinned *pinnedPath, size int64) error {
+	if _, legacy := driver.(storage.LegacyObjects); !legacy {
+		return ErrInvalidInput
+	}
+	live, err := driver.Stat(ctx, pinned.path+"."+pinned.ext)
+	if errors.Is(err, storage.ErrNotFound) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return storageError(ctx, err)
+	}
+	if live.OwnerID != "" || live.VersionID != pinned.adoptVersion || live.Size != size {
+		return ErrPathConflict
+	}
+	return nil
+}
+
+// adoptOriginal marks the original as the object already in the bucket,
+// pinned to the version that was read, so nothing writes over it.
+func adoptOriginal(image model.Image, objects []uploadObject, version string) []uploadObject {
+	for i := range objects {
+		receipt := &objects[i].receipt
+		if receipt.Location == model.ObjectLocationCloud && receipt.Key == image.Path+"."+image.Ext {
+			receipt.Adopted, receipt.VersionID = true, version
+		}
+	}
+	return objects
+}
+
 func (s *ImageService) failUpload(ctx context.Context, image model.Image, driver storage.Driver, cause error) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
@@ -503,6 +555,10 @@ func (s *ImageService) cleanupUpload(ctx context.Context, image model.Image, dri
 	}
 	for _, receipt := range image.ObjectManifest {
 		var err error
+		if receipt.Adopted {
+			// The adopted original was there before the upload and stays.
+			continue
+		}
 		if receipt.Location == model.ObjectLocationThumbCache {
 			err = s.deps.Cache.Delete(ctx, image.StorageID, receipt.Key)
 		} else {

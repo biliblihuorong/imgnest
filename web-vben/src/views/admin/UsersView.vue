@@ -673,11 +673,6 @@ const columns = computed<DataTableColumns<AdminUserView>>(() => [
 </template>
 
 <style scoped>
-.users-modal {
-  width: 600px;
-  max-width: calc(100vw - 32px);
-}
-
 .users-field {
   width: 100%;
 }
@@ -715,5 +710,13 @@ const columns = computed<DataTableColumns<AdminUserView>>(() => [
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+</style>
+
+<!-- NModal teleports to <body>, out of reach of scoped styles. -->
+<style>
+.users-modal {
+  width: 600px;
+  max-width: calc(100vw - 32px);
 }
 </style>

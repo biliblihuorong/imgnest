@@ -146,24 +146,32 @@ func loadGroups(ctx context.Context, db *sql.DB, loc *time.Location, snap *Snaps
 		if err := rows.Scan(&g.ID, &g.Name, &g.IsDefault, &g.IsGuest, &configs, &created); err != nil {
 			return fmt.Errorf("groups: %w", err)
 		}
-		var parsed struct {
-			MaxFileSize    json.Number `json:"maximum_file_size"`
-			LimitPerMinute json.Number `json:"limit_per_minute"`
-			AcceptedSuffix []string    `json:"accepted_file_suffixes"`
-			PathNamingRule string      `json:"path_naming_rule"`
-			FileNamingRule string      `json:"file_naming_rule"`
+		if err := groupConfigs(&g, configs); err != nil {
+			return err
 		}
-		if err := json.Unmarshal([]byte(configs), &parsed); err != nil {
-			return fmt.Errorf("group %d configs: %w", g.ID, err)
-		}
-		g.MaxFileKB, _ = parsed.MaxFileSize.Float64()
-		perMinute, _ := parsed.LimitPerMinute.Int64()
-		g.PerMinute = int(min(max(perMinute, 0), 1<<31-1))
-		g.AcceptedSuffix, g.PathRule, g.FileRule = parsed.AcceptedSuffix, parsed.PathNamingRule, parsed.FileNamingRule
 		g.CreatedAt = stamp(created, loc)
 		snap.Groups = append(snap.Groups, g)
 		return nil
 	})
+}
+
+// groupConfigs reads the limits ImgNest carries over from a group's JSON.
+func groupConfigs(g *Group, configs string) error {
+	var parsed struct {
+		MaxFileSize    json.Number `json:"maximum_file_size"`
+		LimitPerMinute json.Number `json:"limit_per_minute"`
+		AcceptedSuffix []string    `json:"accepted_file_suffixes"`
+		PathNamingRule string      `json:"path_naming_rule"`
+		FileNamingRule string      `json:"file_naming_rule"`
+	}
+	if err := json.Unmarshal([]byte(configs), &parsed); err != nil {
+		return fmt.Errorf("group %d configs: %w", g.ID, err)
+	}
+	g.MaxFileKB, _ = parsed.MaxFileSize.Float64()
+	perMinute, _ := parsed.LimitPerMinute.Int64()
+	g.PerMinute = int(min(max(perMinute, 0), 1<<31-1))
+	g.AcceptedSuffix, g.PathRule, g.FileRule = parsed.AcceptedSuffix, parsed.PathNamingRule, parsed.FileNamingRule
+	return nil
 }
 
 func loadUsers(ctx context.Context, db *sql.DB, loc *time.Location, snap *Snapshot) error {
@@ -232,14 +240,20 @@ func loadImages(ctx context.Context, db *sql.DB, loc *time.Location, snap *Snaps
 		if err := rows.Scan(&img.ID, &img.UserID, &img.AlbumID, &img.StrategyID, &dir, &name, &img.Extension, &img.OriginName, &img.MD5, &permission, &img.IP, &created); err != nil {
 			return fmt.Errorf("images: %w", err)
 		}
-		img.Pathname = strings.Trim(path.Join(dir, name), "/")
-		img.Extension = strings.ToLower(img.Extension)
-		img.IsPublic = permission == 1
-		img.CreatedAt = stamp(created, loc)
-		if img.CreatedAt.IsZero() {
-			img.CreatedAt = uniqidTime(name)
-		}
+		finishImage(&img, dir, name, permission, stamp(created, loc))
 		snap.Images = append(snap.Images, img)
 		return nil
 	})
+}
+
+// finishImage derives the object key, visibility and creation time the way
+// Lsky does; rows without a usable timestamp fall back to the uniqid name.
+func finishImage(img *Image, dir, name string, permission int, created time.Time) {
+	img.Pathname = strings.Trim(path.Join(dir, name), "/")
+	img.Extension = strings.ToLower(img.Extension)
+	img.IsPublic = permission == 1
+	img.CreatedAt = created
+	if img.CreatedAt.IsZero() {
+		img.CreatedAt = uniqidTime(name)
+	}
 }

@@ -1,69 +1,74 @@
 # Migrating from Lsky Pro
 
-`imgnest import-lsky` reads a Lsky Pro PostgreSQL database, maps its groups, users, tokens and albums into ImgNest's own tables, then downloads every image from its old link and **runs it through the regular ImgNest upload pipeline under its original path**: format detection, EXIF archiving, lossless scrubbing of the original, WebP, local and cloud thumbnails, responsive versions (when the rule enables them) and quota, exactly like a new upload. The result is plain ImgNest data, with no half-adopted legacy rows.
+Upload the `.sql` export of your Lsky Pro database under **Site admin → Lsky migration** to import its groups, users, tokens, albums and images. Every image **runs through the regular ImgNest upload pipeline under its original path**: format detection, EXIF archiving, WebP, local and cloud thumbnails, responsive versions (when the rule enables them) and quota, exactly like a new upload.
+
+Images can be imported in two ways:
+
+| | Adopt in place (recommended) | Download and store again |
+| --- | --- | --- |
+| Originals | Stay in the S3 bucket Lsky used, **byte for byte** | Downloaded from the old links into the rule's storage (usually a new bucket) |
+| Old links | Keep working, nothing to switch | Switch the old domain to the new bucket afterwards |
+| Files added | WebP, thumbnails and responsive copies next to each original | Original, WebP, thumbnails and responsive copies |
+| GPS and similar EXIF in originals | Stays in the bucket files (ImgNest's public APIs never return it) | Removed losslessly per the rule, so `md5` differs from the Lsky record |
+| Requires | The rule's storage is the old bucket, with versioning on (B2 always has it) | The ImgNest host can reach the old links |
 
 ## What is imported
 
 | Lsky Pro | ImgNest | Notes |
 | --- | --- | --- |
-| `groups` | `groups` | A group with the same name is reused unchanged; new groups keep `maximum_file_size`, `limit_per_minute` and the accepted formats ImgNest supports, and default to `--policy-id` |
+| `groups` | `groups` | A group with the same name is reused unchanged; new groups keep `maximum_file_size`, `limit_per_minute` and the accepted formats ImgNest supports, and default to the rule you import into |
 | `users` | `users` | An account with the same email is reused (password, role and group untouched); new accounts keep the bcrypt password (`$2y$` verifies as is), admin flag, registration IP and creation time. Names shorter than 3 characters fall back to the email's local part, with the original kept as display name |
 | `personal_access_tokens` | `tokens` | The digest is kept, and so is the id when it is free, so `id\|secret` tokens in PicGo or Typora keep working |
 | `albums` | `albums` | An album with the same owner and name is reused |
 | `images` | `images` + objects | Path (`pathname`) and extension are kept, as are `created_at` (broken year-1 values are recovered from the `uniqid` file name), visibility, upload IP and original file name |
-| `configs`, strategy keys | not imported | Only each strategy's public `url` is read, to download originals; storage keys and the SMTP password are never read or printed |
+| `configs`, strategy keys | not imported | Only each strategy's public `url` is kept; storage keys and the SMTP password are dropped while parsing, never stored or shown |
 
-Not imported: guest uploads, images of disabled users, formats ImgNest cannot store (`.ico`, `.psd`), and images whose extension would change on save (content not matching the extension, `.jpeg`, upper-case extensions), because their old links would break. The command lists each of them at the end; they stay in the old storage only.
+Not imported: guest uploads, images of disabled users, formats ImgNest cannot store (`.ico`, `.psd`), and images whose extension would change on save (content not matching the extension, `.jpeg`, upper-case extensions), because their old links would break. The page lists each of them at the end; they stay in the old storage (and when adopting, their old links keep working).
 
 ::: tip Matching your administrator account
 Accounts match by email. Create the ImgNest administrator with the same email as your Lsky administrator and the imported images and tokens land on that account, which keeps its ImgNest password. With a different email, a second administrator account with the Lsky password is created.
 :::
 
-## Why a new bucket
+## Importing from the console
 
-ImgNest only creates objects, with ownership metadata, and never overwrites them. The old Lsky objects already occupy the same keys, so images are written to a **new bucket** with the same paths and the old bucket is left untouched as a fallback:
+1. **Export the Lsky database**: dump the whole PostgreSQL database to a `.sql` file with `pg_dump` (plain SQL) or DBX or Navicat. The export holds password hashes and storage keys; delete it when you are done and never share it.
+2. **Prepare the storage and rule**:
+   - Adopting: add the S3 bucket Lsky used under Storages (for B2 the endpoint is `https://s3.<region>.backblazeb2.com` with Path Style on) and **set its Base URL to the URL in the Lsky strategy** (for example `https://img.example.com/ShellBlogImg`) so old links and ImgNest links match.
+   - Storing again: add a new bucket. Its rule's WebP mode must not be WebP only, or original links would be lost.
+   - Then create a rule on that storage with thumbnails and responsive versions on.
+3. **Upload the export**: open **Site admin → Lsky migration**, check the time zone (default `Asia/Shanghai`) and choose the `.sql` file. It is parsed in server memory and never written to disk; the page shows how many users, images and storage strategies it holds.
+4. **Choose the mode and rule**: when adopting, pick only the Lsky storage strategy kept in this bucket (it is preselected when the Base URLs match); images of other strategies would fail because the bucket does not have them.
+5. **Start the import**: progress refreshes every two seconds and you can stop at any time. At the end the page lists failed and skipped images; fix the cause and press Start import again, and only what is still missing is retried. After a server restart, upload the export again.
+
+::: warning After adopting
+ImgNest now manages these images: deleting one in ImgNest makes its old link return 404 at once (the original stays in the bucket as an older version and a restore writes it back), and when the recycle bin expires or the image is purged the original is deleted too. Do not keep Lsky writing to the same bucket.
+:::
+
+Your reverse proxy (for example 1Panel's OpenResty) must accept uploads larger than the export (`client_max_body_size` in Nginx); ImgNest itself accepts exports up to 128 MiB.
+
+## Importing from the command line
+
+`imgnest import-lsky` does the same without the console:
+
+```bash
+# Read the export file directly (or load it into PostgreSQL and point IMGNEST_LSKY_DSN at it)
+docker compose run --rm -v "$PWD/LsyPro.sql:/tmp/LsyPro.sql:ro" imgnest import-lsky --dump /tmp/LsyPro.sql --dry-run
+# Adopt in place: the rule's storage is the old bucket
+docker compose run --rm -v "$PWD/LsyPro.sql:/tmp/LsyPro.sql:ro" imgnest import-lsky --dump /tmp/LsyPro.sql --policy-id 1 --adopt --limit 5
+# After a spot check of those 5, drop --limit to import the rest
+```
+
+To store again instead, drop `--adopt`. Originals are downloaded from each strategy's `url`; `--source-url` overrides it, or sync the old bucket to a local directory and use `--source-dir`. Stop the server during a command-line import (`docker compose stop imgnest`) and start it afterwards.
+
+### Storing again: switching the old links
 
 1. During the import your site keeps reading the old bucket.
-2. After a spot check, point the old link origin (CDN or reverse proxy, e.g. `img.example.com/old-bucket`) at the new bucket and set the storage's `base_url` in ImgNest to the old domain. Old links are now served by ImgNest-managed objects.
+2. After a spot check, point the old link origin (CDN or reverse proxy, e.g. `img.example.com/old-bucket`) at the new bucket and set the storage's Base URL in ImgNest to the old domain. Old links are now served by ImgNest-managed objects.
 3. Copy skipped files such as `.ico` from the old bucket to the new one (rclone or similar) before switching, so their links keep working.
-
-With the rule's default `scrub_mode` of `gps`, re-ingested originals lose GPS and other sensitive EXIF (losslessly, without re-encoding), so their `md5` differs from the Lsky record. That is expected.
-
-## Steps (Docker Compose with PostgreSQL)
-
-1. **Load the Lsky export into a temporary database** (it contains plain-text secrets, drop it afterwards):
-
-   ```bash
-   docker compose -f deploy/compose.postgres.yaml exec -T postgres createdb -U imgnest lsky
-   docker compose -f deploy/compose.postgres.yaml exec -T postgres psql -q -U imgnest -d lsky < LsyPro.sql
-   ```
-
-2. **Prepare the target storage and rule in the admin panel**: add the new bucket as an S3 storage (needs `IMGNEST_SECURITY_MASTER_KEY`), then create a rule for it with WebP mode "original + WebP" (not WebP only, which drops the originals), thumbnails and responsive versions enabled. Note its ID.
-
-3. **Stop the server and import**:
-
-   ```bash
-   docker compose -f deploy/compose.postgres.yaml stop imgnest
-   export IMGNEST_LSKY_DSN="host=postgres user=imgnest password=$POSTGRES_PASSWORD dbname=lsky sslmode=disable"
-   docker compose -f deploy/compose.postgres.yaml run --rm -e IMGNEST_LSKY_DSN imgnest import-lsky --dry-run
-   docker compose -f deploy/compose.postgres.yaml run --rm -e IMGNEST_LSKY_DSN imgnest import-lsky --policy-id 2 --limit 5
-   # check those five, then run everything
-   docker compose -f deploy/compose.postgres.yaml run --rm -e IMGNEST_LSKY_DSN imgnest import-lsky --policy-id 2
-   docker compose -f deploy/compose.postgres.yaml start imgnest
-   ```
-
-   Originals are downloaded from each strategy's `url` by default, so the machine must reach it. Alternatively sync the old bucket to a directory and pass `--source-dir` (mounted into the container). Lsky timestamps are read in `--timezone` (default `Asia/Shanghai`).
-
-4. **Read the report**: one `OK` / `FAIL` line per image, then the skipped and failed images. Fix the cause and **rerun the same command**: imported images are skipped and only the rest is retried.
-
-5. **Switch the old links** (see above), check your site, then drop the temporary database:
-
-   ```bash
-   docker compose -f deploy/compose.postgres.yaml exec -T postgres dropdb -U imgnest lsky
-   ```
 
 ## Afterwards
 
 - Accounts whose Lsky password is not bcrypt are imported unable to sign in; reset them with `imgnest reset-password --email ...`.
 - When a token id is taken, the token gets a new id and the report tells you to change `old-id|` to `new-id|` in the client.
 - Only PostgreSQL Lsky databases are supported; convert a MySQL one first (for example with pgloader).
+- After the migration, replace the old Backblaze application key and the SMTP password the Lsky configuration used.

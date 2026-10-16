@@ -211,9 +211,6 @@ function closeIssuedModal(): void {
 .token-create__hint :deep(.n-tag) {
   flex-shrink: 0;
 }
-.token-create__modal {
-  width: min(640px, calc(100vw - 32px));
-}
 .token-create__label {
   margin: 16px 0 8px;
   font-weight: 600;
@@ -238,5 +235,12 @@ function closeIssuedModal(): void {
     margin-bottom: 20px;
     width: 100%;
   }
+}
+</style>
+
+<!-- NModal teleports to <body>, out of reach of scoped styles. -->
+<style>
+.token-create__modal {
+  width: min(640px, calc(100vw - 32px));
 }
 </style>

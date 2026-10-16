@@ -27,6 +27,17 @@ type ImagePurger interface {
 	PurgeImage(context.Context, string, string) error
 }
 
+// LegacyObjects manages objects another program wrote before ImgNest took
+// the bucket over (an adopted Lsky Pro bucket). Such objects carry no owner
+// metadata, so every call is pinned to the exact version recorded at
+// adoption, and that version is never overwritten: a delete only hides it
+// behind a marker, and only PurgeLegacy, run for a final purge, removes it.
+type LegacyObjects interface {
+	CopyLegacy(ctx context.Context, source, version, target, digest string, opts CopyOptions) (Receipt, error)
+	DeleteLegacy(ctx context.Context, key, version string) error
+	PurgeLegacy(ctx context.Context, key, owner, version string) error
+}
+
 // Storage errors have stable classifications independent of filesystem or vendor.
 var (
 	ErrNotFound    = errors.New("object not found")

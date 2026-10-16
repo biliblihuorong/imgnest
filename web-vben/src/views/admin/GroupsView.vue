@@ -485,11 +485,6 @@ const columns = computed<DataTableColumns<GroupView>>(() => [
 </template>
 
 <style scoped>
-.groups-modal {
-  width: 600px;
-  max-width: calc(100vw - 32px);
-}
-
 .groups-toolbar {
   display: flex;
   justify-content: space-between;
@@ -519,5 +514,13 @@ const columns = computed<DataTableColumns<GroupView>>(() => [
   margin: 4px 0 0;
   font-size: 12px;
   color: hsl(var(--muted-foreground));
+}
+</style>
+
+<!-- NModal teleports to <body>, out of reach of scoped styles. -->
+<style>
+.groups-modal {
+  width: 600px;
+  max-width: calc(100vw - 32px);
 }
 </style>
