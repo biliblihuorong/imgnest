@@ -5,7 +5,8 @@ info:
   description: |
     Account, token, and image API. Every API response uses the native
     `{code, message, data}` envelope. Success has code 0 and message `ok`;
-    failures have a nonzero business code and data `null`.
+    failures have a nonzero business code and data `null`, or an
+    ErrorData object whose `reason` narrows the failure.
     Response timestamps are UTC RFC3339. Passwords, credential hashes,
     and token hashes are never returned. Plaintext tokens are returned
     only by login and token creation.
@@ -13,6 +14,13 @@ info:
     fields, multiple JSON values, and trailing non-whitespace data are
     rejected with HTTP 400 and code 10001.
     Image bodies at /i and /t use binary responses instead of this envelope.
+
+    The routes listed in docs/api-v2.md are also served under `/api/v2`
+    (for example `PATCH /api/v2/images/{id}` is `PATCH /api/images/{id}`)
+    by the same handlers. `/api/v2` is the stable API for scripts and
+    upload clients: it only gains fields, follows the administrator's API
+    switch (403 with reason `api_disabled` while it is off) and never
+    returns EXIF.
 servers:
   - url: /
     description: Current ImgNest origin
@@ -3888,7 +3896,7 @@ components:
         which form field broke a rule, or why a storage call failed (rejected credentials,
         missing bucket, unreachable endpoint, full disk...). Never carries input values,
         credentials or provider messages. Clients must tolerate codes they do not know.
-      enum: [password_length, username_length, email_invalid, display_name_invalid, image_name_invalid, storage_denied, storage_bucket, storage_busy, storage_clock, storage_quota, storage_unsupported, storage_tls, storage_unreachable, storage_timeout, storage_disk_full, storage_read_only, storage_permission]
+      enum: [api_disabled, password_length, username_length, email_invalid, display_name_invalid, image_name_invalid, storage_denied, storage_bucket, storage_busy, storage_clock, storage_quota, storage_unsupported, storage_tls, storage_unreachable, storage_timeout, storage_disk_full, storage_read_only, storage_permission]
     ErrorData:
       type: object
       nullable: true

@@ -2685,7 +2685,7 @@ export interface components {
          * @description Fixed hint code that narrows a generic error, so a client can say what to fix: which form field broke a rule, or why a storage call failed (rejected credentials, missing bucket, unreachable endpoint, full disk...). Never carries input values, credentials or provider messages. Clients must tolerate codes they do not know.
          * @enum {string}
          */
-        ErrorReason: "password_length" | "username_length" | "email_invalid" | "display_name_invalid" | "image_name_invalid" | "storage_denied" | "storage_bucket" | "storage_busy" | "storage_clock" | "storage_quota" | "storage_unsupported" | "storage_tls" | "storage_unreachable" | "storage_timeout" | "storage_disk_full" | "storage_read_only" | "storage_permission";
+        ErrorReason: "api_disabled" | "password_length" | "username_length" | "email_invalid" | "display_name_invalid" | "image_name_invalid" | "storage_denied" | "storage_bucket" | "storage_busy" | "storage_clock" | "storage_quota" | "storage_unsupported" | "storage_tls" | "storage_unreachable" | "storage_timeout" | "storage_disk_full" | "storage_read_only" | "storage_permission";
         /** @description null, or a reason hint for the error. */
         ErrorData: {
             reason?: components["schemas"]["ErrorReason"];

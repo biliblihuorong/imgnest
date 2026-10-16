@@ -177,6 +177,15 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 			return nil, fmt.Errorf("register lsky routes: %w", err)
 		}
 	}
+	// /api/v2 reuses the native image and album handlers, so it is mounted
+	// after them; the v1 API switch governs it too.
+	var apiSwitch native.APISwitch
+	if deps.Lsky != nil {
+		apiSwitch = deps.Lsky
+	}
+	if err := handler.RegisterV2Routes(ctx, router, apiSwitch); err != nil {
+		return nil, fmt.Errorf("register v2 routes: %w", err)
+	}
 	router.GET("/healthz", func(c *gin.Context) {
 		if err := deps.Health(c.Request.Context()); err != nil {
 			c.JSON(503, native.Response{Code: 50001, Message: "unavailable", Data: nil})

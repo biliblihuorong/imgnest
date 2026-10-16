@@ -133,6 +133,12 @@ func (h *Handler) RegisterRoutes(ctx context.Context, router gin.IRouter) error 
 	return nil
 }
 
+// APIEnabled reports the administrator's API switch, which ImgNest's own
+// /api/v2 shares with these v1 routes.
+func (h *Handler) APIEnabled(ctx context.Context) (bool, error) {
+	return h.lsky.APIEnabled(ctx)
+}
+
 // apiEnabled aborts with 403 while the administrator disabled the API.
 func (h *Handler) apiEnabled(c *gin.Context) {
 	enabled, err := h.lsky.APIEnabled(c.Request.Context())

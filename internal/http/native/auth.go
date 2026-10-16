@@ -62,6 +62,10 @@ type Handler struct {
 	// email and mail serve email codes and SMTP settings; nil omits them.
 	email EmailAuth
 	mail  MailSettings
+	// v2Images and v2Albums are the native handlers /api/v2 reuses, set
+	// when their routes are registered.
+	v2Images *imageHandler
+	v2Albums *albumHandler
 }
 
 // UsePlugins sets the extensions whose login providers the site view lists

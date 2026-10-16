@@ -275,7 +275,7 @@ CDN 缓存不在本程序处理范围内。
 
 ## 7. API 规范
 
-两套接口共用同一套 Service：`/api/v1` 字段与蓝空完全一致，只多不少；`/api` 是自己前端用的原生接口。鉴权统一 `Authorization: Bearer <token>`。
+三套入口共用同一套 Service：`/api/v1` 字段与蓝空完全一致，只多不少；`/api` 是自己前端用的原生接口；`/api/v2` 是 ImgNest 自己给脚本和上传客户端用的版本化接口（见 7.1.1）。鉴权统一 `Authorization: Bearer <token>`。
 
 ### 7.1 蓝空 v1 兼容接口
 
@@ -294,6 +294,10 @@ CDN 缓存不在本程序处理范围内。
 | GET | `/api/v1/profile` | 当前用户信息与容量 |
 
 响应外壳与蓝空一致：`{"status": true, "message": "上传成功", "data": {...}}`。上传成功的 `data` 包含 `key, name, pathname, origin_name, size(KB), mimetype, extension, md5, sha1, links`；`links` 包含 `url, html, bbcode, markdown, markdown_with_link, thumbnail_url`，并**额外增加** `webp_url`、`origin_url`（旧客户端会忽略未知字段）。
+
+### 7.1.1 ImgNest v2 接口
+
+`/api/v2` 与蓝空 v1 并存：社区客户端暂时继续用 v1，等生态跟上后逐步切到 v2。v2 直接复用 `/api` 原生接口的同一批 handler 和 Service，外壳是原生的 `{"code","message","data"}`，单位是原生的（`size` 为字节）。v2 是对外契约，只加字段不改不删；`/api` 仍可随前端演进。与 v1 共用后台「API 开关」（`api_enabled`），关闭时返回 403、`code=20003`、`data.reason=api_disabled`；控制台自己的 `/api` 不受开关影响。v2 不提供 EXIF。路由清单见 `docs/api-v2.md`。
 
 ### 7.2 原生接口
 

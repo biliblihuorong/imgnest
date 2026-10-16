@@ -127,7 +127,8 @@
       "storage_timeout": "The storage service timed out.",
       "storage_disk_full": "The local disk is full.",
       "storage_read_only": "The storage directory is read-only.",
-      "storage_permission": "The program can't read or write the storage directory."
+      "storage_permission": "The program can't read or write the storage directory.",
+      "api_disabled": "The administrator has turned the API off."
     }
   }
 }

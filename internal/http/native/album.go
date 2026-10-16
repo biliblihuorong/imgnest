@@ -26,6 +26,7 @@ func (h *Handler) RegisterAlbumRoutes(ctx context.Context, router gin.IRouter, a
 		return service.ErrInvalidInput
 	}
 	album := &albumHandler{auth: h, albums: albums}
+	h.v2Albums = album
 	protected := router.Group("/api", h.authenticate)
 	protected.GET("/albums", album.list)
 	protected.GET("/albums/suggestions", album.suggestions)

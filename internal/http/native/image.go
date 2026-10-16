@@ -70,6 +70,7 @@ func (h *Handler) RegisterImageRoutes(ctx context.Context, router gin.IRouter, i
 		opts.Slots = make(chan struct{}, opts.MaxConcurrent)
 	}
 	image := &imageHandler{auth: h, images: images, options: opts, slots: opts.Slots, searchSlots: make(chan struct{}, 4)}
+	h.v2Images = image
 	protected := router.Group("/api", h.authenticate)
 	protected.POST("/upload", image.upload)
 	protected.GET("/policies", image.listPolicies)
