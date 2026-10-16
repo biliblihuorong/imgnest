@@ -201,5 +201,42 @@ class CIScopeWiringTest(unittest.TestCase):
         self.assertNotIn("paths-ignore", self.workflow)
 
 
+
+class ReleaseVersionTest(unittest.TestCase):
+    def setUp(self):
+        self.workflow = (ROOT / ".github/workflows/release.yml").read_text()
+
+    def test_docs_name_the_version_being_released(self):
+        result = subprocess.run([sys.executable, "scripts/bump-version.py", "--check"], cwd=ROOT,
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_main_releases_an_untagged_version_after_the_image_is_published(self):
+        # A tag pushed with GITHUB_TOKEN starts no workflow, so the run that
+        # sees the new VERSION must publish the semver image tags itself.
+        self.assertIn("version=$(tr -d '[:space:]' < VERSION)", self.workflow)
+        self.assertIn("value=v${{ needs.version.outputs.version }},enable=${{ env.SEMVER }}",
+                      self.workflow)
+        release = self.workflow[self.workflow.index("\n  release:"):]
+        self.assertIn("needs: [version, publish]", release)
+        self.assertIn("if: needs.version.outputs.release == 'true'", release)
+        self.assertIn("contents: write", release)
+        self.assertIn('--target "$GITHUB_SHA"', release)
+        before_release = self.workflow[:self.workflow.index("\n  release:")]
+        self.assertNotIn("contents: write", before_release)
+
+    def test_bump_leaves_longer_numbers_alone(self):
+        spec = importlib.util.spec_from_file_location("bump", ROOT / "scripts/bump-version.py")
+        bump = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(bump)
+        text = "IMGNEST_TAG=0.0.5, git checkout v0.0.5. Not 10.0.0.5 or 0.0.50 or 0.0.5.1"
+        self.assertEqual(bump.replace_version(text, "0.0.5", "0.0.6"),
+                         ("IMGNEST_TAG=0.0.6, git checkout v0.0.6. Not 10.0.0.5 or 0.0.50 or 0.0.5.1",
+                          2))
+        self.assertTrue(bump.SEMVER.match("1.2.3-rc.1"))
+        self.assertFalse(bump.SEMVER.match("v1.2.3"))
+        self.assertFalse(bump.SEMVER.match("1.2"))
+
+
 if __name__ == "__main__":
     unittest.main()

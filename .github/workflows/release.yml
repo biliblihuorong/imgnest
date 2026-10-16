@@ -1,7 +1,11 @@
 name: Release image
 
-# v* tags publish semver tags and latest; main publishes edge. Pull requests
-# that touch the image definition build and smoke test it without publishing.
+# main publishes edge. When VERSION names a version that has no tag yet, the
+# same run also publishes X.Y.Z, X.Y and latest, then creates the vX.Y.Z tag
+# and GitHub Release. A tag created with GITHUB_TOKEN starts no workflow, so
+# the release image is built here rather than by a tag push. Pushing a v* tag
+# by hand still publishes that version. Pull requests that touch the image
+# definition build and smoke test it without publishing.
 on:
   push:
     branches: [main]
@@ -13,6 +17,7 @@ on:
       - .dockerignore
       - scripts/smoke-image.sh
       - .github/workflows/release.yml
+      - VERSION
   workflow_dispatch:
 
 permissions:
@@ -26,10 +31,52 @@ env:
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      release: ${{ steps.resolve.outputs.release }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Resolve version
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # A failed tag lookup fails the job instead of releasing twice.
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version=${GITHUB_REF_NAME#v}
+            release=false
+          else
+            version=$(tr -d '[:space:]' < VERSION)
+            release=false
+            if [ "$GITHUB_REF" = refs/heads/main ] && [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+              tags=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v$version" \
+                --jq "map(select(.ref == \"refs/tags/v$version\")) | length")
+              if [ "$tags" = 0 ]; then
+                # The docs must already tell users to pull this version.
+                python3 scripts/bump-version.py --check
+                release=true
+              fi
+            fi
+          fi
+          case $version in *-*) prerelease=true ;; *) prerelease=false ;; esac
+          {
+            echo "version=$version"
+            echo "release=$release"
+            echo "prerelease=$prerelease"
+          } | tee -a "$GITHUB_OUTPUT"
+
   # Each architecture builds on a native runner: compiling libvips and the cgo
   # binary under emulation is several times slower.
   build:
     name: Build (${{ matrix.arch }})
+    needs: version
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     permissions:
@@ -99,9 +146,11 @@ jobs:
   publish:
     name: Publish multi-arch manifest
     if: github.event_name != 'pull_request'
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      SEMVER: ${{ github.ref_type == 'tag' || needs.version.outputs.release == 'true' }}
     permissions:
       contents: read
       packages: write
@@ -122,9 +171,11 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
+          flavor: latest=false
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=v${{ needs.version.outputs.version }},enable=${{ env.SEMVER }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ needs.version.outputs.version }},enable=${{ env.SEMVER }}
+            type=raw,value=latest,enable=${{ env.SEMVER == 'true' && needs.version.outputs.prerelease == 'false' }}
             type=raw,value=edge,enable={{is_default_branch}}
             type=sha,format=short
       - name: Create and push manifest
@@ -135,3 +186,29 @@ jobs:
             $(printf "$IMAGE@sha256:%s " *)
       - name: Inspect
         run: docker buildx imagetools inspect "$IMAGE:${{ steps.meta.outputs.version }}"
+
+  # Runs only after the image is published, so a release never points at a
+  # missing image. If it fails, the next push to main retries it.
+  release:
+    name: Create GitHub Release
+    if: needs.version.outputs.release == 'true'
+    needs: [version, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Create tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          flags=
+          if [ "$PRERELEASE" = true ]; then flags=--prerelease; fi
+          gh release create "v$VERSION" $flags \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "v$VERSION" \
+            --notes "镜像：\`$IMAGE:$VERSION\`（linux/amd64、linux/arm64）。升级时把 \`IMGNEST_TAG\` 改为 \`$VERSION\` 后执行 \`docker compose up -d\`。" \
+            --generate-notes

@@ -6,11 +6,21 @@
 
 | tag | 来源 | 用途 |
 | --- | --- | --- |
-| `1.2.3`、`1.2`、`latest` | 推送 `v1.2.3` tag | 正式版本，生产使用 |
+| `1.2.3`、`1.2`、`latest` | `VERSION` 改为 `1.2.3` 后合并到 `main`（或手动推送 `v1.2.3` tag） | 正式版本，生产使用 |
 | `edge` | `main` 每次推送 | 最新主线，可能不稳定 |
 | `sha-<短提交>` | 每次发布 | 精确回滚 |
 
 发布流程见 `.github/workflows/release.yml`：两个架构各自在原生 runner 上构建，通过 `scripts/smoke-image.sh` 冒烟测试后才推送，最后合并为一个多架构 manifest。
+
+### 发布新版本
+
+版本号写在仓库根目录的 `VERSION`。发版时在 PR 里执行 `python3 scripts/bump-version.py 1.2.3`，它同时改 `VERSION` 和 README、网站文档里写死的版本号。PR 合并到 `main` 后，`release.yml` 发现 `v1.2.3` 还没有 tag，就在推送 `edge` 的同一次运行里额外推送 `1.2.3`、`1.2`、`latest`，镜像推送成功后再用 `GITHUB_TOKEN` 创建 `v1.2.3` tag 和 GitHub Release（说明由 GitHub 按合并的 PR 自动生成）。不需要手动建 Release。
+
+- 没改 `VERSION` 的合并只更新 `edge`。
+- 带 `-` 的版本（如 `1.0.0-rc.1`）标为预发布，不更新 `latest`。
+- 用 `GITHUB_TOKEN` 建的 tag 不会再触发其他 workflow，所以镜像在同一次运行里构建，而不是靠 tag 触发。
+- 创建 Release 失败时，下一次推送 `main`（或手动运行 workflow）会重试。
+- CI 的 `scripts/test-ci-config.py` 会检查文档里写的版本与 `VERSION` 一致。
 
 ## 启动
 
