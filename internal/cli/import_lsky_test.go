@@ -98,7 +98,7 @@ func TestImportLskyCLI(t *testing.T) {
 		`INSERT INTO users (id, group_id, name, email, password, is_adminer, registered_ip, created_at) VALUES (1, 3, '某科学的贝壳', 'shell@example.com', '`+lskyHash+`', true, '192.0.2.1', '2024-04-12 22:44:55')`,
 		`INSERT INTO personal_access_tokens (id, tokenable_type, tokenable_id, name, token, created_at) VALUES (7, 'App\Models\User', 1, 'picgo', '`+hex.EncodeToString(tokenDigest[:])+`', '2024-04-12 22:44:55')`,
 		`INSERT INTO albums (id, user_id, name) VALUES (4, 1, '博客')`,
-		`INSERT INTO strategies (id, key, name, configs) VALUES (9, 10, 'backblaze', '{"url":"https://img.example.invalid/ShellBlogImg","access_key":"never-read","secret_key":"never-read"}')`,
+		`INSERT INTO strategies (id, key, name, configs) VALUES (9, 10, 'backblaze', '{"url":"https://img.example.invalid/old-bucket","access_key":"never-read","secret_key":"never-read"}')`,
 		`INSERT INTO images (id, user_id, album_id, strategy_id, key, path, name, origin_name, mimetype, extension, md5, permission, uploaded_ip, created_at) VALUES
 			(1, 1, 4, 9, 'AAAAAA', '1/2024/04/12', '661947a7e1b2c.jpg', 'wide.jpg', 'image/jpeg', 'jpg', '`+wideMD5+`', 1, '192.0.2.9', '2024-04-12 22:44:55'),
 			(2, 1, NULL, 9, 'BBBBBB', '1/2024/04/13', '661947a7e1b2d.png', 'fake.png', 'image/png', 'png', '`+fakeMD5+`', 0, '', '2024-04-13 10:00:00'),

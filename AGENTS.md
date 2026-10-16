@@ -17,7 +17,7 @@ ImgNest 是用 Go + Vue 3 自研的图床，替代蓝空图床（Lsky Pro）社�
 2. **两套 API 共用同一套 service**：`/api/v1/*` 字段与蓝空完全一致（只多不少，单位不变：size 是 KB 浮点）；`/api/*` 是原生接口，外壳 `{"code","message","data"}`。
 3. **上传必须可补偿**：任一对象写入或数据库事务失败，删除本次已写入的全部对象。
 4. **格式只信文件头 + libvips 探测**，不信后缀和 Content-Type；默认拒绝 SVG；有像素上限。
-5. **EXIF**：完整存本地库（含 GPS）；云端原图按 `scrub_mode` 无损抹除 GPS/序列号/作者/XMP，绝不重新编码；公开接口、画廊、蓝空 v1 接口一律不返回 EXIF。
+5. **EXIF**：完整存本地库（含 GPS）；云端原图按 `scrub_mode` 无损抹除 GPS/序列号/作者/XMP，绝不重新编码（原地接管的蓝空原图不改写、不脱敏，见 spec §6.2）；公开接口、画廊、蓝空 v1 接口一律不返回 EXIF。
 6. **删除走回收站**（默认 7 天）：原 URL 立即 404；物理删除在 B2 上必须逐版本删除。
 7. **数据库以 PostgreSQL + SQLite 为主**；表结构变更只能新增版本化迁移，不改已发布的迁移，不在生产路径依赖 `AutoMigrate`。
 8. **libvips 版本与 vipsgen 包必须对应**（`vipsgen/vips` = 8.18.x），Dockerfile 里钉死。

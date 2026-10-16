@@ -218,6 +218,15 @@ func (s *ImageService) moveToTrash(ctx context.Context, image model.Image) error
 		if receipt.Location != model.ObjectLocationCloud {
 			continue
 		}
+		if receipt.Adopted {
+			moved, err := trashAdopted(ctx, driver, backend, receipt)
+			if err != nil {
+				return storageError(ctx, err)
+			}
+			if moved {
+				continue
+			}
+		}
 		if err = ensureCopy(ctx, driver, receipt.Key, trashKey(backend, receipt.Key), receipt, trashCacheControl); err != nil {
 			return storageError(ctx, err)
 		}
@@ -242,6 +251,42 @@ func (s *ImageService) moveToTrash(ctx context.Context, image model.Image) error
 	}
 	s.emit(ctx, EventImageTrashed, image, backend)
 	return nil
+}
+
+// trashAdopted moves an adopted original that is still the version another
+// program wrote: an owned copy goes to the recycle bin and the live key is
+// hidden behind a delete marker, which keeps that version in the bucket.
+// It reports false when the live object is no longer the adopted version
+// (already hidden, or an owned copy written back by a restore), leaving the
+// regular owned path to handle it.
+func trashAdopted(ctx context.Context, driver storage.Driver, backend model.Storage, receipt model.ObjectReceipt) (bool, error) {
+	legacy, ok := driver.(storage.LegacyObjects)
+	if !ok {
+		return false, ErrStorage
+	}
+	live, err := driver.Stat(ctx, receipt.Key)
+	if errors.Is(err, storage.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if live.OwnerID != "" {
+		return false, nil
+	}
+	if live.VersionID != receipt.VersionID || live.Size != receipt.Size {
+		return false, storage.ErrOwnership
+	}
+	if _, err := legacy.CopyLegacy(ctx, receipt.Key, receipt.VersionID, trashKey(backend, receipt.Key), receipt.SHA256, storage.CopyOptions{OwnerID: receipt.OwnerID, MIME: receipt.MIME, CacheControl: trashCacheControl}); err != nil {
+		return false, err
+	}
+	if err := legacy.DeleteLegacy(ctx, receipt.Key, receipt.VersionID); err != nil {
+		return false, err
+	}
+	if _, err := driver.Stat(ctx, receipt.Key); !errors.Is(err, storage.ErrNotFound) {
+		return false, ErrStorage
+	}
+	return true, nil
 }
 
 // Restore copies live objects back and revalidates authorization before activation.
@@ -384,6 +429,16 @@ func (s *ImageService) purgeObjects(ctx context.Context, image model.Image) erro
 	for _, receipt := range image.ObjectManifest {
 		if receipt.Location == model.ObjectLocationCloud {
 			for _, key := range []string{receipt.Key, trashKey(backend, receipt.Key)} {
+				if receipt.Adopted && key == receipt.Key {
+					// A final purge is the one step that removes the adopted version.
+					legacy, isLegacy := driver.(storage.LegacyObjects)
+					if !isLegacy {
+						failures = append(failures, ErrStorage)
+					} else if err = legacy.PurgeLegacy(ctx, key, image.Key, receipt.VersionID); err != nil {
+						failures = append(failures, storageError(ctx, err))
+					}
+					continue
+				}
 				if err = purger.PurgeImage(ctx, key, image.Key); err != nil {
 					failures = append(failures, storageError(ctx, err))
 				}

@@ -179,12 +179,12 @@ func TestImportAccountsRefusesWebPOnlyRule(t *testing.T) {
 
 type mapFetcher map[string][]byte
 
-func (m mapFetcher) Fetch(_ context.Context, image Image, _ Strategy) ([]byte, error) {
+func (m mapFetcher) Fetch(_ context.Context, image Image, _ Strategy) (Fetched, error) {
 	data, ok := m[image.Pathname]
 	if !ok {
-		return nil, errors.New("missing")
+		return Fetched{}, errors.New("missing")
 	}
-	return data, nil
+	return Fetched{Data: data}, nil
 }
 
 func sum(data []byte) string {
@@ -248,9 +248,9 @@ func TestImportImagesFiltersVerifiesAndSkipsImported(t *testing.T) {
 func TestHTTPFetcherEscapesPathAndRejectsErrors(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.EscapedPath() {
-		case "/ShellBlogImg/1/%E5%8D%9A%E5%AE%A2/a%20b.webp":
+		case "/old-bucket/1/%E5%8D%9A%E5%AE%A2/a%20b.webp":
 			_, _ = w.Write([]byte("payload"))
-		case "/ShellBlogImg/big.webp":
+		case "/old-bucket/big.webp":
 			_, _ = w.Write([]byte(strings.Repeat("x", 2<<20)))
 		default:
 			http.NotFound(w, r)
@@ -258,10 +258,10 @@ func TestHTTPFetcherEscapesPathAndRejectsErrors(t *testing.T) {
 	}))
 	defer server.Close()
 	fetch := HTTPFetcher{Client: server.Client(), MaxBytes: 1 << 20}
-	strategy := Strategy{ID: 9, URL: server.URL + "/ShellBlogImg"}
-	data, err := fetch.Fetch(t.Context(), Image{Pathname: "1/博客/a b.webp"}, strategy)
-	if err != nil || string(data) != "payload" {
-		t.Fatalf("fetch = %q, %v", data, err)
+	strategy := Strategy{ID: 9, URL: server.URL + "/old-bucket"}
+	got, err := fetch.Fetch(t.Context(), Image{Pathname: "1/博客/a b.webp"}, strategy)
+	if err != nil || string(got.Data) != "payload" || got.Version != "" {
+		t.Fatalf("fetch = %q, %v", got.Data, err)
 	}
 	if _, err := fetch.Fetch(t.Context(), Image{Pathname: "missing.webp"}, strategy); err == nil || !strings.Contains(err.Error(), "404") {
 		t.Fatalf("missing object = %v", err)
@@ -283,8 +283,8 @@ func TestDirFetcherStaysInsideRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	fetch := DirFetcher{Root: root}
-	if data, err := fetch.Fetch(t.Context(), Image{Pathname: "1/a.webp"}, Strategy{}); err != nil || string(data) != "ok" {
-		t.Fatalf("fetch = %q, %v", data, err)
+	if got, err := fetch.Fetch(t.Context(), Image{Pathname: "1/a.webp"}, Strategy{}); err != nil || string(got.Data) != "ok" {
+		t.Fatalf("fetch = %q, %v", got.Data, err)
 	}
 	if _, err := fetch.Fetch(t.Context(), Image{Pathname: "../outside.webp"}, Strategy{}); err == nil {
 		t.Fatal("a pathname must not escape the source directory")

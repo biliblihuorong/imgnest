@@ -160,12 +160,6 @@ function replace(query: string) {
   outline: 2px solid hsl(var(--primary));
   outline-offset: 2px;
 }
-.search-help-panel {
-  width: min(650px, calc(100vw - 24px));
-  max-height: calc(100dvh - 32px);
-  margin: 16px auto;
-  overflow: auto;
-}
 .search-help-content {
   display: grid;
   gap: 12px;
@@ -240,5 +234,15 @@ function replace(query: string) {
   .search-help-fields {
     grid-template-columns: 1fr;
   }
+}
+</style>
+
+<!-- NModal teleports to <body>, out of reach of scoped styles. -->
+<style>
+.search-help-panel {
+  width: min(650px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  margin: 16px auto;
+  overflow: auto;
 }
 </style>

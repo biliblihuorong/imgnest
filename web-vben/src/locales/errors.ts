@@ -17,6 +17,7 @@ export function formatApiError(error: unknown, fallbackKey = "common.errors.unkn
       {
         [-1]: "network",
         10002: "tooLarge",
+        10006: "notLskyDump",
         10004: "network",
         20001: "unauthorized",
         20003: "forbidden",
@@ -35,6 +36,7 @@ export function formatApiError(error: unknown, fallbackKey = "common.errors.unkn
         30013: "contentRejected",
         30014: "secretsUnavailable",
         30015: "uploadLimit",
+        30016: "importBusy",
         50001: "server",
         50002: "storage",
         50003: "processing",

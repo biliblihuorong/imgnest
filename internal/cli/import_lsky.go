@@ -27,30 +27,41 @@ const lskySourceEnv = "IMGNEST_LSKY_DSN"
 
 func importLskyCommand(path *string) *cobra.Command {
 	var policyID uint64
-	var sourceURL, sourceDir, zone string
+	var sourceURL, sourceDir, zone, dump string
 	var limit int
-	var dryRun, skipImages bool
+	var dryRun, skipImages, adopt bool
 	cmd := &cobra.Command{
 		Use:   "import-lsky",
 		Short: "Import a Lsky Pro PostgreSQL database: accounts, tokens, albums, and every image re-processed through the upload pipeline",
-		Long: "Reads the Lsky Pro database named by $" + lskySourceEnv + " (a PostgreSQL DSN), maps groups, users (bcrypt passwords kept),\n" +
-			"API tokens (ids kept when free, so PicGo keeps working) and albums, then downloads each image from its old public\n" +
-			"link (or --source-dir) and stores it under the same path with the --policy-id rule: original, WebP, thumbnails,\n" +
-			"responsive variants and EXIF are produced exactly as for a new upload. Reruns skip what is already imported.",
+		Long: "Reads the Lsky Pro database named by $" + lskySourceEnv + " (a PostgreSQL DSN) or a plain SQL export (--dump), maps\n" +
+			"groups, users (bcrypt passwords kept), API tokens (ids kept when free, so PicGo keeps working) and albums, then\n" +
+			"imports each image under the same path with the --policy-id rule: WebP, thumbnails, responsive variants and EXIF\n" +
+			"are produced exactly as for a new upload. By default the original is downloaded from its old public link (or\n" +
+			"--source-dir) and stored again; with --adopt the rule's storage is the old versioned S3 bucket and the original is\n" +
+			"taken over in place, never rewritten. Reruns skip what is already imported. The web console's Lsky migration\n" +
+			"page does the same while the server runs.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dsn := os.Getenv(lskySourceEnv)
-			if dsn == "" {
-				return fmt.Errorf("set %s to the Lsky PostgreSQL DSN", lskySourceEnv)
+			if dsn == "" && dump == "" {
+				return fmt.Errorf("set %s to the Lsky PostgreSQL DSN, or pass --dump", lskySourceEnv)
 			}
 			if policyID == 0 && !dryRun {
 				return errors.New("--policy-id is required")
+			}
+			if adopt && (sourceURL != "" || sourceDir != "") {
+				return errors.New("--adopt reads the originals from the rule's storage; drop --source-url and --source-dir")
 			}
 			loc, err := time.LoadLocation(zone)
 			if err != nil {
 				return fmt.Errorf("--timezone: %w", err)
 			}
-			snap, err := loadLsky(cmd.Context(), dsn, loc)
+			var snap lsky.Snapshot
+			if dump != "" {
+				snap, err = loadLskyDump(dump, loc)
+			} else {
+				snap, err = loadLsky(cmd.Context(), dsn, loc)
+			}
 			if err != nil {
 				return err
 			}
@@ -61,7 +72,7 @@ func importLskyCommand(path *string) *cobra.Command {
 				return out.err
 			}
 			err = withDatabase(cmd.Context(), *path, func(db *gorm.DB, cfg config.Config) error {
-				return runLskyImport(cmd.Context(), out, db, cfg, snap, lskyRun{policyID: policyID, sourceURL: sourceURL, sourceDir: sourceDir, limit: limit, skipImages: skipImages})
+				return runLskyImport(cmd.Context(), out, db, cfg, snap, lskyRun{policyID: policyID, sourceURL: sourceURL, sourceDir: sourceDir, limit: limit, skipImages: skipImages, adopt: adopt})
 			})
 			return errors.Join(err, out.err)
 		},
@@ -73,6 +84,8 @@ func importLskyCommand(path *string) *cobra.Command {
 	cmd.Flags().IntVar(&limit, "limit", 0, "import at most this many images in this run (0 = all)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "only read and count the Lsky data")
 	cmd.Flags().BoolVar(&skipImages, "skip-images", false, "import accounts, tokens and albums only")
+	cmd.Flags().BoolVar(&adopt, "adopt", false, "take the originals over where they are: the rule's storage must be the old S3 bucket (versioned); originals are never rewritten, only WebP, thumbnails and variants are added")
+	cmd.Flags().StringVar(&dump, "dump", "", "read the Lsky data from this plain-SQL export instead of $"+lskySourceEnv)
 	return cmd
 }
 
@@ -94,7 +107,16 @@ type lskyRun struct {
 	policyID             uint64
 	sourceURL, sourceDir string
 	limit                int
-	skipImages           bool
+	skipImages, adopt    bool
+}
+
+func loadLskyDump(name string, loc *time.Location) (lsky.Snapshot, error) {
+	file, err := os.Open(name) // #nosec G304 -- the operator names the export to read.
+	if err != nil {
+		return lsky.Snapshot{}, fmt.Errorf("open --dump: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+	return lsky.ParseDump(file, loc)
 }
 
 func runLskyImport(ctx context.Context, out *lineWriter, db *gorm.DB, cfg config.Config, snap lsky.Snapshot, run lskyRun) error {
@@ -109,7 +131,7 @@ func runLskyImport(ctx context.Context, out *lineWriter, db *gorm.DB, cfg config
 	if err := db.WithContext(ctx).First(&policy, "id = ?", run.policyID).Error; err != nil {
 		return fmt.Errorf("find policy %d: %w", run.policyID, err)
 	}
-	mapping, accounts, err := lsky.ImportAccounts(ctx, db, snap, lsky.Options{PolicyID: run.policyID})
+	mapping, accounts, err := lsky.ImportAccounts(ctx, db, snap, lsky.Options{PolicyID: run.policyID, Adopt: run.adopt})
 	if err != nil {
 		return err
 	}
@@ -131,17 +153,14 @@ func runLskyImport(ctx context.Context, out *lineWriter, db *gorm.DB, cfg config
 	if err != nil {
 		return err
 	}
-	ingest := func(ctx context.Context, item lsky.Item) error {
-		filename := item.Source.OriginName
-		if filename == "" {
-			filename = pathpkg.Base(item.Source.Pathname)
+	if run.adopt {
+		open, err := images.AdoptionReader(ctx, run.policyID)
+		if err != nil {
+			return errors.Join(fmt.Errorf("--adopt needs a rule on a versioned S3 storage: %w", err), closeImages())
 		}
-		_, err := images.ImportImage(ctx, service.ImportInput{
-			Data: item.Data, Filename: filename, IP: item.Source.IP, Path: item.Path, Ext: item.Ext,
-			UserID: item.UserID, PolicyID: run.policyID, AlbumID: item.AlbumID, IsPublic: item.Source.IsPublic, CreatedAt: item.Source.CreatedAt,
-		})
-		return lskyImageError(err)
+		fetch = lsky.StorageFetcher{Open: open, MaxBytes: maxBytes}
 	}
+	ingest := func(ctx context.Context, item lsky.Item) error { return lskyIngest(images)(ctx, run.policyID, item) }
 	report, err := lsky.ImportImages(ctx, db, snap, mapping, fetch, ingest, lsky.ImageOptions{
 		StorageID: policy.StorageID, Limit: run.limit, Progress: func(line string) { out.printf("%s\n", line) },
 	})
@@ -157,6 +176,23 @@ func runLskyImport(ctx context.Context, out *lineWriter, db *gorm.DB, cfg config
 		err = fmt.Errorf("%d images failed; fix the cause and rerun to retry only those", len(report.Failed))
 	}
 	return err
+}
+
+// lskyIngest stores one Lsky image through the regular import pipeline,
+// adopting it in place when the item carries a bucket version.
+func lskyIngest(images *service.ImageService) func(context.Context, uint64, lsky.Item) error {
+	return func(ctx context.Context, policyID uint64, item lsky.Item) error {
+		filename := item.Source.OriginName
+		if filename == "" {
+			filename = pathpkg.Base(item.Source.Pathname)
+		}
+		_, err := images.ImportImage(ctx, service.ImportInput{
+			Data: item.Data, Filename: filename, IP: item.Source.IP, Path: item.Path, Ext: item.Ext,
+			UserID: item.UserID, PolicyID: policyID, AlbumID: item.AlbumID, IsPublic: item.Source.IsPublic, CreatedAt: item.Source.CreatedAt,
+			AdoptVersion: item.Version,
+		})
+		return lskyImageError(err)
+	}
 }
 
 // lineWriter prints the import report and keeps the first write error.
@@ -179,7 +215,9 @@ func lskyImageError(err error) error {
 	case errors.Is(err, service.ErrImportLinkChanged):
 		return errors.New("文件实际格式与扩展名不符，保存后旧链接会失效")
 	case errors.Is(err, service.ErrPathConflict):
-		return errors.New("目标存储里已有同路径的对象")
+		return errors.New("目标存储里已有同路径的对象，或原图在读取后被改动")
+	case errors.Is(err, service.ErrNotFound):
+		return errors.New("存储桶里没有这个文件")
 	case errors.Is(err, service.ErrUnsupportedFormat):
 		return errors.New("格式不受支持或不在所属组允许的格式里")
 	case errors.Is(err, service.ErrQuotaExceeded):

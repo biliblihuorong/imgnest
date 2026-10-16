@@ -14,11 +14,11 @@ Run every command from the repository root. The image is `ghcr.io/biliblihuorong
 ::: code-group
 
 ```bash [Bash]
-IMGNEST_TAG=0.0.4 docker compose -f deploy/compose.sqlite.yaml up -d
+IMGNEST_TAG=0.0.5 docker compose -f deploy/compose.sqlite.yaml up -d
 ```
 
 ```powershell [PowerShell]
-$env:IMGNEST_TAG = '0.0.4'
+$env:IMGNEST_TAG = '0.0.5'
 docker compose -f deploy/compose.sqlite.yaml up -d
 ```
 
@@ -27,7 +27,7 @@ docker compose -f deploy/compose.sqlite.yaml up -d
 The container runs database migrations on start. Data lives in a volume named `imgnest-data`: the database, local image files and the thumbnail cache.
 
 ::: tip Which tag
-`0.0.4` is the current preview release and never changes, which makes it a good place to start. `latest` points to the newest release, and `edge` follows the latest commit on `main` and may be unstable. To upgrade, change `IMGNEST_TAG` and run the command above again; the container migrates the database on start.
+`0.0.5` is the current preview release and never changes, which makes it a good place to start. `latest` points to the newest release, and `edge` follows the latest commit on `main` and may be unstable. To upgrade, change `IMGNEST_TAG` and run the command above again; the container migrates the database on start.
 :::
 
 ## 2. Create the administrator

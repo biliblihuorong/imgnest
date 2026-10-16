@@ -15,12 +15,20 @@ import (
 	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
+	"github.com/biliblihuorong/imgnest/internal/storage"
 	"gorm.io/gorm"
 )
 
 // Fetcher reads the stored bytes of one Lsky image.
 type Fetcher interface {
-	Fetch(ctx context.Context, image Image, strategy Strategy) ([]byte, error)
+	Fetch(ctx context.Context, image Image, strategy Strategy) (Fetched, error)
+}
+
+// Fetched is one original read from the old storage. Version is set only by
+// StorageFetcher: the bucket version the image adopts in place.
+type Fetched struct {
+	Data    []byte
+	Version string
 }
 
 // HTTPFetcher downloads originals from their public links: BaseURL when set,
@@ -32,7 +40,12 @@ type HTTPFetcher struct {
 }
 
 // Fetch implements Fetcher.
-func (f HTTPFetcher) Fetch(ctx context.Context, image Image, strategy Strategy) ([]byte, error) {
+func (f HTTPFetcher) Fetch(ctx context.Context, image Image, strategy Strategy) (Fetched, error) {
+	data, err := f.fetch(ctx, image, strategy)
+	return Fetched{Data: data}, err
+}
+
+func (f HTTPFetcher) fetch(ctx context.Context, image Image, strategy Strategy) ([]byte, error) {
 	base := strings.TrimRight(f.BaseURL, "/")
 	if base == "" {
 		base = strategy.URL
@@ -72,7 +85,12 @@ type DirFetcher struct {
 }
 
 // Fetch implements Fetcher.
-func (f DirFetcher) Fetch(ctx context.Context, image Image, _ Strategy) ([]byte, error) {
+func (f DirFetcher) Fetch(ctx context.Context, image Image, _ Strategy) (Fetched, error) {
+	data, err := f.fetch(ctx, image)
+	return Fetched{Data: data}, err
+}
+
+func (f DirFetcher) fetch(ctx context.Context, image Image) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -87,6 +105,41 @@ func (f DirFetcher) Fetch(ctx context.Context, image Image, _ Strategy) ([]byte,
 	}
 	defer func() { _ = file.Close() }()
 	return readCapped(file, f.MaxBytes)
+}
+
+// StorageFetcher reads originals straight from the ImgNest storage that
+// already holds them (the Lsky bucket being adopted in place). Each object
+// must be one ImgNest never wrote, in a bucket that versions it, so the
+// image can pin the exact version it takes over.
+type StorageFetcher struct {
+	Open     func(context.Context, string) (io.ReadCloser, storage.ObjectInfo, error)
+	MaxBytes int64
+}
+
+// Fetch implements Fetcher.
+func (f StorageFetcher) Fetch(ctx context.Context, image Image, _ Strategy) (Fetched, error) {
+	if f.Open == nil {
+		return Fetched{}, errors.New("no storage to read from")
+	}
+	body, info, err := f.Open(ctx, image.Pathname)
+	if errors.Is(err, storage.ErrNotFound) {
+		return Fetched{}, errors.New("存储桶里没有这个文件")
+	}
+	if err != nil {
+		return Fetched{}, errors.New("读取存储桶失败")
+	}
+	defer func() { _ = body.Close() }()
+	if info.OwnerID != "" {
+		return Fetched{}, errors.New("这个文件已经由 ImgNest 管理")
+	}
+	if !model.AdoptableVersion(info.VersionID) {
+		return Fetched{}, errors.New("存储桶没有开启版本控制，无法原地接管")
+	}
+	data, err := readCapped(body, f.MaxBytes)
+	if err != nil {
+		return Fetched{}, err
+	}
+	return Fetched{Data: data, Version: info.VersionID}, nil
 }
 
 func readCapped(body io.Reader, limit int64) ([]byte, error) {
@@ -110,6 +163,9 @@ type Item struct {
 	UserID, AlbumID uint64
 	Path, Ext       string
 	Data            []byte
+	// Version is the bucket version to adopt in place; empty means the
+	// original is written anew.
+	Version string
 }
 
 // Ingest stores one item in ImgNest (the CLI runs service.ImportImage).
@@ -122,8 +178,12 @@ type ImageOptions struct {
 	StorageID uint64
 	// Limit stops after this many images were attempted (0 = all).
 	Limit int
+	// StrategyID, when set, imports only the images of that Lsky strategy.
+	StrategyID int64
 	// Progress, when set, receives one line per image.
 	Progress func(string)
+	// Report, when set, receives the running totals after each image.
+	Report func(ImageReport)
 }
 
 // ImageReport counts the image pass outcome; Failed and Skipped carry one
@@ -157,6 +217,9 @@ func ImportImages(ctx context.Context, db *gorm.DB, snap Snapshot, mapping Mappi
 	for _, image := range snap.Images {
 		if err := ctx.Err(); err != nil {
 			return report, err
+		}
+		if opts.StrategyID != 0 && image.StrategyID != opts.StrategyID {
+			continue
 		}
 		label := fmt.Sprintf("#%d %s", image.ID, image.Pathname)
 		dir, ext := splitPathname(image.Pathname)
@@ -195,15 +258,15 @@ func ImportImages(ctx context.Context, db *gorm.DB, snap Snapshot, mapping Mappi
 			break
 		}
 		attempted++
-		data, err := fetch.Fetch(ctx, image, strategies[image.StrategyID])
+		fetched, err := fetch.Fetch(ctx, image, strategies[image.StrategyID])
 		if err == nil && image.MD5 != "" {
-			digest := md5.Sum(data) // #nosec G401 -- integrity check against Lsky's own column.
+			digest := md5.Sum(fetched.Data) // #nosec G401 -- integrity check against Lsky's own column.
 			if !strings.EqualFold(hex.EncodeToString(digest[:]), image.MD5) {
-				err = errors.New("下载内容与蓝空记录的 MD5 不一致")
+				err = errors.New("文件内容与蓝空记录的 MD5 不一致")
 			}
 		}
 		if err == nil {
-			err = ingest(ctx, Item{Source: image, UserID: owner, AlbumID: mapping.Albums[image.AlbumID], Path: dir, Ext: ext, Data: data})
+			err = ingest(ctx, Item{Source: image, UserID: owner, AlbumID: mapping.Albums[image.AlbumID], Path: dir, Ext: ext, Data: fetched.Data, Version: fetched.Version})
 		}
 		if err != nil {
 			if ctx.Err() != nil {
@@ -211,10 +274,13 @@ func ImportImages(ctx context.Context, db *gorm.DB, snap Snapshot, mapping Mappi
 			}
 			report.Failed = append(report.Failed, label+"："+err.Error())
 			progress("FAIL " + label + ": " + err.Error())
-			continue
+		} else {
+			report.Imported++
+			progress("OK   " + label)
 		}
-		report.Imported++
-		progress("OK   " + label)
+		if opts.Report != nil {
+			opts.Report(report)
+		}
 	}
 	return report, nil
 }

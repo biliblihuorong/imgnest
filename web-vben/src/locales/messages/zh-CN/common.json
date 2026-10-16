@@ -12,7 +12,8 @@
     "storages": "存储管理",
     "policies": "规则管理",
     "settings": "站点设置",
-    "allImages": "全站图片"
+    "allImages": "全站图片",
+    "lskyImport": "蓝空迁移"
   },
   "account": "账户",
   "administrator": "管理员",
@@ -86,6 +87,8 @@
     "contentRejected": "图片未通过内容审核",
     "uploadLimit": "已达到上传次数上限",
     "reviewUnavailable": "内容审核暂时不可用，请稍后重试",
-    "secretsUnavailable": "保存密钥需要先在配置文件里设置 security.master_key"
+    "secretsUnavailable": "保存密钥需要先在配置文件里设置 security.master_key",
+    "notLskyDump": "这不是蓝空图床的数据库导出文件",
+    "importBusy": "导入正在进行，请先停止"
   }
 }

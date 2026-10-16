@@ -36,6 +36,7 @@ export const ADMIN_ROUTER_NAMES = {
   adminPolicies: "admin-policies",
   adminSettings: "admin-settings",
   adminImages: "admin-images",
+  adminLskyImport: "admin-lsky-import",
 } as const;
 
 const PUBLIC_PATHS = new Set<string>(["/login", "/register"]);
@@ -192,6 +193,12 @@ export function setupRouter(): Router {
             name: ADMIN_ROUTER_NAMES.adminImages,
             component: () => import("@/views/admin/ImagesAdminView.vue"),
             meta: { title: "common.nav.allImages" },
+          },
+          {
+            path: "lsky-import",
+            name: ADMIN_ROUTER_NAMES.adminLskyImport,
+            component: () => import("@/views/admin/LskyImportView.vue"),
+            meta: { title: "common.nav.lskyImport" },
           },
         ],
       },

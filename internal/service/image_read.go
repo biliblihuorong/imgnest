@@ -257,7 +257,7 @@ func (s *ImageService) Thumbnail(ctx context.Context, subject TokenSubject, key 
 			}
 			continue
 		}
-		if info.OwnerID != image.Key {
+		if !ownsObject(image, cloudKey, info) {
 			_ = cloud.Close()
 			continue
 		}
