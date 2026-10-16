@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
-import { formatApiError } from "@/locales/errors";
+import { formatApiError, reasonText } from "@/locales/errors";
 import { useMediaQuery } from "@vueuse/core";
 import {
   NAlert,
@@ -577,6 +577,9 @@ function closeTestResult(show: boolean): void {
         class="storages-test-summary"
       >
         {{ testResult.ok ? t("admin.storages.testPassed") : t("admin.storages.testFailed") }}
+        <template v-if="!testResult.ok && reasonText(testResult.reason)">
+          <br />{{ reasonText(testResult.reason) }}
+        </template>
       </NAlert>
       <ul v-if="testResult" class="storages-check-list">
         <li v-for="item in testCheckItems" :key="item.label" class="storages-check-item">

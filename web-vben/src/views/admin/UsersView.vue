@@ -14,6 +14,7 @@ import {
   NInput,
   NModal,
   NPagination,
+  NPopconfirm,
   NSelect,
   NSpace,
   NSwitch,
@@ -32,6 +33,7 @@ import {
   listGroups,
   listUsers,
   patchUser,
+  resetUserPassword,
   type AdminUserPatch,
   type AdminUserView,
   type GroupView,
@@ -148,6 +150,7 @@ function handleKeywordInput(value: string): void {
 onUnmounted(() => {
   disposed = true;
   form.password = "";
+  resetPassword.value = "";
   listRequest += 1;
   clearSearchTimer();
 });
@@ -354,9 +357,52 @@ function openEdit(user: AdminUserView): void {
 }
 
 function closeForm(show = false): void {
-  if (saving.value) return;
+  if (saving.value || resetting.value) return;
   formShow.value = show;
-  if (!show) form.password = "";
+  if (!show) {
+    form.password = "";
+    resetPassword.value = "";
+  }
+}
+
+/* ---------------- 重置其他账户的密码 ---------------- */
+
+const resetPassword = ref("");
+const resetting = shallowRef(false);
+const resetPasswordValid = computed(() => {
+  const bytes = new TextEncoder().encode(resetPassword.value).length;
+  return bytes >= 12 && bytes <= 72;
+});
+
+/** 生成 16 位随机密码（去掉易混淆字符），方便管理员直接转交给用户。 */
+function generatePassword(): void {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  resetPassword.value = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+}
+
+async function submitResetPassword(): Promise<void> {
+  const target = editingUser.value;
+  if (!target || editingSelf.value || resetting.value || saving.value) return;
+  if (!resetPasswordValid.value) {
+    message.warning(() => t("admin.users.passwordInvalid"));
+    return;
+  }
+  const isCurrentSession = captureSession();
+  resetting.value = true;
+  busyIds.add(target.id);
+  try {
+    await resetUserPassword(target.id, resetPassword.value);
+    if (disposed || !isCurrentSession()) return;
+    resetPassword.value = "";
+    message.success(() => t("admin.users.passwordReset", { name: target.username }));
+  } catch (error) {
+    if (!disposed && isCurrentSession())
+      message.error(() => formatApiError(error, "admin.errors.passwordReset"));
+  } finally {
+    resetting.value = false;
+    busyIds.delete(target.id);
+  }
 }
 
 async function submitForm(): Promise<void> {
@@ -634,6 +680,43 @@ const columns = computed<DataTableColumns<AdminUserView>>(() => [
             <p class="users-field-hint">{{ t("admin.users.displayNameHint") }}</p>
           </div>
         </NFormItem>
+        <NFormItem
+          v-if="editingUser && !editingSelf"
+          :label="t('admin.users.resetPassword')"
+          label-for="admin-user-reset-password"
+        >
+          <div class="users-field">
+            <div class="users-reset">
+              <NInput
+                v-model:value="resetPassword"
+                type="password"
+                show-password-on="click"
+                :disabled="saving || resetting"
+                :placeholder="t('admin.users.passwordInvalid')"
+                :input-props="{ id: 'admin-user-reset-password', autocomplete: 'new-password' }"
+              />
+              <NButton :disabled="saving || resetting" @click="generatePassword">{{
+                t("admin.users.generatePassword")
+              }}</NButton>
+              <NPopconfirm
+                :positive-text="t('admin.users.resetPassword')"
+                :negative-text="t('admin.common.cancel')"
+                @positive-click="submitResetPassword"
+              >
+                <template #trigger>
+                  <NButton
+                    type="warning"
+                    :loading="resetting"
+                    :disabled="saving || !resetPasswordValid"
+                    >{{ t("admin.users.resetPassword") }}</NButton
+                  >
+                </template>
+                {{ t("admin.users.resetPasswordConfirm", { name: editingUser.username }) }}
+              </NPopconfirm>
+            </div>
+            <p class="users-field-hint">{{ t("admin.users.resetPasswordHint") }}</p>
+          </div>
+        </NFormItem>
         <NFormItem :label="t('admin.users.role')" path="role">
           <NSelect
             v-model:value="form.role"
@@ -681,6 +764,16 @@ const columns = computed<DataTableColumns<AdminUserView>>(() => [
   margin: 4px 0 0;
   font-size: 12px;
   color: hsl(var(--muted-foreground));
+}
+
+.users-reset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.users-reset > .n-input {
+  flex: 1 1 200px;
 }
 
 .users-toolbar {

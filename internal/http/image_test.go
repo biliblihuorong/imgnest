@@ -82,6 +82,13 @@ func (s *imagesStub) Purge(context.Context, service.TokenSubject, string) error 
 	s.actions = append(s.actions, "purge")
 	return nil
 }
+func (s *imagesStub) Rename(_ context.Context, _ service.TokenSubject, id uint64, name string) (service.ImageView, error) {
+	s.actions = append(s.actions, "rename:"+name)
+	if name == "bad" {
+		return service.ImageView{}, service.ErrInvalidInput
+	}
+	return service.ImageView{ID: id, Name: name}, nil
+}
 func (s *imagesStub) SetPublic(_ context.Context, _ service.TokenSubject, id uint64, value bool) (service.ImageView, error) {
 	s.actions = append(s.actions, "permission")
 	return service.ImageView{ID: id, IsPublic: value}, nil
@@ -225,6 +232,16 @@ func TestImageMetadataAndBatchAuthorization(t *testing.T) {
 	expectCode(t, request(t, router, "GET", "/api/images/1/exif", "", testBearer), 200, 0)
 	expectCode(t, request(t, router, "GET", "/api/images?page=0", "", testBearer), 400, 10001)
 	expectCode(t, request(t, router, "PATCH", "/api/images/1", `{"is_public":false,"user_id":9}`, testBearer), 400, 10001)
+	expectCode(t, request(t, router, "PATCH", "/api/images/1", `{}`, testBearer), 400, 10001)
+	expectCode(t, request(t, router, "PATCH", "/api/images/1", `{"name":"bad","is_public":true}`, testBearer), 400, 10001)
+	if strings.Join(images.actions, ",") != "rename:bad" {
+		t.Fatalf("invalid rename still changed visibility: %v", images.actions)
+	}
+	expectCode(t, request(t, router, "PATCH", "/api/images/1", `{"name":"beach.png","is_public":true}`, testBearer), 200, 0)
+	if strings.Join(images.actions, ",") != "rename:bad,rename:beach.png,permission" {
+		t.Fatalf("rename and visibility = %v", images.actions)
+	}
+	images.actions = nil
 	response := request(t, router, "POST", "/api/images/batch", `{"action":"delete","ids":[1,9]}`, testBearer)
 	expectCode(t, response, 207, 0)
 	if strings.Join(images.actions, ",") != "delete" {

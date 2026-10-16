@@ -42,6 +42,7 @@ var environmentKeys = map[string]string{
 	"IMGNEST_DATABASE_MAX_IDLE":                "database.max_idle",
 	"IMGNEST_DATABASE_MAX_LIFETIME":            "database.max_lifetime",
 	"IMGNEST_DATABASE_BUSY_TIMEOUT":            "database.busy_timeout",
+	"IMGNEST_BACKUP_DIR":                       "backup.dir",
 }
 
 // Config contains the HTTP server and database deployment settings.
@@ -50,7 +51,11 @@ type Config struct {
 	Database Database
 	Images   Images
 	Security Security
+	Backup   Backup
 }
+
+// Backup configures where database and configuration backups are written.
+type Backup struct{ Dir string }
 
 // Server configures HTTP serving and graceful shutdown.
 type Server struct {
@@ -111,7 +116,7 @@ func Load(ctx context.Context, path string, environ []string) (Config, error) {
 			// YAML diagnostics may quote DSNs, so do not retain their raw error.
 			return Config{}, fmt.Errorf("parse configuration YAML: %w", errInvalid)
 		}
-		for _, section := range []string{"server", "database", "images", "security"} {
+		for _, section := range []string{"server", "database", "images", "security", "backup"} {
 			if k.Exists(section) {
 				if _, ok := k.Get(section).(map[string]any); !ok {
 					return Config{}, invalid(section, "must be a mapping")
@@ -177,6 +182,7 @@ func Load(ctx context.Context, path string, environ []string) (Config, error) {
 		"images.variant_cors_origins":      []string{},
 		"images.variant_lookup_per_minute": 60,
 		"security.master_key":              "",
+		"backup.dir":                       "data/backup",
 		"database.driver":                  driver,
 		"database.dsn":                     "data/imgnest.db",
 		"database.max_open":                1,
@@ -224,6 +230,7 @@ func decode(k *koanf.Koanf) (Config, error) {
 		{key: "database.dsn", value: &cfg.Database.DSN},
 		{key: "images.thumb_cache", value: &cfg.Images.ThumbCache},
 		{key: "security.master_key", value: &cfg.Security.MasterKey},
+		{key: "backup.dir", value: &cfg.Backup.Dir},
 	} {
 		value, ok := k.Get(field.key).(string)
 		if !ok {
@@ -323,6 +330,9 @@ func validate(cfg Config) error {
 	}
 	if strings.TrimSpace(cfg.Images.ThumbCache) == "" {
 		return invalid("images.thumb_cache", "must not be empty")
+	}
+	if strings.TrimSpace(cfg.Backup.Dir) == "" {
+		return invalid("backup.dir", "must not be empty")
 	}
 	if cfg.Images.VariantLookupPerMinute < 1 || cfg.Images.VariantLookupPerMinute > 10000 {
 		return invalid("images.variant_lookup_per_minute", "must be between 1 and 10000")

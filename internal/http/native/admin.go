@@ -19,6 +19,7 @@ type AdminService interface {
 	CreateUser(context.Context, uint64, service.AdminUserInput) (service.UserView, error)
 	ListUsers(context.Context, int, int, string) (service.AdminUserPage, error)
 	PatchUser(context.Context, uint64, uint64, service.AdminUserPatch) (service.UserView, error)
+	ResetUserPassword(context.Context, uint64, uint64, string) error
 	ListGroups(context.Context) ([]service.GroupView, error)
 	CreateGroup(context.Context, service.GroupInput) (service.GroupView, error)
 	PatchGroup(context.Context, uint64, service.GroupPatch) (service.GroupView, error)
@@ -58,6 +59,7 @@ func (h *Handler) RegisterAdminRoutes(ctx context.Context, router gin.IRouter, a
 	adminGroup.GET("/users", handler.listUsers)
 	adminGroup.POST("/users", handler.createUser)
 	adminGroup.PATCH("/users/:id", handler.patchUser)
+	adminGroup.PUT("/users/:id/password", handler.resetUserPassword)
 	adminGroup.GET("/groups", handler.listGroups)
 	adminGroup.POST("/groups", handler.createGroup)
 	adminGroup.PATCH("/groups/:id", handler.patchGroup)
@@ -197,6 +199,26 @@ func (a *adminHandler) patchUser(c *gin.Context) {
 		return
 	}
 	respond(c, 200, user)
+}
+
+// resetUserPassword replaces another account's password; the response
+// carries no data and the password is never echoed or logged.
+func (a *adminHandler) resetUserPassword(c *gin.Context) {
+	id, ok := adminID(c)
+	if !ok {
+		return
+	}
+	var input struct {
+		Password string `json:"password"`
+	}
+	if !decode(c, &input) {
+		return
+	}
+	if err := a.admin.ResetUserPassword(c.Request.Context(), identity(c).User.ID, id, input.Password); err != nil {
+		fail(c, err)
+		return
+	}
+	respond(c, 200, nil)
 }
 
 func (a *adminHandler) listGroups(c *gin.Context) {

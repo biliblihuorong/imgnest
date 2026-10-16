@@ -105,6 +105,15 @@ export function setImageVisibility(id: number, isPublic: boolean): Promise<Image
   });
 }
 
+/** 修改显示名称；对象键和所有链接不变，已分享的链接仍然有效。 */
+export function renameImage(id: number, name: string): Promise<ImageView> {
+  return request<ImageView>(`/api/images/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
+
 /** 把图片移入回收站（原 URL 立即 404）；成功 data 为 null。 */
 export function deleteImage(id: number): Promise<null> {
   return request<null>(`/api/images/${id}`, { method: "DELETE" });

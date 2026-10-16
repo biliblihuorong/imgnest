@@ -229,6 +229,37 @@ func (r *AdminRepository) updateAdminUser(ctx context.Context, callerID, userID 
 	return user, nil
 }
 
+// ResetUserPassword lets an enabled administrator replace another account's
+// password. The new hash and the revocation of every token on that account
+// commit together, so old sessions and API tokens stop working at once.
+func (r *AdminRepository) ResetUserPassword(ctx context.Context, callerID, userID uint64, hash string) error {
+	if callerID == 0 || userID == 0 || hash == "" {
+		return fmt.Errorf("reset user password: %w", model.ErrInvalidInput)
+	}
+	if callerID == userID {
+		return fmt.Errorf("reset user password: %w", model.ErrForbidden)
+	}
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockAdminAccounts(tx); err != nil {
+			return err
+		}
+		if err := requireEnabledAdmin(tx, callerID); err != nil {
+			return err
+		}
+		if _, err := lockUser(ctx, tx, userID); err != nil {
+			return err
+		}
+		if err := tx.Model(&model.User{}).Where("id = ?", userID).Update("password_hash", hash).Error; err != nil {
+			return err
+		}
+		return tx.Where("user_id = ?", userID).Delete(&model.Token{}).Error
+	})
+	if err != nil {
+		return userWriteError("reset user password", err)
+	}
+	return nil
+}
+
 // SetUserStatus is the internal lifecycle operation; it shares the atomic
 // account mutation and last-enabled-administrator protections.
 func (r *AdminRepository) SetUserStatus(ctx context.Context, userID uint64, status string) error {

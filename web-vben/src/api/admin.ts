@@ -126,6 +126,8 @@ export interface StoragePatch {
 
 /** POST /api/admin/storages/{id}/test 的连接测试结果。 */
 export interface StorageTestResult {
+  /** 第一个失败步骤的原因代码（如 storage_denied）；全部通过或原因未知时省略。 */
+  reason?: string;
   ok: boolean;
   checks: {
     put: boolean;
@@ -274,6 +276,15 @@ export function patchUser(id: number, patch: AdminUserPatch): Promise<AdminUserV
     method: "PATCH",
     headers: { ...JSON_HEADERS },
     body: JSON.stringify(patch),
+  });
+}
+
+/** 管理员给其他账户设置新密码；服务端同时吊销该账户全部令牌（各处都要重新登录）。 */
+export function resetUserPassword(id: number, password: string): Promise<null> {
+  return request<null>(`/api/admin/users/${id}/password`, {
+    method: "PUT",
+    headers: { ...JSON_HEADERS },
+    body: JSON.stringify({ password }),
   });
 }
 

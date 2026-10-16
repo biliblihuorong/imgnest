@@ -41,8 +41,11 @@ func (s *AdminService) CreateUser(ctx context.Context, callerID uint64, input Ad
 	if err := ctx.Err(); err != nil {
 		return UserView{}, fmt.Errorf("create admin user: %w", err)
 	}
-	if callerID == 0 || !validPassword(input.Password) || !validAccountRole(input.Role) || !validAccountStatus(input.Status) {
+	if callerID == 0 || !validAccountRole(input.Role) || !validAccountStatus(input.Status) {
 		return UserView{}, ErrInvalidInput
+	}
+	if !validPassword(input.Password) {
+		return UserView{}, errPasswordLength
 	}
 	username, err := normalizeUsername(input.Username)
 	if err != nil {
@@ -134,6 +137,33 @@ func (s *AdminService) PatchUser(ctx context.Context, callerID, targetID uint64,
 	view := userView(user)
 	applyAvatar(&view, config)
 	return view, nil
+}
+
+// ResetUserPassword sets a new password for another account. It follows the
+// signup password rules and bcrypt cost, and signs the account out
+// everywhere by revoking all of its tokens. Administrators change their own
+// password from their account settings, which asks for the current one.
+func (s *AdminService) ResetUserPassword(ctx context.Context, callerID, targetID uint64, password string) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("reset user password: %w", err)
+	}
+	if callerID == 0 || targetID == 0 {
+		return ErrInvalidInput
+	}
+	if !validPassword(password) {
+		return errPasswordLength
+	}
+	if callerID == targetID {
+		return ErrForbidden
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), passwordCost)
+	if err != nil {
+		return fmt.Errorf("hash account password: %w", err)
+	}
+	if err := s.deps.Users.ResetUserPassword(ctx, callerID, targetID, string(hash)); err != nil {
+		return fmt.Errorf("reset user password: %w", err)
+	}
+	return nil
 }
 
 func validAccountRole(role string) bool {

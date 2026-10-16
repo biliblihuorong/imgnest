@@ -6,6 +6,8 @@ import {
   NDropdown,
   NEmpty,
   NImageGroup,
+  NInput,
+  NModal,
   NPagination,
   NPopconfirm,
   NSelect,
@@ -102,6 +104,16 @@ const menuOptions = computed<DropdownOption[]>(() => {
     ...copyGroups,
     { type: "divider", key: "divider" },
     { label: t("user.images.menuProps"), key: "props" },
+    { label: t("user.images.menuRename"), key: "rename" },
+    {
+      label: t("user.images.menuMove"),
+      key: "move",
+      disabled: lib.cardMoveOptions.value.length === 0,
+      children: lib.cardMoveOptions.value.map((option) => ({
+        label: option.label,
+        key: `move:${String(option.key)}`,
+      })),
+    },
     {
       label: t(
         menuImage.value?.is_public ? "user.images.menuMakePrivate" : "user.images.menuMakePublic",
@@ -135,7 +147,15 @@ function onMenuSelect(key: string | number): void {
     void copyMenuText(buildLinkText(format, name, resolveImageLink(image, version)));
     return;
   }
+  const move = /^move:(\d+)$/.exec(String(key));
+  if (move) {
+    lib.handleMove(image, Number(move[1]));
+    return;
+  }
   switch (key) {
+    case "rename":
+      openRename(image);
+      break;
     case "props":
       lib.openDrawer(image);
       break;
@@ -153,6 +173,54 @@ function onMenuSelect(key: string | number): void {
         },
       });
       break;
+  }
+}
+
+/* ---------------- 重命名（只改显示名称，链接不变） ---------------- */
+const renameShow = ref(false);
+const renameImage = ref<ImageView | null>(null);
+const renameValue = ref("");
+const renameSaving = ref(false);
+/** 与后端一致：去掉首尾空白后不能为空，不能含路径分隔符或控制字符，最多 255 字节。 */
+const renameValid = computed(() => {
+  const name = renameValue.value.trim();
+  return (
+    name !== "" &&
+    ![...name].some((char) => char === "/" || char === "\\" || isControl(char)) &&
+    new TextEncoder().encode(name).length <= 255
+  );
+});
+
+function isControl(char: string): boolean {
+  const code = char.codePointAt(0) ?? 0;
+  return code < 0x20 || (code >= 0x7f && code < 0xa0);
+}
+
+function openRename(image: ImageView): void {
+  renameImage.value = image;
+  renameValue.value = image.name;
+  renameShow.value = true;
+}
+
+async function submitRename(): Promise<boolean> {
+  const image = renameImage.value;
+  if (!image || renameSaving.value) return false;
+  if (!renameValid.value) {
+    message.warning(() => t("user.images.renameInvalid"));
+    return false;
+  }
+  const name = renameValue.value.trim();
+  if (name === image.name) {
+    renameShow.value = false;
+    return true;
+  }
+  renameSaving.value = true;
+  try {
+    const ok = await lib.handleRename(image, name);
+    if (ok) renameShow.value = false;
+    return ok;
+  } finally {
+    renameSaving.value = false;
   }
 }
 
@@ -322,6 +390,26 @@ const emptyText = computed(() =>
         @clickoutside="menuShow = false"
       />
     </div>
+    <NModal
+      v-model:show="renameShow"
+      preset="dialog"
+      :title="t('user.images.renameTitle')"
+      :positive-text="t('user.common.save')"
+      :negative-text="t('user.common.cancel')"
+      :loading="renameSaving"
+      :positive-button-props="{ disabled: !renameValid }"
+      @positive-click="submitRename"
+    >
+      <p class="image-library__rename-hint">{{ t("user.images.renameHint") }}</p>
+      <NInput
+        v-model:value="renameValue"
+        :placeholder="t('user.images.renamePlaceholder')"
+        :maxlength="255"
+        :status="renameValid ? undefined : 'error'"
+        autofocus
+        @keydown.enter.prevent="submitRename"
+      />
+    </NModal>
     <ImageDetailPanel v-if="usePanel" :image="panelImage" @close="lib.drawerShow.value = false" />
     <ImageDetailDrawer v-else v-model:show="lib.drawerShow.value" :image="lib.drawerImage.value" />
   </div>
@@ -390,6 +478,12 @@ const emptyText = computed(() =>
 
 .image-library__batchbar-album {
   width: 180px;
+}
+
+.image-library__rename-hint {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
 }
 
 .image-library__empty {

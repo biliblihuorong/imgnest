@@ -215,7 +215,7 @@ func (s *UserService) ResetPasswordWithCode(ctx context.Context, email, code, ne
 		return ErrEmailCodeInvalid
 	}
 	if !validPassword(next) {
-		return ErrInvalidInput
+		return errPasswordLength
 	}
 	stored, err := s.checkEmailCode(ctx, model.EmailCodeResetPassword, normalized, code)
 	if err != nil {

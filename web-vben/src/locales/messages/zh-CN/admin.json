@@ -52,7 +52,12 @@
     "created": "用户「{name}」已创建",
     "updated": "用户「{name}」已更新",
     "selfEditHint": "修改自己的用户名、邮箱、角色、状态或用户组后，需要重新登录。仅修改显示名称不会退出登录。",
-    "signInAgain": "账户已更新，请重新登录"
+    "signInAgain": "账户已更新，请重新登录",
+    "resetPassword": "重置密码",
+    "generatePassword": "随机生成",
+    "resetPasswordConfirm": "确定给 {name} 设置这个新密码吗？该用户会在所有设备上退出登录。",
+    "resetPasswordHint": "设置后请把新密码转交给用户；用户的所有登录和 API Token 会立即失效。",
+    "passwordReset": "已重置 {name} 的密码"
   },
   "groups": {
     "title": "用户组管理",
@@ -210,7 +215,7 @@
   },
   "settings": {
     "title": "系统设置",
-    "description": "站点、注册登录、访客、邮件与插件的配置。",
+    "description": "站点、注册登录、访客、邮件、插件与备份的配置。",
     "save": "保存设置",
     "saved": "站点设置已保存",
     "unset": "未设置（0）",
@@ -261,6 +266,10 @@
       "plugins": {
         "title": "插件",
         "description": "扩展插件提供的设置。"
+      },
+      "backup": {
+        "title": "备份/导出",
+        "description": "数据库与配置备份、下载和定时备份。"
       }
     },
     "emailVerification": "注册邮箱验证",
@@ -351,7 +360,13 @@
     "policySave": "保存规则失败",
     "preview": "路径预览失败",
     "purge": "清空回收站失败",
-    "templateInvalid": "模板无效，请检查路径与文件名模板"
+    "templateInvalid": "模板无效，请检查路径与文件名模板",
+    "passwordReset": "重置密码失败",
+    "backupsLoad": "无法加载备份列表",
+    "backupCreate": "备份失败",
+    "backupDownload": "下载备份失败",
+    "backupDelete": "删除备份失败",
+    "backupSchedule": "保存定时备份设置失败"
   },
   "plugins": {
     "title": "扩展功能",
@@ -433,5 +448,33 @@
     "loadFailed": "读取迁移状态失败",
     "uploadFailed": "解析导出文件失败",
     "startFailed": "开始导入失败"
+  },
+  "backups": {
+    "title": "备份与导出",
+    "description": "把数据库和部署配置打包成 zip，保存在服务器的备份目录，可下载到本地。",
+    "secretWarning": "备份包含密码哈希、数据库连接串和主密钥，请只下载到可信的地方保存。",
+    "location": "备份目录：{dir}",
+    "create": "立即备份",
+    "creating": "正在备份…",
+    "created": "已生成备份 {name}",
+    "running": "有一个备份正在进行。",
+    "empty": "还没有备份。",
+    "name": "文件",
+    "size": "大小",
+    "createdAt": "时间",
+    "kind": "类型",
+    "kindAuto": "定时",
+    "kindManual": "手动",
+    "download": "下载",
+    "deleteConfirm": "删除备份 {name}？删除后无法恢复。",
+    "deleted": "已删除备份",
+    "scheduleTitle": "定时备份",
+    "scheduleEnabled": "开启定时备份",
+    "intervalHours": "间隔（小时）",
+    "keep": "保留份数",
+    "keepHint": "只清理多出的定时备份，手动备份不会被删除。",
+    "scheduleSaved": "定时备份设置已保存",
+    "restoreTitle": "如何还原",
+    "restoreHint": "先停止服务，再在服务器上运行 imgnest backup restore --yes <归档路径>。目标数据库需要由同一版本迁移；归档 config/ 里的配置不会自动覆盖，需要时手工拷回。"
   }
 }

@@ -16,7 +16,8 @@
     "loadError": "Could not load data",
     "batchSuccess": "{action} succeeded for {count} images",
     "batchFailure": "{action} failed (ID {id}): {error}",
-    "actionFailure": "{action} failed: {error}"
+    "actionFailure": "{action} failed: {error}",
+    "save": "Save"
   },
   "images": {
     "title": "My images",
@@ -70,7 +71,15 @@
     "deleteConfirmTitle": "Delete \"{name}\"?",
     "search": "Search",
     "searchPlaceholder": "Search filename, camera or lens…",
-    "menuCopyFormat": "Copy {format}"
+    "menuCopyFormat": "Copy {format}",
+    "menuRename": "Rename",
+    "menuMove": "Move to album",
+    "renameTitle": "Rename image",
+    "renameHint": "Only the display name changes; image links stay the same.",
+    "renamePlaceholder": "New name",
+    "renameSuccess": "Renamed",
+    "renameError": "Could not rename the image",
+    "renameInvalid": "The name can't be empty or contain / or \\"
   },
   "detail": {
     "title": "Image details",

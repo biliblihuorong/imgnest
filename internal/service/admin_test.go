@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -21,6 +23,7 @@ type adminUsersFake struct {
 	total         int64
 	statusChanges []adminStatusChange
 	groupChanges  []adminGroupChange
+	resetHashes   map[uint64]string
 }
 
 type adminStatusChange struct {
@@ -66,6 +69,17 @@ func (f *adminUsersFake) CreateAdminUser(_ context.Context, _ uint64, user model
 	f.users[user.ID] = user
 	return user, nil
 }
+func (f *adminUsersFake) ResetUserPassword(ctx context.Context, _ uint64, id uint64, hash string) error {
+	if _, err := f.FindUserByID(ctx, id); err != nil {
+		return err
+	}
+	if f.resetHashes == nil {
+		f.resetHashes = map[uint64]string{}
+	}
+	f.resetHashes[id] = hash
+	return nil
+}
+
 func (f *adminUsersFake) UpdateAdminUser(ctx context.Context, _ uint64, id uint64, changes model.UserChanges) (model.User, error) {
 	user, err := f.FindUserByID(ctx, id)
 	if err != nil {
@@ -821,6 +835,19 @@ func TestAdminStorageTestReportsEachCheck(t *testing.T) {
 	}
 	if result.OK || result.Checks.Put || result.Checks.Copy || result.Checks.Delete {
 		t.Fatalf("put-failure probe=%+v", result)
+	}
+	if result.Reason != "" {
+		t.Fatalf("unclassified failure reason=%q", result.Reason)
+	}
+
+	driver = &adminProbeDriver{putErr: &os.PathError{Op: "open", Path: "/data/x", Err: syscall.ENOSPC}}
+	svc.deps.Drivers = adminDriverProvider{driver: driver}
+	result, err = svc.TestStorage(t.Context(), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OK || result.Reason != "storage_disk_full" {
+		t.Fatalf("full-disk probe=%+v", result)
 	}
 	if _, err := svc.TestStorage(t.Context(), 99); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing storage test error=%v", err)
