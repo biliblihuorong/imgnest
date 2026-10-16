@@ -305,9 +305,9 @@
       "testToPlaceholder": "Leave empty to send to yourself",
       "testSend": "Send test email",
       "testSent": "Test email sent. Check your inbox.",
-      "testNeedsSave": "You have unsaved changes; the test uses the saved settings.",
+      "testNeedsSave": "Save your changes before sending a test.",
       "reasons": {
-        "connect": "Cannot reach the SMTP server. Check the host, port and outbound network.",
+        "connect": "Could not reach the SMTP server. Check the host and port; many cloud servers block outbound ports 25/465/587 until you allow them.",
         "tls": "TLS handshake failed. Check that the encryption matches the port.",
         "auth": "The username or password was rejected.",
         "rejected": "The server rejected the message. Check that the from address matches the account."
