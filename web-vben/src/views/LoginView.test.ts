@@ -47,6 +47,7 @@ const userFixture: UserView = {
 
 interface MountOptions {
   registerEnabled?: boolean;
+  passwordReset?: boolean;
   loginProviders?: LoginProvider[];
   withToken?: boolean;
   initialRoute?: string;
@@ -62,6 +63,8 @@ async function mountLoginView(options: MountOptions = {}) {
     site_name: "测试图床",
     register_enabled: registerEnabled,
     gallery_enabled: true,
+    email_verification: false,
+    password_reset: options.passwordReset ?? false,
     login_providers: options.loginProviders ?? [],
   });
 
@@ -70,6 +73,7 @@ async function mountLoginView(options: MountOptions = {}) {
     routes: [
       { path: "/login", component: LoginView },
       { path: "/register", component: { template: "<div />" } },
+      { path: "/reset-password", component: { template: "<div />" } },
       { path: "/upload", component: { template: "<div />" } },
       { path: "/images", component: { template: "<div />" } },
       { path: "/dashboard", component: { template: "<div />" } },
@@ -114,6 +118,15 @@ describe("LoginView", () => {
     expect(links[0]!.attributes("href")).toBe("/api/ext/sso/github/start");
     expect(links[0]!.text()).toContain("使用 GitHub 登录");
     expect(wrapper.text()).not.toContain("Evil");
+  });
+
+  it("只在站点能发信时显示忘记密码", async () => {
+    const hidden = await mountLoginView();
+    expect(hidden.wrapper.find('[data-testid="forgot-password"]').exists()).toBe(false);
+    const shown = await mountLoginView({ passwordReset: true });
+    expect(shown.wrapper.get('[data-testid="forgot-password"]').attributes("href")).toBe(
+      "/reset-password",
+    );
   });
 
   it("没有单点登录方式时不渲染分隔与按钮", async () => {

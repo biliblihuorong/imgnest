@@ -1,163 +1,10 @@
 <script setup lang="ts">
-import CaptchaSettingsCard from "@/components/admin/CaptchaSettingsCard.vue";
-import PluginSettingsSection from "@/components/admin/PluginSettingsSection.vue";
+// 系统设置外壳：左侧（窄屏为顶部）二级导航，右侧渲染当前设置页。
 import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
-import { formatApiError } from "@/locales/errors";
-import { useMediaQuery } from "@vueuse/core";
-import {
-  NAlert,
-  NButton,
-  NCard,
-  NForm,
-  NFormItem,
-  NInput,
-  NInputNumber,
-  NSelect,
-  NSwitch,
-  useMessage,
-  type FormInst,
-  type FormItemRule,
-  type FormRules,
-} from "naive-ui";
-import { computed, onMounted, reactive, ref } from "vue";
-import {
-  getSettings,
-  listGroups,
-  putSettings,
-  type AdminSettings,
-  type GroupView,
-} from "@/api/admin";
-import { useSiteStore } from "@/stores/site";
+import { SETTINGS_SECTIONS } from "./settings/sections";
 
 const { t } = useI18n();
-const message = useMessage();
-const site = useSiteStore();
-const isMobile = useMediaQuery("(max-width: 640px)");
-
-const formRef = ref<FormInst | null>(null);
-const loading = ref(false);
-const loaded = ref(false);
-const loadError = ref<unknown>(null);
-const saving = ref(false);
-const controlsDisabled = computed(() => loading.value || saving.value || !loaded.value);
-const groups = ref<GroupView[]>([]);
-
-const model = reactive<AdminSettings>({
-  site_name: "",
-  registration_enabled: false,
-  guest_upload_enabled: false,
-  gallery_enabled: false,
-  gallery_public_albums_only: false,
-  api_enabled: false,
-  trash_days: 7,
-  guest_group_id: 0,
-  default_group_id: 0,
-  avatar_provider: "weavatar",
-});
-
-/** 头像服务商固定两项；不提供自由 URL 或更多供应商。 */
-const avatarProviderOptions = computed(() => [
-  { label: t("admin.settings.avatarWeavatar"), value: "weavatar" },
-  { label: t("admin.settings.avatarGravatar"), value: "gravatar" },
-]);
-
-/** 用户组选项 + 「未设置（0）」哨兵项（0 = 后端未配置该组）。 */
-const groupOptions = computed(() => [
-  { label: t("admin.settings.unset"), value: 0 },
-  ...groups.value.map((group) => ({ label: group.name, value: group.id })),
-]);
-
-async function load(snapshot?: AdminSettings): Promise<void> {
-  if (loading.value) return;
-  loading.value = true;
-  if (!snapshot) loaded.value = false;
-  loadError.value = null;
-  try {
-    const settings = await getSettings();
-    for (const key of Object.keys(settings) as (keyof AdminSettings)[]) {
-      // Preserve any newer input event instead of overwriting it with a late refresh.
-      if (!snapshot || Object.is(model[key], snapshot[key])) {
-        Object.assign(model, { [key]: settings[key] });
-      }
-    }
-    loaded.value = true;
-  } catch (error) {
-    loadError.value = error;
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function loadGroups(): Promise<void> {
-  try {
-    groups.value = await listGroups();
-  } catch (error) {
-    message.error(() => formatApiError(error, "admin.errors.groupsLoad"));
-  }
-}
-
-onMounted(() => {
-  void load();
-  void loadGroups();
-});
-
-const rules = computed<FormRules>(() => ({
-  site_name: [
-    {
-      required: true,
-      trigger: ["blur", "input"],
-      renderMessage: () => t("admin.settings.siteNameRequired"),
-      validator: (_rule: FormItemRule, value: string): boolean | Error =>
-        value.trim().length > 0 ? true : new Error(t("admin.settings.siteNameRequired")),
-    },
-  ],
-  trash_days: [
-    {
-      renderMessage: () =>
-        t(
-          model.trash_days === null
-            ? "admin.settings.retentionRequired"
-            : "admin.settings.retentionNonNegative",
-        ),
-      trigger: ["blur", "change"],
-      validator: (_rule: FormItemRule, value: number | null): boolean | Error => {
-        if (value === null) {
-          return new Error(t("admin.settings.retentionRequired"));
-        }
-        if (value < 0) {
-          return new Error(t("admin.settings.retentionNonNegative"));
-        }
-        return true;
-      },
-    },
-  ],
-}));
-
-/** 保存全量十字段（后端按 PATCH 语义处理），成功后回读刷新。 */
-async function save(): Promise<void> {
-  if (controlsDisabled.value) {
-    return;
-  }
-  saving.value = true;
-  try {
-    await formRef.value?.validate();
-  } catch {
-    // 客户端校验未通过，错误已就地展示
-    saving.value = false;
-    return;
-  }
-  try {
-    const snapshot = { ...model, trash_days: model.trash_days ?? 0 };
-    await putSettings(snapshot);
-    message.success(() => t("admin.settings.saved"));
-    await Promise.all([load(snapshot), site.refresh({ force: true })]);
-  } catch (error) {
-    message.error(() => formatApiError(error, "admin.errors.save"));
-  } finally {
-    saving.value = false;
-  }
-}
 </script>
 
 <template>
@@ -165,160 +12,98 @@ async function save(): Promise<void> {
     :title="t('admin.settings.title')"
     :description="t('admin.settings.description')"
     class="settings-view min-w-0"
-    header-class="flex-wrap items-center gap-4"
     content-class="min-w-0"
   >
-    <template #extra>
-      <NButton type="primary" :loading="saving" :disabled="controlsDisabled" @click="save">
-        {{ t("admin.settings.save") }}
-      </NButton>
-    </template>
-    <NCard :bordered="false">
-      <NAlert v-if="loadError" type="error" class="settings-alert">
-        {{ formatApiError(loadError, "admin.errors.settingsLoad") }}
-        <NButton
-          size="tiny"
-          quaternary
-          type="primary"
-          :disabled="loading || saving"
-          @click="load()"
-          >{{ t("admin.common.retry") }}</NButton
+    <div class="settings-layout">
+      <nav class="settings-nav" :aria-label="t('admin.settings.title')">
+        <RouterLink
+          v-for="section in SETTINGS_SECTIONS"
+          :key="section.key"
+          :to="{ name: section.name }"
+          class="settings-nav__item"
+          :data-section="section.key"
         >
-      </NAlert>
-      <NForm
-        ref="formRef"
-        class="settings-form"
-        :model="model"
-        :rules="rules"
-        :label-placement="isMobile ? 'top' : 'left'"
-        :label-width="isMobile ? undefined : 150"
-      >
-        <NFormItem :label="t('admin.settings.siteName')" path="site_name">
-          <div class="field">
-            <NInput
-              v-model:value="model.site_name"
-              class="field-control"
-              :placeholder="t('admin.settings.siteName')"
-              :disabled="controlsDisabled"
-            />
-            <p class="field-hint">{{ t("admin.settings.siteNameHint") }}</p>
-          </div>
-        </NFormItem>
-        <NFormItem :label="t('admin.settings.registration')" path="registration_enabled">
-          <div class="field">
-            <NSwitch v-model:value="model.registration_enabled" :disabled="controlsDisabled" />
-            <p class="field-hint">{{ t("admin.settings.registrationHint") }}</p>
-          </div>
-        </NFormItem>
-        <NFormItem :label="t('admin.settings.guestUpload')" path="guest_upload_enabled">
-          <div class="field">
-            <NSwitch v-model:value="model.guest_upload_enabled" :disabled="controlsDisabled" />
-            <p class="field-hint">
-              {{ t("admin.settings.guestUploadHint") }}
-            </p>
-          </div>
-        </NFormItem>
-        <NFormItem :label="t('admin.settings.gallery')" path="gallery_enabled">
-          <div class="field">
-            <NSwitch v-model:value="model.gallery_enabled" :disabled="controlsDisabled" />
-            <p class="field-hint">{{ t("admin.settings.galleryHint") }}</p>
-          </div>
-        </NFormItem>
-        <NFormItem
-          :label="t('admin.settings.galleryPublicAlbumsOnly')"
-          path="gallery_public_albums_only"
-        >
-          <div class="field">
-            <NSwitch
-              v-model:value="model.gallery_public_albums_only"
-              :disabled="controlsDisabled"
-            />
-            <p class="field-hint">{{ t("admin.settings.galleryPublicAlbumsOnlyHint") }}</p>
-          </div>
-        </NFormItem>
-        <NFormItem :label="t('admin.settings.api')" path="api_enabled">
-          <div class="field">
-            <NSwitch v-model:value="model.api_enabled" :disabled="controlsDisabled" />
-            <p class="field-hint">
-              {{ t("admin.settings.apiHint") }}
-            </p>
-          </div>
-        </NFormItem>
-        <NFormItem :label="t('admin.settings.retention')" path="trash_days">
-          <div class="field">
-            <NInputNumber
-              v-model:value="model.trash_days"
-              class="field-control"
-              :min="0"
-              :placeholder="t('admin.settings.retention')"
-              :disabled="controlsDisabled"
-            />
-            <p class="field-hint">{{ t("admin.settings.retentionHint") }}</p>
-          </div>
-        </NFormItem>
-        <NFormItem :label="t('admin.settings.guestGroup')" path="guest_group_id">
-          <div class="field">
-            <NSelect
-              v-model:value="model.guest_group_id"
-              class="field-control"
-              :options="groupOptions"
-              :placeholder="t('admin.settings.guestGroupPlaceholder')"
-              :disabled="controlsDisabled"
-            />
-            <p class="field-hint">{{ t("admin.settings.guestGroupHint") }}</p>
-          </div>
-        </NFormItem>
-        <NFormItem :label="t('admin.settings.defaultGroup')" path="default_group_id">
-          <div class="field">
-            <NSelect
-              v-model:value="model.default_group_id"
-              class="field-control"
-              :options="groupOptions"
-              :placeholder="t('admin.settings.defaultGroupPlaceholder')"
-              :disabled="controlsDisabled"
-            />
-            <p class="field-hint">{{ t("admin.settings.defaultGroupHint") }}</p>
-          </div>
-        </NFormItem>
-        <NFormItem :label="t('admin.settings.avatarProvider')" path="avatar_provider">
-          <div class="field">
-            <NSelect
-              v-model:value="model.avatar_provider"
-              class="field-control"
-              :options="avatarProviderOptions"
-              :placeholder="t('admin.settings.avatarProvider')"
-              :disabled="controlsDisabled"
-            />
-            <p class="field-hint">{{ t("admin.settings.avatarProviderHint") }}</p>
-          </div>
-        </NFormItem>
-      </NForm>
-    </NCard>
-    <CaptchaSettingsCard class="mt-5" />
-    <PluginSettingsSection />
+          <span class="settings-nav__title">{{
+            t(`admin.settings.sections.${section.key}.title`)
+          }}</span>
+          <span class="settings-nav__description">{{
+            t(`admin.settings.sections.${section.key}.description`)
+          }}</span>
+        </RouterLink>
+      </nav>
+      <div class="settings-content">
+        <RouterView />
+      </div>
+    </div>
   </Page>
 </template>
 
 <style scoped>
-.settings-alert {
-  margin-bottom: 12px;
+.settings-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
 }
 
-.settings-form {
-  max-width: 640px;
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: sticky;
+  top: 16px;
 }
 
-.field {
-  width: 100%;
+.settings-nav__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: hsl(var(--foreground));
+  text-decoration: none;
 }
 
-.field-control {
-  width: 100%;
+.settings-nav__item:hover {
+  background: hsl(var(--accent));
 }
 
-.field-hint {
-  margin: 4px 0 0;
+.settings-nav__item.router-link-active {
+  background: hsl(var(--primary) / 10%);
+  color: hsl(var(--primary));
+}
+
+.settings-nav__title {
+  font-weight: 600;
+}
+
+.settings-nav__description {
   font-size: 12px;
   color: hsl(var(--muted-foreground));
+}
+
+.settings-content {
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-nav {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .settings-nav__item {
+    flex: 0 0 auto;
+  }
+
+  .settings-nav__description {
+    display: none;
+  }
 }
 </style>

@@ -111,6 +111,11 @@ async function onSubmit(): Promise<void> {
           size="large"
         />
       </NFormItem>
+      <p v-if="site.passwordReset" class="forgot-link">
+        <RouterLink to="/reset-password" data-testid="forgot-password">{{
+          t("common.auth.forgot")
+        }}</RouterLink>
+      </p>
       <AuthCaptcha ref="captcha" action="login" @ready="captchaReady = $event" />
       <p v-if="errorMessage || ssoError" role="alert">
         <NText type="error">{{ errorMessage || ssoError }}</NText>
@@ -182,7 +187,13 @@ async function onSubmit(): Promise<void> {
   text-align: center;
   color: hsl(var(--muted-foreground));
 }
-.login-footer a {
+.login-footer a,
+.forgot-link a {
   color: hsl(var(--primary));
+}
+.forgot-link {
+  margin: -12px 0 16px;
+  text-align: right;
+  font-size: 13px;
 }
 </style>

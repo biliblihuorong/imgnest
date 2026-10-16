@@ -56,7 +56,21 @@
       "disabled": "该账号已被停用。",
       "unavailable": "单点登录暂不可用。",
       "failed": "单点登录失败，请重试。"
-    }
+    },
+    "emailCode": "邮箱验证码",
+    "emailCodeHint": "6 位数字",
+    "sendCode": "发送验证码",
+    "resendIn": "{seconds} 秒后可重发",
+    "codeSent": "验证码已发送，请查收邮件",
+    "codeCaptchaHint": "完成人机验证后才能发送验证码。",
+    "forgot": "忘记密码？",
+    "resetTitle": "重置密码",
+    "resetIntro": "输入注册邮箱，我们会发送一个验证码。",
+    "newPassword": "新密码",
+    "resetSubmit": "设置新密码",
+    "resetDone": "密码已重置，请用新密码登录",
+    "resetUnavailable": "本站没有开启邮件找回密码，请联系管理员。",
+    "resetCodeSent": "如果这个邮箱已注册，几分钟内会收到验证码。"
   },
   "errors": {
     "network": "网络连接失败，请重试",
@@ -89,6 +103,10 @@
     "reviewUnavailable": "内容审核暂时不可用，请稍后重试",
     "secretsUnavailable": "保存密钥需要先在配置文件里设置 security.master_key",
     "notLskyDump": "这不是蓝空图床的数据库导出文件",
-    "importBusy": "导入正在进行，请先停止"
+    "importBusy": "导入正在进行，请先停止",
+    "mailNotConfigured": "本站还没有开启邮件发送",
+    "emailCode": "验证码不正确或已过期，请重新获取",
+    "emailCodeCooldown": "操作太频繁，请一分钟后再获取验证码",
+    "mailUnavailable": "邮件发送失败，请稍后重试"
   }
 }

@@ -8,6 +8,7 @@ import {
 import { getToken } from "@/api/client";
 import { landingPath } from "./landing";
 import { useAuthStore } from "@/stores/auth";
+import { settingsRoutes } from "@/views/admin/settings/sections";
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -21,6 +22,7 @@ declare module "vue-router" {
 export const ROUTER_NAMES = {
   login: "login",
   register: "register",
+  resetPassword: "reset-password",
   upload: "upload",
   images: "images",
   tokens: "tokens",
@@ -39,7 +41,7 @@ export const ADMIN_ROUTER_NAMES = {
   adminLskyImport: "admin-lsky-import",
 } as const;
 
-const PUBLIC_PATHS = new Set<string>(["/login", "/register"]);
+const PUBLIC_PATHS = new Set<string>(["/login", "/register", "/reset-password"]);
 
 /**
  * admin 子树守卫（挂在 /admin 父路由的 beforeEnter 上，进入子树即触发）：
@@ -94,6 +96,18 @@ export function setupRouter(): Router {
             path: "",
             name: ROUTER_NAMES.register,
             component: () => import("@/views/RegisterView.vue"),
+          },
+        ],
+      },
+      {
+        path: "/reset-password",
+        component: () => import("@/components/layout/AuthLayout.vue"),
+        meta: { bare: true, title: "common.auth.resetTitle" },
+        children: [
+          {
+            path: "",
+            name: ROUTER_NAMES.resetPassword,
+            component: () => import("@/views/ResetPasswordView.vue"),
           },
         ],
       },
@@ -186,7 +200,9 @@ export function setupRouter(): Router {
             path: "settings",
             name: ADMIN_ROUTER_NAMES.adminSettings,
             component: () => import("@/views/admin/SettingsView.vue"),
+            redirect: { name: "admin-settings-general" },
             meta: { title: "common.nav.settings" },
+            children: settingsRoutes(),
           },
           {
             path: "images",

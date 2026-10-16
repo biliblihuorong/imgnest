@@ -15,6 +15,7 @@ import {
 import { computed, onBeforeUnmount, ref, useTemplateRef } from "vue";
 import { useRouter } from "vue-router";
 import AuthCaptcha from "@/components/captcha/AuthCaptcha.vue";
+import EmailCodeField from "@/components/auth/EmailCodeField.vue";
 import { register } from "@/api/auth";
 import { useSiteStore } from "@/stores/site";
 
@@ -29,6 +30,7 @@ const username = ref("");
 const email = ref("");
 const password = ref("");
 const confirmPassword = ref("");
+const emailCode = ref("");
 const submitting = ref(false);
 let disposed = false;
 let submission: AbortController | undefined;
@@ -59,7 +61,7 @@ const canSubmit = computed(
   () =>
     site.loaded &&
     site.registerEnabled &&
-    captchaReady.value &&
+    (site.emailVerification ? /^\d{6}$/.test(emailCode.value.trim()) : captchaReady.value) &&
     username.value.trim().length >= 3 &&
     email.value.trim().length > 0 &&
     password.value.length >= 12 &&
@@ -79,13 +81,15 @@ async function onSubmit(): Promise<void> {
   submission = request;
   serverError.value = null;
   try {
-    const captchaToken = captcha.value!.consume();
+    // 开启邮箱验证时验证码已在发送邮件那一步核验，注册只带邮件验证码。
+    const captchaToken = site.emailVerification ? undefined : captcha.value!.consume();
     await register(
       {
         username: username.value.trim(),
         email: email.value.trim(),
         password: password.value,
         ...(captchaToken === undefined ? {} : { captcha_token: captchaToken }),
+        ...(site.emailVerification ? { email_code: emailCode.value.trim() } : {}),
       },
       request.signal,
     );
@@ -95,7 +99,7 @@ async function onSubmit(): Promise<void> {
   } catch (error) {
     if (disposed || request.signal.aborted) return;
     serverError.value = error;
-    await captcha.value?.reload();
+    if (!site.emailVerification) await captcha.value?.reload();
   } finally {
     if (!disposed && submission === request) submitting.value = false;
   }
@@ -151,7 +155,14 @@ async function onSubmit(): Promise<void> {
             :input-props="{ autocomplete: 'new-password', 'aria-label': t('common.auth.confirm') }"
           />
         </NFormItem>
-        <AuthCaptcha ref="captcha" action="register" @ready="captchaReady = $event" />
+        <EmailCodeField
+          v-if="site.emailVerification"
+          v-model:code="emailCode"
+          :email="email"
+          purpose="register"
+          :disabled="submitting"
+        />
+        <AuthCaptcha v-else ref="captcha" action="register" @ready="captchaReady = $event" />
         <p v-if="errorMessage" role="alert">
           <NText type="error">{{ errorMessage }}</NText>
         </p>

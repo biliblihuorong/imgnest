@@ -56,7 +56,21 @@
       "disabled": "This account is disabled.",
       "unavailable": "Single sign-on is unavailable right now.",
       "failed": "Single sign-on failed. Please try again."
-    }
+    },
+    "emailCode": "Email code",
+    "emailCodeHint": "6 digits",
+    "sendCode": "Send code",
+    "resendIn": "Resend in {seconds}s",
+    "codeSent": "Code sent. Check your inbox.",
+    "codeCaptchaHint": "Complete the challenge before sending the code.",
+    "forgot": "Forgot password?",
+    "resetTitle": "Reset password",
+    "resetIntro": "Enter your account email and we will send you a code.",
+    "newPassword": "New password",
+    "resetSubmit": "Set new password",
+    "resetDone": "Password reset. Sign in with your new password.",
+    "resetUnavailable": "Password reset by email is not enabled on this site. Contact the administrator.",
+    "resetCodeSent": "If this address has an account, a code will arrive within a few minutes."
   },
   "errors": {
     "network": "Connection failed. Please retry.",
@@ -89,6 +103,10 @@
     "reviewUnavailable": "Content review is unavailable. Try again later.",
     "secretsUnavailable": "Set security.master_key in the server configuration before saving secrets.",
     "notLskyDump": "This is not a Lsky Pro database export",
-    "importBusy": "An import is running; stop it first"
+    "importBusy": "An import is running; stop it first",
+    "mailNotConfigured": "Email is not set up on this site",
+    "emailCode": "The code is wrong or expired. Request a new one.",
+    "emailCodeCooldown": "Please wait a minute before requesting another code",
+    "mailUnavailable": "The email could not be sent. Try again later."
   }
 }

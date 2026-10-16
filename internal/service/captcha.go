@@ -265,6 +265,81 @@ func (s *CaptchaService) Activate(ctx context.Context, actor UserView, in Captch
 	return s.write(ctx, old, state)
 }
 
+// CaptchaConfigureInput saves the whole configuration in one step. Enabling
+// needs one fresh challenge solved with the submitted site key on the site
+// itself, which proves the widget, secret and hostnames work together.
+type CaptchaConfigureInput struct {
+	ExpectedVersion uint64   `json:"expected_version"`
+	Enabled         bool     `json:"enabled"`
+	SiteKey         string   `json:"site_key"`
+	Hostnames       []string `json:"hostnames"`
+	Secret          *string  `json:"secret,omitempty"`
+	CaptchaToken    string   `json:"captcha_token,omitempty"`
+}
+
+// Configure is the one-step alternative to SaveDraft, TestDraft and Activate.
+// Disabling with no site key keeps the stored configuration for later. Saving
+// while disabled stores the settings as the candidate without a challenge.
+func (s *CaptchaService) Configure(ctx context.Context, actor UserView, in CaptchaConfigureInput) (CaptchaAdminView, error) {
+	if !captchaIsAdmin(actor) {
+		return CaptchaAdminView{}, ErrForbidden
+	}
+	state, old, err := s.read(ctx)
+	if err != nil {
+		return CaptchaAdminView{}, err
+	}
+	if state.Version != in.ExpectedVersion {
+		return CaptchaAdminView{}, ErrCaptchaConflict
+	}
+	if !in.Enabled && in.SiteKey == "" && len(in.Hostnames) == 0 && in.Secret == nil {
+		state.Enabled = false
+		return s.write(ctx, old, state)
+	}
+	if s.deps.Secrets == nil {
+		return CaptchaAdminView{}, ErrCaptchaUnavailable
+	}
+	if !validCaptchaConfig("turnstile", in.SiteKey, in.Hostnames) {
+		return CaptchaAdminView{}, ErrInvalidInput
+	}
+	candidate := &captchaConfig{Provider: "turnstile", SiteKey: in.SiteKey, Hostnames: slices.Clone(in.Hostnames),
+		Version: state.Version + 1, TestedActions: map[string]time.Time{}}
+	if in.Secret != nil {
+		if !validCaptchaSecret(*in.Secret) {
+			return CaptchaAdminView{}, ErrInvalidInput
+		}
+		plain, err := json.Marshal(*in.Secret)
+		if err != nil {
+			return CaptchaAdminView{}, ErrInvalidInput
+		}
+		candidate.Secret, err = s.deps.Secrets.Seal(ctx, "captcha:"+candidate.Provider, plain)
+		clear(plain)
+		if err != nil || len(candidate.Secret) == 0 {
+			return CaptchaAdminView{}, ErrCaptchaUnavailable
+		}
+	} else {
+		prior := state.Draft
+		if prior == nil || len(prior.Secret) == 0 {
+			prior = state.Active
+		}
+		if prior == nil || prior.Provider != candidate.Provider || len(prior.Secret) == 0 {
+			return CaptchaAdminView{}, ErrInvalidInput
+		}
+		if _, err := s.openSecret(ctx, prior); err != nil {
+			return CaptchaAdminView{}, err
+		}
+		candidate.Secret = slices.Clone(prior.Secret)
+	}
+	if in.Enabled {
+		if err := s.verifyConfig(ctx, candidate, in.CaptchaToken, "login"); err != nil {
+			return CaptchaAdminView{}, err
+		}
+		state.Active, state.Draft, state.Enabled = candidate, nil, true
+	} else {
+		state.Draft, state.Enabled = candidate, false
+	}
+	return s.write(ctx, old, state)
+}
+
 // Verify is used only by native web login/register. Existing /api/v1 token issuance
 // and token-authenticated uploads intentionally retain their original contracts.
 func (s *CaptchaService) Verify(ctx context.Context, token, action string) error {
@@ -279,7 +354,7 @@ func (s *CaptchaService) Verify(ctx context.Context, token, action string) error
 }
 
 func (s *CaptchaService) verifyConfig(ctx context.Context, cfg *captchaConfig, token, action string) error {
-	if token == "" || len(token) > 2048 || (action != "login" && action != "register") {
+	if token == "" || len(token) > 2048 || !captcha.ValidAction(action) {
 		return ErrCaptchaFailed
 	}
 	value, err := s.openSecret(ctx, cfg)

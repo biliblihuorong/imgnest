@@ -17,6 +17,7 @@ type CaptchaService interface {
 	SaveDraft(context.Context, service.UserView, service.CaptchaDraftInput) (service.CaptchaAdminView, error)
 	TestDraft(context.Context, service.UserView, service.CaptchaTestInput) (service.CaptchaAdminView, error)
 	Activate(context.Context, service.UserView, service.CaptchaActivationInput) (service.CaptchaAdminView, error)
+	Configure(context.Context, service.UserView, service.CaptchaConfigureInput) (service.CaptchaAdminView, error)
 }
 
 // RegisterCaptchaRoutes installs administrator-only settings and the verifier.
@@ -37,6 +38,7 @@ func (h *Handler) RegisterCaptchaRoutes(ctx context.Context, router gin.IRouter,
 		}
 	})
 	admin.GET("", h.getCaptcha)
+	admin.PUT("", h.rateLimit, h.configureCaptcha)
 	admin.PUT("/draft", h.saveCaptchaDraft)
 	admin.POST("/test", h.rateLimit, h.testCaptchaDraft)
 	admin.POST("/activation", h.activateCaptcha)
@@ -137,6 +139,28 @@ func (h *Handler) activateCaptcha(c *gin.Context) {
 		AcknowledgeLegacyIncompatibility: *in.AcknowledgeLegacyIncompatibility,
 		AcknowledgeV1Unprotected:         *in.AcknowledgeV1Unprotected,
 	})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	respond(c, 200, view)
+}
+func (h *Handler) configureCaptcha(c *gin.Context) {
+	var in struct {
+		service.CaptchaConfigureInput
+		ExpectedVersion *uint64 `json:"expected_version"`
+		Enabled         *bool   `json:"enabled"`
+	}
+	if !decode(c, &in) {
+		return
+	}
+	if in.ExpectedVersion == nil || in.Enabled == nil {
+		fail(c, service.ErrInvalidInput)
+		return
+	}
+	in.CaptchaConfigureInput.ExpectedVersion = *in.ExpectedVersion
+	in.CaptchaConfigureInput.Enabled = *in.Enabled
+	view, err := h.captcha.Configure(c.Request.Context(), identity(c).User, in.CaptchaConfigureInput)
 	if err != nil {
 		fail(c, err)
 		return

@@ -72,6 +72,9 @@ type RegisterInput struct {
 	// IP is supplied by the HTTP layer from the client address; it is never
 	// part of a decoded request body.
 	IP string
+	// EmailCode is the code mailed to Email; required only while
+	// registration email verification is on.
+	EmailCode string
 }
 
 // UserView exposes account attributes without credential hashes. Avatar
@@ -120,6 +123,8 @@ type UserService struct {
 	identities IdentityRepository
 	// events receives account events; nil disables them.
 	events EventSink
+	// codes enables email verification and password reset; nil disables them.
+	codes *emailCodes
 }
 
 // NewUserService constructs account operations with injected persistence.
@@ -149,9 +154,24 @@ func (s *UserService) Register(ctx context.Context, input RegisterInput) (UserVi
 	if err != nil {
 		return UserView{}, err
 	}
+	verification, err := s.EmailCodeRequired(ctx)
+	if err != nil {
+		return UserView{}, err
+	}
+	var code model.EmailCode
+	if verification {
+		if code, err = s.checkEmailCode(ctx, model.EmailCodeRegister, user.Email, input.EmailCode); err != nil {
+			return UserView{}, err
+		}
+	}
 	created, err := s.users.CreateUser(ctx, user)
 	if err != nil {
 		return UserView{}, fmt.Errorf("create user: %w", err)
+	}
+	if verification {
+		// The unique email already stops a second account; a lost race on
+		// the code itself changes nothing.
+		_ = s.useEmailCode(ctx, code)
 	}
 	s.emitRegistered(ctx, created)
 	return s.decoratedView(ctx, created)

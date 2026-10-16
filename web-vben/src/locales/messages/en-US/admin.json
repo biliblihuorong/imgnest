@@ -206,8 +206,8 @@
     "responsiveVariantsHint": "For still images, also store 400/800/1600px wide WebP files; never enlarged, animations unchanged. Fill in older images with the backfill below."
   },
   "settings": {
-    "title": "Site settings",
-    "description": "Manage the site name, access settings, and default user groups.",
+    "title": "System settings",
+    "description": "Site, sign-up and sign-in, guests, email and plugins.",
     "save": "Save settings",
     "saved": "Site settings saved",
     "unset": "Not set (0)",
@@ -237,7 +237,70 @@
     "avatarProvider": "Avatar service",
     "avatarProviderHint": "Avatar source for all users; WeAvatar is the default and can be switched to Gravatar. Ordinary users cannot change it.",
     "avatarWeavatar": "WeAvatar (default)",
-    "avatarGravatar": "Gravatar"
+    "avatarGravatar": "Gravatar",
+    "sections": {
+      "general": {
+        "title": "General",
+        "description": "Site name, avatars, API and trash."
+      },
+      "auth": {
+        "title": "Sign-up & sign-in",
+        "description": "Registration, default group, email verification and CAPTCHA."
+      },
+      "access": {
+        "title": "Guests & gallery",
+        "description": "Guest uploads and the public gallery."
+      },
+      "mail": {
+        "title": "Email",
+        "description": "SMTP for sign-up codes and password reset emails."
+      },
+      "plugins": {
+        "title": "Plugins",
+        "description": "Settings provided by extension plugins."
+      }
+    },
+    "emailVerification": "Email verification",
+    "emailVerificationHint": "New users must enter a code sent to their email to sign up.",
+    "emailVerificationNeedsMail": "Set up and turn on SMTP on the Email page first, otherwise this switch has no effect.",
+    "pluginsEmpty": "No installed plugin has settings.",
+    "mail": {
+      "title": "SMTP",
+      "enabled": "Send email",
+      "enabledHint": "Turning this off also stops email verification and password reset.",
+      "host": "SMTP server",
+      "hostPlaceholder": "e.g. smtp.gmail.com",
+      "port": "Port",
+      "encryption": "Encryption",
+      "encryptionTls": "SSL/TLS (usually 465)",
+      "encryptionStarttls": "STARTTLS (usually 587)",
+      "encryptionNone": "None (internal relays only, no password)",
+      "username": "Username",
+      "usernameHint": "Usually the full email address; leave empty for relays without authentication.",
+      "password": "Password / app password",
+      "passwordHint": "Many providers require an app password instead of your sign-in password.",
+      "passwordKeep": "Saved; leave empty to keep",
+      "clearPassword": "Remove the saved password",
+      "fromAddress": "From address",
+      "fromAddressPlaceholder": "noreply{'@'}example.com",
+      "fromName": "From name",
+      "fromNameHint": "Leave empty to show only the address.",
+      "save": "Save email settings",
+      "saved": "Email settings saved",
+      "noMasterKey": "The server has no security.master_key, so only SMTP relays without a password can be used.",
+      "testTitle": "Send a test email",
+      "testTo": "Recipient",
+      "testToPlaceholder": "Leave empty to send to yourself",
+      "testSend": "Send test email",
+      "testSent": "Test email sent. Check your inbox.",
+      "testNeedsSave": "You have unsaved changes; the test uses the saved settings.",
+      "reasons": {
+        "connect": "Cannot reach the SMTP server. Check the host, port and outbound network.",
+        "tls": "TLS handshake failed. Check that the encryption matches the port.",
+        "auth": "The username or password was rejected.",
+        "rejected": "The server rejected the message. Check that the from address matches the account."
+      }
+    }
   },
   "images": {
     "title": "All images",

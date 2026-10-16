@@ -1,6 +1,6 @@
 import { ApiError, request } from "./client";
 
-export type CaptchaAction = "login" | "register";
+export type CaptchaAction = "login" | "register" | "reset";
 export interface PublicCaptchaConfig {
   enabled: boolean;
   provider: "turnstile" | "";
@@ -25,19 +25,14 @@ export interface CaptchaAdminView {
   draft: CaptchaDraft | null;
   configuration_available: boolean;
 }
-export interface CaptchaDraftPayload {
-  expected_version: number;
-  provider: "turnstile";
-  site_key: string;
-  hostnames: string[];
-  secret?: string;
-  clear_secret?: boolean;
-}
-export interface CaptchaActivationPayload {
+/** One-step configuration: enabling needs a fresh token rendered with the submitted site key. */
+export interface CaptchaConfigurePayload {
   expected_version: number;
   enabled: boolean;
-  acknowledge_legacy_incompatibility: boolean;
-  acknowledge_v1_unprotected: boolean;
+  site_key?: string;
+  hostnames?: string[];
+  secret?: string;
+  captcha_token?: string;
 }
 
 /** An unreadable response cannot authorize password-only authentication. */
@@ -59,34 +54,14 @@ export async function fetchCaptcha(signal?: AbortSignal): Promise<PublicCaptchaC
 export function getCaptchaSettings(signal?: AbortSignal): Promise<CaptchaAdminView> {
   return request<CaptchaAdminView>("/api/admin/captcha", { signal });
 }
-function mutate(
-  path: string,
-  method: "PUT" | "POST",
-  payload: object,
+export function configureCaptcha(
+  payload: CaptchaConfigurePayload,
   signal?: AbortSignal,
 ): Promise<CaptchaAdminView> {
-  return request<CaptchaAdminView>(path, {
-    method,
+  return request<CaptchaAdminView>("/api/admin/captcha", {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
     signal,
   });
-}
-export function saveCaptchaDraft(
-  payload: CaptchaDraftPayload,
-  signal?: AbortSignal,
-): Promise<CaptchaAdminView> {
-  return mutate("/api/admin/captcha/draft", "PUT", payload, signal);
-}
-export function testCaptchaDraft(
-  payload: { expected_version: number; captcha_token: string; action: CaptchaAction },
-  signal?: AbortSignal,
-): Promise<CaptchaAdminView> {
-  return mutate("/api/admin/captcha/test", "POST", payload, signal);
-}
-export function setCaptchaActivation(
-  payload: CaptchaActivationPayload,
-  signal?: AbortSignal,
-): Promise<CaptchaAdminView> {
-  return mutate("/api/admin/captcha/activation", "POST", payload, signal);
 }

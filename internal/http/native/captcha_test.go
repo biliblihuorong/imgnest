@@ -277,3 +277,35 @@ func TestCaptchaNativeErrorsAreDistinctAndSafe(t *testing.T) {
 		}
 	}
 }
+
+type configureStub struct {
+	captchaStub
+	input service.CaptchaConfigureInput
+}
+
+func (s *configureStub) Configure(_ context.Context, _ service.UserView, in service.CaptchaConfigureInput) (service.CaptchaAdminView, error) {
+	s.input = in
+	return service.CaptchaAdminView{Version: in.ExpectedVersion + 1, Enabled: in.Enabled}, nil
+}
+
+func TestCaptchaConfigureRoute(t *testing.T) {
+	cap := &configureStub{}
+	h, err := native.NewHandler(t.Context(), &captchaUsers{}, adminTokensStub{}, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := gin.New()
+	if err := h.RegisterCaptchaRoutes(t.Context(), r, cap); err != nil {
+		t.Fatal(err)
+	}
+	if w := captchaRequest(r, "PUT", "/api/admin/captcha", `{"expected_version":3,"enabled":true}`, userBearer); w.Code != 403 {
+		t.Fatalf("user configured captcha: %d", w.Code)
+	}
+	if w := captchaRequest(r, "PUT", "/api/admin/captcha", `{"enabled":true}`, adminBearer); w.Code != 400 {
+		t.Fatalf("missing version accepted: %d", w.Code)
+	}
+	w := captchaRequest(r, "PUT", "/api/admin/captcha", `{"expected_version":0,"enabled":true,"site_key":"k","hostnames":["images.example.com"],"secret":"s","captcha_token":"t"}`, adminBearer)
+	if w.Code != 200 || !cap.input.Enabled || cap.input.SiteKey != "k" || cap.input.CaptchaToken != "t" || cap.input.Secret == nil || *cap.input.Secret != "s" {
+		t.Fatalf("status=%d input=%+v", w.Code, cap.input)
+	}
+}

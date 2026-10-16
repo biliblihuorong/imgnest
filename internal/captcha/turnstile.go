@@ -29,6 +29,12 @@ type Request struct {
 	Action    string
 }
 
+// ValidAction reports whether action names a protected native form: sign-in,
+// sign-up, or a password-reset email request.
+func ValidAction(action string) bool {
+	return action == "login" || action == "register" || action == "reset"
+}
+
 // Turnstile validates tokens only against Cloudflare's fixed HTTPS endpoint.
 type Turnstile struct {
 	client *http.Client
@@ -53,7 +59,7 @@ func NewTurnstile() *Turnstile {
 // Cloudflare enforces single use. No retry is made after an ambiguous network result.
 func (v *Turnstile) Verify(ctx context.Context, in Request) error {
 	if in.Provider != "turnstile" || len(in.Token) == 0 || len(in.Token) > 2048 || in.Secret == "" ||
-		(in.Action != "login" && in.Action != "register") || len(in.Hostnames) == 0 {
+		!ValidAction(in.Action) || len(in.Hostnames) == 0 {
 		return ErrRejected
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)

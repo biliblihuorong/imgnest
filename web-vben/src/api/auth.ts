@@ -3,10 +3,14 @@ import type { LoginData, UserView } from "./types";
 
 export interface RegisterPayload {
   captcha_token?: string;
+  /** 开启邮箱验证时必填：邮件里的 6 位验证码。 */
+  email_code?: string;
   username: string;
   email: string;
   password: string;
 }
+
+export type EmailCodePurpose = "register" | "reset_password";
 
 /** 登录并颁发 web token（有效期 24 小时）；字段契约见 openapi /api/auth/login。 */
 export function login(
@@ -72,5 +76,39 @@ export function exchangeSsoTicket(ticket: string, signal?: AbortSignal): Promise
     signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ticket }),
+  });
+}
+
+/** 发送注册或找回密码的邮件验证码；人机验证开启时需附带对应表单的 token。 */
+export function sendEmailCode(
+  email: string,
+  purpose: EmailCodePurpose,
+  captchaToken?: string,
+  signal?: AbortSignal,
+): Promise<null> {
+  return request<null>("/api/auth/email-code", {
+    method: "POST",
+    signal,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email,
+      purpose,
+      ...(captchaToken === undefined ? {} : { captcha_token: captchaToken }),
+    }),
+  });
+}
+
+/** 用邮件验证码设置新密码；成功后该账号所有登录状态与 Token 失效。 */
+export function resetPassword(
+  email: string,
+  code: string,
+  newPassword: string,
+  signal?: AbortSignal,
+): Promise<null> {
+  return request<null>("/api/auth/password-reset", {
+    method: "POST",
+    signal,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code, new_password: newPassword }),
   });
 }

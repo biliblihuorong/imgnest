@@ -38,6 +38,7 @@ func (s *AdminService) GetSettings(ctx context.Context) (AdminSettingsView, erro
 		"gallery_enabled":            &view.GalleryEnabled,
 		"api_enabled":                &view.APIEnabled,
 		"gallery_public_albums_only": &view.GalleryPublicAlbumsOnly,
+		"email_verification_enabled": &view.EmailVerificationEnabled,
 	} {
 		if value, ok := values[key]; ok {
 			if err := decodeSetting(value, target); err != nil {
@@ -101,6 +102,7 @@ func (s *AdminService) PutSettings(ctx context.Context, patch SettingsPatch) (Ad
 		"gallery_enabled":            patch.GalleryEnabled,
 		"api_enabled":                patch.APIEnabled,
 		"gallery_public_albums_only": patch.GalleryPublicAlbumsOnly,
+		"email_verification_enabled": patch.EmailVerificationEnabled,
 	} {
 		if value == nil {
 			continue

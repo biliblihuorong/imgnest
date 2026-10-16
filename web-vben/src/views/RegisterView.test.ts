@@ -5,23 +5,25 @@ import { createPinia } from "pinia";
 import { defineComponent, h } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { register } from "@/api/auth";
+import { register, sendEmailCode } from "@/api/auth";
 import { fetchCaptcha } from "@/api/captcha";
 import { fetchSite } from "@/api/site";
 import type { UserView } from "@/api/types";
 import type { TurnstileOptions } from "@/components/captcha/turnstile";
 import RegisterView from "./RegisterView.vue";
-vi.mock("@/api/auth", () => ({ register: vi.fn() }));
+vi.mock("@/api/auth", () => ({ register: vi.fn(), sendEmailCode: vi.fn() }));
 vi.mock("@/api/site", () => ({ fetchSite: vi.fn() }));
 vi.mock("@/api/captcha", () => ({ fetchCaptcha: vi.fn() }));
 const registerApi = vi.mocked(register);
 let options: TurnstileOptions;
 
-async function renderView(enabled = true) {
+async function renderView(enabled = true, emailVerification = false) {
   vi.mocked(fetchSite).mockResolvedValue({
     site_name: "ImageNest",
     register_enabled: enabled,
     gallery_enabled: true,
+    email_verification: emailVerification,
+    password_reset: false,
     login_providers: [],
   });
   const router = createRouter({
@@ -91,6 +93,32 @@ describe("direct registration and CAPTCHA", () => {
         username: "alice",
         email: "alice@example.test",
         password: "password-12345",
+      },
+      expect.any(AbortSignal),
+    );
+    expect(router.currentRoute.value.path).toBe("/login");
+    wrapper.unmount();
+  });
+  it("sends an email code and registers with it instead of a CAPTCHA token", async () => {
+    vi.mocked(sendEmailCode).mockResolvedValue(null);
+    registerApi.mockResolvedValue({ id: 2 } as UserView);
+    const { wrapper, router } = await renderView(true, true);
+    await fill(wrapper);
+    const submit = wrapper.get('button[type="submit"]');
+    expect(submit.attributes("disabled")).toBeDefined();
+    await wrapper.get('button[data-action="send-code"]').trigger("click");
+    await flushPromises();
+    expect(sendEmailCode).toHaveBeenCalledWith("alice@example.test", "register", undefined);
+    expect(wrapper.get('button[data-action="send-code"]').text()).toContain("60");
+    await wrapper.get('input[aria-label="邮箱验证码"]').setValue("123456");
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+    expect(registerApi).toHaveBeenCalledWith(
+      {
+        username: "alice",
+        email: "alice@example.test",
+        password: "password-12345",
+        email_code: "123456",
       },
       expect.any(AbortSignal),
     );
