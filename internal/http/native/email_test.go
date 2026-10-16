@@ -162,7 +162,12 @@ func TestMailSettingsAreAdminOnlyAndReportTheFailedStep(t *testing.T) {
 	mail.err = &service.MailDeliveryError{Reason: "auth"}
 	w := captchaRequest(h, "POST", "/api/admin/mail/test", `{"to":"x@example.com"}`, adminBearer)
 	code, data := mailEnvelope(t, w.Body.Bytes())
-	if w.Code != 502 || code != 50006 || string(data) != `{"reason":"auth"}` || mail.to != "x@example.com" {
+	if w.Code != 422 || code != 50006 || string(data) != `{"reason":"auth"}` || mail.to != "x@example.com" {
 		t.Fatalf("status=%d code=%d data=%s to=%q", w.Code, code, data, mail.to)
+	}
+	mail.err = &service.MailDeliveryError{Reason: "rejected", SMTPCode: 550}
+	w = captchaRequest(h, "POST", "/api/admin/mail/test", `{"to":"x@example.com"}`, adminBearer)
+	if _, data := mailEnvelope(t, w.Body.Bytes()); w.Code != 422 || string(data) != `{"reason":"rejected","smtp_code":550}` {
+		t.Fatalf("status=%d data=%s", w.Code, data)
 	}
 }

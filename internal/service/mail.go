@@ -27,6 +27,8 @@ var (
 type MailDeliveryError struct {
 	// Reason is one of connect, tls, auth, rejected.
 	Reason string
+	// SMTPCode is the relay's numeric reply (535, 550…), or 0.
+	SMTPCode int
 }
 
 func (e *MailDeliveryError) Error() string { return "mail delivery failed: " + e.Reason }
@@ -255,13 +257,13 @@ func (s *MailService) deliver(ctx context.Context, to, subject, text string) err
 	case errors.Is(err, mail.ErrInvalid):
 		return ErrInvalidInput
 	case errors.Is(err, mail.ErrTLS):
-		return &MailDeliveryError{Reason: "tls"}
+		return &MailDeliveryError{Reason: "tls", SMTPCode: mail.StatusCode(err)}
 	case errors.Is(err, mail.ErrAuth):
-		return &MailDeliveryError{Reason: "auth"}
+		return &MailDeliveryError{Reason: "auth", SMTPCode: mail.StatusCode(err)}
 	case errors.Is(err, mail.ErrRejected):
-		return &MailDeliveryError{Reason: "rejected"}
+		return &MailDeliveryError{Reason: "rejected", SMTPCode: mail.StatusCode(err)}
 	default:
-		return &MailDeliveryError{Reason: "connect"}
+		return &MailDeliveryError{Reason: "connect", SMTPCode: mail.StatusCode(err)}
 	}
 }
 

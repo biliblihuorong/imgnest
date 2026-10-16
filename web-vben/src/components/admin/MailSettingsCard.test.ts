@@ -94,12 +94,20 @@ describe("SMTP settings", () => {
   it("explains why a test email failed", async () => {
     const wrapper = await render();
     apiMock.sendTestMail.mockRejectedValue(
-      new ApiError(50006, "mail failed", 502, { reason: "auth" }),
+      new ApiError(50006, "mail failed", 422, { reason: "auth", smtp_code: 535 }),
     );
     await wrapper.get('button[data-action="test-mail"]').trigger("click");
     await flushPromises();
     expect(apiMock.sendTestMail).toHaveBeenCalledWith("");
     expect(wrapper.get("[data-mail-test-error]").text()).toContain("用户名或密码（授权码）被拒绝");
+    expect(wrapper.get("[data-mail-test-error]").text()).toContain("SMTP 535");
+  });
+
+  it("asks to save before testing edited settings", async () => {
+    const wrapper = await render();
+    await input(wrapper, "SMTP 服务器").setValue("smtp.other.test");
+    expect(wrapper.get('button[data-action="test-mail"]').attributes("disabled")).toBeDefined();
+    expect(wrapper.text()).toContain("先保存再测试");
   });
 
   it("disables the test while mail is off", async () => {
