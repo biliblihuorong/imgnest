@@ -1,7 +1,7 @@
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { NMessageProvider } from "naive-ui";
-import { h, nextTick, ref } from "vue";
+import { NMessageProvider, type MessageProviderInst } from "naive-ui";
+import { defineComponent, h, nextTick, onBeforeUnmount, ref } from "vue";
 import { i18n } from "@vben/locales";
 import { createAlbum, updateAlbum, type AlbumView } from "@/api/albums";
 import { listImages } from "@/api/images";
@@ -24,8 +24,17 @@ const listImagesMock = vi.mocked(listImages);
 
 enableAutoUnmount(afterEach);
 
+/** Naive UI 2.45.3 does not cancel message timers on provider unmount. */
+const MessageHost = defineComponent({
+  setup(_, { slots }) {
+    const messages = ref<MessageProviderInst | null>(null);
+    onBeforeUnmount(() => messages.value?.destroyAll());
+    return () => h(NMessageProvider, { ref: messages }, () => slots.default?.());
+  },
+});
+
 function mountModal(album: AlbumView | null = null) {
-  return mount(() => h(NMessageProvider, () => h(AlbumFormModal, { show: true, album })));
+  return mount(() => h(MessageHost, null, () => h(AlbumFormModal, { show: true, album })));
 }
 
 /** NModal 内容 teleport 到 body，事件断言取子组件实例。 */
@@ -343,7 +352,7 @@ describe("AlbumFormModal", () => {
     );
     const show = ref(true);
     mount(() =>
-      h(NMessageProvider, () =>
+      h(MessageHost, null, () =>
         h(AlbumFormModal, {
           show: show.value,
           album: null,
@@ -413,7 +422,7 @@ describe("AlbumFormModal", () => {
     );
     const show = ref(true);
     const wrapper = mount(() =>
-      h(NMessageProvider, () => h(AlbumFormModal, { show: show.value, album: null })),
+      h(MessageHost, null, () => h(AlbumFormModal, { show: show.value, album: null })),
     );
     await fillAndSubmit("Old request");
     show.value = false;
