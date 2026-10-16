@@ -140,7 +140,7 @@ func TestImportAccountsMapsAndIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestImportAccountsRenumbersTakenTokenID(t *testing.T) {
+func TestImportAccountsMergesExistingAccountAndRenumbersTakenTokenID(t *testing.T) {
 	db, policyID := target(t)
 	ctx := t.Context()
 	if err := db.Exec(`INSERT INTO users (id, username, email, password_hash, role, group_id, status) VALUES (7, 'existing', 'existing@example.com', 'x', 'user', 1, 'enabled')`).Error; err != nil {
@@ -149,9 +149,18 @@ func TestImportAccountsRenumbersTakenTokenID(t *testing.T) {
 	if err := db.Exec(`INSERT INTO tokens (id, user_id, name, token_hash, kind, abilities) VALUES (1, 7, 'web', 'ff', 'web', '["*"]')`).Error; err != nil {
 		t.Fatal(err)
 	}
-	_, report, err := ImportAccounts(ctx, db, snapshot(), Options{PolicyID: policyID})
+	snap := snapshot()
+	snap.Users[0].Email = "existing@example.com"
+	mapping, report, err := ImportAccounts(ctx, db, snap, Options{PolicyID: policyID})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if mapping.Users[1] != 7 {
+		t.Fatalf("same email must map onto the existing account: %v", mapping.Users)
+	}
+	var bound int64
+	if err := db.Table("group_policies").Where("group_id = 1 AND policy_id = ?", policyID).Count(&bound).Error; err != nil || bound != 1 {
+		t.Fatal("the existing account's own group must be allowed to use the import rule")
 	}
 	if !strings.Contains(strings.Join(report.Notes, "\n"), "Token 1 的新编号") {
 		t.Fatalf("renumbered token must be reported: %v", report.Notes)

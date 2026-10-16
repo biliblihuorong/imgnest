@@ -96,7 +96,7 @@ func ImportAccounts(ctx context.Context, db *gorm.DB, snap Snapshot, opts Option
 			if !ok {
 				groupID = defaultGroup
 			}
-			id, created, err := importUser(tx, user, groupID, now, &report)
+			id, created, err := importUser(tx, user, groupID, opts.PolicyID, now, &report)
 			if err != nil {
 				return fmt.Errorf("user %d: %w", user.ID, err)
 			}
@@ -208,7 +208,7 @@ func bindPolicy(tx *gorm.DB, groupID, policyID uint64, now time.Time) error {
 	return tx.Table("group_policies").Create(map[string]any{"group_id": groupID, "policy_id": policyID, "created_at": now, "updated_at": now}).Error
 }
 
-func importUser(tx *gorm.DB, source User, groupID uint64, now time.Time, report *Report) (uint64, bool, error) {
+func importUser(tx *gorm.DB, source User, groupID, policyID uint64, now time.Time, report *Report) (uint64, bool, error) {
 	email := strings.ToLower(strings.TrimSpace(source.Email))
 	if email == "" {
 		return 0, false, errors.New("empty email")
@@ -217,7 +217,9 @@ func importUser(tx *gorm.DB, source User, groupID uint64, now time.Time, report 
 	err := tx.Where("email = ?", email).First(&existing).Error
 	if err == nil {
 		report.note("蓝空用户 %d「%s」沿用已有的同邮箱账号 %d（不改其密码、角色与组）", source.ID, source.Name, existing.ID)
-		return existing.ID, false, nil
+		// The account keeps its own group, which must still be allowed to
+		// use the import rule or none of its images could be re-ingested.
+		return existing.ID, false, bindPolicy(tx, existing.GroupID, policyID, now)
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return 0, false, err
