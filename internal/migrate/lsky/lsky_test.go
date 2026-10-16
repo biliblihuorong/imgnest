@@ -310,3 +310,31 @@ func TestHelpers(t *testing.T) {
 		t.Fatal("bcrypt detection")
 	}
 }
+
+type versionedFetcher map[string][]byte
+
+func (m versionedFetcher) Fetch(_ context.Context, image Image, _ Strategy) (Fetched, error) {
+	return Fetched{Data: m[image.Pathname], Version: "v1"}, nil
+}
+
+// An adopted original is the pinned bucket version itself, so Lsky's MD5 of
+// the upload does not have to match it.
+func TestImportImagesAdoptedSkipsMD5(t *testing.T) {
+	db, _ := target(t)
+	snap := Snapshot{
+		Users:  []User{{ID: 1, Enabled: true}},
+		Images: []Image{{ID: 1, UserID: 1, Pathname: "1/a.webp", MD5: sum([]byte("upload"))}},
+	}
+	var got []Item
+	ingest := func(_ context.Context, item Item) error {
+		got = append(got, item)
+		return nil
+	}
+	report, err := ImportImages(t.Context(), db, snap, Mapping{Users: map[int64]uint64{1: 10}}, versionedFetcher{"1/a.webp": []byte("stored")}, ingest, ImageOptions{StorageID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Imported != 1 || len(report.Failed) != 0 || len(got) != 1 || got[0].Version != "v1" {
+		t.Fatalf("report = %+v items = %+v", report, got)
+	}
+}

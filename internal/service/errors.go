@@ -48,3 +48,26 @@ var (
 	// ErrUploadLimitReached rejects an upload over a plugin's upload allowance.
 	ErrUploadLimitReached = model.ErrUploadLimitReached
 )
+
+// ProcessingStep names the image pipeline step a ProcessingError stopped at.
+type ProcessingStep string
+
+// Pipeline steps reported by ProcessingError.
+const (
+	ProcessingDecode   ProcessingStep = "decode"
+	ProcessingPixels   ProcessingStep = "pixels"
+	ProcessingMetadata ProcessingStep = "metadata"
+	ProcessingScrub    ProcessingStep = "scrub"
+	ProcessingConvert  ProcessingStep = "convert"
+)
+
+// ProcessingError is ErrProcessing with the step that failed, so an operator
+// report can say why; clients still only see ErrProcessing.
+type ProcessingError struct {
+	Step ProcessingStep
+}
+
+func (e *ProcessingError) Error() string { return "image processing failed at " + string(e.Step) }
+
+// Is makes a ProcessingError match ErrProcessing.
+func (e *ProcessingError) Is(target error) bool { return target == ErrProcessing }

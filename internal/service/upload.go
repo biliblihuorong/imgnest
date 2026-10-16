@@ -172,18 +172,28 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	}
 	info, err := s.deps.Imaging.Probe(ctx, input.Data)
 	if err != nil {
-		return ImageView{}, processingError(ctx, err)
+		return ImageView{}, processingFailure(ctx, ProcessingDecode, err)
 	}
 	if !allowedFormat(group.AllowedExts, info.Ext) {
 		return ImageView{}, ErrUnsupportedFormat
 	}
-	metadata, err := s.deps.Extractor.Extract(ctx, input.Data, info)
-	if err != nil {
-		return ImageView{}, processingError(ctx, err)
-	}
 	// An adopted original stays in the bucket exactly as it is, so it is
 	// neither scrubbed nor replaced by its WebP.
 	adopt := plan.pinned != nil && plan.pinned.adoptVersion != ""
+	metadata, err := s.deps.Extractor.Extract(ctx, input.Data, info)
+	if err != nil {
+		// Nothing rewrites an adopted original, so metadata the parser
+		// cannot read is left in it and simply not recorded.
+		if !adopt || ctx.Err() != nil {
+			return ImageView{}, processingFailure(ctx, ProcessingMetadata, err)
+		}
+		metadata = model.ImageExif{Orientation: max(info.Orientation, 1)}
+	}
+	// Lsky could name a PNG or JPEG ".webp" without converting it. The old
+	// link must stay a WebP link: a copy keeps only the real WebP, and an
+	// adopted original keeps its key and gets no separate WebP, whose key
+	// would be its own.
+	mislabeled := plan.pinned != nil && plan.pinned.ext == "webp" && info.Format != "webp"
 	mode := policy.WebPMode
 	heif := info.Format == "heic" || info.Format == "heif" || info.Format == "avif"
 	if heif {
@@ -203,23 +213,26 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	if adopt && mode == "webp_only" {
 		mode = "both"
 	}
+	if mislabeled && !adopt {
+		mode = "webp_only"
+	}
 	original := input.Data
 	scrubbed := false
 	if !adopt && (mode != "webp_only" || info.Format == "webp") {
 		original, err = s.deps.Scrubber.Scrub(ctx, input.Data, info.Format, policy.ScrubMode)
 		if err != nil || len(original) == 0 {
-			return ImageView{}, processingError(ctx, err)
+			return ImageView{}, processingFailure(ctx, ProcessingScrub, err)
 		}
 		check, probeErr := s.deps.Imaging.Probe(ctx, original)
 		if probeErr != nil || check.Format != info.Format || check.Width != info.Width || check.Height != info.Height || check.LoadedFrames != info.LoadedFrames {
-			return ImageView{}, processingError(ctx, probeErr)
+			return ImageView{}, processingFailure(ctx, ProcessingScrub, probeErr)
 		}
 		scrubbed = policy.ScrubMode != "none"
 	}
 	// input.Data is the buffer Probe validated above; reuse that decode.
 	result, err := s.deps.Imaging.Process(ctx, input.Data, imaging.Options{Probed: &info, WebPMode: mode, Quality: policy.WebPQuality, Effort: policy.WebPEffort, Lossless: policy.WebPLossless, MaxWidth: policy.MaxWidth, MaxHeight: policy.MaxHeight, SkipIfLarger: policy.SkipIfLarger, ThumbEnabled: policy.ThumbEnabled, ThumbSize: policy.ThumbSize})
 	if err != nil {
-		return ImageView{}, processingError(ctx, err)
+		return ImageView{}, processingFailure(ctx, ProcessingConvert, err)
 	}
 	if len(s.deps.Inspectors) > 0 {
 		display := original
@@ -248,6 +261,9 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	if mode == "both" && info.Format != "webp" && policy.SkipIfLarger && len(webp) > len(original) {
 		webp = nil
 	}
+	if mislabeled && adopt {
+		webp = nil
+	}
 	if mode == "webp_only" && len(webp) == 0 {
 		return ImageView{}, ErrProcessing
 	}
@@ -259,6 +275,10 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	}
 	primary := original
 	sourceExt, storedExt, storedMIME := info.Ext, info.Ext, info.MIME
+	if adopt {
+		// The adopted object keeps its key; its MIME stays the real format.
+		storedExt = plan.pinned.ext
+	}
 	if !hasOriginal {
 		primary = webp
 		storedExt = "webp"
@@ -625,6 +645,18 @@ func processingError(ctx context.Context, _ error) error {
 		return fmt.Errorf("process upload: %w", err)
 	}
 	return ErrProcessing
+}
+
+// processingFailure is processingError naming the step that failed; a pixel
+// limit hit while decoding is reported as such.
+func processingFailure(ctx context.Context, step ProcessingStep, err error) error {
+	if canceled := ctx.Err(); canceled != nil {
+		return fmt.Errorf("process upload: %w", canceled)
+	}
+	if errors.Is(err, imaging.ErrPixelLimit) {
+		step = ProcessingPixels
+	}
+	return &ProcessingError{Step: step}
 }
 func storageError(ctx context.Context, err error) error {
 	if canceled := ctx.Err(); canceled != nil {

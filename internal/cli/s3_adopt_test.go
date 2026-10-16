@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -269,6 +270,140 @@ func TestRealMinIOAdoptFailureKeepsOriginal(t *testing.T) {
 		db.Model(&model.Image{}).Where("state <> ?", model.ImageStatePending).Count(&count)
 		if count != 0 {
 			t.Fatal("failed adoption left an image row")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Lsky could store a JPEG under a ".webp" name without converting it. The
+// adopted object keeps its key and real MIME and gets no separate WebP; a
+// copy stores the real WebP at that key instead.
+func TestRealMinIOAdoptMislabeledWebP(t *testing.T) {
+	client, bucket, endpoint, path := minioPipeline(t, `{"skip_if_larger":false,"responsive_variants":true}`, "")
+	ctx := t.Context()
+	var source bytes.Buffer
+	if err := jpeg.Encode(&source, image.NewRGBA(image.Rect(0, 0, 320, 320)), nil); err != nil {
+		t.Fatal(err)
+	}
+	key := "1/2023/04/25/lsky.webp"
+	put, err := client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(bucket), Key: aws.String(key), Body: bytes.NewReader(source.Bytes()), ContentType: aws.String("image/webp")})
+	if err != nil {
+		t.Fatal("put foreign original failed")
+	}
+	version := aws.ToString(put.VersionId)
+	link := endpoint + "/" + bucket + "/" + key
+	err = withDatabase(ctx, path, func(db *gorm.DB, cfg config.Config) error {
+		users, _, err := newServices(ctx, db)
+		if err != nil {
+			return err
+		}
+		admin, err := users.InitAdmin(ctx, service.RegisterInput{Username: "owner", Email: "o@example.com", Password: "pipeline-test-password"})
+		if err != nil {
+			return err
+		}
+		actor, err := users.VerifyCredentials(ctx, "o@example.com", "pipeline-test-password")
+		if err != nil {
+			return err
+		}
+		var policy model.Policy
+		if err = db.First(&policy).Error; err != nil {
+			return err
+		}
+		images, _, closeImages, err := newImageServices(ctx, db, cfg, nil, imageHooks{})
+		if err != nil {
+			return err
+		}
+		defer func() { _ = closeImages() }()
+		view, err := images.ImportImage(ctx, service.ImportInput{Data: source.Bytes(), Filename: "lsky.png", Path: "1/2023/04/25/lsky", Ext: "webp", UserID: admin.ID, PolicyID: policy.ID, IsPublic: true, AdoptVersion: version})
+		if err != nil {
+			return err
+		}
+		if view.Ext != "webp" || view.MIME != "image/jpeg" || !view.HasOriginal || view.HasWebP || !view.HasThumb || view.Links.Original != link || view.Links.URL != link {
+			t.Fatalf("adopted view = %+v", view)
+		}
+		head, err := client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(bucket), Key: aws.String(key)})
+		if err != nil || aws.ToString(head.VersionId) != version {
+			t.Fatal("adoption rewrote the original")
+		}
+		if err = images.Trash(ctx, actor.Subject, view.Key); err != nil {
+			return err
+		}
+		if err = images.Restore(ctx, actor.Subject, view.Key); err != nil {
+			return err
+		}
+		restored, err := client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(bucket), Key: aws.String(key)})
+		if err != nil {
+			t.Fatal("restored original missing")
+		}
+		body, _ := io.ReadAll(restored.Body)
+		_ = restored.Body.Close()
+		if !bytes.Equal(body, source.Bytes()) {
+			t.Fatal("restored original differs")
+		}
+
+		copied, err := images.ImportImage(ctx, service.ImportInput{Data: source.Bytes(), Filename: "copy.png", Path: "1/2023/04/25/copy", Ext: "webp", UserID: admin.ID, PolicyID: policy.ID, IsPublic: true})
+		if err != nil {
+			return err
+		}
+		if copied.Ext != "webp" || copied.MIME != "image/webp" || copied.HasOriginal || !copied.HasWebP || copied.Links.URL != endpoint+"/"+bucket+"/1/2023/04/25/copy.webp" {
+			t.Fatalf("copied view = %+v", copied)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// An adopted original is never rewritten, so metadata the parser rejects is
+// left in it unrecorded; a copy, which must be scrubbed, still refuses it.
+func TestRealMinIOAdoptUnreadableMetadata(t *testing.T) {
+	client, bucket, _, path := minioPipeline(t, `{"skip_if_larger":false}`, "")
+	ctx := t.Context()
+	var plain bytes.Buffer
+	if err := jpeg.Encode(&plain, image.NewRGBA(image.Rect(0, 0, 64, 64)), nil); err != nil {
+		t.Fatal(err)
+	}
+	// An EXIF block whose first IFD points far past its end.
+	tiff := []byte("Exif\x00\x00II*\x00\xff\xff\xff\x7f")
+	segment := append([]byte{0xff, 0xe1, 0x00, 0x10}, tiff...) // length 16 = 2 + len(tiff)
+	source := append(append(append([]byte{}, plain.Bytes()[:2]...), segment...), plain.Bytes()[2:]...)
+	put, err := client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(bucket), Key: aws.String("a/broken.jpg"), Body: bytes.NewReader(source)})
+	if err != nil {
+		t.Fatal("put foreign original failed")
+	}
+	err = withDatabase(ctx, path, func(db *gorm.DB, cfg config.Config) error {
+		users, _, err := newServices(ctx, db)
+		if err != nil {
+			return err
+		}
+		admin, err := users.InitAdmin(ctx, service.RegisterInput{Username: "owner", Email: "o@example.com", Password: "pipeline-test-password"})
+		if err != nil {
+			return err
+		}
+		var policy model.Policy
+		if err = db.First(&policy).Error; err != nil {
+			return err
+		}
+		images, _, closeImages, err := newImageServices(ctx, db, cfg, nil, imageHooks{})
+		if err != nil {
+			return err
+		}
+		defer func() { _ = closeImages() }()
+		_, err = images.ImportImage(ctx, service.ImportInput{Data: source, Filename: "copy.jpg", Path: "a/copy", Ext: "jpg", UserID: admin.ID, PolicyID: policy.ID})
+		var processing *service.ProcessingError
+		if !errors.As(err, &processing) || processing.Step != service.ProcessingMetadata {
+			t.Fatalf("copy err = %v", err)
+		}
+		view, err := images.ImportImage(ctx, service.ImportInput{Data: source, Filename: "broken.jpg", Path: "a/broken", Ext: "jpg", UserID: admin.ID, PolicyID: policy.ID, AdoptVersion: aws.ToString(put.VersionId)})
+		if err != nil {
+			return err
+		}
+		if !view.HasOriginal || !view.HasWebP || view.MIME != "image/jpeg" {
+			t.Fatalf("adopted view = %+v", view)
 		}
 		return nil
 	})

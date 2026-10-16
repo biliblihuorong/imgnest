@@ -23,7 +23,7 @@ Images can be imported in two ways:
 | `images` | `images` + objects | Path (`pathname`) and extension are kept, as are `created_at` (broken year-1 values are recovered from the `uniqid` file name), visibility, upload IP and original file name |
 | `configs`, strategy keys | not imported | Only each strategy's public `url` is kept; storage keys and the SMTP password are dropped while parsing, never stored or shown |
 
-Not imported: guest uploads, images of disabled users, formats ImgNest cannot store (`.ico`, `.psd`), and images whose extension would change on save (content not matching the extension, `.jpeg`, upper-case extensions), because their old links would break. The page lists each of them at the end; they stay in the old storage (and when adopting, their old links keep working).
+Not imported: guest uploads, images of disabled users, formats ImgNest cannot store (`.ico`, `.psd`), and images whose extension would change on save (`.jpeg`, upper-case extensions, and, when copying, content not matching the extension), because their old links would break. PNG/JPEG files Lsky only renamed to `.webp` without converting are imported: adopted as they are (same link, no extra WebP), or stored as a real WebP when copying. Files over the 20 MiB per-file limit are not imported. The page lists each of them at the end; they stay in the old storage (and when adopting, their old links keep working).
 
 ::: tip Matching your administrator account
 Accounts match by email. Create the ImgNest administrator with the same email as your Lsky administrator and the imported images and tokens land on that account, which keeps its ImgNest password. With a different email, a second administrator account with the Lsky password is created.

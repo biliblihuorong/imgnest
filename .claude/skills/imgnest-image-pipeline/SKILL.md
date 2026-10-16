@@ -61,6 +61,15 @@ Two modes (web admin page or CLI, same `lsky.Runner` / `ImportImages`):
   (`CopyLegacy` → `DeleteLegacy` delete marker; `PurgeLegacy` accepts exactly
   the pinned unowned version). Reads use `ownsObject`, which accepts the pinned
   unowned version. Never call Put/Purge* on an adopted key directly.
+- Lsky often stored a PNG/JPEG under a `.webp` name without converting it.
+  The import keeps the link: adopt records `Ext` = the link's extension with
+  `MIME` = the probed format, and when that key is `{path}.webp` no separate
+  WebP is made (`HasWebP=false`); copy forces `webp_only` so the real WebP
+  takes the key. Adopt also skips Lsky's MD5 check (the pinned version is the
+  source of truth) and records empty EXIF when the parser rejects the
+  metadata (nothing is rewritten). Other mismatches in copy mode still fail
+  with `ErrImportLinkChanged`. `ProcessingError{Step}` (matches
+  `ErrProcessing`) tells the import report which step failed.
 
 See `docs/lsky-migration.md` and spec §5.1 / §6.2.
 
