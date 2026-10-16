@@ -607,8 +607,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Change public-list visibility
-         * @description Private images remain accessible to anyone holding their direct object link.
+         * Change public-list visibility or the display name
+         * @description Send is_public, name, or both. Private images remain accessible to anyone holding their direct object link. Renaming changes only the display name used in lists and searches; the object key, extension and every URL stay the same. A name is trimmed and must be 1-255 bytes with no control characters, "/" or "\\"; an invalid name changes nothing.
          */
         patch: operations["setImageVisibility"];
         trace?: never;
@@ -4244,7 +4244,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    is_public: boolean;
+                    is_public?: boolean;
+                    name?: string;
                 };
             };
         };

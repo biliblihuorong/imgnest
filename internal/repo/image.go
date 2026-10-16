@@ -298,6 +298,18 @@ func (r *ImageRepository) SetPublic(ctx context.Context, key string, public bool
 	return finishImageError("set image visibility", err)
 }
 
+// SetName renames an image's display name and its search key together; the
+// stored objects and their URLs never change.
+func (r *ImageRepository) SetName(ctx context.Context, key, name string, grant model.TokenGrant) error {
+	err := r.withImage(ctx, key, &grant, func(tx *gorm.DB, image *model.Image, _ model.User) error {
+		if image.State != model.ImageStateActive {
+			return model.ErrImageBusy
+		}
+		return updateImage(tx, image.ID, map[string]any{"origin_name": name, "filename_search": searchquery.Normalize(name)})
+	})
+	return finishImageError("rename image", err)
+}
+
 // FindByPath returns the image holding a backend path across all states.
 func (r *ImageRepository) FindByPath(ctx context.Context, storageID uint64, imagePath string) (model.Image, error) {
 	if err := checkRecordID(ctx, storageID); err != nil {

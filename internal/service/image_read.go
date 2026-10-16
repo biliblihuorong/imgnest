@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/biliblihuorong/imgnest/internal/imaging"
 	"github.com/biliblihuorong/imgnest/internal/model"
@@ -147,6 +148,39 @@ func (s *ImageService) SetPublic(ctx context.Context, subject TokenSubject, id u
 	}
 	image.IsPublic = public
 	return s.view(ctx, image)
+}
+
+// Rename changes an image's display name. Only the name shown in lists and
+// searches changes; the object key, file extension and every URL stay as
+// they are, so links already shared keep working.
+func (s *ImageService) Rename(ctx context.Context, subject TokenSubject, id uint64, name string) (ImageView, error) {
+	name, err := normalizeImageName(name)
+	if err != nil {
+		return ImageView{}, err
+	}
+	image, err := s.imageByID(ctx, subject, id)
+	if err != nil {
+		return ImageView{}, err
+	}
+	if image.State != model.ImageStateActive {
+		return ImageView{}, ErrInvalidInput
+	}
+	if err = s.deps.Images.SetName(ctx, image.Key, name, s.grant(subject)); err != nil {
+		return ImageView{}, fmt.Errorf("rename image: %w", err)
+	}
+	image.OriginName = name
+	return s.view(ctx, image)
+}
+
+// normalizeImageName trims a requested display name and rejects empty names,
+// control characters, path separators and names over the upload limit.
+func normalizeImageName(raw string) (string, error) {
+	name := strings.TrimSpace(raw)
+	if name == "" || len(name) > maxOriginNameBytes || !utf8.ValidString(name) ||
+		containsControlRune(name) || strings.ContainsAny(name, "/\\") {
+		return "", ErrInvalidInput
+	}
+	return name, nil
 }
 
 // OpenPublic serves only declared active local objects, including private direct URLs.

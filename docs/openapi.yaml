@@ -882,8 +882,12 @@ paths:
     patch:
       operationId: setImageVisibility
       tags: [Images]
-      summary: Change public-list visibility
-      description: Private images remain accessible to anyone holding their direct object link.
+      summary: Change public-list visibility or the display name
+      description: >-
+        Send is_public, name, or both. Private images remain accessible to anyone holding their
+        direct object link. Renaming changes only the display name used in lists and searches;
+        the object key, extension and every URL stay the same. A name is trimmed and must be
+        1-255 bytes with no control characters, "/" or "\"; an invalid name changes nothing.
       security: [{bearerAuth: []}]
       requestBody:
         required: true
@@ -892,9 +896,10 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [is_public]
+              minProperties: 1
               properties:
                 is_public: {type: boolean}
+                name: {type: string, minLength: 1, maxLength: 255}
       responses:
         '200':
           description: Updated image.

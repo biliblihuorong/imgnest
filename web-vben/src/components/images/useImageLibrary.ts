@@ -11,6 +11,7 @@ import {
   batchDelete,
   batchPermission,
   deleteImage,
+  renameImage,
   setImageVisibility,
   type ImageBatchItem,
   type ImageView,
@@ -113,6 +114,34 @@ export function useImageLibrary(options: ImageLibraryOptions = {}) {
       await query.reloadAfterMutation();
     } catch (error) {
       if (active) message.error(() => formatApiError(error, "user.images.visibilityError"));
+    } finally {
+      busyIds.delete(image.id);
+    }
+  }
+
+  /** 改显示名称：成功后就地替换列表项并刷新（名称参与排序与搜索）。返回是否成功。 */
+  async function handleRename(image: ImageView, name: string): Promise<boolean> {
+    if (
+      !active ||
+      loading.value ||
+      loadError.value !== null ||
+      query.staleResults.value ||
+      batchLoading.value ||
+      busyIds.has(image.id)
+    )
+      return false;
+    busyIds.add(image.id);
+    try {
+      const updated = await renameImage(image.id, name);
+      if (!active) return false;
+      images.value = images.value.map((item) => (item.id === updated.id ? updated : item));
+      if (drawerImage.value?.id === updated.id) drawerImage.value = updated;
+      message.success(() => t("user.images.renameSuccess"));
+      await query.reloadAfterMutation();
+      return true;
+    } catch (error) {
+      if (active) message.error(() => formatApiError(error, "user.images.renameError"));
+      return false;
     } finally {
       busyIds.delete(image.id);
     }
@@ -277,6 +306,7 @@ export function useImageLibrary(options: ImageLibraryOptions = {}) {
     handleSizeChange,
     resetFilters,
     handleToggle,
+    handleRename,
     handleRemove,
     handleSelect,
     clearSelection,

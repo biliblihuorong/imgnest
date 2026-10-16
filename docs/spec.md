@@ -303,7 +303,7 @@ CDN 缓存不在本程序处理范围内。
 | --- | --- | --- |
 | 认证 | `POST /api/auth/login`、`POST /api/auth/register`、`POST /api/auth/logout`、`GET /api/auth/me`、`PATCH /api/auth/profile` | 公开 / 登录 |
 | 上传 | `POST /api/upload`（可一次多文件） | 登录或游客 |
-| 图片 | `GET /api/images`、`PATCH /api/images/{id}`、`POST /api/images/batch`（删除/移动/改权限） | 本人 |
+| 图片 | `GET /api/images`、`PATCH /api/images/{id}`（改可见性 `is_public` / 改显示名称 `name`，只改名称不改对象键和链接）、`POST /api/images/batch`（删除/移动/改权限） | 本人 |
 | EXIF | `GET /api/images/{id}/exif`（含 GPS 与全量 `raw`） | 本人 / 管理员 |
 | 本地缩略图 | `GET /t/{key}.webp`（缺失时懒生成） | 本人 / 管理员；公开图片可匿名 |
 | 回收站 | `GET /api/trash`、`POST /api/trash/restore`、`POST /api/trash/purge`（彻底删除选中） | 本人 |
