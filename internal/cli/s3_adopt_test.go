@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ import (
 
 // minioPipeline creates a versioned, publicly readable bucket, an encrypted
 // S3 storage and a rule on it, and returns the SDK client and bucket.
-func minioPipeline(t *testing.T, policyJSON string) (*s3.Client, string, string, string) {
+func minioPipeline(t *testing.T, policyJSON, folder string) (*s3.Client, string, string, string) {
 	t.Helper()
 	endpoint := os.Getenv("IMGNEST_TEST_S3_ENDPOINT")
 	if endpoint == "" {
@@ -81,7 +82,7 @@ func minioPipeline(t *testing.T, policyJSON string) (*s3.Client, string, string,
 	}
 	// #nosec G117 -- test-only credentials enter the encrypting CLI through stdin.
 	cloud, _ := json.Marshal(cloudConfig{Endpoint: endpoint, Region: "us-east-1", Bucket: bucket, AccessKeyID: access, SecretAccessKey: secretKey, UsePathStyle: true})
-	input, _ := json.Marshal(service.StorageInput{Name: "lsky", Driver: "s3", BaseURL: endpoint + "/" + bucket, Config: cloud})
+	input, _ := json.Marshal(service.StorageInput{Name: "lsky", Driver: "s3", BaseURL: strings.TrimSuffix(endpoint+"/"+bucket+"/"+folder, "/"), PathPrefix: folder, Config: cloud})
 	output, err := command(ctx, t, path, string(input), "init-storage")
 	if err != nil {
 		t.Fatal("encrypted storage provisioning failed")
@@ -97,13 +98,23 @@ func minioPipeline(t *testing.T, policyJSON string) (*s3.Client, string, string,
 }
 
 func TestRealMinIOAdoptedImageLifecycle(t *testing.T) {
-	client, bucket, endpoint, path := minioPipeline(t, `{"skip_if_larger":false,"responsive_variants":true}`)
+	adoptedLifecycle(t, "")
+}
+
+// The Lsky files sit under a folder of the bucket; the storage's path prefix
+// keeps keys and links aligned with the old ones.
+func TestRealMinIOAdoptedImageLifecycleInFolder(t *testing.T) {
+	adoptedLifecycle(t, "ShellBlogImg")
+}
+
+func adoptedLifecycle(t *testing.T, folder string) {
+	client, bucket, endpoint, path := minioPipeline(t, `{"skip_if_larger":false,"responsive_variants":true}`, folder)
 	ctx := t.Context()
 	var source bytes.Buffer
 	if err := jpeg.Encode(&source, image.NewRGBA(image.Rect(0, 0, 900, 600)), &jpeg.Options{Quality: 90}); err != nil {
 		t.Fatal(err)
 	}
-	const key = "1/2025/07/25/lsky.jpg"
+	key := strings.TrimPrefix(folder+"/1/2025/07/25/lsky.jpg", "/")
 	put, err := client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(bucket), Key: aws.String(key), Body: bytes.NewReader(source.Bytes()), ContentType: aws.String("image/jpeg")})
 	if err != nil {
 		t.Fatal("put foreign original failed")
@@ -210,7 +221,7 @@ func TestRealMinIOAdoptedImageLifecycle(t *testing.T) {
 }
 
 func TestRealMinIOAdoptFailureKeepsOriginal(t *testing.T) {
-	client, bucket, _, path := minioPipeline(t, `{"skip_if_larger":false}`)
+	client, bucket, _, path := minioPipeline(t, `{"skip_if_larger":false}`, "")
 	ctx := t.Context()
 	var source bytes.Buffer
 	if err := jpeg.Encode(&source, image.NewRGBA(image.Rect(0, 0, 64, 32)), nil); err != nil {

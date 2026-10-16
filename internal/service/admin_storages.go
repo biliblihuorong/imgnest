@@ -60,7 +60,8 @@ func (s *AdminService) PatchStorage(ctx context.Context, id uint64, patch Storag
 	if err != nil {
 		return StorageView{}, fmt.Errorf("find storage: %w", err)
 	}
-	guard := model.StorageUpdateGuard{ExpectedDriver: backend.Driver, ExpectedConfig: backend.Config}
+	guard := model.StorageUpdateGuard{ExpectedDriver: backend.Driver, ExpectedConfig: backend.Config, ExpectedPathPrefix: backend.PathPrefix}
+	probe := false
 	if patch.Name != nil {
 		name := strings.TrimSpace(*patch.Name)
 		if name == "" || !utf8.ValidString(name) || utf8.RuneCountInString(name) > 64 {
@@ -77,14 +78,31 @@ func (s *AdminService) PatchStorage(ctx context.Context, id uint64, patch Storag
 	if patch.Enabled != nil {
 		backend.Enabled = *patch.Enabled
 	}
+	if patch.PathPrefix != nil {
+		prefix, err := storage.NormalizePrefix(*patch.PathPrefix)
+		if err != nil {
+			return StorageView{}, ErrInvalidInput
+		}
+		if prefix != backend.PathPrefix {
+			images, err := s.deps.References.CountImagesForStorage(ctx, backend.ID)
+			if err != nil {
+				return StorageView{}, fmt.Errorf("count storage images: %w", err)
+			}
+			if images != 0 {
+				return StorageView{}, fmt.Errorf("move storage with images: %w", ErrStillReferenced)
+			}
+			backend.PathPrefix, guard.RequireEmpty, probe = prefix, true, true
+		}
+	}
 	if len(patch.Config) > 0 {
 		if !json.Valid(patch.Config) || len(patch.Config) > 64<<10 {
 			return StorageView{}, ErrInvalidInput
 		}
-		guard.RequireEmpty, err = s.checkStorageLocation(ctx, backend, patch.Config)
+		moving, err := s.checkStorageLocation(ctx, backend, patch.Config)
 		if err != nil {
 			return StorageView{}, err
 		}
+		guard.RequireEmpty = guard.RequireEmpty || moving
 		config := patch.Config
 		if backend.Driver == "s3" {
 			config, err = s.deps.Secrets.Seal(ctx, backend.Driver, patch.Config)
@@ -92,9 +110,10 @@ func (s *AdminService) PatchStorage(ctx context.Context, id uint64, patch Storag
 				return StorageView{}, fmt.Errorf("encrypt storage configuration: %w", errors.Join(ErrInvalidInput, err))
 			}
 		}
-		candidate := backend
-		candidate.Config = config
-		driver, err := s.deps.Drivers.DriverFor(ctx, candidate)
+		backend.Config, probe = config, true
+	}
+	if probe {
+		driver, err := s.deps.Drivers.DriverFor(ctx, backend)
 		if err != nil {
 			return StorageView{}, storageError(ctx, err)
 		}
@@ -102,7 +121,6 @@ func (s *AdminService) PatchStorage(ctx context.Context, id uint64, patch Storag
 		if !put || !copyOK || !deleted {
 			return StorageView{}, ErrStorage
 		}
-		backend.Config = config
 	}
 	updated, err := s.deps.Storages.Update(ctx, backend, guard)
 	if err != nil {

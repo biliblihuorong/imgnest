@@ -17,7 +17,7 @@ import (
 func jobDump(content []byte) string {
 	return fmt.Sprintf(`INSERT INTO "public"."groups" ("id", "name", "is_default", "is_guest", "configs", "created_at") VALUES ('1', 'g', TRUE, FALSE, '{}', NULL);
 INSERT INTO "public"."users" ("id", "group_id", "name", "email", "password", "is_adminer", "status", "registered_ip", "created_at") VALUES ('1', '1', 'shell', 'shell@example.com', '%s', TRUE, '1', '', NULL);
-INSERT INTO "public"."strategies" ("id", "key", "name", "configs") VALUES ('9', '10', 'B2', '{"url":"https://img.example.com/b"}'), ('2', '1', 'local', '{"url":"http://localhost/uploads"}');
+INSERT INTO "public"."strategies" ("id", "key", "name", "configs") VALUES ('9', '10', 'B2', '{"url":"https://img.example.com/i/1"}'), ('2', '1', 'local', '{"url":"http://localhost/uploads"}');
 INSERT INTO "public"."images" ("id", "user_id", "album_id", "strategy_id", "path", "name", "extension", "origin_name", "md5", "permission", "uploaded_ip", "created_at") VALUES
 ('1', '1', NULL, '9', '1/2025', 'a.png', 'png', 'a.png', '%s', '1', '', '2025-01-01 00:00:00'),
 ('2', '1', NULL, '9', '1/2025', 'missing.png', 'png', 'm.png', '', '1', '', '2025-01-01 00:00:00'),

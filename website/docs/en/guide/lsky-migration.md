@@ -33,7 +33,7 @@ Accounts match by email. Create the ImgNest administrator with the same email as
 
 1. **Export the Lsky database**: dump the whole PostgreSQL database to a `.sql` file with `pg_dump` (plain SQL) or DBX or Navicat. The export holds password hashes and storage keys; delete it when you are done and never share it.
 2. **Prepare the storage and rule**:
-   - Adopting: add the S3 bucket Lsky used under Storages (for B2 the endpoint is `https://s3.<region>.backblazeb2.com` with Path Style on) and **set its Base URL to the URL in the Lsky strategy** (for example `https://img.example.com/ShellBlogImg`) so old links and ImgNest links match.
+   - Adopting: add the S3 bucket Lsky used under Storages (for B2 the endpoint is `https://s3.<region>.backblazeb2.com` with Path Style on) and **set its Base URL to the URL in the Lsky strategy** (for example `https://img.example.com/ShellBlogImg`) so old links and ImgNest links match. If the files sit under a folder of the bucket (keys like `ShellBlogImg/1/2025/...`), set the path prefix to that folder. If unsure, leave it empty: the import first checks a few images and tells you what to set when it cannot find them.
    - Storing again: add a new bucket. Its rule's WebP mode must not be WebP only, or original links would be lost.
    - Then create a rule on that storage with thumbnails and responsive versions on.
 3. **Upload the export**: open **Site admin → Lsky migration**, check the time zone (default `Asia/Shanghai`) and choose the `.sql` file. It is parsed in server memory and never written to disk; the page shows how many users, images and storage strategies it holds.

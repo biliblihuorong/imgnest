@@ -37,19 +37,22 @@ func (f TemplateValidatorFunc) Validate(ctx context.Context, templates ...string
 
 // StorageInput is accepted only by the host-administrator setup commands in M2.
 type StorageInput struct {
-	Name    string          `json:"name"`
-	Driver  string          `json:"driver"`
-	BaseURL string          `json:"base_url"`
-	Config  json.RawMessage `json:"config"`
+	Name    string `json:"name"`
+	Driver  string `json:"driver"`
+	BaseURL string `json:"base_url"`
+	// PathPrefix is the folder inside the bucket or root for every object.
+	PathPrefix string          `json:"path_prefix"`
+	Config     json.RawMessage `json:"config"`
 }
 
 // StorageView contains no backend credentials or encrypted configuration.
 type StorageView struct {
-	ID      uint64 `json:"id"`
-	Name    string `json:"name"`
-	Driver  string `json:"driver"`
-	BaseURL string `json:"base_url"`
-	Enabled bool   `json:"enabled"`
+	ID         uint64 `json:"id"`
+	Name       string `json:"name"`
+	Driver     string `json:"driver"`
+	BaseURL    string `json:"base_url"`
+	PathPrefix string `json:"path_prefix"`
+	Enabled    bool   `json:"enabled"`
 }
 
 // ProvisionService validates storage and processing configuration before persistence.
@@ -90,6 +93,10 @@ func (s *ProvisionService) CreateStorage(ctx context.Context, input StorageInput
 	if input.Driver != "local" && input.Driver != "s3" {
 		return StorageView{}, ErrInvalidInput
 	}
+	prefix, err := storage.NormalizePrefix(input.PathPrefix)
+	if err != nil {
+		return StorageView{}, ErrInvalidInput
+	}
 	config := input.Config
 	if input.Driver == "s3" {
 		config, err = s.secrets.Seal(ctx, input.Driver, input.Config)
@@ -97,7 +104,7 @@ func (s *ProvisionService) CreateStorage(ctx context.Context, input StorageInput
 			return StorageView{}, fmt.Errorf("encrypt storage configuration: %w", errors.Join(ErrInvalidInput, err))
 		}
 	}
-	candidate := model.Storage{Name: name, Driver: input.Driver, BaseURL: strings.TrimRight(input.BaseURL, "/"), Config: config, Enabled: true}
+	candidate := model.Storage{Name: name, Driver: input.Driver, BaseURL: strings.TrimRight(input.BaseURL, "/"), PathPrefix: prefix, Config: config, Enabled: true}
 	driver, err := s.drivers.DriverFor(ctx, candidate)
 	if err != nil {
 		return StorageView{}, probeError(ctx, err)
@@ -113,7 +120,7 @@ func (s *ProvisionService) CreateStorage(ctx context.Context, input StorageInput
 }
 
 func storageView(value model.Storage) StorageView {
-	return StorageView{ID: value.ID, Name: value.Name, Driver: value.Driver, BaseURL: value.BaseURL, Enabled: value.Enabled}
+	return StorageView{ID: value.ID, Name: value.Name, Driver: value.Driver, BaseURL: value.BaseURL, PathPrefix: value.PathPrefix, Enabled: value.Enabled}
 }
 
 // DefaultPolicy returns the documented conservative processing defaults.

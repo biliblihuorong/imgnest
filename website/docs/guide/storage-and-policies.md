@@ -71,6 +71,8 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest \
 
 访问地址不存进数据库，每次用存储的 `base_url` 实时拼出来。换域名时只改存储配置，所有链接跟着变。
 
+存储可以设「路径前缀」，例如 `ShellBlogImg`：文件都放在桶里的这个文件夹下（上面的原图就是 `ShellBlogImg/26/10/66ff1b2a3c4d5.png`），回收站是 `ShellBlogImg/_trash/`。这时 `base_url` 要填能直接访问到这个文件夹的地址，比如 `https://img.example.com/ShellBlogImg`，返回的链接就是 `base_url` + 路径。存储里已经有图片后不能再改前缀。
+
 `_thumbs` 和 `_w数字_v数字`（如 `_w800_v1`）是保留后缀，文件名不能以它们结尾。
 
 ## 路径模板

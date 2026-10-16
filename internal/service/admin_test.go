@@ -1219,3 +1219,27 @@ func TestAdminPatchStorageKeepsLocationOnceImagesExist(t *testing.T) {
 		t.Fatalf("empty storage move refused: %v", err)
 	}
 }
+
+func TestAdminPatchStoragePathPrefix(t *testing.T) {
+	svc, _, _, refs, storages, _, _ := adminServiceFixture(t, AdminDependencies{})
+	svc.deps.Drivers = adminDriverProvider{driver: &adminProbeDriver{}}
+	refs.storageImages = 2
+	if _, err := svc.PatchStorage(t.Context(), 6, StoragePatch{PathPrefix: ptr("blog")}); !errors.Is(err, ErrStillReferenced) {
+		t.Fatalf("prefix change with images = %v, want still referenced", err)
+	}
+	if _, err := svc.PatchStorage(t.Context(), 6, StoragePatch{PathPrefix: ptr("")}); err != nil {
+		t.Fatalf("unchanged prefix refused: %v", err)
+	}
+	refs.storageImages = 0
+	if _, err := svc.PatchStorage(t.Context(), 6, StoragePatch{PathPrefix: ptr("../x")}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("dot-segment prefix = %v", err)
+	}
+	view, err := svc.PatchStorage(t.Context(), 6, StoragePatch{PathPrefix: ptr(" /ShellBlogImg/ ")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := storages.updates[len(storages.updates)-1]
+	if view.PathPrefix != "ShellBlogImg" || last.PathPrefix != "ShellBlogImg" {
+		t.Fatalf("view %+v, stored %+v", view, last)
+	}
+}

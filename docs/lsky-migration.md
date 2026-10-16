@@ -31,7 +31,7 @@
 
 1. **导出蓝空数据库**：在蓝空的 PostgreSQL 上用 `pg_dump`（纯 SQL 格式）或 DBX、Navicat 把整个库导出成 `.sql` 文件。导出里有密码哈希和存储密钥，用完删掉，不要发给别人。
 2. **准备存储和规则**：
-   - 原地接管：在「存储管理」里添加蓝空原来的 S3 桶（B2 的 Endpoint 填 `https://s3.<区域>.backblazeb2.com`，打开 Path Style），**Base URL 填蓝空策略里的那个地址**（例如 `https://img.example.com/ShellBlogImg`），旧链接才能和 ImgNest 的链接对上。
+   - 原地接管：在「存储管理」里添加蓝空原来的 S3 桶（B2 的 Endpoint 填 `https://s3.<区域>.backblazeb2.com`，打开 Path Style），**Base URL 填蓝空策略里的那个地址**（例如 `https://img.example.com/ShellBlogImg`），旧链接才能和 ImgNest 的链接对上。如果文件在桶里的某个文件夹下（例如桶里的 Key 是 `ShellBlogImg/1/2025/...`），把「路径前缀」填成这个文件夹。不确定的话先留空，开始导入时 ImgNest 会先抽查几张图，找不到时会告诉你该填什么。
    - 下载后重新保存：添加一个新桶。WebP 模式不能选「仅 WebP」，否则原图链接会丢。
    - 再给这个存储建一条规则，打开缩略图和「响应式衍生图」。
 3. **上传导出文件**：打开「站点管理 → 蓝空迁移」，确认时区（默认 `Asia/Shanghai`）后选择 `.sql` 文件。文件只在服务器内存里解析，不写入磁盘；页面会显示有多少用户、图片和存储策略。

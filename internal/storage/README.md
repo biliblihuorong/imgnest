@@ -50,6 +50,12 @@ the key has no remaining history. Any foreign history rejects the whole purge.
 `PurgeAllVersions` is reserved for explicitly owned connection-test namespaces;
 it must not be substituted for compensation or user image deletion.
 
+`WithPrefix` places every key of a driver under a storage's folder
+(`model.Storage.PathPrefix`). It wraps the optional purger and legacy
+interfaces only as the inner driver offers them, returns receipts with the
+caller's bare key, and is applied once in the driver factory; nothing else adds
+the prefix.
+
 `LegacyObjects` (S3 only) manages objects ImgNest adopted in place, such as
 Lsky originals: no owner metadata, identified by a pinned version ID that the
 caller stores. `CopyLegacy` copies exactly that version to an owned target

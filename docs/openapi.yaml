@@ -2993,13 +2993,14 @@ components:
     StorageView:
       type: object
       additionalProperties: false
-      required: [id, name, driver, base_url, enabled]
+      required: [id, name, driver, base_url, path_prefix, enabled]
       description: Backend record without any configuration or credential material.
       properties:
         id: {$ref: '#/components/schemas/ID'}
         name: {type: string}
         driver: {type: string, enum: [local, s3]}
         base_url: {type: string}
+        path_prefix: {type: string, maxLength: 200, description: 'Folder inside the bucket (or local root) that holds every object of this storage, without surrounding slashes; empty means the root. base_url must address this folder, so links stay base_url + "/" + image path. Changeable only while the storage holds no images (409 otherwise).'}
         enabled: {type: boolean}
     StorageInput:
       type: object
@@ -3009,6 +3010,7 @@ components:
         name: {type: string, minLength: 1, maxLength: 64}
         driver: {type: string, enum: [local, s3]}
         base_url: {type: string, format: uri}
+        path_prefix: {type: string, maxLength: 200, description: 'Folder inside the bucket (or local root) that holds every object of this storage, without surrounding slashes; empty means the root. base_url must address this folder, so links stay base_url + "/" + image path. Changeable only while the storage holds no images (409 otherwise).'}
         config:
           type: object
           description: Driver-specific JSON. S3 credentials are sealed with the master key before persistence and never returned.
@@ -3019,6 +3021,7 @@ components:
       properties:
         name: {type: string, minLength: 1, maxLength: 64}
         base_url: {type: string, format: uri}
+        path_prefix: {type: string, maxLength: 200, description: 'Folder inside the bucket (or local root) that holds every object of this storage, without surrounding slashes; empty means the root. base_url must address this folder, so links stay base_url + "/" + image path. Changeable only while the storage holds no images (409 otherwise).'}
         enabled: {type: boolean}
         config:
           type: object

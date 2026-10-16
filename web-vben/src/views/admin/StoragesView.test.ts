@@ -44,6 +44,7 @@ const localFixture: StorageView = {
   name: "local-main",
   driver: "local",
   base_url: "http://localhost:8080/i/1",
+  path_prefix: "",
   enabled: true,
 };
 
@@ -52,6 +53,7 @@ const s3Fixture: StorageView = {
   name: "b2",
   driver: "s3",
   base_url: "https://cdn.example.com",
+  path_prefix: "",
   enabled: false,
 };
 
@@ -278,6 +280,23 @@ describe("StoragesView", () => {
       base_url: "https://cdn.example.com",
     });
     expect(createStorageMock).not.toHaveBeenCalled();
+  });
+  it("编辑时改了路径前缀才提交 path_prefix", async () => {
+    updateStorageMock.mockResolvedValue({ ...s3Fixture, path_prefix: "ShellBlogImg" });
+    const wrapper = mountView();
+    await flushPromises();
+
+    await findButtonByText(wrapper.findAll("tbody tr")[1].element, "编辑")!.click();
+    await flushPromises();
+    await setNativeInput("input[placeholder='留空表示根目录']", "/ShellBlogImg/");
+    await bodyButton("保存").click();
+    await flushPromises();
+
+    expect(updateStorageMock).toHaveBeenCalledWith(2, {
+      name: "b2",
+      base_url: "https://cdn.example.com",
+      path_prefix: "/ShellBlogImg/",
+    });
   });
   it("保存存储时禁止关闭弹窗和重复提交，失败后可以取消", async () => {
     let rejectSave!: (reason: Error) => void;

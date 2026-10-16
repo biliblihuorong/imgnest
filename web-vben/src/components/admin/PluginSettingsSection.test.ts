@@ -77,6 +77,7 @@ const storageFixture: adminApi.StorageView = {
   name: "本机存储",
   driver: "local",
   base_url: "http://localhost:8080/i/3",
+  path_prefix: "",
   enabled: true,
 };
 

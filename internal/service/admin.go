@@ -177,10 +177,13 @@ type GroupPatch struct {
 // configuration; a supplied config is re-encrypted before persistence and is
 // never returned to any caller.
 type StoragePatch struct {
-	Name    *string         `json:"name,omitempty"`
-	BaseURL *string         `json:"base_url,omitempty"`
-	Enabled *bool           `json:"enabled,omitempty"`
-	Config  json.RawMessage `json:"config,omitempty"`
+	Name    *string `json:"name,omitempty"`
+	BaseURL *string `json:"base_url,omitempty"`
+	// PathPrefix moves where new objects go, so it is accepted only while
+	// the storage holds no images.
+	PathPrefix *string         `json:"path_prefix,omitempty"`
+	Enabled    *bool           `json:"enabled,omitempty"`
+	Config     json.RawMessage `json:"config,omitempty"`
 }
 
 // StorageChecks reports each connectivity probe separately.

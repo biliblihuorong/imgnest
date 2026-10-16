@@ -33,6 +33,7 @@ import {
   updateStorage,
   type StorageDriver,
   type StorageInput,
+  type StoragePatch,
   type StorageTestResult,
   type StorageView,
 } from "@/api/admin";
@@ -153,6 +154,7 @@ const columns = computed<DataTableColumns<StorageView>>(() => [
       ),
   },
   { title: t("admin.storages.baseUrl"), key: "base_url", ellipsis: { tooltip: true } },
+  { title: t("admin.storages.pathPrefix"), key: "path_prefix", ellipsis: { tooltip: true } },
   {
     title: t("admin.common.enabled"),
     key: "enabled",
@@ -235,6 +237,7 @@ const form = reactive({
   name: "",
   driver: "local" as StorageDriver,
   base_url: "",
+  pathPrefix: "",
   root: "data/images",
   endpoint: "",
   region: "",
@@ -248,6 +251,7 @@ function resetForm(): void {
   form.name = "";
   form.driver = "local";
   form.base_url = "";
+  form.pathPrefix = "";
   form.root = "data/images";
   form.endpoint = "";
   form.region = "";
@@ -271,6 +275,7 @@ function openEdit(row: StorageView): void {
   form.name = row.name;
   form.driver = row.driver;
   form.base_url = row.base_url;
+  form.pathPrefix = row.path_prefix ?? "";
   showForm.value = true;
 }
 
@@ -331,6 +336,9 @@ function buildCreateBody(): StorageInput {
     driver: form.driver,
     base_url: form.base_url.trim(),
   };
+  if (form.pathPrefix.trim()) {
+    body.path_prefix = form.pathPrefix.trim();
+  }
   if (form.driver === "local") {
     body.config = { root: form.root.trim() };
   }
@@ -366,10 +374,11 @@ async function submitForm(): Promise<void> {
       message.success(() => t("admin.storages.created", { name: created.name }));
     } else if (editing.value) {
       // 编辑仅提交 name/base_url；S3 config 不回显也不在此更新（换凭证需重建）
-      const updated = await updateStorage(editing.value.id, {
-        name: form.name.trim(),
-        base_url: form.base_url.trim(),
-      });
+      const patch: StoragePatch = { name: form.name.trim(), base_url: form.base_url.trim() };
+      if (form.pathPrefix.trim() !== (editing.value.path_prefix ?? "")) {
+        patch.path_prefix = form.pathPrefix.trim();
+      }
+      const updated = await updateStorage(editing.value.id, patch);
       message.success(() => t("admin.storages.saved", { name: updated.name }));
     }
     showForm.value = false;
@@ -469,6 +478,17 @@ function closeTestResult(show: boolean): void {
           <NInput
             v-model:value="form.base_url"
             :placeholder="t('admin.storages.urlPlaceholder')"
+            :disabled="submitting"
+          />
+        </NFormItem>
+        <NFormItem
+          :label="t('admin.storages.pathPrefix')"
+          path="pathPrefix"
+          :feedback="t('admin.storages.pathPrefixHint')"
+        >
+          <NInput
+            v-model:value="form.pathPrefix"
+            :placeholder="t('admin.storages.pathPrefixPlaceholder')"
             :disabled="submitting"
           />
         </NFormItem>
