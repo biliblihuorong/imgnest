@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"github.com/biliblihuorong/imgnest/internal/config"
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/repo"
+	"github.com/biliblihuorong/imgnest/internal/service"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -176,5 +178,18 @@ func TestImportLskyCLI(t *testing.T) {
 	output, err = command(ctx, t, path, "", "import-lsky", "--policy-id", fmt.Sprint(policy.ID), "--source-dir", sourceDir)
 	if err == nil || !strings.Contains(output, "本次导入 0，之前已导入 2") {
 		t.Fatalf("rerun must only retry the failed image: err=%v\n%s", err, output)
+	}
+}
+
+func TestLskyImageErrorNamesProcessingStep(t *testing.T) {
+	err := lskyImageError(fmt.Errorf("publish: %w", &service.ProcessingError{Step: service.ProcessingMetadata}))
+	if err == nil || !strings.Contains(err.Error(), "元数据") {
+		t.Fatalf("err = %v", err)
+	}
+	if !errors.Is(&service.ProcessingError{Step: service.ProcessingPixels}, service.ErrProcessing) {
+		t.Fatal("ProcessingError does not match ErrProcessing")
+	}
+	if err := lskyImageError(service.ErrProcessing); err == nil || !strings.Contains(err.Error(), "图片处理失败") {
+		t.Fatalf("err = %v", err)
 	}
 }

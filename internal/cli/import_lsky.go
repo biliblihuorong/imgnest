@@ -216,9 +216,12 @@ func (l *lineWriter) printf(format string, args ...any) {
 
 // lskyImageError turns pipeline sentinels into the operator-facing reason.
 func lskyImageError(err error) error {
+	var processing *service.ProcessingError
 	switch {
 	case err == nil:
 		return nil
+	case errors.As(err, &processing):
+		return errors.New("图片处理失败：" + processingReason(processing.Step))
 	case errors.Is(err, service.ErrImportLinkChanged):
 		return errors.New("文件实际格式与扩展名不符，保存后旧链接会失效")
 	case errors.Is(err, service.ErrPathConflict):
@@ -239,4 +242,20 @@ func lskyImageError(err error) error {
 		return errors.New("路径或文件不合法（可能超过上传大小上限）")
 	}
 	return fmt.Errorf("导入失败：%w", err)
+}
+
+func processingReason(step service.ProcessingStep) string {
+	switch step {
+	case service.ProcessingDecode:
+		return "文件头无法识别或文件已损坏"
+	case service.ProcessingPixels:
+		return "超过服务器的像素上限（server.max_pixels）"
+	case service.ProcessingMetadata:
+		return "EXIF 等元数据无法解析"
+	case service.ProcessingScrub:
+		return "无法无损抹除 EXIF，可把规则的脱敏模式改成不脱敏"
+	case service.ProcessingConvert:
+		return "生成 WebP 或缩略图失败"
+	}
+	return "未知步骤"
 }

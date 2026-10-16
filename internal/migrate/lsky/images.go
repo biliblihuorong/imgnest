@@ -151,13 +151,14 @@ func readCapped(body io.Reader, limit int64) ([]byte, error) {
 		return nil, fmt.Errorf("read: %w", err)
 	}
 	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("larger than %d MiB", limit>>20)
+		return nil, fmt.Errorf("文件超过 ImgNest 单文件上限 %d MiB", limit>>20)
 	}
 	return data, nil
 }
 
 // Item is one image handed to the ingest function, with its owner and
-// album already mapped and its bytes verified against Lsky's MD5.
+// album already mapped and, unless adopted in place, its bytes verified
+// against Lsky's MD5.
 type Item struct {
 	Source          Image
 	UserID, AlbumID uint64
@@ -259,7 +260,10 @@ func ImportImages(ctx context.Context, db *gorm.DB, snap Snapshot, mapping Mappi
 		}
 		attempted++
 		fetched, err := fetch.Fetch(ctx, image, strategies[image.StrategyID])
-		if err == nil && image.MD5 != "" {
+		// An adopted original is the pinned bucket version itself, so it is
+		// taken as it is: Lsky recorded the MD5 of the upload, which differs
+		// when it converted the file before storing it.
+		if err == nil && image.MD5 != "" && fetched.Version == "" {
 			digest := md5.Sum(fetched.Data) // #nosec G401 -- integrity check against Lsky's own column.
 			if !strings.EqualFold(hex.EncodeToString(digest[:]), image.MD5) {
 				err = errors.New("文件内容与蓝空记录的 MD5 不一致")
