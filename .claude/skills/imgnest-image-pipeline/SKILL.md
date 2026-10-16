@@ -43,6 +43,13 @@ checklist; if the two disagree, the spec wins and this file must be updated.
 11. **Compensate**: if any write or the transaction fails, delete every object
     already written in this request. Never leave orphans.
 
+**Lsky import** (`imgnest import-lsky`, `service.ImportImage`) runs this same
+flow for historic images with a pinned path, extension and `created_at`: step 6
+is skipped, a collision is an error (never `-1`), and a stored extension that
+would differ from the historic link (`ErrImportLinkChanged`) rejects the image.
+It writes into a new bucket; the old Lsky objects are never adopted or
+overwritten. See `docs/lsky-migration.md`.
+
 Persist each object's SHA256 with its write intent. Foreground compensation,
 background cleanup, recycle-bin IO and preview-cache rebuilding share the
 single-instance lifecycle fence. Re-read state/operation after acquiring it;

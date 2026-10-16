@@ -21,6 +21,7 @@ const GUIDE: { title: [zh: string, en: string]; pages: [slug: string, zh: string
       ["storage-and-policies", "存储与规则", "Storage and policies"],
       ["privacy-and-trash", "隐私与回收站", "Privacy and recycle bin"],
       ["lsky-api", "蓝空 API 与 PicGo", "Lsky API and PicGo"],
+      ["lsky-migration", "从蓝空迁移", "Migrating from Lsky Pro"],
       ["frontends", "界面与主题", "Interface and themes"],
     ],
   },

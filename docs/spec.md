@@ -44,7 +44,7 @@ P0 = 首个可用版本必须有；P1 = 紧接着做；P2 = 看心情。
 | 回收站 | 删除即不可访问，默认保留 7 天可恢复（扩展插件可按用户组改天数，见 `TrashPolicy`），到期物理删除；可「彻底删除」 | P0 |
 | API Token | 用户自助创建/吊销；可设过期时间；最后使用时间 | P0 |
 | 蓝空 v1 API | upload / images / albums / strategies / profile / tokens，字段对齐 | P0 |
-| 蓝空迁移 | （延后，v1 不做）CLI 读蓝空数据库，导入用户（保留 bcrypt 密码）、相册、图片记录；B2 上的原图原位接管，不搬文件 | P1 |
+| 蓝空迁移 | `import-lsky`：读蓝空 PostgreSQL 库，导入组、用户（保留 bcrypt 密码）、Token（保留摘要与可用编号）、相册；图片从旧链接下载后按原 `pathname` 重新走上传流水线写入新桶（原图脱敏、WebP、双缩略图、响应式衍生图、EXIF），旧桶不动，切换 CDN 后旧链接不变。见 `docs/lsky-migration.md` | P1 |
 | 存量补处理 | 后台任务对历史图片：补 WebP、补本地+云端缩略图、提取 EXIF；可选「清理历史原图 GPS」；可暂停、可续跑、限速 | P1 |
 | 相册 | 增删改、封面、公开/私有、图片数 | P1 |
 | 公开画廊 | 瀑布流展示公开图片；后台开关；可只展示公开相册 | P1 |
@@ -362,7 +362,7 @@ CDN 缓存不在本程序处理范围内。
 
 ```text
 imgnest/
-├─ cmd/imgnest/main.go        # 入口：serve / migrate / init-admin / reset-password；import-lsky 延后
+├─ cmd/imgnest/main.go        # 入口：serve / migrate / init-admin / reset-password / import-lsky
 ├─ internal/
 │  ├─ config/                  # 读 config.yaml + 环境变量
 │  ├─ model/                   # GORM 模型
@@ -502,7 +502,7 @@ v1.0 约 10 周（加入 EXIF 脱敏、双份缩略图、回收站后多 1 周�
 | aws-sdk-go-v2 新版默认开启 CRC 校验头，部分 S3 兼容服务（B2、部分 COS/R2 场景）会拒绝 | 上传报错 | 客户端设 `RequestChecksumCalculation` / `ResponseChecksumValidation` 为 `WhenRequired`；存储「测试连接」覆盖写入、复制、删除 |
 | B2 删除只打标记不真删 | 删掉的图仍占空间、仍计费 | 物理删除按 `versionId` 逐版本删；桶设「只保留最新版本」生命周期兜底（见 5.1） |
 | 存量补处理要从 B2 下载历史原图 | 出网流量 | B2 每月免费出网为平均存储量的 3 倍，超出 $0.01/GB（[Backblaze](https://www.backblaze.com/cloud-storage/solutions/developers)）；补处理限速、可暂停续跑，分月跑完即可 |
-| 蓝空迁移时路径不一致 | 旧链接 404 | 导入时保留原 `pathname`，B2 存储的 `base_url` 沿用旧域名；先导入、抽查旧链接，再切上传入口 |
+| 蓝空迁移时路径不一致 | 旧链接 404 | 导入时保留原 `pathname` 与扩展名（会改扩展名的图片拒绝导入并列出），写入新桶；抽查后把旧域名切到新桶并把存储 `base_url` 改回旧域名 |
 | EXIF 原位抹除失败或写坏文件 | 隐私泄漏/原图无法打开 | 开启gps/all时拒绝本次上传；抹除后重新加载及敏感项复查，失败不保存未脱敏原图 |
 | libvips 依赖 cgo | Windows 本地开发不便 | 对外只发 Docker 镜像；本地用 WSL / devcontainer；镜像内钉死 libvips 版本与 vipsgen 包对应 |
 | WebP 同步转码拖慢大图上传 | 客户端超时 | 首版保持同步，信号量/输入预算/像素上限保护；异步转换另定客户端与任务契约 |
@@ -513,7 +513,7 @@ v1.0 约 10 周（加入 EXIF 脱敏、双份缩略图、回收站后多 1 周�
 **已确认的决定（2026-10-04）**
 
 - 项目名：ImgNest。
-- 蓝空数据要迁移；图片在 B2，原位接管不搬文件。
+- 蓝空数据要迁移；图片在 B2。~~原位接管不搬文件~~ 2026-10-16 改为：按原路径重新入库到新桶，旧桶保留可回退（原位接管需要覆盖无所有权标记的旧对象，与「只新建不覆盖」的对象模型冲突）。
 - 一个存储配一个域名；共用域名交给反向代理。
 - 缩略图本地 + 云端各一份，云端命名 `{文件名}_thumbs.webp`。
 - EXIF 本地数据库全留，云端抹除 GPS 等敏感信息。
@@ -521,4 +521,4 @@ v1.0 约 10 周（加入 EXIF 脱敏、双份缩略图、回收站后多 1 周�
 - 删除走回收站，到期物理删除；不处理 CDN 缓存。
 
 - 回收站保留 7 天。
-- 蓝空迁移工具（import-lsky）对 MySQL / PostgreSQL 源库的支持延后，v1 先不做。
+- 蓝空迁移工具（import-lsky）2026-10-16 起支持 PostgreSQL 源库；MySQL 源库仍延后（可先转成 PostgreSQL）。

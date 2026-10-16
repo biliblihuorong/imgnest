@@ -122,6 +122,17 @@ type uploadPlan struct {
 	policy  func(context.Context, uint64) (model.Policy, model.Storage, model.Group, error)
 	reserve func(context.Context, model.UploadReservation) (model.Image, error)
 	commit  func(context.Context, string, string, model.ImageExif) (model.Image, error)
+	// pinned, when set, replaces the rule's path templates for an operator
+	// import that must keep a historic link: the path is used as is, a
+	// collision is never renamed and the stored extension must stay pinned.ext.
+	pinned *pinnedPath
+}
+
+// pinnedPath is the historic path (without extension), stored extension and
+// creation time an imported image must keep.
+type pinnedPath struct {
+	path, ext string
+	createdAt time.Time
 }
 
 // Upload prepares all versions and publishes them with compensating cleanup.
@@ -272,20 +283,36 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 		return ImageView{}, err
 	}
 	image := model.Image{UserID: plan.userID, AlbumID: input.AlbumID, PolicyID: policy.ID, StorageID: backend.ID, Key: imageKey, Ext: storedExt, OriginName: clampOriginName(path.Base(strings.ReplaceAll(input.Filename, "\\", "/"))), MIME: storedMIME, SrcMD5: srcMD5, MD5: storedMD5, SHA1: storedSHA1, IP: input.IP, State: model.ImageStatePending, Operation: model.ImageOperationUpload, OperationID: op, HasOriginal: hasOriginal, HasWebP: len(webp) > 0, HasThumb: len(result.Thumbnail) > 0, Scrubbed: scrubbed, IsPublic: input.IsPublic, Size: int64(len(primary)), WebPSize: int64(len(webp)), ThumbBytes: int64(len(result.Thumbnail)), Width: info.Width, Height: info.Height, Frames: info.LoadedFrames, CreatedAt: s.deps.Now().UTC()}
+	if plan.pinned != nil {
+		if storedExt != plan.pinned.ext {
+			return ImageView{}, ErrImportLinkChanged
+		}
+		if !plan.pinned.createdAt.IsZero() {
+			image.CreatedAt = plan.pinned.createdAt.UTC()
+		}
+	}
 	driver, err := s.deps.Drivers.DriverFor(ctx, backend)
 	if err != nil {
 		return ImageView{}, storageError(ctx, err)
 	}
 	vars := pathtpl.Variables{Time: image.CreatedAt, UserID: image.UserID, Filename: input.Filename, MD5: srcMD5, SHA1: srcSHA1}
-	rendered, err := s.deps.Paths.Build(ctx, policy.PathTpl, policy.NameTpl, vars)
-	if err != nil {
-		return ImageView{}, fmt.Errorf("render image path: %w", ErrInvalidInput)
+	var rendered pathtpl.Result
+	if plan.pinned != nil {
+		rendered.Path = plan.pinned.path
+	} else {
+		rendered, err = s.deps.Paths.Build(ctx, policy.PathTpl, policy.NameTpl, vars)
+		if err != nil {
+			return ImageView{}, fmt.Errorf("render image path: %w", ErrInvalidInput)
+		}
 	}
 	var objects []uploadObject
 	reserved := false
 	basePath := rendered.Path
 	for attempt := 0; attempt < 1000; attempt++ {
 		if attempt > 0 {
+			if plan.pinned != nil {
+				return ImageView{}, ErrPathConflict
+			}
 			if rendered.HasRandom {
 				if attempt >= 5 {
 					return ImageView{}, ErrPathConflict
