@@ -53,7 +53,7 @@ func (f *driverFactory) DriverFor(ctx context.Context, backend model.Storage) (s
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	cacheKey := fmt.Sprintf("%d/%s/%x", backend.ID, backend.Driver, sha256.Sum256(backend.Config))
+	cacheKey := fmt.Sprintf("%d/%s/%x/%s", backend.ID, backend.Driver, sha256.Sum256(backend.Config), backend.PathPrefix)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if driver := f.drivers[cacheKey]; driver != nil {
@@ -86,6 +86,10 @@ func (f *driverFactory) DriverFor(ctx context.Context, backend model.Storage) (s
 		}
 		driver = s3
 	default:
+		return nil, service.ErrInvalidInput
+	}
+	driver, err := storage.WithPrefix(driver, backend.PathPrefix)
+	if err != nil {
 		return nil, service.ErrInvalidInput
 	}
 	// A changed configuration (for example a rotated S3 key) supersedes the

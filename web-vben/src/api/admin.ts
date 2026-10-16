@@ -101,6 +101,8 @@ export interface StorageView {
   name: string;
   driver: StorageDriver;
   base_url: string;
+  /** 桶内（或本机根目录下）存放所有对象的文件夹，空串表示根目录。 */
+  path_prefix: string;
   enabled: boolean;
 }
 
@@ -109,6 +111,7 @@ export interface StorageInput {
   name: string;
   driver: StorageDriver;
   base_url: string;
+  path_prefix?: string;
   config?: Record<string, unknown>;
 }
 
@@ -116,6 +119,7 @@ export interface StorageInput {
 export interface StoragePatch {
   name?: string;
   base_url?: string;
+  path_prefix?: string;
   config?: Record<string, unknown>;
   enabled?: boolean;
 }

@@ -292,7 +292,7 @@ func TestAdminStorageListingNeverEchoesConfig(t *testing.T) {
 		t.Fatalf("storage items=%s", w.Body.String())
 	}
 	fields := data[0]
-	for _, key := range []string{"id", "name", "driver", "base_url", "enabled"} {
+	for _, key := range []string{"id", "name", "driver", "base_url", "path_prefix", "enabled"} {
 		if _, ok := fields[key]; !ok {
 			t.Fatalf("storage view missing %s: %s", key, w.Body.String())
 		}
@@ -302,7 +302,7 @@ func TestAdminStorageListingNeverEchoesConfig(t *testing.T) {
 			t.Fatalf("storage view leaked %s: %s", key, w.Body.String())
 		}
 	}
-	if len(fields) != 5 {
+	if len(fields) != 6 {
 		t.Fatalf("storage view exposes %d fields: %s", len(fields), w.Body.String())
 	}
 }

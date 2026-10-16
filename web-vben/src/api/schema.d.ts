@@ -1908,6 +1908,8 @@ export interface components {
             /** @enum {string} */
             driver: "local" | "s3";
             base_url: string;
+            /** @description Folder inside the bucket (or local root) that holds every object of this storage, without surrounding slashes; empty means the root. base_url must address this folder, so links stay base_url + "/" + image path. Changeable only while the storage holds no images (409 otherwise). */
+            path_prefix: string;
             enabled: boolean;
         };
         StorageInput: {
@@ -1916,6 +1918,8 @@ export interface components {
             driver: "local" | "s3";
             /** Format: uri */
             base_url: string;
+            /** @description Folder inside the bucket (or local root) that holds every object of this storage, without surrounding slashes; empty means the root. base_url must address this folder, so links stay base_url + "/" + image path. Changeable only while the storage holds no images (409 otherwise). */
+            path_prefix?: string;
             /** @description Driver-specific JSON. S3 credentials are sealed with the master key before persistence and never returned. */
             config?: Record<string, never>;
         };
@@ -1923,6 +1927,8 @@ export interface components {
             name?: string;
             /** Format: uri */
             base_url?: string;
+            /** @description Folder inside the bucket (or local root) that holds every object of this storage, without surrounding slashes; empty means the root. base_url must address this folder, so links stay base_url + "/" + image path. Changeable only while the storage holds no images (409 otherwise). */
+            path_prefix?: string;
             enabled?: boolean;
             /** @description Replaces the stored configuration wholesale; re-sealed for S3 and probe-tested before persistence. Never returned. */
             config?: Record<string, never>;

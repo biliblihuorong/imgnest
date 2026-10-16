@@ -60,6 +60,7 @@ const storageFixture: StorageView = {
   name: "main",
   driver: "local",
   base_url: "http://localhost:9000/imgnest",
+  path_prefix: "",
   enabled: true,
 };
 

@@ -81,6 +81,12 @@ cleaners must never affect a replacement image at the same path.
 | Responsive variant | `{path}_w{width}_v{version}.webp` (e.g. `_w800_v1`) |
 | Recycle bin | `_trash/` + any of the above |
 
+A storage's `path_prefix` (e.g. `ShellBlogImg`) is applied below this table by
+`storage.WithPrefix` in the driver factory: every key above, the recycle bin and
+connection probes live under `{path_prefix}/`. Services and the database never
+see it; `base_url` addresses the folder, so URLs stay base URL + key. It can
+change only while the storage holds no images.
+
 `_thumbs` and `_w{n}_v{n}` are reserved name suffixes; random filenames rerender up to 5 times,
 deterministic names append `-1`. Internal `_trash`/`.trash` namespaces cannot
 be rendered by user templates. URLs are never stored: base URL plus correctly

@@ -75,6 +75,7 @@ beforeEach(() => {
       name: "backblaze",
       driver: "s3",
       base_url: "https://img.example.com/old-bucket/",
+      path_prefix: "",
       enabled: true,
     },
   ]);

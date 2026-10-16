@@ -93,7 +93,7 @@ func (r *StorageRepository) Update(ctx context.Context, value model.Storage, gua
 		if err != nil {
 			return err
 		}
-		if existing.Driver != guard.ExpectedDriver || !sameStorageConfig(existing.Config, guard.ExpectedConfig) {
+		if existing.Driver != guard.ExpectedDriver || !sameStorageConfig(existing.Config, guard.ExpectedConfig) || existing.PathPrefix != guard.ExpectedPathPrefix {
 			return model.ErrImageBusy
 		}
 		if guard.RequireEmpty {

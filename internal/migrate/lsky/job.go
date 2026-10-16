@@ -122,9 +122,10 @@ func (r *Runner) Start(ctx context.Context, opts service.LskyImportOptions) (ser
 		return service.LskyImportStatus{}, service.ErrInvalidInput
 	}
 	var fetch Fetcher = HTTPFetcher{Client: r.deps.HTTP, BaseURL: opts.SourceURL, MaxBytes: r.deps.MaxBytes}
+	var open service.ObjectOpener
 	if opts.Mode == service.LskyModeAdopt {
-		open, err := r.deps.Adoption(ctx, opts.PolicyID)
-		if err != nil {
+		var err error
+		if open, err = r.deps.Adoption(ctx, opts.PolicyID); err != nil {
 			return service.LskyImportStatus{}, err
 		}
 		fetch = StorageFetcher{Open: open, MaxBytes: r.deps.MaxBytes}
@@ -152,7 +153,7 @@ func (r *Runner) Start(ctx context.Context, opts service.LskyImportOptions) (ser
 	go func() {
 		defer close(done)
 		defer cancel()
-		err := r.run(runCtx, snap, policy, opts, fetch)
+		err := r.run(runCtx, snap, policy, opts, fetch, open)
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		finished := r.deps.Now().UTC()
@@ -190,7 +191,16 @@ func (r *Runner) Wait() {
 	}
 }
 
-func (r *Runner) run(ctx context.Context, snap Snapshot, policy model.Policy, opts service.LskyImportOptions, fetch Fetcher) error {
+func (r *Runner) run(ctx context.Context, snap Snapshot, policy model.Policy, opts service.LskyImportOptions, fetch Fetcher, open service.ObjectOpener) error {
+	if open != nil {
+		var backend model.Storage
+		if err := r.deps.DB.WithContext(ctx).First(&backend, "id = ?", policy.StorageID).Error; err != nil {
+			return fmt.Errorf("find import storage: %w", err)
+		}
+		if err := CheckAdoption(ctx, snap, opts.StrategyID, backend.BaseURL, backend.PathPrefix, open); err != nil {
+			return err
+		}
+	}
 	mapping, accounts, err := ImportAccounts(ctx, r.deps.DB, snap, Options{PolicyID: policy.ID, Adopt: opts.Mode == service.LskyModeAdopt, Now: r.deps.Now})
 	if err != nil {
 		return err

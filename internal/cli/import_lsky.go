@@ -158,6 +158,13 @@ func runLskyImport(ctx context.Context, out *lineWriter, db *gorm.DB, cfg config
 		if err != nil {
 			return errors.Join(fmt.Errorf("--adopt needs a rule on a versioned S3 storage: %w", err), closeImages())
 		}
+		var backend model.Storage
+		if err := db.WithContext(ctx).First(&backend, "id = ?", policy.StorageID).Error; err != nil {
+			return errors.Join(fmt.Errorf("find storage %d: %w", policy.StorageID, err), closeImages())
+		}
+		if err := lsky.CheckAdoption(ctx, snap, 0, backend.BaseURL, backend.PathPrefix, open); err != nil {
+			return errors.Join(err, closeImages())
+		}
 		fetch = lsky.StorageFetcher{Open: open, MaxBytes: maxBytes}
 	}
 	ingest := func(ctx context.Context, item lsky.Item) error { return lskyIngest(images)(ctx, run.policyID, item) }

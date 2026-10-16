@@ -149,7 +149,7 @@ v1 用方案 A 快速跑通，M6 再评估是否换 B。运行参数参照 imago
 
 ## 5. 存储规则与路径模板规范
 
-一条规则 = 一个存储 + 「目录模板」+「文件名模板」+ WebP 策略。默认值沿用蓝空：目录 `{Y}/{m}/{d}`、文件名 `{uniqid}`，蓝空的变量写法全部兼容（[来源：Lsky Pro ImageService](https://github.com/lsky-org/lsky-pro/blob/master/app/Services/ImageService.php)）。
+一条规则 = 一个存储 + 「目录模板」+「文件名模板」+ WebP 策略。存储可设 `path_prefix`（2026-10-16，迁移 0013）：该存储的全部对象 Key（含 `_trash/`、`_checks/` 探测）都放在这个文件夹下，由 `storage.WithPrefix` 统一加前缀，业务层仍用不带前缀的 Key；`base_url` 必须指向这个文件夹，链接仍是 `base_url + "/" + Key`；存储里有图片后不能修改前缀。默认值沿用蓝空：目录 `{Y}/{m}/{d}`、文件名 `{uniqid}`，蓝空的变量写法全部兼容（[来源：Lsky Pro ImageService](https://github.com/lsky-org/lsky-pro/blob/master/app/Services/ImageService.php)）。
 
 | 变量 | 含义 | 示例 | 来源 |
 | --- | --- | --- | --- |
@@ -192,7 +192,7 @@ v1 用方案 A 快速跑通，M6 再评估是否换 B。运行参数参照 imago
 
 默认是「逻辑删除 + 回收站」：点删除后图片立刻不可访问，但 7 天内可恢复，到期后物理删除。只改数据库不动文件是不行的：S3 类存储的图片由桶域名直接访问，不经过本程序，文件不动就一直能打开。
 
-1. **删除**：写 `deleted_at` 和 `purge_at`（当前 + 保留天数）；把云端原图/WebP/缩略图服务端复制到 `_trash/{path}…` 再删原 Key；本机同样先安全复制到 `.trash/` 再删原 Key，以支持短事务外的幂等重试。成功响应前确认源站原 URL 已404（浏览器与 CDN 的已有缓存不在此保证内，需要时由管理员清 CDN 缓存）。回收站副本写入时带 `Cache-Control: private, no-store`；公开读的桶必须对 `_trash/` 前缀拒绝匿名读取，见 `docs/deployment.md`。本地缩略图保留，回收站里可预览。S3 复制用条件 multipart completion，避免兼容实现忽略目标防覆盖条件。
+1. **删除**：写 `deleted_at` 和 `purge_at`（当前 + 保留天数）；把云端原图/WebP/缩略图服务端复制到 `_trash/{path}…` 再删原 Key；本机同样先安全复制到 `.trash/` 再删原 Key，以支持短事务外的幂等重试。成功响应前确认源站原 URL 已404（浏览器与 CDN 的已有缓存不在此保证内，需要时由管理员清 CDN 缓存）。回收站副本写入时带 `Cache-Control: private, no-store`；公开读的桶必须对 `_trash/`（设了 `path_prefix` 时是 `{path_prefix}/_trash/`）前缀拒绝匿名读取，见 `docs/deployment.md`。本地缩略图保留，回收站里可预览。S3 复制用条件 multipart completion，避免兼容实现忽略目标防覆盖条件。
 2. **容量**：删除时立即从用户 `used_bytes` 扣除；回收站占用单独在管理后台展示。
 3. **恢复**：反向复制回原 Key，清空 `deleted_at`，链接完全恢复。在回收站中的图片仍占着 `(storage_id, path)` 唯一索引，所以不会被新图抢占路径。
 4. **物理删除**：定时任务每小时扫 `purge_at < now`，删 `_trash/` 对象、本地缩略图、`image_exif` 和 `images` 行；失败自动重试并记日志。

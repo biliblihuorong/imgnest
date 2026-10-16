@@ -71,6 +71,8 @@ A policy first produces a path without an extension, and several files derive fr
 
 Addresses are not stored in the database. They are built from the storage's `base_url` on every request, so changing the domain only means editing the storage.
 
+A storage can have a path prefix such as `ShellBlogImg`: every file then sits under that folder of the bucket (the original above becomes `ShellBlogImg/26/10/66ff1b2a3c4d5.png`) and the recycle bin is `ShellBlogImg/_trash/`. Set `base_url` to the address that serves that folder, for example `https://img.example.com/ShellBlogImg`, and returned links stay `base_url` + path. The prefix cannot change once the storage holds images.
+
 `_thumbs` and `_w<number>_v<number>` (such as `_w800_v1`) are reserved suffixes. A file name cannot end with them.
 
 ## Path templates
