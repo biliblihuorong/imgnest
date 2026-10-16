@@ -225,6 +225,27 @@ describe("GroupsView", () => {
     expect(numbers[1].props("value")).toBe(10);
   });
 
+  it("编辑保存：不提交默认组/游客组标记，非整 MB 的上限按整数字节提交", async () => {
+    adminApiMock.listGroups.mockResolvedValue([makeGroup({ max_file_bytes: 5000 * 1024 })]);
+    adminApiMock.updateGroup.mockResolvedValue(makeGroup());
+    const wrapper = await mountView();
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "编辑")!
+      .trigger("click");
+    await flushPromises();
+    bodyButton("保存")!.click();
+    await flushPromises();
+
+    expect(adminApiMock.updateGroup).toHaveBeenCalledTimes(1);
+    const [id, patch] = adminApiMock.updateGroup.mock.calls[0];
+    expect(id).toBe(1);
+    expect(patch).not.toHaveProperty("is_default");
+    expect(patch).not.toHaveProperty("is_guest");
+    expect(patch.max_file_bytes).toBe(5000 * 1024);
+    expect(Number.isInteger(patch.capacity_bytes)).toBe(true);
+  });
+
   it("删除成功：确认后调用 DELETE 并刷新列表", async () => {
     adminApiMock.deleteGroup.mockResolvedValue(null);
     const wrapper = await mountView();

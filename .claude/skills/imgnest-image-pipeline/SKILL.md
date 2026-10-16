@@ -69,7 +69,10 @@ Two modes (web admin page or CLI, same `lsky.Runner` / `ImportImages`):
   source of truth) and records empty EXIF when the parser rejects the
   metadata (nothing is rewritten). Other mismatches in copy mode still fail
   with `ErrImportLinkChanged`. `ProcessingError{Step}` (matches
-  `ErrProcessing`) tells the import report which step failed.
+  `ErrProcessing`) tells the import report which step failed. Imports are
+  capped by the owner group's `max_file_bytes` (`ErrFileTooLarge`), or
+  `service.MaxImportFileBytes` (100 MiB) when the group has no limit, not by
+  `server.max_upload_mb`.
 
 See `docs/lsky-migration.md` and spec §5.1 / §6.2.
 

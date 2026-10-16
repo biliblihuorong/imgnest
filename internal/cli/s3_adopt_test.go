@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
+	"image/png"
 	"io"
 	"net/http"
 	"os"
@@ -403,6 +405,69 @@ func TestRealMinIOAdoptUnreadableMetadata(t *testing.T) {
 			return err
 		}
 		if !view.HasOriginal || !view.HasWebP || view.MIME != "image/jpeg" {
+			t.Fatalf("adopted view = %+v", view)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// An import follows the owner group's per-file limit, not the 20 MiB
+// request cap: an unlimited group adopts a larger original, a limited one
+// refuses it.
+func TestRealMinIOAdoptFollowsGroupFileLimit(t *testing.T) {
+	client, bucket, _, path := minioPipeline(t, `{"skip_if_larger":false}`, "")
+	ctx := t.Context()
+	noise := image.NewNRGBA(image.Rect(0, 0, 2900, 2000))
+	if _, err := rand.Read(noise.Pix); err != nil {
+		t.Fatal(err)
+	}
+	var source bytes.Buffer
+	if err := (&png.Encoder{CompressionLevel: png.NoCompression}).Encode(&source, noise); err != nil {
+		t.Fatal(err)
+	}
+	if source.Len() <= 20<<20 {
+		t.Fatalf("fixture is only %d bytes", source.Len())
+	}
+	put, err := client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(bucket), Key: aws.String("a/big.png"), Body: bytes.NewReader(source.Bytes())})
+	if err != nil {
+		t.Fatal("put foreign original failed")
+	}
+	err = withDatabase(ctx, path, func(db *gorm.DB, cfg config.Config) error {
+		users, _, err := newServices(ctx, db)
+		if err != nil {
+			return err
+		}
+		admin, err := users.InitAdmin(ctx, service.RegisterInput{Username: "owner", Email: "o@example.com", Password: "pipeline-test-password"})
+		if err != nil {
+			return err
+		}
+		var policy model.Policy
+		if err = db.First(&policy).Error; err != nil {
+			return err
+		}
+		images, _, closeImages, err := newImageServices(ctx, db, cfg, nil, imageHooks{})
+		if err != nil {
+			return err
+		}
+		defer func() { _ = closeImages() }()
+		input := service.ImportInput{Data: source.Bytes(), Filename: "big.png", Path: "a/big", Ext: "png", UserID: admin.ID, PolicyID: policy.ID, AdoptVersion: aws.ToString(put.VersionId)}
+		if err = db.Model(&model.Group{}).Where("id = ?", admin.GroupID).Update("max_file_bytes", 20<<20).Error; err != nil {
+			return err
+		}
+		if _, err = images.ImportImage(ctx, input); !errors.Is(err, service.ErrFileTooLarge) {
+			t.Fatalf("limited group err = %v", err)
+		}
+		if err = db.Model(&model.Group{}).Where("id = ?", admin.GroupID).Update("max_file_bytes", 0).Error; err != nil {
+			return err
+		}
+		view, err := images.ImportImage(ctx, input)
+		if err != nil {
+			return err
+		}
+		if view.Size != int64(source.Len()) || !view.HasThumb {
 			t.Fatalf("adopted view = %+v", view)
 		}
 		return nil
