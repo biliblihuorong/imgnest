@@ -85,6 +85,7 @@ IMGNEST_DATABASE_DSN=postgres://user:password@host:5432/imgnest
 | `images.thumb_cache` | `IMGNEST_IMAGES_THUMB_CACHE` | `data/thumbs` | 本机缩略图目录，可以整个删掉重建 |
 | `images.variant_cors_origins` | `IMGNEST_IMAGES_VARIANT_CORS_ORIGINS` | 空 | 允许哪些网站（如你的博客）在浏览器里调用 `/api/variants` 查响应式版本，逗号分隔；`*` 表示任意来源 |
 | `images.variant_lookup_per_minute` | `IMGNEST_IMAGES_VARIANT_LOOKUP_PER_MINUTE` | `60` | 每个客户端地址每分钟可查询的次数 |
+| `backup.dir` | `IMGNEST_BACKUP_DIR` | `data/backup` | 后台「备份/导出」与定时备份写入的目录（zip：数据库导出 + 配置），文件权限 0600 |
 | `security.master_key` | `IMGNEST_SECURITY_MASTER_KEY` | 空 | 加密 S3 凭据用的主密钥，只用本机存储时可以留空 |
 
 使用 S3 存储时必须提供主密钥：32 个随机字节的 base64 编码。它和数据库备份要一起保管，丢了就解不开已保存的存储凭据。

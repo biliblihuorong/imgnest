@@ -58,7 +58,9 @@ type Dependencies struct {
 	// Variants serves the public responsive-variant lookup and the admin
 	// backfill when configured.
 	// LskyImport serves the console's Lsky Pro migration when configured.
-	LskyImport     native.LskyImport
+	LskyImport native.LskyImport
+	// Backups serves the console's backup page when configured.
+	Backups        native.Backups
 	Variants       native.Variants
 	VariantOptions native.VariantOptions
 }
@@ -167,6 +169,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 			return nil, fmt.Errorf("register lsky import routes: %w", err)
 		}
 	}
+	if deps.Backups != nil {
+		if err := handler.RegisterBackupRoutes(ctx, router, deps.Backups); err != nil {
+			return nil, fmt.Errorf("register backup routes: %w", err)
+		}
+	}
 	if deps.PluginSettings != nil {
 		if err := handler.RegisterPluginSettingsRoutes(ctx, router, deps.PluginSettings); err != nil {
 			return nil, fmt.Errorf("register plugin settings routes: %w", err)
@@ -176,6 +183,15 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 		if err := deps.Lsky.RegisterRoutes(ctx, router); err != nil {
 			return nil, fmt.Errorf("register lsky routes: %w", err)
 		}
+	}
+	// /api/v2 reuses the native image and album handlers, so it is mounted
+	// after them; the v1 API switch governs it too.
+	var apiSwitch native.APISwitch
+	if deps.Lsky != nil {
+		apiSwitch = deps.Lsky
+	}
+	if err := handler.RegisterV2Routes(ctx, router, apiSwitch); err != nil {
+		return nil, fmt.Errorf("register v2 routes: %w", err)
 	}
 	router.GET("/healthz", func(c *gin.Context) {
 		if err := deps.Health(c.Request.Context()); err != nil {

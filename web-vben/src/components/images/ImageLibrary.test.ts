@@ -10,6 +10,7 @@ import {
   batchPermission,
   deleteImage,
   getImageExif,
+  renameImage,
   searchImages,
   setImageVisibility,
   type ImageSearchParams,
@@ -33,6 +34,7 @@ vi.mock("@/api/images", () => ({
   searchImages: vi.fn(),
   setImageVisibility: vi.fn(),
   deleteImage: vi.fn(),
+  renameImage: vi.fn(),
   getImageExif: vi.fn(),
   listTrash: vi.fn(),
   restoreImages: vi.fn(),
@@ -54,6 +56,7 @@ vi.mock("@/api/thumbnails", () => ({
 const searchImagesMock = vi.mocked(searchImages);
 const setImageVisibilityMock = vi.mocked(setImageVisibility);
 const deleteImageMock = vi.mocked(deleteImage);
+const renameImageMock = vi.mocked(renameImage);
 const getImageExifMock = vi.mocked(getImageExif);
 const batchAlbumsMock = vi.mocked(batchAlbums);
 const batchDeleteMock = vi.mocked(batchDelete);
@@ -707,6 +710,8 @@ describe("ImageLibrary 详情面板（Marvis 宽屏）", () => {
       "copy-thumbnail",
       "divider",
       "props",
+      "rename",
+      "move",
       "toggle",
       "remove",
     ]);
@@ -768,5 +773,78 @@ describe("ImageLibrary 详情面板（Marvis 宽屏）", () => {
     await wrapper.findAllComponents(ImageCard)[0].find(".image-card__meta").trigger("click");
     await flushPromises();
     expect(wrapper.findComponent(ImageDetailDrawer).props("show")).toBe(false);
+  });
+});
+
+describe("ImageLibrary 右键改名与移动", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setShell("classic");
+    wideViewport.value = false;
+    listAlbumsMock.mockResolvedValue({
+      items: [makeAlbum({ id: 7, name: "旅行" })],
+      total: 1,
+      page: 1,
+      size: 100,
+    });
+    searchImagesMock.mockImplementation(async (p) => ({
+      items: [makeImage({ id: 1, name: "a.png" })],
+      total: 1,
+      page: p.page,
+      size: p.size,
+      search: searchMetadata(p.q),
+    }));
+  });
+
+  async function openMenu(wrapper: ReturnType<typeof mountLibrary>) {
+    wrapper.findAllComponents(ImageCard)[0].vm.$emit("menu", new MouseEvent("contextmenu"));
+    await flushPromises();
+    return wrapper.findAllComponents(NDropdown).find((node) => node.props("trigger") === "manual")!;
+  }
+
+  it("moves the image to the album picked in the context menu", async () => {
+    batchAlbumsMock.mockResolvedValue([{ id: 1, status: 200, code: 0, message: "ok", data: null }]);
+    const wrapper = mountLibrary();
+    await flushPromises();
+    const dropdown = await openMenu(wrapper);
+    const move = (
+      dropdown.props("options") as { key: string; children?: { key: string }[] }[]
+    ).find((option) => option.key === "move")!;
+    expect(move.children!.map((child) => child.key)).toEqual(["move:0", "move:7"]);
+    await dropdown.vm.$emit("select", "move:7");
+    await flushPromises();
+    expect(batchAlbumsMock).toHaveBeenCalledWith([1], 7);
+  });
+
+  it("renames the image through the dialog and trims the name", async () => {
+    renameImageMock.mockResolvedValue(makeImage({ id: 1, name: "beach.png" }));
+    const wrapper = mountLibrary();
+    await flushPromises();
+    const dropdown = await openMenu(wrapper);
+    await dropdown.vm.$emit("select", "rename");
+    await flushPromises();
+    const input = document.body.querySelector<HTMLInputElement>(".n-modal input")!;
+    expect(input.value).toBe("a.png");
+    input.value = "  beach.png ";
+    input.dispatchEvent(new Event("input"));
+    await flushPromises();
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await flushPromises();
+    expect(renameImageMock).toHaveBeenCalledWith(1, "beach.png");
+  });
+
+  it("refuses names with a path separator before calling the server", async () => {
+    const wrapper = mountLibrary();
+    await flushPromises();
+    const dropdown = await openMenu(wrapper);
+    await dropdown.vm.$emit("select", "rename");
+    await flushPromises();
+    const input = document.body.querySelector<HTMLInputElement>(".n-modal input")!;
+    input.value = "a/b.png";
+    input.dispatchEvent(new Event("input"));
+    await flushPromises();
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await flushPromises();
+    expect(renameImageMock).not.toHaveBeenCalled();
   });
 });

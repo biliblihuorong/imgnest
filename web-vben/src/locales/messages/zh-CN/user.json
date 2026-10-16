@@ -16,7 +16,8 @@
     "loadError": "加载失败",
     "batchSuccess": "{action}成功 {count} 张",
     "batchFailure": "{action}失败（ID {id}）：{error}",
-    "actionFailure": "{action}失败：{error}"
+    "actionFailure": "{action}失败：{error}",
+    "save": "保存"
   },
   "images": {
     "title": "我的图片",
@@ -70,7 +71,15 @@
     "deleteConfirmTitle": "删除「{name}」？",
     "search": "搜索",
     "searchPlaceholder": "搜索文件名或相机/镜头…",
-    "menuCopyFormat": "复制 {format}"
+    "menuCopyFormat": "复制 {format}",
+    "menuRename": "重命名",
+    "menuMove": "移动到相册",
+    "renameTitle": "重命名图片",
+    "renameHint": "只改显示名称，图片链接不会变化。",
+    "renamePlaceholder": "新的名称",
+    "renameSuccess": "已重命名",
+    "renameError": "重命名失败",
+    "renameInvalid": "名称不能为空，也不能包含 / 或 \\"
   },
   "detail": {
     "title": "图片详情",

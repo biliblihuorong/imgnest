@@ -62,6 +62,10 @@ type Handler struct {
 	// email and mail serve email codes and SMTP settings; nil omits them.
 	email EmailAuth
 	mail  MailSettings
+	// v2Images and v2Albums are the native handlers /api/v2 reuses, set
+	// when their routes are registered.
+	v2Images *imageHandler
+	v2Albums *albumHandler
 }
 
 // UsePlugins sets the extensions whose login providers the site view lists
@@ -346,6 +350,10 @@ func errorResponse(err error) (int, Response) {
 		status, code, message = 400, 10006, "not a Lsky Pro database export"
 	case errors.Is(err, service.ErrImportBusy):
 		status, code, message = 409, 30016, "import already running"
+	case errors.Is(err, service.ErrBackupBusy):
+		status, code, message = 409, 30020, "a backup is already running; try again shortly"
+	case errors.Is(err, service.ErrBackupMismatch):
+		status, code, message = 409, 30021, "backup does not match this installation"
 	case errors.Is(err, service.ErrGroupHasMembers):
 		status, code, message = 409, 30008, "group still has members"
 	case errors.Is(err, service.ErrStillReferenced):
@@ -386,6 +394,12 @@ func errorResponse(err error) (int, Response) {
 	var settingsErr *service.PluginSettingsError
 	if errors.As(err, &settingsErr) {
 		return 400, Response{Code: 10005, Message: settingsErr.Message, Data: nil}
+	}
+	// A reason code turns a generic "invalid request" or "storage operation
+	// failed" into a precise hint the console can translate; it is a fixed
+	// identifier, never an input value or provider message.
+	if reason := service.ErrorReason(err); reason != "" {
+		return status, Response{Code: code, Message: message, Data: gin.H{"reason": reason}}
 	}
 	return status, Response{Code: code, Message: message, Data: nil}
 }

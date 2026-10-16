@@ -16,6 +16,7 @@ type AdminUserRepository interface {
 	ListUsers(context.Context, string, int, int) ([]model.User, int64, error)
 	CreateAdminUser(context.Context, uint64, model.User) (model.User, error)
 	UpdateAdminUser(context.Context, uint64, uint64, model.UserChanges) (model.User, error)
+	ResetUserPassword(context.Context, uint64, uint64, string) error
 }
 
 // AdminGroupRepository manages account groups, their rule bindings, and the
@@ -197,6 +198,9 @@ type StorageChecks struct {
 type StorageTestResult struct {
 	OK     bool          `json:"ok"`
 	Checks StorageChecks `json:"checks"`
+	// Reason classifies the first failed step (see ErrorReason), e.g.
+	// "storage_denied"; empty when everything passed or the cause is unknown.
+	Reason string `json:"reason,omitempty"`
 }
 
 // PolicyPatch carries optional rule changes; pointer fields distinguish an

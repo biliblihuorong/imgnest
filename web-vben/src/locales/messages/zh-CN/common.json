@@ -107,6 +107,30 @@
     "mailNotConfigured": "本站还没有开启邮件发送",
     "emailCode": "验证码不正确或已过期，请重新获取",
     "emailCodeCooldown": "操作太频繁，请一分钟后再获取验证码",
-    "mailUnavailable": "邮件发送失败，请稍后重试"
+    "mailUnavailable": "邮件发送失败，请稍后重试",
+    "withReason": "{error}：{reason}",
+    "gateway": "服务器暂时没有响应（HTTP {status}），请稍后重试；如果一直这样，请联系管理员查看服务日志",
+    "reasons": {
+      "password_length": "密码长度需要在 12 到 72 个字符之间",
+      "username_length": "用户名需要 3 到 64 个字符",
+      "email_invalid": "邮箱格式不正确",
+      "display_name_invalid": "昵称最多 64 个字符，且不能包含控制字符",
+      "image_name_invalid": "名称不能为空，不能包含 / 或 \\，最长 255 字节",
+      "storage_denied": "存储拒绝了访问，请检查 AccessKey / SecretKey 和权限",
+      "storage_bucket": "存储桶不存在或名称、区域填写有误",
+      "storage_busy": "存储服务繁忙，请稍后重试",
+      "storage_clock": "服务器时间与存储服务相差太多，请校准系统时间",
+      "storage_quota": "存储空间配额已满",
+      "storage_unsupported": "该存储不支持所需的操作（例如复制或版本控制）",
+      "storage_tls": "存储服务的 HTTPS 证书无法验证",
+      "storage_unreachable": "连不上存储服务，请检查 Endpoint 地址和网络",
+      "storage_timeout": "连接存储服务超时",
+      "storage_disk_full": "本机磁盘空间已满",
+      "storage_read_only": "存储目录是只读的",
+      "storage_permission": "程序没有存储目录的读写权限",
+      "api_disabled": "管理员没有开启 API"
+    },
+    "backupBusy": "已有一个备份正在进行，请稍后再试",
+    "backupMismatch": "这个备份与当前安装不匹配（数据库类型或版本不同）"
   }
 }

@@ -1,7 +1,12 @@
 // Package service implements ImgNest business rules through persistence interfaces.
 package service
 
-import "github.com/biliblihuorong/imgnest/internal/model"
+import (
+	"errors"
+
+	"github.com/biliblihuorong/imgnest/internal/model"
+	"github.com/biliblihuorong/imgnest/internal/storage"
+)
 
 // Domain errors are shared with persistence without a dependency on this package.
 var (
@@ -71,3 +76,49 @@ func (e *ProcessingError) Error() string { return "image processing failed at " 
 
 // Is makes a ProcessingError match ErrProcessing.
 func (e *ProcessingError) Is(target error) bool { return target == ErrProcessing }
+
+// ReasonError narrows a domain error with a short, stable reason code that
+// clients can turn into a precise hint ("the password must be 12-72
+// characters"). Reasons are fixed identifiers and never carry input values,
+// credentials or provider messages.
+type ReasonError struct {
+	Reason string
+	Err    error
+}
+
+func (e *ReasonError) Error() string { return e.Err.Error() + " (" + e.Reason + ")" }
+
+// Unwrap keeps errors.Is matching the underlying domain error.
+func (e *ReasonError) Unwrap() error { return e.Err }
+
+// Input reasons for the account and image forms.
+var (
+	errPasswordLength     = &ReasonError{Reason: "password_length", Err: ErrInvalidInput}
+	errUsernameLength     = &ReasonError{Reason: "username_length", Err: ErrInvalidInput}
+	errEmailInvalid       = &ReasonError{Reason: "email_invalid", Err: ErrInvalidInput}
+	errDisplayNameInvalid = &ReasonError{Reason: "display_name_invalid", Err: ErrInvalidInput}
+	errImageNameInvalid   = &ReasonError{Reason: "image_name_invalid", Err: ErrInvalidInput}
+)
+
+// ErrorReason returns the hint code carried by err: an explicit ReasonError,
+// or for storage failures the class of the underlying driver error (denied
+// credentials, a missing bucket, an unreachable endpoint, a full disk...).
+// It returns "" when there is nothing more specific to say.
+func ErrorReason(err error) string {
+	var reasoned *ReasonError
+	if errors.As(err, &reasoned) {
+		return reasoned.Reason
+	}
+	if errors.Is(err, ErrStorage) {
+		return storage.Reason(err)
+	}
+	return ""
+}
+
+// storageFailure is ErrStorage that keeps the redacted driver error so
+// ErrorReason can classify it; its message stays the generic one.
+type storageFailure struct{ cause error }
+
+func (e storageFailure) Error() string        { return ErrStorage.Error() }
+func (e storageFailure) Unwrap() error        { return e.cause }
+func (e storageFailure) Is(target error) bool { return target == ErrStorage }

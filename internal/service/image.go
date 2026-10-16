@@ -27,6 +27,7 @@ type ImageRepository interface {
 	List(context.Context, model.ImageListFilter, int, int) ([]model.Image, int64, error)
 	SetAlbum(context.Context, string, uint64, model.TokenGrant) error
 	SetPublic(context.Context, string, bool, model.TokenGrant) error
+	SetName(context.Context, string, string, model.TokenGrant) error
 	BeginTrash(context.Context, string, string, model.TokenGrant, int) (model.Image, error)
 	FinishTrash(context.Context, string, string) error
 	BeginRestore(context.Context, string, string, model.TokenGrant) (model.Image, error)

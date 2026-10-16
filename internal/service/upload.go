@@ -665,7 +665,10 @@ func storageError(ctx context.Context, err error) error {
 	if errors.Is(err, storage.ErrExists) {
 		return ErrPathConflict
 	}
-	return ErrStorage
+	if err == nil || errors.Is(err, ErrStorage) {
+		return ErrStorage
+	}
+	return storageFailure{cause: err}
 }
 
 func (s *ImageService) view(ctx context.Context, image model.Image) (ImageView, error) {

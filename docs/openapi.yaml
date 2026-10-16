@@ -5,7 +5,8 @@ info:
   description: |
     Account, token, and image API. Every API response uses the native
     `{code, message, data}` envelope. Success has code 0 and message `ok`;
-    failures have a nonzero business code and data `null`.
+    failures have a nonzero business code and data `null`, or an
+    ErrorData object whose `reason` narrows the failure.
     Response timestamps are UTC RFC3339. Passwords, credential hashes,
     and token hashes are never returned. Plaintext tokens are returned
     only by login and token creation.
@@ -13,6 +14,13 @@ info:
     fields, multiple JSON values, and trailing non-whitespace data are
     rejected with HTTP 400 and code 10001.
     Image bodies at /i and /t use binary responses instead of this envelope.
+
+    The routes listed in docs/api-v2.md are also served under `/api/v2`
+    (for example `PATCH /api/v2/images/{id}` is `PATCH /api/images/{id}`)
+    by the same handlers. `/api/v2` is the stable API for scripts and
+    upload clients: it only gains fields, follows the administrator's API
+    switch (403 with reason `api_disabled` while it is off) and never
+    returns EXIF.
 servers:
   - url: /
     description: Current ImgNest origin
@@ -884,8 +892,12 @@ paths:
     patch:
       operationId: setImageVisibility
       tags: [Images]
-      summary: Change public-list visibility
-      description: Private images remain accessible to anyone holding their direct object link.
+      summary: Change public-list visibility or the display name
+      description: >-
+        Send is_public, name, or both. Private images remain accessible to anyone holding their
+        direct object link. Renaming changes only the display name used in lists and searches;
+        the object key, extension and every URL stay the same. A name is trimmed and must be
+        1-255 bytes with no control characters, "/" or "\"; an invalid name changes nothing.
       security: [{bearerAuth: []}]
       requestBody:
         required: true
@@ -894,9 +906,10 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [is_public]
+              minProperties: 1
               properties:
                 is_public: {type: boolean}
+                name: {type: string, minLength: 1, maxLength: 255}
       responses:
         '200':
           description: Updated image.
@@ -1410,6 +1423,137 @@ paths:
           $ref: '#/components/responses/AdminForbidden'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/admin/backups:
+    get:
+      operationId: adminListBackups
+      tags: [Admin]
+      summary: List backup archives with the automatic backup schedule
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Archives, newest first.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BackupOverviewEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/StorageFailed'
+    post:
+      operationId: adminCreateBackup
+      tags: [Admin]
+      summary: Write a backup archive now
+      description: >-
+        Zip with database.sql (every data table as INSERT statements), manifest.json and the
+        deployment configuration under config/. The archive holds password hashes and secrets
+        such as the master key; keep downloads private.
+      security: [{bearerAuth: []}]
+      responses:
+        '201':
+          description: The new archive.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BackupFileEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '409':
+          description: Another backup is running; code 30020.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/StorageFailed'
+  /api/admin/backups/schedule:
+    put:
+      operationId: adminPutBackupSchedule
+      tags: [Admin]
+      summary: Turn automatic backups on or off
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BackupSchedule'}
+      responses:
+        '200':
+          description: The stored schedule.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BackupScheduleEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/backups/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema: {type: string, pattern: '^imgnest-[0-9]{8}-[0-9]{6}(-auto)?\.zip$'}
+    get:
+      operationId: adminDownloadBackup
+      tags: [Admin]
+      summary: Download one archive
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: The zip archive as an attachment.
+          content:
+            application/zip:
+              schema: {type: string, format: binary}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: adminDeleteBackup
+      tags: [Admin]
+      summary: Delete one archive
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [code, message, data]
+                properties:
+                  code: {type: integer, enum: [0]}
+                  message: {type: string}
+                  data:
+                    type: object
+                    additionalProperties: false
+                    required: [name]
+                    properties:
+                      name: {type: string}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '502':
+          $ref: '#/components/responses/StorageFailed'
   /api/admin/migrations/lsky:
     get:
       operationId: adminLskyImportStatus
@@ -2029,6 +2173,47 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/users/{id}/password:
+    put:
+      operationId: adminResetUserPassword
+      tags: [Admin]
+      summary: Set a new password for another account
+      description: |
+        Requires the administrator role. The password follows the signup rules
+        (12-72 bytes) and is hashed with the same bcrypt cost. The new hash and
+        the revocation of every token on that account commit together, so the
+        account is signed out everywhere. Administrators cannot reset their own
+        password here (403); they use PATCH /api/auth/password, which asks for
+        the current one. The password is never echoed or logged.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImageID'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [password]
+              properties:
+                password: {type: string, minLength: 12, maxLength: 72, writeOnly: true}
+      responses:
+        '200':
+          description: Password replaced; data is null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NullEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/admin/groups:
@@ -3042,6 +3227,9 @@ components:
             put: {type: boolean}
             copy: {type: boolean}
             delete: {type: boolean}
+        reason:
+          allOf: [{$ref: '#/components/schemas/ErrorReason'}]
+          description: Class of the first failed step; omitted when all checks pass or the cause is unknown.
     PolicyView:
       type: object
       additionalProperties: false
@@ -3514,6 +3702,58 @@ components:
         finished_at:
           allOf: [{$ref: '#/components/schemas/Timestamp'}]
           nullable: true
+    BackupFile:
+      type: object
+      additionalProperties: false
+      required: [name, size, created_at, auto]
+      properties:
+        name: {type: string}
+        size: {type: integer, format: int64, minimum: 0, description: Bytes.}
+        created_at: {type: string, format: date-time}
+        auto: {type: boolean, description: Written by the schedule; only these are pruned.}
+    BackupSchedule:
+      type: object
+      additionalProperties: false
+      required: [enabled, interval_hours, keep]
+      properties:
+        enabled: {type: boolean}
+        interval_hours: {type: integer, minimum: 1, maximum: 720}
+        keep: {type: integer, minimum: 1, maximum: 365, description: Automatic archives to keep.}
+    BackupOverview:
+      type: object
+      additionalProperties: false
+      required: [items, schedule, running, location]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/BackupFile'}
+        schedule: {$ref: '#/components/schemas/BackupSchedule'}
+        running: {type: boolean}
+        location: {type: string, description: The configured backup.dir.}
+    BackupOverviewEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/BackupOverview'}
+    BackupFileEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/BackupFile'}
+    BackupScheduleEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/BackupSchedule'}
     LskyImportEnvelope:
       type: object
       additionalProperties: false
@@ -3834,6 +4074,21 @@ components:
         database identifier and its secret is exactly 40 ASCII alphanumeric characters.
         Only login and token creation responses expose this value.
       example: 7|abcdefghijklmnopqrstuvwxyz0123456789ABCD
+    ErrorReason:
+      type: string
+      description: >-
+        Fixed hint code that narrows a generic error, so a client can say what to fix:
+        which form field broke a rule, or why a storage call failed (rejected credentials,
+        missing bucket, unreachable endpoint, full disk...). Never carries input values,
+        credentials or provider messages. Clients must tolerate codes they do not know.
+      enum: [api_disabled, password_length, username_length, email_invalid, display_name_invalid, image_name_invalid, storage_denied, storage_bucket, storage_busy, storage_clock, storage_quota, storage_unsupported, storage_tls, storage_unreachable, storage_timeout, storage_disk_full, storage_read_only, storage_permission]
+    ErrorData:
+      type: object
+      nullable: true
+      additionalProperties: false
+      description: null, or a reason hint for the error.
+      properties:
+        reason: {$ref: '#/components/schemas/ErrorReason'}
     NullData:
       type: object
       nullable: true
@@ -4425,12 +4680,12 @@ components:
       properties:
         code:
           type: integer
-          enum: [10001, 10002, 10004, 10005, 10006, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 30010, 30011, 30012, 30013, 30014, 30015, 30016, 30017, 30018, 30019, 50001, 50002, 50003, 50004, 50005, 50006]
+          enum: [10001, 10002, 10004, 10005, 10006, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 30010, 30011, 30012, 30013, 30014, 30015, 30016, 30017, 30018, 30019, 30020, 30021, 50001, 50002, 50003, 50004, 50005, 50006]
         message:
           type: string
           description: Human-readable error message without technical or credential details.
         data:
-          $ref: '#/components/schemas/NullData'
+          $ref: '#/components/schemas/ErrorData'
   responses:
     SearchInvalid:
       description: Invalid unified-search syntax, parameters, version, complexity or mixed protocol. No partial query is executed.

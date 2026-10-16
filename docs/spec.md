@@ -275,7 +275,7 @@ CDN 缓存不在本程序处理范围内。
 
 ## 7. API 规范
 
-两套接口共用同一套 Service：`/api/v1` 字段与蓝空完全一致，只多不少；`/api` 是自己前端用的原生接口。鉴权统一 `Authorization: Bearer <token>`。
+三套入口共用同一套 Service：`/api/v1` 字段与蓝空完全一致，只多不少；`/api` 是自己前端用的原生接口；`/api/v2` 是 ImgNest 自己给脚本和上传客户端用的版本化接口（见 7.1.1）。鉴权统一 `Authorization: Bearer <token>`。
 
 ### 7.1 蓝空 v1 兼容接口
 
@@ -295,6 +295,10 @@ CDN 缓存不在本程序处理范围内。
 
 响应外壳与蓝空一致：`{"status": true, "message": "上传成功", "data": {...}}`。上传成功的 `data` 包含 `key, name, pathname, origin_name, size(KB), mimetype, extension, md5, sha1, links`；`links` 包含 `url, html, bbcode, markdown, markdown_with_link, thumbnail_url`，并**额外增加** `webp_url`、`origin_url`（旧客户端会忽略未知字段）。
 
+### 7.1.1 ImgNest v2 接口
+
+`/api/v2` 与蓝空 v1 并存：社区客户端暂时继续用 v1，等生态跟上后逐步切到 v2。v2 直接复用 `/api` 原生接口的同一批 handler 和 Service，外壳是原生的 `{"code","message","data"}`，单位是原生的（`size` 为字节）。v2 是对外契约，只加字段不改不删；`/api` 仍可随前端演进。与 v1 共用后台「API 开关」（`api_enabled`），关闭时返回 403、`code=20003`、`data.reason=api_disabled`；控制台自己的 `/api` 不受开关影响。v2 不提供 EXIF。路由清单见 `docs/api-v2.md`。
+
 ### 7.2 原生接口
 
 统一响应 `{"code": 0, "message": "ok", "data": ...}`，`code` 非 0 即失败；分页 `{"items": [], "total": 0, "page": 1, "size": 20}`。
@@ -303,7 +307,7 @@ CDN 缓存不在本程序处理范围内。
 | --- | --- | --- |
 | 认证 | `POST /api/auth/login`、`POST /api/auth/register`、`POST /api/auth/logout`、`GET /api/auth/me`、`PATCH /api/auth/profile` | 公开 / 登录 |
 | 上传 | `POST /api/upload`（可一次多文件） | 登录或游客 |
-| 图片 | `GET /api/images`、`PATCH /api/images/{id}`、`POST /api/images/batch`（删除/移动/改权限） | 本人 |
+| 图片 | `GET /api/images`、`PATCH /api/images/{id}`（改可见性 `is_public` / 改显示名称 `name`，只改名称不改对象键和链接）、`POST /api/images/batch`（删除/移动/改权限） | 本人 |
 | EXIF | `GET /api/images/{id}/exif`（含 GPS 与全量 `raw`） | 本人 / 管理员 |
 | 本地缩略图 | `GET /t/{key}.webp`（缺失时懒生成） | 本人 / 管理员；公开图片可匿名 |
 | 回收站 | `GET /api/trash`、`POST /api/trash/restore`、`POST /api/trash/purge`（彻底删除选中） | 本人 |
@@ -318,6 +322,7 @@ CDN 缓存不在本程序处理范围内。
 **约定**
 
 - 错误码分段：`1xxxx` 参数、`2xxxx` 鉴权、`3xxxx` 业务（容量不足、格式不允许）、`5xxxx` 存储/处理失败。
+- 原生接口的错误可在 `data.reason` 附带固定的原因代码（如 `password_length`、`email_invalid`、`storage_denied`、`storage_unreachable`、`storage_disk_full`），让前端给出「哪里填错 / 存储为什么失败」的具体提示；原因代码只是固定标识，不含输入值、密钥、Endpoint 或服务商原文，也不返回调用栈。前端遇到不认识的代码就退回通用文案。存储「测试连接」结果同样带 `reason`。蓝空 v1 接口不变。
 - HTTP 状态码同时语义化（400/401/403/404/413/429/500），蓝空接口除外（蓝空客户端只看 `status`）。
 - 时间一律 RFC 3339；ID 对外用图片 `key`，不暴露自增 ID 给公开接口。
 - 接口文档用 OpenAPI 3 描述，放 `docs/openapi.yaml`，前端类型由它生成。
@@ -334,6 +339,7 @@ CDN 缓存不在本程序处理范围内。
 - 新版个人图片页与相册详情复用同一搜索组件。显式 `qv=1` 开启统一查询语法，`q`（可为空）、IANA `tz`、分页组成可恢复的 URL；无 `qv` 保持旧接口语义。完整协议见 [统一搜索](unified-search.md)。普通词只匹配展示的原文件名；相机、格式、相册、大小、上传日期、公开性和排序使用白名单字段。SQL 在授权范围内先筛选和 COUNT 后分页，不允许前端筛当前页或拉取全库。
 - 相册详情使用 `GET /api/albums/{id}/images`，路径相册是服务端核验的固定边界；查询、清空或标签删除不能扩大范围。`GET /api/albums/suggestions` 只提供授权的字符串 ID/名称与 `hasMore`；执行查询时仍需独立精确解析名称。
 - `POST /api/admin/users` 创建用户，`PATCH /api/admin/users/{id}` 允许管理员编辑 username、email、display_name、role、status、group_id。角色仍只有 admin/user，用户组继续控制额度和上传规则；没有新增逐用户权限体系。用户名和规范化邮箱保持唯一，昵称不唯一；容量、ID、注册时间和头像配置是服务端管理字段。
+- `PUT /api/admin/users/{id}/password` 管理员给其他账户设置新密码（规则同注册：12–72 字节，bcrypt 同一 cost），新密码与吊销该账户全部 Token 在同一事务里提交；不能用它改自己的密码（403，改自己的密码走 `PATCH /api/auth/password`）。密码不回显、不进日志。
 - 创建用户的初始密码复用既有 12–72 UTF-8 字节校验与 bcrypt，不发送邀请邮件，不返回或记录明文密码。用户 PATCH 不接受 password。个人设置继续只改昵称和通过原接口改密，用户名/邮箱不可自助编辑；登录仍使用邮箱和密码。
 - 身份、角色、分组或状态发生实际变化时，事务性撤销该账号全部 web/API Token，并递增只在内部使用的持久化 auth_version（迁移 0006）；仅昵称变化或值未变时保留会话与版本。管理员不可停用自己，并发操作也不能停用或降级最后一个启用的管理员。登录证明固定鉴权版本，账户字段改回原值也不能使旧证明恢复有效。
 - `PATCH /api/auth/profile` 必须明确提供非 null 的 display_name 字符串；空串表示主动清空，缺失或 null 是参数错误。
@@ -366,6 +372,15 @@ CDN 缓存不在本程序处理范围内。
 - 找回密码：`POST /api/auth/email-code`（`purpose=reset_password`）与 `POST /api/auth/password-reset`（每 IP 每分钟 3 次）。未注册、已停用的邮箱和冷却期内都静默返回成功，不泄露账号是否存在；重置成功后撤销该账号全部 Token（与改密同一路径）。
 - 人机验证改为一步配置 `PUT /api/admin/captcha`：填 Site Key、Secret（留空沿用已保存的），开启时在页面上用这把 Site Key 完成一次验证，服务端用 Secret 核验通过后立即生效；关闭不需要验证。允许的域名默认取当前访问域名，放在高级选项。旧的 draft/test/activation 三个接口保留兼容。
 - 新码（30016 已用于蓝空导入忙）：30017=邮件未配置(409)、30018=邮箱验证码错误或过期(422)、30019=验证码发送过于频繁(429)、50006=邮件暂不可用(503；管理端测试失败为 502 带 reason)。SMTP 密码、验证码明文与邮箱内容不进日志。
+
+### 7.8 备份与导出（2026-10-16）
+
+- 后台「站点设置 → 备份/导出」（`/admin/settings/backup`）。归档是 zip，写在 `backup.dir`（默认 `data/backup`，环境变量 `IMGNEST_BACKUP_DIR`），目录 0700、文件 0600；先写隐藏临时文件再改名，失败不留半截文件。
+- 归档内容：`database.sql`（全部数据表的 INSERT，按外键顺序；`albums.cover_image_id` 先写 NULL，末尾用 UPDATE 补回；不含 `schema_migrations`）、`config/imgnest.yaml`（启动时 `--config` 指定的文件）、`config/imgnest.env`（所有 `IMGNEST_*` 环境变量）、`manifest.json`（`format`、`driver`、`schema_version`、各表行数）。归档含密码哈希、DSN 与 `security.master_key`，只供管理员下载；新增数据表必须同时加入 `internal/repo/backup.go` 的 `backupTables`，有测试守着。
+- 接口（管理员）：`GET /api/admin/backups`（列表 + 定时设置 + 目录）、`POST /api/admin/backups`（立即备份，201）、`GET /api/admin/backups/{name}`（下载）、`DELETE /api/admin/backups/{name}`、`PUT /api/admin/backups/schedule`。文件名只接受 `imgnest-YYYYMMDD-HHMMSS[-auto].zip`。
+- 定时备份存在 `settings` 的 `backup_schedule` 键：`enabled`（默认关）、`interval_hours` 1–720（默认 24）、`keep` 1–365（默认 7）。服务每 5 分钟检查一次，到期写 `-auto` 归档，之后只清理多出的自动归档，手动备份不会被删。
+- 还原只走命令行，先停服务：`imgnest backup restore --yes <归档>`。目标库必须已由同一版本迁移（驱动与 `schema_version` 不一致返回 30021），在一个事务里清空全部数据表再导入，只执行备份格式里的 INSERT/UPDATE；Postgres 自增序列随后对齐。配置文件不会自动覆盖，需要时手工拷回。`imgnest backup create` 可用于 cron。
+- 新码：30020=已有备份在进行(409)、30021=备份与当前安装不匹配(409)。
 
 ## 8. 工程规范
 

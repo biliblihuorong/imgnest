@@ -117,9 +117,12 @@ func (s *AdminService) PatchStorage(ctx context.Context, id uint64, patch Storag
 		if err != nil {
 			return StorageView{}, storageError(ctx, err)
 		}
-		put, copyOK, deleted := probeStorage(ctx, driver)
+		put, copyOK, deleted, cause := probeStorage(ctx, driver)
 		if !put || !copyOK || !deleted {
-			return StorageView{}, ErrStorage
+			if ctx.Err() != nil || cause == nil {
+				return StorageView{}, storageError(ctx, nil)
+			}
+			return StorageView{}, storageFailure{cause: cause}
 		}
 	}
 	updated, err := s.deps.Storages.Update(ctx, backend, guard)
@@ -213,17 +216,22 @@ func (s *AdminService) TestStorage(ctx context.Context, id uint64) (StorageTestR
 	if err != nil {
 		return StorageTestResult{}, storageError(ctx, err)
 	}
-	put, copyOK, deleted := probeStorage(ctx, driver)
-	return StorageTestResult{OK: put && copyOK && deleted, Checks: StorageChecks{Put: put, Copy: copyOK, Delete: deleted}}, nil
+	put, copyOK, deleted, cause := probeStorage(ctx, driver)
+	result := StorageTestResult{OK: put && copyOK && deleted, Checks: StorageChecks{Put: put, Copy: copyOK, Delete: deleted}}
+	if !result.OK {
+		result.Reason = storage.Reason(cause)
+	}
+	return result, nil
 }
 
 // probeStorage writes, copies, and deletes private probe objects, reporting
 // each capability separately. Probe keys live under _checks and are always
-// cleaned up; no user data is read or written.
-func probeStorage(ctx context.Context, driver storage.Driver) (put, copyOK, deleted bool) {
+// cleaned up; no user data is read or written. cause is the first driver
+// error, kept only so the result can say why a step failed.
+func probeStorage(ctx context.Context, driver storage.Driver) (put, copyOK, deleted bool, cause error) {
 	owner, err := operationID()
 	if err != nil {
-		return false, false, false
+		return false, false, false, err
 	}
 	key := "_checks/" + owner
 	copyKey := key + "-copy"
@@ -243,18 +251,22 @@ func probeStorage(ctx context.Context, driver storage.Driver) (put, copyOK, dele
 	}()
 	options := storage.PutOptions{OwnerID: owner, MIME: "application/octet-stream", CacheControl: "no-store"}
 	if _, err := driver.PutNew(ctx, key, strings.NewReader("imgnest storage probe"), options); err != nil {
-		return false, false, false
+		return false, false, false, err
 	}
 	put = true
 	if _, err := driver.Copy(ctx, key, copyKey, options); err == nil {
 		copyOK = true
+	} else {
+		cause = err
 	}
 	if err := driver.DeleteCurrent(ctx, key); err == nil {
 		if _, statErr := driver.Stat(ctx, key); errors.Is(statErr, storage.ErrNotFound) {
 			deleted = true
 		}
+	} else if cause == nil {
+		cause = err
 	}
-	return put, copyOK, deleted
+	return put, copyOK, deleted, cause
 }
 
 // validStorageBaseURL mirrors the provisioning URL rules.

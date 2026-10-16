@@ -19,6 +19,9 @@ vi.mock("@/components/admin/MailSettingsCard.vue", () => ({
 vi.mock("@/components/admin/PluginSettingsSection.vue", () => ({
   default: { template: '<section data-testid="plugin-settings" />' },
 }));
+vi.mock("./settings/BackupSettingsView.vue", () => ({
+  default: { template: '<section data-testid="backup-settings" />' },
+}));
 vi.mock("@/api/admin", () => ({ getSettings: vi.fn(), putSettings: vi.fn(), listGroups: vi.fn() }));
 vi.mock("@/api/mail", () => ({ getMailSettings: vi.fn() }));
 vi.mock("@/api/site", () => ({ fetchSite: vi.fn() }));
@@ -91,7 +94,7 @@ describe("SettingsView", () => {
     expect(router.currentRoute.value.name).toBe("admin-settings-general");
     expect(
       wrapper.findAll(".settings-nav__item").map((item) => item.attributes("data-section")),
-    ).toEqual(["general", "auth", "access", "mail", "plugins"]);
+    ).toEqual(["general", "auth", "access", "mail", "plugins", "backup"]);
     expect(wrapper.find("input[placeholder='站点名称']").exists()).toBe(true);
   });
 
@@ -113,5 +116,11 @@ describe("SettingsView", () => {
   it("shows the plugin page", async () => {
     const { wrapper } = await mountAt("/admin/settings/plugins");
     expect(wrapper.find('[data-testid="plugin-settings"]').exists()).toBe(true);
+  });
+
+  it("shows the backup page", async () => {
+    const { wrapper, router } = await mountAt("/admin/settings/backup");
+    expect(router.currentRoute.value.name).toBe("admin-settings-backup");
+    expect(wrapper.find('[data-testid="backup-settings"]').exists()).toBe(true);
   });
 });

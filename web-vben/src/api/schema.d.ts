@@ -609,8 +609,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Change public-list visibility
-         * @description Private images remain accessible to anyone holding their direct object link.
+         * Change public-list visibility or the display name
+         * @description Send is_public, name, or both. Private images remain accessible to anyone holding their direct object link. Renaming changes only the display name used in lists and searches; the object key, extension and every URL stay the same. A name is trimmed and must be 1-255 bytes with no control characters, "/" or "\"; an invalid name changes nothing.
          */
         patch: operations["setImageVisibility"];
         trace?: never;
@@ -942,6 +942,64 @@ export interface paths {
          */
         post: operations["adminControlVariantBackfill"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List backup archives with the automatic backup schedule */
+        get: operations["adminListBackups"];
+        put?: never;
+        /**
+         * Write a backup archive now
+         * @description Zip with database.sql (every data table as INSERT statements), manifest.json and the deployment configuration under config/. The archive holds password hashes and secrets such as the master key; keep downloads private.
+         */
+        post: operations["adminCreateBackup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/backups/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Turn automatic backups on or off */
+        put: operations["adminPutBackupSchedule"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/backups/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        /** Download one archive */
+        get: operations["adminDownloadBackup"];
+        put?: never;
+        post?: never;
+        /** Delete one archive */
+        delete: operations["adminDeleteBackup"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1356,6 +1414,31 @@ export interface paths {
          *     server-owned. Self-service username/email remain read-only.
          */
         patch: operations["adminPatchUser"];
+        trace?: never;
+    };
+    "/api/admin/users/{id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set a new password for another account
+         * @description Requires the administrator role. The password follows the signup rules
+         *     (12-72 bytes) and is hashed with the same bcrypt cost. The new hash and
+         *     the revocation of every token on that account commit together, so the
+         *     account is signed out everywhere. Administrators cannot reset their own
+         *     password here (403); they use PATCH /api/auth/password, which asks for
+         *     the current one. The password is never echoed or logged.
+         */
+        put: operations["adminResetUserPassword"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/admin/groups": {
@@ -1942,6 +2025,8 @@ export interface components {
                 copy: boolean;
                 delete: boolean;
             };
+            /** @description Class of the first failed step; omitted when all checks pass or the cause is unknown. */
+            reason?: components["schemas"]["ErrorReason"];
         };
         PolicyView: {
             id: components["schemas"]["ID"];
@@ -2405,6 +2490,49 @@ export interface components {
             started_at: components["schemas"]["Timestamp"] | null;
             finished_at: components["schemas"]["Timestamp"] | null;
         };
+        BackupFile: {
+            name: string;
+            /**
+             * Format: int64
+             * @description Bytes.
+             */
+            size: number;
+            /** Format: date-time */
+            created_at: string;
+            /** @description Written by the schedule; only these are pruned. */
+            auto: boolean;
+        };
+        BackupSchedule: {
+            enabled: boolean;
+            interval_hours: number;
+            /** @description Automatic archives to keep. */
+            keep: number;
+        };
+        BackupOverview: {
+            items: components["schemas"]["BackupFile"][];
+            schedule: components["schemas"]["BackupSchedule"];
+            running: boolean;
+            /** @description The configured backup.dir. */
+            location: string;
+        };
+        BackupOverviewEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BackupOverview"];
+        };
+        BackupFileEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BackupFile"];
+        };
+        BackupScheduleEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BackupSchedule"];
+        };
         LskyImportEnvelope: {
             /** @enum {integer} */
             code: 0;
@@ -2656,6 +2784,15 @@ export interface components {
          * @example 7|abcdefghijklmnopqrstuvwxyz0123456789ABCD
          */
         PlaintextToken: string;
+        /**
+         * @description Fixed hint code that narrows a generic error, so a client can say what to fix: which form field broke a rule, or why a storage call failed (rejected credentials, missing bucket, unreachable endpoint, full disk...). Never carries input values, credentials or provider messages. Clients must tolerate codes they do not know.
+         * @enum {string}
+         */
+        ErrorReason: "api_disabled" | "password_length" | "username_length" | "email_invalid" | "display_name_invalid" | "image_name_invalid" | "storage_denied" | "storage_bucket" | "storage_busy" | "storage_clock" | "storage_quota" | "storage_unsupported" | "storage_tls" | "storage_unreachable" | "storage_timeout" | "storage_disk_full" | "storage_read_only" | "storage_permission";
+        /** @description null, or a reason hint for the error. */
+        ErrorData: {
+            reason?: components["schemas"]["ErrorReason"];
+        } | null;
         /**
          * @description Always the JSON null value.
          * @enum {object|null}
@@ -3081,10 +3218,10 @@ export interface components {
         };
         ErrorEnvelope: {
             /** @enum {integer} */
-            code: 10001 | 10002 | 10004 | 10005 | 10006 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30010 | 30011 | 30012 | 30013 | 30014 | 30015 | 30016 | 30017 | 30018 | 30019 | 50001 | 50002 | 50003 | 50004 | 50005 | 50006;
+            code: 10001 | 10002 | 10004 | 10005 | 10006 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30010 | 30011 | 30012 | 30013 | 30014 | 30015 | 30016 | 30017 | 30018 | 30019 | 30020 | 30021 | 50001 | 50002 | 50003 | 50004 | 50005 | 50006;
             /** @description Human-readable error message without technical or credential details. */
             message: string;
-            data: components["schemas"]["NullData"];
+            data: components["schemas"]["ErrorData"];
         };
     };
     responses: {
@@ -4248,7 +4385,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    is_public: boolean;
+                    is_public?: boolean;
+                    name?: string;
                 };
             };
         };
@@ -4851,6 +4989,151 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["AdminForbidden"];
             500: components["responses"]["InternalError"];
+        };
+    };
+    adminListBackups: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Archives, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupOverviewEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+            502: components["responses"]["StorageFailed"];
+        };
+    };
+    adminCreateBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new archive. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupFileEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            /** @description Another backup is running; code 30020. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            500: components["responses"]["InternalError"];
+            502: components["responses"]["StorageFailed"];
+        };
+    };
+    adminPutBackupSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupSchedule"];
+            };
+        };
+        responses: {
+            /** @description The stored schedule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupScheduleEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminDownloadBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The zip archive as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminDeleteBackup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {integer} */
+                        code: 0;
+                        message: string;
+                        data: {
+                            name: string;
+                        };
+                    };
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+            502: components["responses"]["StorageFailed"];
         };
     };
     adminLskyImportStatus: {
@@ -5510,6 +5793,40 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminResetUserPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Password replaced; data is null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
         };
     };

@@ -37,6 +37,7 @@ type ImageService interface {
 	ListPolicies(context.Context, service.TokenSubject) ([]service.PolicySummary, error)
 	SetPublic(context.Context, service.TokenSubject, uint64, bool) (service.ImageView, error)
 	SetAlbum(context.Context, service.TokenSubject, uint64, uint64) (service.ImageView, error)
+	Rename(context.Context, service.TokenSubject, uint64, string) (service.ImageView, error)
 	Gallery(context.Context, int, int) (service.GalleryPage, error)
 	Trash(context.Context, service.TokenSubject, string) error
 	Restore(context.Context, service.TokenSubject, string) error
@@ -69,6 +70,7 @@ func (h *Handler) RegisterImageRoutes(ctx context.Context, router gin.IRouter, i
 		opts.Slots = make(chan struct{}, opts.MaxConcurrent)
 	}
 	image := &imageHandler{auth: h, images: images, options: opts, slots: opts.Slots, searchSlots: make(chan struct{}, 4)}
+	h.v2Images = image
 	protected := router.Group("/api", h.authenticate)
 	protected.POST("/upload", image.upload)
 	protected.GET("/policies", image.listPolicies)
@@ -259,19 +261,34 @@ func (h *imageHandler) permission(c *gin.Context) {
 		return
 	}
 	var input struct {
-		Public *bool `json:"is_public"`
+		Public *bool   `json:"is_public"`
+		Name   *string `json:"name"`
 	}
 	if !decode(c, &input) {
 		return
 	}
-	if input.Public == nil {
+	if input.Public == nil && input.Name == nil {
 		fail(c, service.ErrInvalidInput)
 		return
 	}
-	image, err := h.images.SetPublic(c.Request.Context(), identity(c).Subject, id, *input.Public)
-	if err != nil {
-		fail(c, err)
-		return
+	ctx, subject := c.Request.Context(), identity(c).Subject
+	var (
+		image service.ImageView
+		err   error
+	)
+	// The name is checked and applied first, so an invalid name leaves the
+	// visibility untouched too.
+	if input.Name != nil {
+		if image, err = h.images.Rename(ctx, subject, id, *input.Name); err != nil {
+			fail(c, err)
+			return
+		}
+	}
+	if input.Public != nil {
+		if image, err = h.images.SetPublic(ctx, subject, id, *input.Public); err != nil {
+			fail(c, err)
+			return
+		}
 	}
 	respond(c, 200, image)
 }

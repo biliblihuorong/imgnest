@@ -52,7 +52,12 @@
     "created": "User “{name}” created",
     "updated": "User “{name}” updated",
     "selfEditHint": "Changing your own username, email, role, status, or group requires signing in again. A display-name-only change keeps you signed in.",
-    "signInAgain": "Account updated. Please sign in again"
+    "signInAgain": "Account updated. Please sign in again",
+    "resetPassword": "Reset password",
+    "generatePassword": "Generate",
+    "resetPasswordConfirm": "Set this new password for {name}? They will be signed out on every device.",
+    "resetPasswordHint": "Hand the new password to the user afterwards; all of their sessions and API tokens stop working immediately.",
+    "passwordReset": "Password reset for {name}"
   },
   "groups": {
     "title": "User groups",
@@ -210,7 +215,7 @@
   },
   "settings": {
     "title": "System settings",
-    "description": "Site, sign-up and sign-in, guests, email and plugins.",
+    "description": "Site, sign-up and sign-in, guests, email, plugins and backups.",
     "save": "Save settings",
     "saved": "Site settings saved",
     "unset": "Not set (0)",
@@ -261,6 +266,10 @@
       "plugins": {
         "title": "Plugins",
         "description": "Settings provided by extension plugins."
+      },
+      "backup": {
+        "title": "Backup / export",
+        "description": "Database and configuration backups, downloads and schedule."
       }
     },
     "emailVerification": "Email verification",
@@ -351,7 +360,13 @@
     "policySave": "Could not save policy",
     "preview": "Could not preview this path",
     "purge": "Could not empty the trash",
-    "templateInvalid": "Invalid template. Check the path and filename templates"
+    "templateInvalid": "Invalid template. Check the path and filename templates",
+    "passwordReset": "Could not reset the password",
+    "backupsLoad": "Could not load backups",
+    "backupCreate": "Backup failed",
+    "backupDownload": "Could not download the backup",
+    "backupDelete": "Could not delete the backup",
+    "backupSchedule": "Could not save the backup schedule"
   },
   "plugins": {
     "title": "Extensions",
@@ -433,5 +448,33 @@
     "loadFailed": "Could not read the migration status",
     "uploadFailed": "Could not parse the export",
     "startFailed": "Could not start the import"
+  },
+  "backups": {
+    "title": "Backup & export",
+    "description": "Pack the database and deployment configuration into a zip in the server's backup directory and download it.",
+    "secretWarning": "Backups contain password hashes, the database DSN and the master key. Only download them to a place you trust.",
+    "location": "Backup directory: {dir}",
+    "create": "Back up now",
+    "creating": "Backing up…",
+    "created": "Backup {name} created",
+    "running": "A backup is in progress.",
+    "empty": "No backups yet.",
+    "name": "File",
+    "size": "Size",
+    "createdAt": "Time",
+    "kind": "Type",
+    "kindAuto": "Scheduled",
+    "kindManual": "Manual",
+    "download": "Download",
+    "deleteConfirm": "Delete backup {name}? This cannot be undone.",
+    "deleted": "Backup deleted",
+    "scheduleTitle": "Scheduled backups",
+    "scheduleEnabled": "Enable scheduled backups",
+    "intervalHours": "Interval (hours)",
+    "keep": "Keep",
+    "keepHint": "Only extra scheduled backups are removed; manual backups are never deleted.",
+    "scheduleSaved": "Backup schedule saved",
+    "restoreTitle": "How to restore",
+    "restoreHint": "Stop the server, then run imgnest backup restore --yes <archive path> on it. The database must be migrated by the same release; files under the archive's config/ are not applied automatically, copy them back by hand if needed."
   }
 }
