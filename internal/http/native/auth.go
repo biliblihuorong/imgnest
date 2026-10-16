@@ -382,8 +382,14 @@ func errorResponse(err error) (int, Response) {
 	var delivery *service.MailDeliveryError
 	if errors.As(err, &delivery) {
 		// Only the administrator's SMTP test returns this; the reason names
-		// the failed step and never carries the server's reply.
-		return 502, Response{Code: 50006, Message: "mail delivery failed", Data: gin.H{"reason": delivery.Reason}}
+		// the failed step and never carries the server's reply text. 422
+		// rather than 502: reverse proxies and CDNs replace 5xx gateway
+		// bodies with their own error pages.
+		data := gin.H{"reason": delivery.Reason}
+		if delivery.SMTPCode > 0 {
+			data["smtp_code"] = delivery.SMTPCode
+		}
+		return 422, Response{Code: 50006, Message: "mail delivery failed", Data: data}
 	}
 	var settingsErr *service.PluginSettingsError
 	if errors.As(err, &settingsErr) {

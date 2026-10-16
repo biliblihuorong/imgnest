@@ -141,9 +141,9 @@ func TestMailTestReportsTheFailedStep(t *testing.T) {
 	if err := svc.Test(t.Context(), mailAdmin, ""); err != nil || transport.msg.To != "root@example.com" {
 		t.Fatalf("test to self: %v, to %q", err, transport.msg.To)
 	}
-	transport.err = mail.ErrAuth
+	transport.err = &mail.Error{Kind: mail.ErrAuth, Code: 535}
 	var delivery *MailDeliveryError
-	if err := svc.Test(t.Context(), mailAdmin, "other@example.com"); !errors.As(err, &delivery) || delivery.Reason != "auth" {
+	if err := svc.Test(t.Context(), mailAdmin, "other@example.com"); !errors.As(err, &delivery) || delivery.Reason != "auth" || delivery.SMTPCode != 535 {
 		t.Fatalf("auth failure: %v", err)
 	}
 	// Visitors only learn that email is unavailable.

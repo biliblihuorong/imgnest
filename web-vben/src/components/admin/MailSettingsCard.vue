@@ -137,12 +137,13 @@ async function test(): Promise<void> {
     await sendTestMail(testTo.value.trim());
     message.success(() => t("admin.settings.mail.testSent"));
   } catch (error) {
-    const reason =
+    const detail =
       error instanceof ApiError && error.code === 50006
-        ? (error.data as { reason?: string } | null)?.reason
-        : undefined;
-    testError.value = reason
-      ? t(`admin.settings.mail.reasons.${reason}`)
+        ? (error.data as { reason?: string; smtp_code?: number } | null)
+        : null;
+    testError.value = detail?.reason
+      ? t(`admin.settings.mail.reasons.${detail.reason}`) +
+        (detail.smtp_code ? ` (SMTP ${detail.smtp_code})` : "")
       : formatApiError(error, "common.errors.unknown");
   } finally {
     testing.value = false;
@@ -278,7 +279,7 @@ onBeforeUnmount(() => {
         <NButton
           data-action="test-mail"
           :loading="testing"
-          :disabled="testing || !saved?.enabled"
+          :disabled="testing || !saved?.enabled || dirty"
           @click="test"
           >{{ t("admin.settings.mail.testSend") }}</NButton
         >

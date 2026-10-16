@@ -144,7 +144,7 @@ func runLskyImport(ctx context.Context, out *lineWriter, db *gorm.DB, cfg config
 	if run.skipImages {
 		return nil
 	}
-	maxBytes := int64(cfg.Server.MaxUploadMB) << 20
+	maxBytes := int64(service.MaxImportFileBytes)
 	var fetch lsky.Fetcher = lsky.HTTPFetcher{Client: &http.Client{Timeout: 2 * time.Minute}, BaseURL: run.sourceURL, MaxBytes: maxBytes}
 	if run.sourceDir != "" {
 		fetch = lsky.DirFetcher{Root: run.sourceDir, MaxBytes: maxBytes}
@@ -222,6 +222,8 @@ func lskyImageError(err error) error {
 		return nil
 	case errors.As(err, &processing):
 		return errors.New("图片处理失败：" + processingReason(processing.Step))
+	case errors.Is(err, service.ErrFileTooLarge):
+		return errors.New("文件超过所属组的单文件上限，可在「用户组」里调大或设为不限后重新导入")
 	case errors.Is(err, service.ErrImportLinkChanged):
 		return errors.New("文件实际格式与扩展名不符，保存后旧链接会失效")
 	case errors.Is(err, service.ErrPathConflict):

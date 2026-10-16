@@ -191,8 +191,8 @@ function openEdit(group: GroupView): void {
 function buildPayload(): GroupInput {
   return {
     name: form.name.trim(),
-    capacity_bytes: (form.capacity_mb ?? 0) * BYTES_PER_MB,
-    max_file_bytes: (form.max_file_mb ?? 0) * BYTES_PER_MB,
+    capacity_bytes: Math.round((form.capacity_mb ?? 0) * BYTES_PER_MB),
+    max_file_bytes: Math.round((form.max_file_mb ?? 0) * BYTES_PER_MB),
     allowed_exts: [...form.allowed_exts],
     upload_per_min: form.upload_per_min ?? 0,
     default_policy_id: form.default_policy_id ?? 0,
@@ -220,7 +220,11 @@ async function submitForm(): Promise<void> {
       await createGroup(payload);
       message.success(() => t("admin.groups.created", { name: payload.name }));
     } else {
-      await updateGroup(editingGroup.value.id, payload);
+      // 默认组/游客组标记创建后不可改，PATCH 不接受这两个字段。
+      const patch: Partial<typeof payload> = { ...payload };
+      delete patch.is_default;
+      delete patch.is_guest;
+      await updateGroup(editingGroup.value.id, patch);
       message.success(() => t("admin.groups.updated", { name: payload.name }));
     }
     formShow.value = false;

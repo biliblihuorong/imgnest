@@ -260,7 +260,7 @@ CDN 缓存不在本程序处理范围内。
 - **实现方式**：原位改写。JPEG 在 APP1 段的 TIFF 结构里把上述条目的值清零、GPS IFD 条目数置 0，字节长度不变；XMP 段整段移除；PNG 的 `eXIf` 块和 WebP 的 `EXIF` 块同样处理（PNG 重算 CRC）。全程不解码像素。待清理值与任何保留值（含跨 IFD 的 ColorMap、ICC、相机参数）共享字节时拒绝脱敏，避免清理通过别名改变像素或安全元数据。保留的外部值也可能引用 TIFF header/IFD 的计数或条目字节；完成临时输出后，按合并区间比较其原始字节，任何变化均拒绝，不返回可存储的原图。保留条目的内联值可随目录重排，外部值引用未改动的目录字节仍允许；合并后的比较总字节不超过输入大小。
 - **HEIC/AVIF**：首版不做原位改写，规则里选「只存 WebP（默认）/ 原样保存不脱敏 / 拒绝上传」。
 - **可见性**：GPS 与 `raw` 只有本人和管理员能看；公开接口、画廊、蓝空 v1 接口一律不返回 EXIF。
-- **历史图片**：原地接管的蓝空原图（清单里 `adopted`）不脱敏、不覆盖，仍带 GPS 等 EXIF；EXIF 照常完整入本地库，公开接口照样不返回。这是对「云端原图按 `scrub_mode` 抹除」的唯一例外：只新建不覆盖的对象模型不允许改写无所有权标记的旧对象。需要清理的用户选「下载后重新保存」到新桶。蓝空常把 PNG/JPEG 只改名成 `.webp` 而不转换：原地接管时 `ext` 保留链接扩展名、`mime` 记真实格式，键与原图相同的 `{path}.webp` 不另生成；下载重新保存时只存真正的 WebP（等同 `webp_only`）。原地接管以固定的对象版本为准，不再比对蓝空记录的 MD5；元数据解析失败时不记 EXIF 照常接管（原图不改写）。
+- **历史图片**：原地接管的蓝空原图（清单里 `adopted`）不脱敏、不覆盖，仍带 GPS 等 EXIF；EXIF 照常完整入本地库，公开接口照样不返回。这是对「云端原图按 `scrub_mode` 抹除」的唯一例外：只新建不覆盖的对象模型不允许改写无所有权标记的旧对象。需要清理的用户选「下载后重新保存」到新桶。蓝空常把 PNG/JPEG 只改名成 `.webp` 而不转换：原地接管时 `ext` 保留链接扩展名、`mime` 记真实格式，键与原图相同的 `{path}.webp` 不另生成；下载重新保存时只存真正的 WebP（等同 `webp_only`）。原地接管以固定的对象版本为准，不再比对蓝空记录的 MD5；元数据解析失败时不记 EXIF 照常接管（原图不改写）。导入的单文件上限跟随所属组（`max_file_bytes`，0 表示不限，此时以 100 MiB 为顶），不受只约束请求体的 `server.max_upload_mb` 限制。
 
 ### 6.3 响应式衍生版本（2026-10-16）
 
@@ -366,7 +366,7 @@ CDN 缓存不在本程序处理范围内。
 ### 7.7 系统设置二级页、SMTP 与邮箱验证码（2026-10-16）
 
 - 后台「系统设置」拆成二级页面 `/admin/settings/{general,auth,access,mail,plugins}`（基本设置、注册与登录、访客与画廊、邮件、插件），`/admin/settings` 跳到基本设置。新增设置页只需在 `web-vben/src/views/admin/settings/sections.ts` 加一项；每页只提交自己的字段，`PUT /api/admin/settings` 本来就是 PATCH 语义。
-- SMTP 配置存在 `settings` 表的 `mail_config` 键，经 `GET/PUT /api/admin/mail` 管理，`POST /api/admin/mail/test` 用已保存的设置发测试信（默认发给当前管理员，每 IP 每分钟 3 次）。加密方式 `tls`（465）/`starttls`（587）/`none`（25，只用于内网中继，不能带用户名密码）；发信只用标准库 `net/smtp`，不引入依赖，单次 20 秒超时。密码只写不读，用 `security.master_key` 加密；未配置主密钥时只能保存无认证的中继。测试失败返回 502/50006，`data.reason` 只给 `connect`/`tls`/`auth`/`rejected` 之一，不回显服务器原文。
+- SMTP 配置存在 `settings` 表的 `mail_config` 键，经 `GET/PUT /api/admin/mail` 管理，`POST /api/admin/mail/test` 用已保存的设置发测试信（默认发给当前管理员，每 IP 每分钟 3 次）。加密方式 `tls`（465）/`starttls`（587）/`none`（25，只用于内网中继，不能带用户名密码）；发信只用标准库 `net/smtp`，不引入依赖，单次 20 秒超时。密码只写不读，用 `security.master_key` 加密；未配置主密钥时只能保存无认证的中继。测试失败返回 422/50006（不用 502，免得被反代或 CDN 换成自己的错误页），`data.reason` 只给 `connect`/`tls`/`auth`/`rejected` 之一，服务器有应答时附数字 `data.smtp_code`，不回显服务器原文。认证优先 PLAIN，服务器只提供 LOGIN（如 Microsoft 365）时改用 LOGIN；HELO 用 `localhost`，不冒用发件域名。
 - 邮箱验证码表 `email_codes`（迁移 0012），用途 `register`/`reset_password`，每个（用途，邮箱）只保留最新一条；只存 `sha256(用途\0邮箱\0验证码)`，6 位数字，10 分钟有效，60 秒内不能重发，错 5 次作废，用掉即删。发送前若开启人机验证需要对应 action（`register` 或新增的 `reset`）的令牌；发信失败时作废本次验证码。
 - 设置项 `email_verification_enabled`（默认关）：开启且 SMTP 可用时，注册必须带 `email_code`，人机验证移到发送验证码那一步，注册请求本身不再要 `captcha_token`。`GET /api/site` 新增 `email_verification`（仅在开放注册时为 true）与 `password_reset`（SMTP 可用即为 true）。
 - 找回密码：`POST /api/auth/email-code`（`purpose=reset_password`）与 `POST /api/auth/password-reset`（每 IP 每分钟 3 次）。未注册、已停用的邮箱和冷却期内都静默返回成功，不泄露账号是否存在；重置成功后撤销该账号全部 Token（与改密同一路径）。

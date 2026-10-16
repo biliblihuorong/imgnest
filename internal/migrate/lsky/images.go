@@ -151,7 +151,7 @@ func readCapped(body io.Reader, limit int64) ([]byte, error) {
 		return nil, fmt.Errorf("read: %w", err)
 	}
 	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("文件超过 ImgNest 单文件上限 %d MiB", limit>>20)
+		return nil, fmt.Errorf("文件超过导入上限 %d MiB", limit>>20)
 	}
 	return data, nil
 }
