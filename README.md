@@ -26,7 +26,7 @@ git clone https://github.com/biliblihuorong/imgnest
 cd imgnest
 
 # 1. 启动（容器启动时会自动执行数据库迁移）
-IMGNEST_TAG=0.0.2 docker compose -f deploy/compose.sqlite.yaml up -d
+IMGNEST_TAG=0.0.3 docker compose -f deploy/compose.sqlite.yaml up -d
 
 # 2. 创建管理员，密码从标准输入读取，长度 12–72 字节
 read -rsp '管理员密码: ' password; echo
@@ -60,7 +60,7 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest \
 
 ## 当前状态
 
-当前预览版本 **v0.0.2**（镜像 `ghcr.io/biliblihuorong/imgnest:0.0.2`，`latest` 同步指向它；`edge` 跟随 `main`），尚未发布 v1.0.0。
+当前预览版本 **v0.0.3**（镜像 `ghcr.io/biliblihuorong/imgnest:0.0.3`，`latest` 同步指向它；`edge` 跟随 `main`），尚未发布 v1.0.0。
 
 | 已完成 | 内容 |
 | --- | --- |
@@ -68,9 +68,9 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest \
 | 存储 | 本机存储、S3 兼容存储、上传规则与路径模板 |
 | 图片处理 | WebP、双缩略图、EXIF 归档与无损脱敏、响应式图片版本（含历史图片补生成） |
 | 管理 | 回收站、相册、公开画廊、管理后台、统一搜索 |
-| 兼容 | 蓝空 v1 API、游客上传 |
+| 兼容 | 蓝空 v1 API、游客上传、从蓝空 PostgreSQL 迁移（`import-lsky`） |
 
-还没做的：从蓝空导入用户、相册和图片记录（已延后）；历史图片的存量补处理；水印、审核 Webhook、AVIF 输出。完整需求和优先级见 [计划书与开发规范](docs/spec.md)。
+还没做的：从 MySQL 版蓝空直接迁移；历史图片的存量补处理；水印、审核 Webhook、AVIF 输出。完整需求和优先级见 [计划书与开发规范](docs/spec.md)。
 
 ## 技术栈
 
