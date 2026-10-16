@@ -206,8 +206,8 @@
     "responsiveVariantsHint": "上传静态图时额外生成宽 400/800/1600px 的 WebP，只缩小不放大；动图保持原样。历史图片可在下方“响应式图片补生成”中补齐。"
   },
   "settings": {
-    "title": "站点设置",
-    "description": "管理站点名称、访问权限与默认用户组。",
+    "title": "系统设置",
+    "description": "站点、注册登录、访客、邮件与插件的配置。",
     "save": "保存设置",
     "saved": "站点设置已保存",
     "unset": "未设置（0）",
@@ -237,7 +237,70 @@
     "avatarProvider": "头像服务",
     "avatarProviderHint": "全站用户头像的来源；WeAvatar 为默认，可切换为 Gravatar。普通用户不能更改。",
     "avatarWeavatar": "WeAvatar（默认）",
-    "avatarGravatar": "Gravatar"
+    "avatarGravatar": "Gravatar",
+    "sections": {
+      "general": {
+        "title": "基本设置",
+        "description": "站点名称、头像、API 与回收站。"
+      },
+      "auth": {
+        "title": "注册与登录",
+        "description": "开放注册、默认用户组、邮箱验证与人机验证。"
+      },
+      "access": {
+        "title": "访客与画廊",
+        "description": "游客上传与公共画廊。"
+      },
+      "mail": {
+        "title": "邮件",
+        "description": "用于发送注册验证码和找回密码邮件的 SMTP。"
+      },
+      "plugins": {
+        "title": "插件",
+        "description": "扩展插件提供的设置。"
+      }
+    },
+    "emailVerification": "注册邮箱验证",
+    "emailVerificationHint": "开启后，新用户注册必须填写发到邮箱的验证码。",
+    "emailVerificationNeedsMail": "需要先在「邮件」页配置并开启 SMTP，否则这个开关不会生效。",
+    "pluginsEmpty": "当前没有提供设置项的插件。",
+    "mail": {
+      "title": "SMTP 发信",
+      "enabled": "启用邮件发送",
+      "enabledHint": "关闭后注册邮箱验证和找回密码都会停用。",
+      "host": "SMTP 服务器",
+      "hostPlaceholder": "例如 smtp.qq.com",
+      "port": "端口",
+      "encryption": "加密方式",
+      "encryptionTls": "SSL/TLS（常用 465）",
+      "encryptionStarttls": "STARTTLS（常用 587）",
+      "encryptionNone": "不加密（仅限内网中继，不能带密码）",
+      "username": "用户名",
+      "usernameHint": "通常是完整邮箱地址；内网中继不需要认证时留空。",
+      "password": "密码 / 授权码",
+      "passwordHint": "QQ、163 等邮箱请填写授权码，不是登录密码。",
+      "passwordKeep": "已保存，留空不修改",
+      "clearPassword": "清除已保存的密码",
+      "fromAddress": "发件地址",
+      "fromAddressPlaceholder": "noreply{'@'}example.com",
+      "fromName": "发件人名称",
+      "fromNameHint": "留空则只显示发件地址。",
+      "save": "保存邮件设置",
+      "saved": "邮件设置已保存",
+      "noMasterKey": "服务器没有配置 security.master_key，只能使用不需要密码的 SMTP 中继。",
+      "testTitle": "发送测试邮件",
+      "testTo": "收件地址",
+      "testToPlaceholder": "留空发给你自己",
+      "testSend": "发送测试邮件",
+      "testSent": "测试邮件已发出，请查收",
+      "testNeedsSave": "有未保存的修改，测试会使用已保存的设置。",
+      "reasons": {
+        "connect": "连不上 SMTP 服务器，请检查地址、端口和服务器出网。",
+        "tls": "TLS 握手失败，请检查加密方式与端口是否匹配。",
+        "auth": "用户名或密码（授权码）被拒绝。",
+        "rejected": "服务器拒收了这封邮件，请检查发件地址是否与账号一致。"
+      }
+    }
   },
   "images": {
     "title": "全站图片",

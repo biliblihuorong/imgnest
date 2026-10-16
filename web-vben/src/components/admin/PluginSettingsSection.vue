@@ -8,7 +8,10 @@ import { listGroups, listPolicies, listStorages } from "@/api/admin";
 import { listPluginSettings, type PluginSettings } from "@/api/plugins";
 import { formatApiError } from "@/locales/errors";
 
+/** showEmpty: 独立的插件设置页在没有插件时显示提示，而不是空白。 */
+defineProps<{ showEmpty?: boolean }>();
 const { t } = useI18n();
+const loaded = shallowRef(false);
 const plugins = ref<PluginSettings[]>([]);
 const loadError = shallowRef<unknown>(null);
 const loading = shallowRef(false);
@@ -52,6 +55,7 @@ async function load(): Promise<void> {
   loadError.value = null;
   try {
     plugins.value = await listPluginSettings();
+    loaded.value = true;
     await loadSources(usedSources(plugins.value));
   } catch (error) {
     loadError.value = error;
@@ -85,6 +89,9 @@ onMounted(() => void load());
       @saved="replace"
     />
   </section>
+  <p v-else-if="showEmpty && loaded" class="section-description" data-plugins-empty>
+    {{ t("admin.settings.pluginsEmpty") }}
+  </p>
 </template>
 
 <style scoped>

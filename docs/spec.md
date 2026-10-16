@@ -357,6 +357,16 @@ CDN 缓存不在本程序处理范围内。
 - 每客户端地址每分钟 60 次（`images.variant_lookup_per_minute`），超限 429/30003；成功响应 `Cache-Control: public, max-age=300`、`Vary: Origin`，进回收站后缓存的查询结果最多滞后 5 分钟，但其中的文件地址已立即 404。
 - 浏览器跨域读取需在 `images.variant_cors_origins` 列出来源（`https://blog.example.com`，或 `*`），默认不发 CORS 头。用法示例见 [`docs/examples/responsive-images.html`](examples/responsive-images.html)。
 
+### 7.7 系统设置二级页、SMTP 与邮箱验证码（2026-10-16）
+
+- 后台「系统设置」拆成二级页面 `/admin/settings/{general,auth,access,mail,plugins}`（基本设置、注册与登录、访客与画廊、邮件、插件），`/admin/settings` 跳到基本设置。新增设置页只需在 `web-vben/src/views/admin/settings/sections.ts` 加一项；每页只提交自己的字段，`PUT /api/admin/settings` 本来就是 PATCH 语义。
+- SMTP 配置存在 `settings` 表的 `mail_config` 键，经 `GET/PUT /api/admin/mail` 管理，`POST /api/admin/mail/test` 用已保存的设置发测试信（默认发给当前管理员，每 IP 每分钟 3 次）。加密方式 `tls`（465）/`starttls`（587）/`none`（25，只用于内网中继，不能带用户名密码）；发信只用标准库 `net/smtp`，不引入依赖，单次 20 秒超时。密码只写不读，用 `security.master_key` 加密；未配置主密钥时只能保存无认证的中继。测试失败返回 502/50006，`data.reason` 只给 `connect`/`tls`/`auth`/`rejected` 之一，不回显服务器原文。
+- 邮箱验证码表 `email_codes`（迁移 0012），用途 `register`/`reset_password`，每个（用途，邮箱）只保留最新一条；只存 `sha256(用途\0邮箱\0验证码)`，6 位数字，10 分钟有效，60 秒内不能重发，错 5 次作废，用掉即删。发送前若开启人机验证需要对应 action（`register` 或新增的 `reset`）的令牌；发信失败时作废本次验证码。
+- 设置项 `email_verification_enabled`（默认关）：开启且 SMTP 可用时，注册必须带 `email_code`，人机验证移到发送验证码那一步，注册请求本身不再要 `captcha_token`。`GET /api/site` 新增 `email_verification`（仅在开放注册时为 true）与 `password_reset`（SMTP 可用即为 true）。
+- 找回密码：`POST /api/auth/email-code`（`purpose=reset_password`）与 `POST /api/auth/password-reset`（每 IP 每分钟 3 次）。未注册、已停用的邮箱和冷却期内都静默返回成功，不泄露账号是否存在；重置成功后撤销该账号全部 Token（与改密同一路径）。
+- 人机验证改为一步配置 `PUT /api/admin/captcha`：填 Site Key、Secret（留空沿用已保存的），开启时在页面上用这把 Site Key 完成一次验证，服务端用 Secret 核验通过后立即生效；关闭不需要验证。允许的域名默认取当前访问域名，放在高级选项。旧的 draft/test/activation 三个接口保留兼容。
+- 新码（30016 已用于蓝空导入忙）：30017=邮件未配置(409)、30018=邮箱验证码错误或过期(422)、30019=验证码发送过于频繁(429)、50006=邮件暂不可用(503；管理端测试失败为 502 带 reason)。SMTP 密码、验证码明文与邮箱内容不进日志。
+
 ## 8. 工程规范
 
 一个仓库、一个 Go module，前端在 `web-vben/` 下独立构建后被嵌入。

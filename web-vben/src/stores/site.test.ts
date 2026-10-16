@@ -23,6 +23,8 @@ describe("site store", () => {
       site_name: "我的图床",
       register_enabled: true,
       gallery_enabled: true,
+      email_verification: false,
+      password_reset: false,
       login_providers: [],
     });
     const store = useSiteStore();
@@ -48,6 +50,8 @@ describe("site store", () => {
       site_name: "ImgNest",
       register_enabled: false,
       gallery_enabled: false,
+      email_verification: false,
+      password_reset: false,
       login_providers: [],
     });
     const store = useSiteStore();
@@ -61,6 +65,8 @@ describe("site store", () => {
       site_name: "ImgNest",
       register_enabled: false,
       gallery_enabled: false,
+      email_verification: false,
+      password_reset: false,
       login_providers: [],
     });
     const store = useSiteStore();
@@ -83,6 +89,8 @@ describe("site store", () => {
       site_name: "Saved site",
       register_enabled: true,
       gallery_enabled: true,
+      email_verification: false,
+      password_reset: false,
       login_providers: [],
     });
     const store = useSiteStore();
@@ -95,6 +103,8 @@ describe("site store", () => {
       site_name: "Old site",
       register_enabled: false,
       gallery_enabled: false,
+      email_verification: false,
+      password_reset: false,
       login_providers: [],
     });
     await older;
@@ -127,6 +137,8 @@ describe("site store", () => {
       site_name: "Old site",
       register_enabled: false,
       gallery_enabled: false,
+      email_verification: false,
+      password_reset: false,
       login_providers: [],
     });
     await older;
@@ -138,6 +150,8 @@ describe("site store", () => {
       site_name: "Saved site",
       register_enabled: true,
       gallery_enabled: true,
+      email_verification: false,
+      password_reset: false,
       login_providers: [],
     });
     await Promise.all([newer, joined]);

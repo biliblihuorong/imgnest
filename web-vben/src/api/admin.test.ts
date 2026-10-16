@@ -107,6 +107,7 @@ const settingsFixture: AdminSettings = {
   guest_group_id: 2,
   default_group_id: 1,
   avatar_provider: "weavatar" as const,
+  email_verification_enabled: false,
 };
 
 const JSON_HEADERS = { "Content-Type": "application/json" };

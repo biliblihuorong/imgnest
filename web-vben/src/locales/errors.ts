@@ -37,11 +37,15 @@ export function formatApiError(error: unknown, fallbackKey = "common.errors.unkn
         30014: "secretsUnavailable",
         30015: "uploadLimit",
         30016: "importBusy",
+        30017: "mailNotConfigured",
+        30018: "emailCode",
+        30019: "emailCodeCooldown",
         50001: "server",
         50002: "storage",
         50003: "processing",
         50004: "captchaUnavailable",
         50005: "reviewUnavailable",
+        50006: "mailUnavailable",
       } as Record<number, string>
     )[error.code];
   if (!key && error.status === 429) key = "rateLimit";

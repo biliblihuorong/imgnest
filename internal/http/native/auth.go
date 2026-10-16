@@ -59,6 +59,9 @@ type Handler struct {
 	tickets *ticketStore
 	// guards may refuse public image requests before the core handlers.
 	guards []extension.AccessGuard
+	// email and mail serve email codes and SMTP settings; nil omits them.
+	email EmailAuth
+	mail  MailSettings
 }
 
 // UsePlugins sets the extensions whose login providers the site view lists
@@ -162,9 +165,19 @@ func (h *Handler) register(c *gin.Context) {
 		Email        string `json:"email"`
 		Password     string `json:"password"`
 		CaptchaToken string `json:"captcha_token,omitempty"`
+		EmailCode    string `json:"email_code,omitempty"`
 	}
 	if !decode(c, &input) {
 		return
+	}
+	codeRequired := false
+	if h.email != nil {
+		required, err := h.email.EmailCodeRequired(c.Request.Context())
+		if err != nil {
+			fail(c, err)
+			return
+		}
+		codeRequired = required
 	}
 	if h.captcha != nil {
 		site, err := h.users.Site(c.Request.Context())
@@ -177,11 +190,14 @@ func (h *Handler) register(c *gin.Context) {
 			return
 		}
 	}
-	if !h.verifyCaptcha(c, input.CaptchaToken, "register") {
+	// With email verification the CAPTCHA guarded sending the code, and the
+	// mailed code now proves the visitor; asking twice gains nothing.
+	if !codeRequired && !h.verifyCaptcha(c, input.CaptchaToken, "register") {
 		return
 	}
 	user, err := h.users.Register(c.Request.Context(), service.RegisterInput{
 		Username: input.Username, Email: input.Email, Password: input.Password, IP: c.ClientIP(),
+		EmailCode: input.EmailCode,
 	})
 	if err != nil {
 		fail(c, err)
@@ -344,8 +360,22 @@ func errorResponse(err error) (int, Response) {
 		status, code, message = 503, 50005, "content review unavailable; try again later"
 	case errors.Is(err, service.ErrUploadLimitReached):
 		status, code, message = 429, 30015, "upload limit reached"
-	case errors.Is(err, service.ErrPluginSecretsUnavailable):
+	case errors.Is(err, service.ErrPluginSecretsUnavailable), errors.Is(err, service.ErrMailSecretsUnavailable):
 		status, code, message = 409, 30014, "saving secrets requires security.master_key"
+	case errors.Is(err, service.ErrMailNotConfigured):
+		status, code, message = 409, 30017, "outgoing email is not configured"
+	case errors.Is(err, service.ErrEmailCodeInvalid):
+		status, code, message = 422, 30018, "email code is wrong or expired"
+	case errors.Is(err, service.ErrEmailCodeCooldown):
+		status, code, message = 429, 30019, "wait a minute before requesting another code"
+	case errors.Is(err, service.ErrMailUnavailable):
+		status, code, message = 503, 50006, "email could not be sent; try again later"
+	}
+	var delivery *service.MailDeliveryError
+	if errors.As(err, &delivery) {
+		// Only the administrator's SMTP test returns this; the reason names
+		// the failed step and never carries the server's reply.
+		return 502, Response{Code: 50006, Message: "mail delivery failed", Data: gin.H{"reason": delivery.Reason}}
 	}
 	var settingsErr *service.PluginSettingsError
 	if errors.As(err, &settingsErr) {

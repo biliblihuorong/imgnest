@@ -2,7 +2,7 @@
 const SCRIPT_URL = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 export interface TurnstileOptions {
   sitekey: string;
-  action: "login" | "register";
+  action: "login" | "register" | "reset";
   language: "en" | "zh-CN";
   size: "flexible" | "compact";
   "response-field": false;

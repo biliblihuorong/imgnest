@@ -129,7 +129,7 @@ describe("admin 路由守卫", () => {
     await router.isReady();
 
     expect(router.currentRoute.value.path).toBe("/login");
-    expect(router.currentRoute.value.query.redirect).toBe("/admin/settings");
+    expect(router.currentRoute.value.query.redirect).toBe("/admin/settings/general");
     expect(useAuthStore().token).toBeNull();
   });
 

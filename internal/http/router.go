@@ -20,7 +20,11 @@ import (
 
 // Dependencies are the application capabilities consumed by the HTTP layer.
 type Dependencies struct {
-	Captcha      native.CaptchaService
+	Captcha native.CaptchaService
+	// Email and Mail serve email codes, password reset and SMTP settings;
+	// both nil omits them.
+	Email        native.EmailAuth
+	Mail         native.MailSettings
 	Users        native.UserService
 	Tokens       native.TokenService
 	Logger       *slog.Logger
@@ -126,6 +130,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.Captcha != nil {
 		if err := handler.RegisterCaptchaRoutes(ctx, router, deps.Captcha); err != nil {
 			return nil, fmt.Errorf("register captcha routes: %w", err)
+		}
+	}
+	if deps.Email != nil && deps.Mail != nil {
+		if err := handler.RegisterEmailRoutes(ctx, router, deps.Email, deps.Mail); err != nil {
+			return nil, fmt.Errorf("register email routes: %w", err)
 		}
 	}
 	if deps.Images != nil {

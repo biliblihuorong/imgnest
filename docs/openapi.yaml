@@ -126,12 +126,52 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '503':
           $ref: '#/components/responses/CaptchaUnavailable'
+    put:
+      operationId: configureCaptcha
+      tags: [Admin]
+      summary: Save the CAPTCHA configuration in one step
+      description: |
+        The console's single form. enabled=true needs captcha_token: a fresh
+        Turnstile token for action login, solved on this site with the
+        submitted site_key. It proves the key, secret and hostnames work
+        together, then the configuration becomes active at once. enabled=false
+        with site_key, hostnames and an optional secret stores them as the
+        candidate for later; enabled=false with none of them only switches
+        protection off and keeps the stored configuration. Omit secret to reuse
+        the stored one. Uses the same version, encryption and master-key rules
+        as the step-by-step endpoints below, which remain for API clients.
+        Limited to three requests per minute per client IP.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CaptchaConfigureRequest'}
+      responses:
+        '200':
+          $ref: '#/components/responses/CaptchaAdmin'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/CaptchaConflict'
+        '422':
+          $ref: '#/components/responses/CaptchaFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/CaptchaUnavailable'
   /api/admin/captcha/draft:
     put:
       operationId: saveCaptchaDraft
       tags: [Admin]
       summary: Save a candidate without changing active protection
       description: |
+        Step-by-step flow kept for API clients; the console uses PUT /api/admin/captcha.
         The whole settings snapshot is persisted using atomic compare-and-swap.
         Every successful mutation increments version; use the latest top-level
         version as expected_version. Saving invalidates both candidate tests.
@@ -229,6 +269,162 @@ paths:
           $ref: '#/components/responses/CaptchaConflictOrNotReady'
         '503':
           $ref: '#/components/responses/CaptchaUnavailable'
+  /api/auth/email-code:
+    post:
+      operationId: sendEmailCode
+      tags: [Authentication]
+      summary: Email a one-time code for registration or password reset
+      description: |
+        Sends a six-digit code that expires in ten minutes and allows five
+        wrong guesses. A newer request replaces the older code; the same
+        address can ask again after one minute. When CAPTCHA is enabled,
+        captcha_token must pass for action register (purpose register) or
+        reset (purpose reset_password). purpose register needs registration
+        open, email verification on and an unregistered address. purpose
+        reset_password always answers success for unknown or disabled accounts
+        and sends nothing, so it cannot reveal registered addresses. Limited
+        to three requests per minute per client IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EmailCodeRequest'}
+      responses:
+        '200':
+          description: Code sent (or silently skipped for an unknown reset address); data is null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NullEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '403':
+          $ref: '#/components/responses/RegistrationDisabled'
+        '409':
+          $ref: '#/components/responses/MailNotConfiguredOrUserExists'
+        '422':
+          $ref: '#/components/responses/CaptchaFailed'
+        '429':
+          $ref: '#/components/responses/EmailCodeThrottled'
+        '503':
+          $ref: '#/components/responses/MailUnavailable'
+  /api/auth/password-reset:
+    post:
+      operationId: resetPassword
+      tags: [Authentication]
+      summary: Set a new password with an emailed code
+      description: |
+        Uses up the reset code and revokes every web session and API token of
+        the account, like a password change. Limited to three requests per
+        minute per client IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PasswordResetRequest'}
+      responses:
+        '200':
+          description: Password replaced; data is null. Sign in again.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NullEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '409':
+          $ref: '#/components/responses/MailNotConfiguredOrUserExists'
+        '422':
+          $ref: '#/components/responses/EmailCodeInvalid'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/admin/mail:
+    get:
+      operationId: getMailSettings
+      tags: [Admin]
+      summary: Read the SMTP settings
+      description: The password is write-only; password_configured tells whether one is stored.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/MailSettings'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      operationId: saveMailSettings
+      tags: [Admin]
+      summary: Replace the SMTP settings
+      description: |
+        Omit password to keep the stored one; clear_password removes it. A
+        password is sealed with security.master_key and cannot be saved
+        without it (409/30014); relays without authentication need no key.
+        Encryption none never sends a password, so it requires an empty
+        username.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MailSettingsRequest'}
+      responses:
+        '200':
+          $ref: '#/components/responses/MailSettings'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Saving a password without security.master_key; code 30014.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+  /api/admin/mail/test:
+    post:
+      operationId: testMailSettings
+      tags: [Admin]
+      summary: Send a test email with the saved SMTP settings
+      description: |
+        Sends to "to", or to the administrator's own address when it is empty.
+        A failed delivery answers 502/50006 with data.reason naming the failed
+        step (connect, tls, auth, rejected) and never the server's reply.
+        Limited to three requests per minute per client IP.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                to: {type: string, maxLength: 254}
+      responses:
+        '200':
+          description: Message accepted by the relay; data is null.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NullEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MailNotConfiguredOrUserExists'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          description: Delivery failed; code 50006 with data.reason.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MailDeliveryErrorEnvelope'}
   /api/auth/register:
     post:
       operationId: registerUser
@@ -242,6 +438,9 @@ paths:
         limit runs before provider verification. When CAPTCHA is enabled,
         captcha_token must pass the active provider for action register before
         account creation. Closed registration does not consume a provider token.
+        While email verification is on (SiteView.email_verification), email_code
+        must be the code sent by POST /api/auth/email-code and captcha_token is
+        not needed, because the CAPTCHA already guarded sending the code.
       security: []
       requestBody:
         required: true
@@ -263,7 +462,10 @@ paths:
         '409':
           $ref: '#/components/responses/UserExists'
         '422':
-          $ref: '#/components/responses/CaptchaFailed'
+          description: CAPTCHA failed (30010) or wrong, expired or used email code (30018).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '429':
           $ref: '#/components/responses/RateLimited'
         '500':
@@ -2651,6 +2853,30 @@ components:
           writeOnly: true
           description: Omit to reuse; null or an empty string is not a new secret. Never returned.
         clear_secret: {type: boolean, default: false}
+    CaptchaConfigureRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, enabled]
+      properties:
+        expected_version: {$ref: '#/components/schemas/CaptchaVersion'}
+        enabled: {type: boolean}
+        site_key: {type: string, maxLength: 256, pattern: '^[a-zA-Z0-9_-]*$'}
+        hostnames:
+          type: array
+          maxItems: 10
+          uniqueItems: true
+          items: {type: string, maxLength: 253}
+          description: Same rules as CaptchaDraftRequest.hostnames.
+        secret:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          pattern: '^[a-zA-Z0-9_-]+$'
+          writeOnly: true
+          description: Omit to reuse the stored secret. Never returned.
+        captcha_token:
+          allOf: [{$ref: '#/components/schemas/CaptchaToken'}]
+          description: Required with enabled=true; a fresh token for action login rendered with site_key.
     CaptchaTestRequest:
       type: object
       additionalProperties: false
@@ -2906,7 +3132,7 @@ components:
     AdminSettings:
       type: object
       additionalProperties: false
-      required: [site_name, registration_enabled, guest_upload_enabled, gallery_enabled, gallery_public_albums_only, trash_days, api_enabled, guest_group_id, default_group_id, avatar_provider]
+      required: [site_name, registration_enabled, guest_upload_enabled, gallery_enabled, gallery_public_albums_only, trash_days, api_enabled, guest_group_id, default_group_id, avatar_provider, email_verification_enabled]
       properties:
         site_name: {type: string, minLength: 1, maxLength: 100}
         registration_enabled: {type: boolean}
@@ -2921,6 +3147,7 @@ components:
           type: string
           enum: [weavatar, gravatar]
           description: Site-wide external avatar source; defaults to weavatar.
+        email_verification_enabled: {type: boolean, description: Registration needs an emailed code while SMTP works; defaults to false.}
     AdminSettingsPatch:
       type: object
       additionalProperties: false
@@ -2936,6 +3163,7 @@ components:
         guest_group_id: {type: integer, format: int64, minimum: 0, description: Nonzero must name the is_guest group, otherwise 400/10001.}
         default_group_id: {allOf: [{$ref: '#/components/schemas/ID'}], description: Must name an ordinary (non-guest) group, otherwise 400/10001.}
         avatar_provider: {type: string, enum: [weavatar, gravatar]}
+        email_verification_enabled: {type: boolean}
     AdminUserPageEnvelope:
       type: object
       additionalProperties: false
@@ -3623,6 +3851,77 @@ components:
           $ref: '#/components/schemas/Password'
         captcha_token:
           $ref: '#/components/schemas/CaptchaToken'
+        email_code:
+          $ref: '#/components/schemas/EmailCode'
+    EmailCode:
+      type: string
+      pattern: '^[0-9]{6}$'
+      description: Six-digit code from the email.
+    EmailCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [email, purpose]
+      properties:
+        email: {$ref: '#/components/schemas/EmailInput'}
+        purpose: {type: string, enum: [register, reset_password]}
+        captcha_token: {$ref: '#/components/schemas/CaptchaToken'}
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code, new_password]
+      properties:
+        email: {$ref: '#/components/schemas/EmailInput'}
+        code: {$ref: '#/components/schemas/EmailCode'}
+        new_password: {$ref: '#/components/schemas/Password'}
+    MailSettings:
+      type: object
+      additionalProperties: false
+      required: [enabled, host, port, encryption, username, password_configured, from_address, from_name, configuration_available]
+      properties:
+        enabled: {type: boolean, description: Turns outgoing email on; email verification and password reset need it.}
+        host: {type: string, maxLength: 253}
+        port: {type: integer, minimum: 1, maximum: 65535, description: Defaults to 465.}
+        encryption: {type: string, enum: [tls, starttls, none], description: tls is implicit TLS (usually 465); starttls upgrades a plain connection (usually 587).}
+        username: {type: string, maxLength: 256}
+        password_configured: {type: boolean}
+        from_address: {type: string, maxLength: 254}
+        from_name: {type: string, maxLength: 100}
+        configuration_available: {type: boolean, description: False without security.master_key; a password cannot be saved then.}
+    MailSettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [enabled, host, port, encryption, username, from_address, from_name]
+      properties:
+        enabled: {type: boolean}
+        host: {type: string, maxLength: 253, description: Host name or IP address, without scheme or port.}
+        port: {type: integer, minimum: 1, maximum: 65535}
+        encryption: {type: string, enum: [tls, starttls, none]}
+        username: {type: string, maxLength: 256, description: Empty for relays without authentication; must be empty with encryption none.}
+        password: {type: string, minLength: 1, maxLength: 1024, writeOnly: true, description: Omit to keep the stored password.}
+        clear_password: {type: boolean, default: false}
+        from_address: {type: string, maxLength: 254, description: Bare address such as noreply@example.com.}
+        from_name: {type: string, maxLength: 100}
+    MailSettingsEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/MailSettings'}
+    MailDeliveryErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [50006]}
+        message: {type: string}
+        data:
+          type: object
+          additionalProperties: false
+          required: [reason]
+          properties:
+            reason: {type: string, enum: [connect, tls, auth, rejected]}
     SsoExchangeRequest:
       type: object
       additionalProperties: false
@@ -3770,7 +4069,7 @@ components:
     SiteView:
       type: object
       additionalProperties: false
-      required: [site_name, register_enabled, gallery_enabled, login_providers]
+      required: [site_name, register_enabled, gallery_enabled, email_verification, password_reset, login_providers]
       properties:
         site_name:
           type: string
@@ -3783,6 +4082,12 @@ components:
         gallery_enabled:
           type: boolean
           description: Whether the public gallery is open; when false the gallery API returns empty pages.
+        email_verification:
+          type: boolean
+          description: Registration needs an emailed code; true only while registration is open, verification is on and SMTP works.
+        password_reset:
+          type: boolean
+          description: A forgotten password can be reset by email; true while SMTP works.
         login_providers:
           type: array
           description: Extra sign-in options contributed by server extensions; empty on a stock build.
@@ -4114,7 +4419,7 @@ components:
       properties:
         code:
           type: integer
-          enum: [10001, 10002, 10004, 10005, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 30010, 30011, 30012, 30013, 30014, 30015, 50001, 50002, 50003, 50004, 50005]
+          enum: [10001, 10002, 10004, 10005, 10006, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 30010, 30011, 30012, 30013, 30014, 30015, 30016, 30017, 30018, 30019, 50001, 50002, 50003, 50004, 50005, 50006]
         message:
           type: string
           description: Human-readable error message without technical or credential details.
@@ -4148,6 +4453,31 @@ components:
           schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     CaptchaConflictOrNotReady:
       description: Code 30011 for stale/concurrent version; code 30012 for absent candidate, missing/faded candidate tests, or missing compatibility acknowledgements.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    MailSettings:
+      description: SMTP settings without the password.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/MailSettingsEnvelope'}
+    MailNotConfiguredOrUserExists:
+      description: Outgoing email is off or incomplete (30017), or for registration codes the address is already registered (30002).
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    EmailCodeInvalid:
+      description: Wrong, expired, overused or already used email code; code 30018. Request a new code.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    EmailCodeThrottled:
+      description: Code 30019 when the same address asked less than a minute ago; code 30003 for the per-IP limit.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorEnvelope'}
+    MailUnavailable:
+      description: The email could not be sent; code 50006 with null data. No code was stored.
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorEnvelope'}

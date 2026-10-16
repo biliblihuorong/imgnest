@@ -210,6 +210,8 @@ export interface AdminSettings {
   default_group_id: number;
   /** 全站头像服务商；普通用户不可选择。 */
   avatar_provider: AvatarProvider;
+  /** 注册需填写邮件验证码；SMTP 可用时才生效。 */
+  email_verification_enabled: boolean;
 }
 
 /** listAdminImages 的过滤参数。 */
@@ -377,7 +379,7 @@ export function previewPolicy(body: PolicyPreviewInput): Promise<PolicyPreviewRe
 
 // ---------- 站点设置 ----------
 
-/** 读取站点设置八字段。 */
+/** 读取全部站点设置。 */
 export function getSettings(): Promise<AdminSettings> {
   return request<AdminSettings>("/api/admin/settings");
 }

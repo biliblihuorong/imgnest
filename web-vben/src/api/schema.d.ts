@@ -104,7 +104,20 @@ export interface paths {
          *     endpoint does not expose or modify this configuration.
          */
         get: operations["getAdminCaptcha"];
-        put?: never;
+        /**
+         * Save the CAPTCHA configuration in one step
+         * @description The console's single form. enabled=true needs captcha_token: a fresh
+         *     Turnstile token for action login, solved on this site with the
+         *     submitted site_key. It proves the key, secret and hostnames work
+         *     together, then the configuration becomes active at once. enabled=false
+         *     with site_key, hostnames and an optional secret stores them as the
+         *     candidate for later; enabled=false with none of them only switches
+         *     protection off and keeps the stored configuration. Omit secret to reuse
+         *     the stored one. Uses the same version, encryption and master-key rules
+         *     as the step-by-step endpoints below, which remain for API clients.
+         *     Limited to three requests per minute per client IP.
+         */
+        put: operations["configureCaptcha"];
         post?: never;
         delete?: never;
         options?: never;
@@ -122,7 +135,8 @@ export interface paths {
         get?: never;
         /**
          * Save a candidate without changing active protection
-         * @description The whole settings snapshot is persisted using atomic compare-and-swap.
+         * @description Step-by-step flow kept for API clients; the console uses PUT /api/admin/captcha.
+         *     The whole settings snapshot is persisted using atomic compare-and-swap.
          *     Every successful mutation increments version; use the latest top-level
          *     version as expected_version. Saving invalidates both candidate tests.
          *     Only Turnstile is supported. Known official test keys are rejected.
@@ -190,6 +204,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/email-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Email a one-time code for registration or password reset
+         * @description Sends a six-digit code that expires in ten minutes and allows five
+         *     wrong guesses. A newer request replaces the older code; the same
+         *     address can ask again after one minute. When CAPTCHA is enabled,
+         *     captcha_token must pass for action register (purpose register) or
+         *     reset (purpose reset_password). purpose register needs registration
+         *     open, email verification on and an unregistered address. purpose
+         *     reset_password always answers success for unknown or disabled accounts
+         *     and sends nothing, so it cannot reveal registered addresses. Limited
+         *     to three requests per minute per client IP.
+         */
+        post: operations["sendEmailCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a new password with an emailed code
+         * @description Uses up the reset code and revokes every web session and API token of
+         *     the account, like a password change. Limited to three requests per
+         *     minute per client IP.
+         */
+        post: operations["resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/mail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the SMTP settings
+         * @description The password is write-only; password_configured tells whether one is stored.
+         */
+        get: operations["getMailSettings"];
+        /**
+         * Replace the SMTP settings
+         * @description Omit password to keep the stored one; clear_password removes it. A
+         *     password is sealed with security.master_key and cannot be saved
+         *     without it (409/30014); relays without authentication need no key.
+         *     Encryption none never sends a password, so it requires an empty
+         *     username.
+         */
+        put: operations["saveMailSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/mail/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a test email with the saved SMTP settings
+         * @description Sends to "to", or to the administrator's own address when it is empty.
+         *     A failed delivery answers 502/50006 with data.reason naming the failed
+         *     step (connect, tls, auth, rejected) and never the server's reply.
+         *     Limited to three requests per minute per client IP.
+         */
+        post: operations["testMailSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/register": {
         parameters: {
             query?: never;
@@ -208,6 +323,9 @@ export interface paths {
          *     limit runs before provider verification. When CAPTCHA is enabled,
          *     captcha_token must pass the active provider for action register before
          *     account creation. Closed registration does not consume a provider token.
+         *     While email verification is on (SiteView.email_verification), email_code
+         *     must be the code sent by POST /api/auth/email-code and captcha_token is
+         *     not needed, because the CAPTCHA already guarded sending the code.
          */
         post: operations["registerUser"];
         delete?: never;
@@ -1646,6 +1764,17 @@ export interface components {
             /** @default false */
             clear_secret: boolean;
         };
+        CaptchaConfigureRequest: {
+            expected_version: components["schemas"]["CaptchaVersion"];
+            enabled: boolean;
+            site_key?: string;
+            /** @description Same rules as CaptchaDraftRequest.hostnames. */
+            hostnames?: string[];
+            /** @description Omit to reuse the stored secret. Never returned. */
+            secret?: string;
+            /** @description Required with enabled=true; a fresh token for action login rendered with site_key. */
+            captcha_token?: components["schemas"]["CaptchaToken"];
+        };
         CaptchaTestRequest: {
             expected_version: components["schemas"]["CaptchaVersion"];
             captcha_token: components["schemas"]["CaptchaToken"];
@@ -1949,6 +2078,8 @@ export interface components {
              * @enum {string}
              */
             avatar_provider: "weavatar" | "gravatar";
+            /** @description Registration needs an emailed code while SMTP works; defaults to false. */
+            email_verification_enabled: boolean;
         };
         AdminSettingsPatch: {
             site_name?: string;
@@ -1967,6 +2098,7 @@ export interface components {
             default_group_id?: components["schemas"]["ID"];
             /** @enum {string} */
             avatar_provider?: "weavatar" | "gravatar";
+            email_verification_enabled?: boolean;
         };
         AdminUserPageEnvelope: {
             /** @enum {integer} */
@@ -2530,6 +2662,70 @@ export interface components {
             email: components["schemas"]["EmailInput"];
             password: components["schemas"]["Password"];
             captcha_token?: components["schemas"]["CaptchaToken"];
+            email_code?: components["schemas"]["EmailCode"];
+        };
+        /** @description Six-digit code from the email. */
+        EmailCode: string;
+        EmailCodeRequest: {
+            email: components["schemas"]["EmailInput"];
+            /** @enum {string} */
+            purpose: "register" | "reset_password";
+            captcha_token?: components["schemas"]["CaptchaToken"];
+        };
+        PasswordResetRequest: {
+            email: components["schemas"]["EmailInput"];
+            code: components["schemas"]["EmailCode"];
+            new_password: components["schemas"]["Password"];
+        };
+        MailSettings: {
+            /** @description Turns outgoing email on; email verification and password reset need it. */
+            enabled: boolean;
+            host: string;
+            /** @description Defaults to 465. */
+            port: number;
+            /**
+             * @description tls is implicit TLS (usually 465); starttls upgrades a plain connection (usually 587).
+             * @enum {string}
+             */
+            encryption: "tls" | "starttls" | "none";
+            username: string;
+            password_configured: boolean;
+            from_address: string;
+            from_name: string;
+            /** @description False without security.master_key; a password cannot be saved then. */
+            configuration_available: boolean;
+        };
+        MailSettingsRequest: {
+            enabled: boolean;
+            /** @description Host name or IP address */
+            host: string;
+            port: number;
+            /** @enum {string} */
+            encryption: "tls" | "starttls" | "none";
+            /** @description Empty for relays without authentication; must be empty with encryption none. */
+            username: string;
+            /** @description Omit to keep the stored password. */
+            password?: string;
+            /** @default false */
+            clear_password: boolean;
+            /** @description Bare address such as noreply@example.com. */
+            from_address: string;
+            from_name: string;
+        };
+        MailSettingsEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["MailSettings"];
+        };
+        MailDeliveryErrorEnvelope: {
+            /** @enum {integer} */
+            code: 50006;
+            message: string;
+            data: {
+                /** @enum {string} */
+                reason: "connect" | "tls" | "auth" | "rejected";
+            };
         };
         SsoExchangeRequest: {
             /** @description One-time ticket from the /auth/sso redirect fragment. */
@@ -2627,6 +2823,10 @@ export interface components {
             register_enabled: boolean;
             /** @description Whether the public gallery is open; when false the gallery API returns empty pages. */
             gallery_enabled: boolean;
+            /** @description Registration needs an emailed code; true only while registration is open, verification is on and SMTP works. */
+            email_verification: boolean;
+            /** @description A forgotten password can be reset by email; true while SMTP works. */
+            password_reset: boolean;
             /** @description Extra sign-in options contributed by server extensions; empty on a stock build. */
             login_providers: components["schemas"]["LoginProvider"][];
         };
@@ -2871,7 +3071,7 @@ export interface components {
         };
         ErrorEnvelope: {
             /** @enum {integer} */
-            code: 10001 | 10002 | 10004 | 10005 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30010 | 30011 | 30012 | 30013 | 30014 | 30015 | 50001 | 50002 | 50003 | 50004 | 50005;
+            code: 10001 | 10002 | 10004 | 10005 | 10006 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30010 | 30011 | 30012 | 30013 | 30014 | 30015 | 30016 | 30017 | 30018 | 30019 | 50001 | 50002 | 50003 | 50004 | 50005 | 50006;
             /** @description Human-readable error message without technical or credential details. */
             message: string;
             data: components["schemas"]["NullData"];
@@ -2925,6 +3125,51 @@ export interface components {
         };
         /** @description Code 30011 for stale/concurrent version; code 30012 for absent candidate, missing/faded candidate tests, or missing compatibility acknowledgements. */
         CaptchaConflictOrNotReady: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
+        /** @description SMTP settings without the password. */
+        MailSettings: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["MailSettingsEnvelope"];
+            };
+        };
+        /** @description Outgoing email is off or incomplete (30017), or for registration codes the address is already registered (30002). */
+        MailNotConfiguredOrUserExists: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
+        /** @description Wrong, expired, overused or already used email code; code 30018. Request a new code. */
+        EmailCodeInvalid: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
+        /** @description Code 30019 when the same address asked less than a minute ago; code 30003 for the per-IP limit. */
+        EmailCodeThrottled: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
+        /** @description The email could not be sent; code 50006 with null data. No code was stored. */
+        MailUnavailable: {
             headers: {
                 [name: string]: unknown;
             };
@@ -3307,6 +3552,29 @@ export interface operations {
             503: components["responses"]["CaptchaUnavailable"];
         };
     };
+    configureCaptcha: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaptchaConfigureRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["CaptchaAdmin"];
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["CaptchaConflict"];
+            422: components["responses"]["CaptchaFailed"];
+            429: components["responses"]["RateLimited"];
+            503: components["responses"]["CaptchaUnavailable"];
+        };
+    };
     saveCaptchaDraft: {
         parameters: {
             query?: never;
@@ -3372,6 +3640,146 @@ export interface operations {
             503: components["responses"]["CaptchaUnavailable"];
         };
     };
+    sendEmailCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Code sent (or silently skipped for an unknown reset address); data is null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            403: components["responses"]["RegistrationDisabled"];
+            409: components["responses"]["MailNotConfiguredOrUserExists"];
+            422: components["responses"]["CaptchaFailed"];
+            429: components["responses"]["EmailCodeThrottled"];
+            503: components["responses"]["MailUnavailable"];
+        };
+    };
+    resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Password replaced; data is null. Sign in again. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            409: components["responses"]["MailNotConfiguredOrUserExists"];
+            422: components["responses"]["EmailCodeInvalid"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getMailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["MailSettings"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    saveMailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MailSettingsRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["MailSettings"];
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            /** @description Saving a password without security.master_key; code 30014. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    testMailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    to?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Message accepted by the relay; data is null. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NullEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["MailNotConfiguredOrUserExists"];
+            429: components["responses"]["RateLimited"];
+            /** @description Delivery failed; code 50006 with data.reason. */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailDeliveryErrorEnvelope"];
+                };
+            };
+        };
+    };
     registerUser: {
         parameters: {
             query?: never;
@@ -3397,7 +3805,15 @@ export interface operations {
             400: components["responses"]["InvalidInput"];
             403: components["responses"]["RegistrationDisabled"];
             409: components["responses"]["UserExists"];
-            422: components["responses"]["CaptchaFailed"];
+            /** @description CAPTCHA failed (30010) or wrong, expired or used email code (30018). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             429: components["responses"]["RateLimited"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["CaptchaUnavailable"];

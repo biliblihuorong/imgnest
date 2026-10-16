@@ -5,7 +5,8 @@ This implementation adds a disabled-by-default Cloudflare Turnstile policy for n
 ## Scope and compatibility
 
 - `POST /api/auth/login` verifies action `login` before password verification and web-token issuance when enabled
-- `POST /api/auth/register` verifies action `register` before creating an account when registration is open; closed registration stays closed without consuming a challenge
+- `POST /api/auth/register` verifies action `register` before creating an account when registration is open; closed registration stays closed without consuming a challenge. When email verification is on (see `docs/spec.md` §7.7), the `register` challenge moves to `POST /api/auth/email-code` and registration requires the emailed code instead
+- `POST /api/auth/email-code` with `purpose=reset_password` verifies action `reset`
 - The existing independent three-request-per-IP-per-minute limits run before provider verification; trusted-proxy configuration remains unchanged
 - `/api/v1/tokens` retains its current email/password contract and rate limit. CAPTCHA does **not** protect all password authentication while that endpoint is enabled
 - PicGo and existing bearer-token uploads remain noninteractive and unchanged
@@ -21,6 +22,7 @@ The exact request and response schemas are in [`openapi.yaml`](openapi.yaml).
 | --- | --- | --- |
 | `GET /api/auth/captcha` | Public | Minimal active `enabled`, `provider`, `site_key`, `version` |
 | `GET /api/admin/captcha` | Enabled administrator | Safe active/draft metadata and master-key availability |
+| `PUT /api/admin/captcha` | Enabled administrator, 3/IP/min | One-step configuration used by the admin UI (below) |
 | `PUT /api/admin/captcha/draft` | Enabled administrator | Save an encrypted candidate without changing active protection |
 | `POST /api/admin/captcha/test` | Enabled administrator, 3/IP/min | Consume a fresh candidate token for `login` or `register` |
 | `POST /api/admin/captcha/activation` | Enabled administrator | Promote a tested candidate or explicitly disable protection |
@@ -32,6 +34,16 @@ The existing `settings` table stores one `captcha_config` JSON snapshot. Compare
 Only `turnstile` is accepted. Hostnames must be unique lowercase fully qualified DNS names, at most ten, without a URL scheme, path, port, wildcard, IP address, or trailing dot. The response hostname must be an exact configured match. The site key is public; the secret is write-only. Secret omission reuses the current candidate's secret, or the active secret if no candidate exists, only for the same provider. A supplied empty secret is invalid. Explicit `clear_secret=true` is allowed only while disabled, must omit `secret`, and also discards the retained active copy.
 
 The deployment uses the existing `security.master_key` / `IMGNEST_SECURITY_MASTER_KEY` (base64 of 32 bytes) and AES-GCM codec. The provider name is included in authenticated encryption context. Preserve the master key alongside private database backups; changing it without re-encrypting existing credentials makes them unreadable. Neither plaintext nor encrypted values are returned through public, CAPTCHA-admin, or general-admin settings responses. The secret, token, email, and password are excluded from provider diagnostics and application errors.
+
+## One-step configuration (2026-10-16)
+
+The admin UI uses `PUT /api/admin/captcha` with `expected_version`, `enabled`, and optionally `site_key`, `hostnames`, `secret` and `captcha_token`:
+
+- `enabled=false` with no site key only turns protection off. With a site key it also stores the settings as the candidate so they can be turned on later
+- `enabled=true` requires a fresh token rendered with the submitted site key (action `login`). The server verifies it once with the submitted or reused secret and the submitted hostnames; on success the settings become active immediately and the candidate is cleared
+- A missing `secret` reuses the candidate's secret, else the active one. The UI defaults hostnames to the current host and keeps them under "Advanced"
+
+The draft/test/activation endpoints below stay available for API clients and keep their stricter two-action flow and acknowledgements.
 
 ## Candidate verification and activation
 

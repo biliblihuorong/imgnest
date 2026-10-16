@@ -237,6 +237,9 @@ type AdminSettingsView struct {
 	// AvatarProvider is the site-wide external avatar source; users cannot
 	// change it and only the two supported enums are ever stored or returned.
 	AvatarProvider string `json:"avatar_provider"`
+	// EmailVerificationEnabled makes registration require a mailed code; it
+	// takes effect only while SMTP is configured.
+	EmailVerificationEnabled bool `json:"email_verification_enabled"`
 }
 
 // SettingsPatch changes only the settings keys present in the request.
@@ -252,6 +255,8 @@ type SettingsPatch struct {
 	GuestGroupID            *uint64 `json:"guest_group_id,omitempty"`
 	DefaultGroupID          *uint64 `json:"default_group_id,omitempty"`
 	AvatarProvider          *string `json:"avatar_provider,omitempty"`
+	// EmailVerificationEnabled makes registration require a mailed code.
+	EmailVerificationEnabled *bool `json:"email_verification_enabled,omitempty"`
 }
 
 func containsID(values []uint64, id uint64) bool {

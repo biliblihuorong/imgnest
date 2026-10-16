@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  fetchCaptcha,
-  getCaptchaSettings,
-  saveCaptchaDraft,
-  testCaptchaDraft,
-  setCaptchaActivation,
-} from "./captcha";
+import { configureCaptcha, fetchCaptcha, getCaptchaSettings } from "./captcha";
 import { login, register } from "./auth";
 
 function mockResponse(data: unknown) {
@@ -32,7 +26,7 @@ describe("CAPTCHA HTTP contract", () => {
     expect(fetcher.mock.calls[0]?.[0]).toBe("/api/auth/captcha");
     expect(fetcher.mock.calls[0]?.[1].signal).toBe(controller.signal);
   });
-  it("reads admin state and saves a draft without inventing a secret", async () => {
+  it("reads admin state and configures in one request without inventing a secret", async () => {
     const fetcher = mockResponse({
       version: 3,
       enabled: false,
@@ -42,42 +36,21 @@ describe("CAPTCHA HTTP contract", () => {
     });
     await getCaptchaSettings();
     expect(fetcher.mock.calls[0]?.[0]).toBe("/api/admin/captcha");
-    await saveCaptchaDraft({
+    await configureCaptcha({
       expected_version: 3,
-      provider: "turnstile",
+      enabled: true,
       site_key: "public-key",
       hostnames: ["img.test"],
+      captcha_token: "one-use",
     });
-    expect(fetcher.mock.calls[1]?.[0]).toBe("/api/admin/captcha/draft");
+    expect(fetcher.mock.calls[1]?.[0]).toBe("/api/admin/captcha");
     expect(fetcher.mock.calls[1]?.[1].method).toBe("PUT");
     expect(JSON.parse(fetcher.mock.calls[1]?.[1].body)).toEqual({
       expected_version: 3,
-      provider: "turnstile",
+      enabled: true,
       site_key: "public-key",
       hostnames: ["img.test"],
-    });
-  });
-  it("keeps test action and activation acknowledgements explicit", async () => {
-    const fetcher = mockResponse({});
-    await testCaptchaDraft({ expected_version: 7, captcha_token: "one-use", action: "register" });
-    expect(fetcher.mock.calls[0]?.[0]).toBe("/api/admin/captcha/test");
-    expect(JSON.parse(fetcher.mock.calls[0]?.[1].body)).toEqual({
-      expected_version: 7,
       captcha_token: "one-use",
-      action: "register",
-    });
-    await setCaptchaActivation({
-      expected_version: 8,
-      enabled: true,
-      acknowledge_legacy_incompatibility: true,
-      acknowledge_v1_unprotected: true,
-    });
-    expect(fetcher.mock.calls[1]?.[0]).toBe("/api/admin/captcha/activation");
-    expect(JSON.parse(fetcher.mock.calls[1]?.[1].body)).toEqual({
-      expected_version: 8,
-      enabled: true,
-      acknowledge_legacy_incompatibility: true,
-      acknowledge_v1_unprotected: true,
     });
   });
   it("preserves the exact legacy login body and adds the optional token only when supplied", async () => {

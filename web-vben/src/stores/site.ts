@@ -6,6 +6,10 @@ interface SiteState {
   siteName: string;
   registerEnabled: boolean;
   galleryEnabled: boolean;
+  /** 注册需要邮件验证码。 */
+  emailVerification: boolean;
+  /** 可以通过邮件找回密码。 */
+  passwordReset: boolean;
   /** 服务端扩展提供的额外登录方式（如 SSO），原版为空。 */
   loginProviders: LoginProvider[];
   loaded: boolean;
@@ -19,6 +23,8 @@ export const useSiteStore = defineStore("site", {
     siteName: "ImgNest",
     registerEnabled: false,
     galleryEnabled: false,
+    emailVerification: false,
+    passwordReset: false,
     loginProviders: [],
     loaded: false,
   }),
@@ -42,6 +48,8 @@ export const useSiteStore = defineStore("site", {
           this.siteName = site.site_name;
           this.registerEnabled = site.register_enabled;
           this.galleryEnabled = site.gallery_enabled;
+          this.emailVerification = site.email_verification ?? false;
+          this.passwordReset = site.password_reset ?? false;
           this.loginProviders = site.login_providers ?? [];
           this.loaded = true;
         } catch {
