@@ -3,6 +3,7 @@ package exif
 import (
 	"bytes"
 	"encoding/binary"
+	"slices"
 )
 
 type isoItem struct {
@@ -12,6 +13,13 @@ type isoItem struct {
 }
 
 func isobmffBlocks(data []byte) ([]rawBlock, error) {
+	return isobmffBlocksWithBudget(data, maxSourceBytes)
+}
+
+func isobmffBlocksWithBudget(data []byte, budget int) ([]rawBlock, error) {
+	if budget < 0 || budget > maxSourceBytes {
+		return nil, ErrInvalidMetadata
+	}
 	items := map[uint64]string{}
 	locations := map[uint64]isoItem{}
 	idatastart := -1
@@ -54,8 +62,19 @@ func isobmffBlocks(data []byte) ([]rawBlock, error) {
 			return nil, err
 		}
 	}
+	ids := make([]uint64, 0, len(items))
+	for id := range items {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	type blockKey struct {
+		kind    string
+		extents string
+	}
+	seen := map[blockKey]int{}
 	blocks := []rawBlock{}
-	for id, kind := range items {
+	for _, id := range ids {
+		kind := items[id]
 		if kind != "exif" && kind != "xmp" {
 			continue
 		}
@@ -63,15 +82,43 @@ func isobmffBlocks(data []byte) ([]rawBlock, error) {
 		if !ok || len(item.extents) == 0 {
 			return nil, ErrInvalidMetadata
 		}
-		payload := []byte{}
+		// Preserve ordered copies, including overlaps and repeated extents.
+		signature := []byte{}
 		for _, extent := range item.extents {
-			if extent.Length > maxSourceBytes-len(payload) {
+			signature = binary.AppendVarint(signature, int64(extent.Offset))
+			signature = binary.AppendVarint(signature, int64(extent.Length))
+		}
+		key := blockKey{kind: kind, extents: string(signature)}
+		if index, ok := seen[key]; ok {
+			blocks[index].ItemIDs = append(blocks[index].ItemIDs, id)
+			continue
+		}
+		seen[key] = len(blocks)
+		blocks = append(blocks, rawBlock{
+			Kind: kind, Offset: item.extents[0].Offset,
+			Extents: item.extents, ItemIDs: []uint64{id},
+		})
+	}
+	// Check every unique payload before allocating, copying or parsing any of them.
+	lengths := make([]int, len(blocks))
+	remaining := budget
+	for i, block := range blocks {
+		for _, extent := range block.Extents {
+			if extent.Length > remaining {
 				return nil, ErrInvalidMetadata
 			}
+			remaining -= extent.Length
+			lengths[i] += extent.Length
+		}
+	}
+	for i := range blocks {
+		block := &blocks[i]
+		payload := make([]byte, 0, lengths[i])
+		for _, extent := range block.Extents {
 			payload = append(payload, data[extent.Offset:extent.Offset+extent.Length]...)
 		}
-		block := rawBlock{Kind: kind, Offset: item.extents[0].Offset, Data: payload, Extents: item.extents}
-		if kind == "exif" {
+		block.Data = payload
+		if block.Kind == "exif" {
 			switch {
 			case bytes.HasPrefix(payload, []byte("Exif\x00\x00")):
 				block.TIFFOffset = 6
@@ -90,7 +137,6 @@ func isobmffBlocks(data []byte) ([]rawBlock, error) {
 				return nil, err
 			}
 		}
-		blocks = append(blocks, block)
 	}
 	// Source order is retained rather than Go map iteration order.
 	for i := 1; i < len(blocks); i++ {

@@ -132,6 +132,13 @@ retain every referenced byte, including longer values sharing an offset.
 Archived payload bytes must not exceed source bytes; mark cross-kind unions
 as `tiff-range`. Opaque classic TIFF layouts may archive at most20MiB as explicit private
 full-source-fallback; enabled original scrub rejects unsupported layouts.
+
+For ISOBMFF, preflight the cumulative unique payload budget (20MiB) before
+allocating, copying or parsing item payloads. Deduplicate only the same kind
+and exact ordered source extents; retain their item IDs in the additive
+`item_ids` field. Count repeated/overlapping extents within an item in full;
+never union them or silently truncate metadata. Reject over-budget input.
+See [references/exif-scrub.md](references/exif-scrub.md) for archive semantics.
 BigTIFF and unsupported ISOBMFF layouts reject rather than lose metadata.
 M2 fixtures are synthetic/native-generated, not camera-brand samples.
 
