@@ -53,6 +53,7 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest imgnest init-local --b
 | `POSTGRES_PASSWORD` | 仅 PostgreSQL，必填 |
 | `IMGNEST_SECURITY_MASTER_KEY` | 仅 S3 存储需要：32 字节随机数的 base64。丢失后已加密的存储凭据无法解密，需私下备份 |
 | `IMGNEST_SERVER_TRUSTED_PROXIES` | 反向代理地址，逗号分隔 |
+| `IMGNEST_IMAGES_VARIANT_CORS_ORIGINS` | 允许在浏览器里调用 `/api/variants` 的来源（如博客），逗号分隔 |
 
 ## 数据与运行约束
 

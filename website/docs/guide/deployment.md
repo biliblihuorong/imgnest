@@ -2,47 +2,27 @@
 
 ImgNest 有两种部署方式：
 
-- **Docker 部署**（推荐）：官方镜像 `ghcr.io/biliblihuorong/imgnest`，支持 linux/amd64 和 linux/arm64，数据库可选 SQLite 或 PostgreSQL。
+- **Docker 部署**（推荐）：官方镜像 `ghcr.io/biliblihuorong/imgnest`，支持 linux/amd64 和 linux/arm64，数据库默认用 PostgreSQL，个人自用也可以选 SQLite。
 - **二进制部署**：自己编译出单个 `imgnest` 可执行文件（前端已嵌入），用 systemd 等方式运行。目前不提供预编译的二进制下载。
 
 两种方式用的是同一套程序和同一套数据库迁移，之后可以互相切换。
 
 ## 选哪个数据库
 
-| | SQLite | PostgreSQL |
+| | PostgreSQL（默认） | SQLite |
 | --- | --- | --- |
-| 适合 | 个人自用、小站点 | 多用户、图片较多 |
-| 额外服务 | 不需要，数据库是数据卷里的一个文件 | 需要一个 PostgreSQL 容器或实例 |
-| 备份 | 备份 `imgnest-data` 数据卷 | 备份 `imgnest-data` 数据卷 + `pg_dump` |
+| 适合 | 正式部署、多用户、图片较多 | 个人自用、小站点、先试用 |
+| 额外服务 | 需要一个 PostgreSQL 容器或实例（compose 里已带） | 不需要，数据库是数据卷里的一个文件 |
+| 备份 | 备份 `imgnest-data` 数据卷 + `pg_dump` | 备份 `imgnest-data` 数据卷 |
+| 蓝空迁移 | 推荐，`import-lsky` 文档以它为例 | 也支持 |
 
 同一个镜像同时支持两种数据库，由环境变量 `IMGNEST_DATABASE_DRIVER` 和 `IMGNEST_DATABASE_DSN` 在运行时选择。
 
 ## Docker 部署
 
-准备好 Docker 和 Compose 插件，新建一个目录（例如 `/opt/imgnest`），把下面任选其一的内容保存为 `compose.yaml`。仓库里的 `deploy/compose.sqlite.yaml` 和 `deploy/compose.postgres.yaml` 与这里一致。
+准备好 Docker 和 Compose 插件，新建一个目录（例如 `/opt/imgnest`），把下面的内容保存为 `compose.yaml`（默认是 PostgreSQL，想用 SQLite 就切到 SQLite 标签）。仓库里的 `deploy/compose.sqlite.yaml` 和 `deploy/compose.postgres.yaml` 与这里一致。
 
 ::: code-group
-
-```yaml [SQLite]
-# 单容器 + SQLite，适合个人或小规模使用
-name: imgnest
-services:
-  imgnest:
-    image: ghcr.io/biliblihuorong/imgnest:${IMGNEST_TAG:-latest}
-    restart: unless-stopped
-    ports:
-      - "${IMGNEST_PORT:-8080}:8080"
-    environment:
-      # 只有使用 S3 兼容存储时需要：32 字节随机数的 base64
-      IMGNEST_SECURITY_MASTER_KEY: ${IMGNEST_SECURITY_MASTER_KEY:-}
-      # 允许设置客户端 IP 的反向代理地址，逗号分隔
-      IMGNEST_SERVER_TRUSTED_PROXIES: ${IMGNEST_SERVER_TRUSTED_PROXIES:-}
-    volumes:
-      # 数据库、本机图片和缩略图缓存
-      - imgnest-data:/app/data
-volumes:
-  imgnest-data:
-```
 
 ```yaml [PostgreSQL]
 # ImgNest + PostgreSQL，适合多用户
@@ -64,6 +44,8 @@ services:
       IMGNEST_SECURITY_MASTER_KEY: ${IMGNEST_SECURITY_MASTER_KEY:-}
       # 允许设置客户端 IP 的反向代理地址，逗号分隔
       IMGNEST_SERVER_TRUSTED_PROXIES: ${IMGNEST_SERVER_TRUSTED_PROXIES:-}
+      # 允许在浏览器里调用 /api/variants 的网站（如你的博客），逗号分隔
+      IMGNEST_IMAGES_VARIANT_CORS_ORIGINS: ${IMGNEST_IMAGES_VARIANT_CORS_ORIGINS:-}
     volumes:
       # 本机图片和缩略图缓存
       - imgnest-data:/app/data
@@ -86,17 +68,42 @@ volumes:
   postgres-data:
 ```
 
+```yaml [SQLite]
+# 单容器 + SQLite，适合个人或小规模使用
+name: imgnest
+services:
+  imgnest:
+    image: ghcr.io/biliblihuorong/imgnest:${IMGNEST_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "${IMGNEST_PORT:-8080}:8080"
+    environment:
+      # 只有使用 S3 兼容存储时需要：32 字节随机数的 base64
+      IMGNEST_SECURITY_MASTER_KEY: ${IMGNEST_SECURITY_MASTER_KEY:-}
+      # 允许设置客户端 IP 的反向代理地址，逗号分隔
+      IMGNEST_SERVER_TRUSTED_PROXIES: ${IMGNEST_SERVER_TRUSTED_PROXIES:-}
+      # 允许在浏览器里调用 /api/variants 的网站（如你的博客），逗号分隔
+      IMGNEST_IMAGES_VARIANT_CORS_ORIGINS: ${IMGNEST_IMAGES_VARIANT_CORS_ORIGINS:-}
+    volumes:
+      # 数据库、本机图片和缩略图缓存
+      - imgnest-data:/app/data
+volumes:
+  imgnest-data:
+```
+
 :::
 
-在同一目录新建 `.env`，按需填写（PostgreSQL 必须填 `POSTGRES_PASSWORD`，不要提交到 Git）：
+在同一目录新建 `.env`，按需填写（用 PostgreSQL 时必须填 `POSTGRES_PASSWORD`；这个文件不要提交到 Git）：
 
 ```ini
 IMGNEST_TAG=0.0.3
 IMGNEST_PORT=8080
-# PostgreSQL 版必填
+# PostgreSQL 必填，生成方式：openssl rand -base64 24
 POSTGRES_PASSWORD=换成一个长随机密码
 # 用 S3 / B2 / R2 / COS 存储时填写，生成方式：openssl rand -base64 32
 IMGNEST_SECURITY_MASTER_KEY=
+# 博客要在浏览器里查响应式图片时填写，例如 https://blog.example.com
+IMGNEST_IMAGES_VARIANT_CORS_ORIGINS=
 ```
 
 启动：
@@ -105,7 +112,7 @@ IMGNEST_SECURITY_MASTER_KEY=
 docker compose up -d
 ```
 
-容器启动时会自动执行数据库迁移。之后按[快速开始](./getting-started)创建管理员和本机存储，命令里的 `-f deploy/compose.sqlite.yaml` 去掉即可（当前目录的 `compose.yaml` 会被自动使用）：
+容器启动时会自动执行数据库迁移。之后按[快速开始](./getting-started)创建管理员和本机存储，快速开始里用的是 SQLite 的 compose 文件，这里把命令里的 `-f deploy/compose.sqlite.yaml` 去掉即可（当前目录的 `compose.yaml` 会被自动使用）：
 
 ```bash
 read -rsp '管理员密码: ' password; echo
@@ -156,8 +163,7 @@ go build -trimpath -o bin/imgnest ./cmd/imgnest
 
 把 `bin/imgnest` 复制到服务器，例如 `/opt/imgnest/imgnest`，再把仓库里的 `deploy/config.example.yaml` 复制为 `/opt/imgnest/config.yaml`。配置里的相对路径（`data/imgnest.db`、`data/thumbs`，以及本机存储默认的 `data/images`）以运行目录为准。不放配置文件也能运行，这时全部使用默认值。
 
-- **SQLite**：示例配置直接可用，数据库在 `data/imgnest.db`。
-- **PostgreSQL**：用环境变量选择，密码不要写进配置文件：
+- **PostgreSQL（默认推荐）**：用环境变量选择，密码不要写进配置文件：
 
   ```bash
   IMGNEST_DATABASE_DRIVER=postgres
@@ -165,6 +171,7 @@ go build -trimpath -o bin/imgnest ./cmd/imgnest
   ```
 
   并删掉配置里 SQLite 专用的 `max_open: 1`、`max_idle: 1`，让 PostgreSQL 使用默认连接池。
+- **SQLite**：不设置上面两个变量即可，示例配置直接可用，数据库在 `data/imgnest.db`。
 
 所有配置项见[配置](./configuration)。
 
@@ -212,6 +219,16 @@ sudo systemctl enable --now imgnest
 ```
 
 升级时替换 `/opt/imgnest/imgnest` 后 `sudo systemctl restart imgnest`，`ExecStartPre` 会先迁移数据库。
+
+## 开启响应式图片
+
+响应式图片是 0.0.2 新增的：打开后，新上传的静态图除了原图、WebP 和缩略图，还会多生成宽 400、800、1600 像素的 WebP，博客可以用 `srcset` 让手机加载小图、大屏加载大图。默认关闭，部署完成后按下面三步打开：
+
+1. **在规则里打开**：后台「规则管理 → 编辑规则 → 转码」，打开「响应式衍生图」。之后上传的图片会自动生成，上传接口和蓝空 v1 接口都会多返回 `variants` 字段。
+2. **补生成历史图片**：在规则管理页底部的「响应式图片补生成」卡片里点开始。可以随时暂停、继续，重启服务后会接着跑；还没补到的图片链接照常可用。
+3. **让博客能在浏览器里查询**（可选）：如果博客只知道图片链接，可以调用公开接口 `GET /api/variants?url=图片链接` 查出各个尺寸。这需要把博客域名填进 `IMGNEST_IMAGES_VARIANT_CORS_ORIGINS`（上面的 `.env` 里已经留好，二进制部署写进环境变量或配置里的 `images.variant_cors_origins`），改完重启服务。
+
+生成的文件名形如 `{path}_w800_v1.webp`，和原图放在同一个存储里，计入容量，删除和恢复时跟着原图走。完整规则见[存储与规则](./storage-and-policies#响应式图片版本)，博客接入示例见仓库里的 `docs/examples/responsive-images.html`。
 
 ## 反向代理
 

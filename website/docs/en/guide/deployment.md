@@ -2,47 +2,27 @@
 
 ImgNest can be deployed in two ways:
 
-- **Docker** (recommended): the official image `ghcr.io/biliblihuorong/imgnest` for linux/amd64 and linux/arm64, with SQLite or PostgreSQL.
+- **Docker** (recommended): the official image `ghcr.io/biliblihuorong/imgnest` for linux/amd64 and linux/arm64, with PostgreSQL by default or SQLite for personal use.
 - **Binary**: build a single `imgnest` executable yourself (the web interface is embedded) and run it with systemd or similar. Prebuilt binaries are not published yet.
 
 Both run the same program and the same database migrations, so you can switch between them later.
 
 ## Choosing a database
 
-| | SQLite | PostgreSQL |
+| | PostgreSQL (default) | SQLite |
 | --- | --- | --- |
-| Suited to | Personal use, small sites | Many users or many images |
-| Extra service | None; the database is a file in the data volume | A PostgreSQL container or server |
-| Backup | Back up the `imgnest-data` volume | Back up the `imgnest-data` volume plus `pg_dump` |
+| Suited to | Production, many users or many images | Personal use, small sites, trying it out |
+| Extra service | A PostgreSQL container or server (included in the compose file) | None; the database is a file in the data volume |
+| Backup | Back up the `imgnest-data` volume plus `pg_dump` | Back up the `imgnest-data` volume |
+| Lsky migration | Recommended; the `import-lsky` guide uses it | Also supported |
 
 One image supports both. `IMGNEST_DATABASE_DRIVER` and `IMGNEST_DATABASE_DSN` select the database at run time.
 
 ## Docker
 
-Install Docker with the Compose plugin, create a directory (for example `/opt/imgnest`) and save one of the following as `compose.yaml`. They match `deploy/compose.sqlite.yaml` and `deploy/compose.postgres.yaml` in the repository.
+Install Docker with the Compose plugin, create a directory (for example `/opt/imgnest`) and save the following as `compose.yaml` (PostgreSQL by default; switch to the SQLite tab for SQLite). They match `deploy/compose.sqlite.yaml` and `deploy/compose.postgres.yaml` in the repository.
 
 ::: code-group
-
-```yaml [SQLite]
-# Single container with SQLite. Suited to personal or small deployments.
-name: imgnest
-services:
-  imgnest:
-    image: ghcr.io/biliblihuorong/imgnest:${IMGNEST_TAG:-latest}
-    restart: unless-stopped
-    ports:
-      - "${IMGNEST_PORT:-8080}:8080"
-    environment:
-      # Only needed for S3-compatible storage: base64 of 32 random bytes.
-      IMGNEST_SECURITY_MASTER_KEY: ${IMGNEST_SECURITY_MASTER_KEY:-}
-      # Comma-separated reverse proxy addresses allowed to set the client IP.
-      IMGNEST_SERVER_TRUSTED_PROXIES: ${IMGNEST_SERVER_TRUSTED_PROXIES:-}
-    volumes:
-      # Database, local image objects and the thumbnail cache.
-      - imgnest-data:/app/data
-volumes:
-  imgnest-data:
-```
 
 ```yaml [PostgreSQL]
 # ImgNest with PostgreSQL. Suited to multi-user deployments.
@@ -64,6 +44,8 @@ services:
       IMGNEST_SECURITY_MASTER_KEY: ${IMGNEST_SECURITY_MASTER_KEY:-}
       # Comma-separated reverse proxy addresses allowed to set the client IP.
       IMGNEST_SERVER_TRUSTED_PROXIES: ${IMGNEST_SERVER_TRUSTED_PROXIES:-}
+      # Comma-separated sites (such as your blog) allowed to call /api/variants from the browser.
+      IMGNEST_IMAGES_VARIANT_CORS_ORIGINS: ${IMGNEST_IMAGES_VARIANT_CORS_ORIGINS:-}
     volumes:
       # Local image objects and the thumbnail cache.
       - imgnest-data:/app/data
@@ -86,6 +68,29 @@ volumes:
   postgres-data:
 ```
 
+```yaml [SQLite]
+# Single container with SQLite. Suited to personal or small deployments.
+name: imgnest
+services:
+  imgnest:
+    image: ghcr.io/biliblihuorong/imgnest:${IMGNEST_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "${IMGNEST_PORT:-8080}:8080"
+    environment:
+      # Only needed for S3-compatible storage: base64 of 32 random bytes.
+      IMGNEST_SECURITY_MASTER_KEY: ${IMGNEST_SECURITY_MASTER_KEY:-}
+      # Comma-separated reverse proxy addresses allowed to set the client IP.
+      IMGNEST_SERVER_TRUSTED_PROXIES: ${IMGNEST_SERVER_TRUSTED_PROXIES:-}
+      # Comma-separated sites (such as your blog) allowed to call /api/variants from the browser.
+      IMGNEST_IMAGES_VARIANT_CORS_ORIGINS: ${IMGNEST_IMAGES_VARIANT_CORS_ORIGINS:-}
+    volumes:
+      # Database, local image objects and the thumbnail cache.
+      - imgnest-data:/app/data
+volumes:
+  imgnest-data:
+```
+
 :::
 
 Create `.env` in the same directory (PostgreSQL needs `POSTGRES_PASSWORD`; never commit this file):
@@ -93,10 +98,12 @@ Create `.env` in the same directory (PostgreSQL needs `POSTGRES_PASSWORD`; never
 ```ini
 IMGNEST_TAG=0.0.3
 IMGNEST_PORT=8080
-# Required for PostgreSQL
+# Required for PostgreSQL; generate with: openssl rand -base64 24
 POSTGRES_PASSWORD=use-a-long-random-password
 # Needed for S3 / B2 / R2 / COS storage; generate with: openssl rand -base64 32
 IMGNEST_SECURITY_MASTER_KEY=
+# Set when your blog looks up responsive images from the browser, e.g. https://blog.example.com
+IMGNEST_IMAGES_VARIANT_CORS_ORIGINS=
 ```
 
 Start it:
@@ -105,7 +112,7 @@ Start it:
 docker compose up -d
 ```
 
-The container migrates the database on start. Then create the administrator and local storage as in [Getting started](./getting-started), dropping `-f deploy/compose.sqlite.yaml` (Compose picks up `compose.yaml` in the current directory):
+The container migrates the database on start. Then create the administrator and local storage as in [Getting started](./getting-started), dropping the quick start's `-f deploy/compose.sqlite.yaml` (Compose picks up `compose.yaml` in the current directory):
 
 ```bash
 read -rsp 'Admin password: ' password; echo
@@ -156,8 +163,7 @@ go build -trimpath -o bin/imgnest ./cmd/imgnest
 
 Copy `bin/imgnest` to the server, for example `/opt/imgnest/imgnest`, and copy `deploy/config.example.yaml` from the repository to `/opt/imgnest/config.yaml`. Relative paths (`data/imgnest.db`, `data/thumbs`, and `data/images` for local storage) are resolved from the working directory. Without a config file every setting uses its default.
 
-- **SQLite**: the example configuration works as is; the database is `data/imgnest.db`.
-- **PostgreSQL**: select it with environment variables and keep the password out of the file:
+- **PostgreSQL (recommended)**: select it with environment variables and keep the password out of the file:
 
   ```bash
   IMGNEST_DATABASE_DRIVER=postgres
@@ -165,6 +171,7 @@ Copy `bin/imgnest` to the server, for example `/opt/imgnest/imgnest`, and copy `
   ```
 
   Remove the SQLite-only `max_open: 1` and `max_idle: 1` from the file so the PostgreSQL pool defaults apply.
+- **SQLite**: leave those two variables unset; the example configuration works as is and the database is `data/imgnest.db`.
 
 Every setting is listed in [Configuration](./configuration).
 
@@ -212,6 +219,16 @@ sudo systemctl enable --now imgnest
 ```
 
 To upgrade, replace `/opt/imgnest/imgnest` and run `sudo systemctl restart imgnest`; `ExecStartPre` migrates the database first.
+
+## Enabling responsive images
+
+Responsive images arrived in 0.0.2. When enabled, each new still image also gets WebP versions 400, 800 and 1600 pixels wide besides the original, WebP and thumbnails, so a blog can use `srcset` to serve small files to phones and large ones to big screens. They are off by default; turn them on in three steps:
+
+1. **Enable them in a rule**: in the admin panel edit a policy, open its "Transcoding" tab and turn on "Responsive variants". New uploads get them automatically, and both the upload API and the Lsky v1 API return an extra `variants` field.
+2. **Backfill existing images**: start "Responsive variant backfill" at the bottom of the policies page. It can be paused and resumed and continues after a restart; images not processed yet keep working as before.
+3. **Let your blog look them up from the browser** (optional): a blog that only knows image links can call the public `GET /api/variants?url=image-link` endpoint. Add the blog's origin to `IMGNEST_IMAGES_VARIANT_CORS_ORIGINS` (already in the `.env` above; for the binary, set the variable or `images.variant_cors_origins` in the config) and restart.
+
+Files are named like `{path}_w800_v1.webp`, live in the same storage as the original, count toward quota, and are deleted and restored with it. See [Storage and policies](./storage-and-policies) for the details and `docs/examples/responsive-images.html` in the repository for a blog example.
 
 ## Reverse proxy
 
