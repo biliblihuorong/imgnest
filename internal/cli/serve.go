@@ -96,7 +96,7 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			// stop with the server; a rerun resumes with what is missing.
 			importCtx, stopImports := context.WithCancel(cmd.Context())
 			defer stopImports()
-			lskyImport, err := lskymigrate.NewRunner(importCtx, lskymigrate.RunnerDeps{DB: db, Ingest: lskyIngest(images), Adoption: images.AdoptionReader, MaxBytes: int64(cfg.Server.MaxUploadMB) << 20})
+			lskyImport, err := lskymigrate.NewRunner(importCtx, lskymigrate.RunnerDeps{DB: db, Ingest: lskyIngest(images), Adoption: images.AdoptionReader, MaxBytes: service.MaxImportFileBytes})
 			if err != nil {
 				return err
 			}
