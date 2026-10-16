@@ -19,6 +19,11 @@ export const SETTINGS_SECTIONS = [
     name: "admin-settings-plugins",
     component: () => import("./PluginSettingsView.vue"),
   },
+  {
+    key: "backup",
+    name: "admin-settings-backup",
+    component: () => import("./BackupSettingsView.vue"),
+  },
 ] as const;
 
 export type SettingsSectionKey = (typeof SETTINGS_SECTIONS)[number]["key"];

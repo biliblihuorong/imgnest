@@ -373,6 +373,15 @@ CDN 缓存不在本程序处理范围内。
 - 人机验证改为一步配置 `PUT /api/admin/captcha`：填 Site Key、Secret（留空沿用已保存的），开启时在页面上用这把 Site Key 完成一次验证，服务端用 Secret 核验通过后立即生效；关闭不需要验证。允许的域名默认取当前访问域名，放在高级选项。旧的 draft/test/activation 三个接口保留兼容。
 - 新码（30016 已用于蓝空导入忙）：30017=邮件未配置(409)、30018=邮箱验证码错误或过期(422)、30019=验证码发送过于频繁(429)、50006=邮件暂不可用(503；管理端测试失败为 502 带 reason)。SMTP 密码、验证码明文与邮箱内容不进日志。
 
+### 7.8 备份与导出（2026-10-16）
+
+- 后台「站点设置 → 备份/导出」（`/admin/settings/backup`）。归档是 zip，写在 `backup.dir`（默认 `data/backup`，环境变量 `IMGNEST_BACKUP_DIR`），目录 0700、文件 0600；先写隐藏临时文件再改名，失败不留半截文件。
+- 归档内容：`database.sql`（全部数据表的 INSERT，按外键顺序；`albums.cover_image_id` 先写 NULL，末尾用 UPDATE 补回；不含 `schema_migrations`）、`config/imgnest.yaml`（启动时 `--config` 指定的文件）、`config/imgnest.env`（所有 `IMGNEST_*` 环境变量）、`manifest.json`（`format`、`driver`、`schema_version`、各表行数）。归档含密码哈希、DSN 与 `security.master_key`，只供管理员下载；新增数据表必须同时加入 `internal/repo/backup.go` 的 `backupTables`，有测试守着。
+- 接口（管理员）：`GET /api/admin/backups`（列表 + 定时设置 + 目录）、`POST /api/admin/backups`（立即备份，201）、`GET /api/admin/backups/{name}`（下载）、`DELETE /api/admin/backups/{name}`、`PUT /api/admin/backups/schedule`。文件名只接受 `imgnest-YYYYMMDD-HHMMSS[-auto].zip`。
+- 定时备份存在 `settings` 的 `backup_schedule` 键：`enabled`（默认关）、`interval_hours` 1–720（默认 24）、`keep` 1–365（默认 7）。服务每 5 分钟检查一次，到期写 `-auto` 归档，之后只清理多出的自动归档，手动备份不会被删。
+- 还原只走命令行，先停服务：`imgnest backup restore --yes <归档>`。目标库必须已由同一版本迁移（驱动与 `schema_version` 不一致返回 30021），在一个事务里清空全部数据表再导入，只执行备份格式里的 INSERT/UPDATE；Postgres 自增序列随后对齐。配置文件不会自动覆盖，需要时手工拷回。`imgnest backup create` 可用于 cron。
+- 新码：30020=已有备份在进行(409)、30021=备份与当前安装不匹配(409)。
+
 ## 8. 工程规范
 
 一个仓库、一个 Go module，前端在 `web-vben/` 下独立构建后被嵌入。

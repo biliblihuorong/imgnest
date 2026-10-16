@@ -69,6 +69,8 @@ function formatBaseError(error: ApiError, fallbackKey: string): string {
         30017: "mailNotConfigured",
         30018: "emailCode",
         30019: "emailCodeCooldown",
+        30020: "backupBusy",
+        30021: "backupMismatch",
         50001: "server",
         50002: "storage",
         50003: "processing",

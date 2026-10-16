@@ -101,11 +101,15 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 				return err
 			}
 			defer lskyImport.Wait()
+			backups, err := newBackupService(cmd.Context(), db, cfg, *path, logger)
+			if err != nil {
+				return err
+			}
 			webFS, err := frontendDistFS()
 			if err != nil {
 				return fmt.Errorf("open embedded web app: %w", err)
 			}
-			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Email: users, Mail: mailService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads, Slots: uploadSlots}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, PluginSettings: pluginSettings, ExternalSignIn: users, LskyImport: lskyImport, Variants: images, VariantOptions: httpapi.VariantOptions{CORSOrigins: cfg.Images.VariantCORSOrigins, PerMinute: cfg.Images.VariantLookupPerMinute}})
+			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Email: users, Mail: mailService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads, Slots: uploadSlots}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, PluginSettings: pluginSettings, ExternalSignIn: users, LskyImport: lskyImport, Backups: backups, Variants: images, VariantOptions: httpapi.VariantOptions{CORSOrigins: cfg.Images.VariantCORSOrigins, PerMinute: cfg.Images.VariantLookupPerMinute}})
 			if err != nil {
 				return err
 			}
@@ -118,6 +122,8 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			workerCtx, stopWorker := context.WithCancel(cmd.Context())
 			workerDone := make(chan struct{})
 			go func() { defer close(workerDone); runImageWorker(workerCtx, images, logger) }()
+			backupDone := make(chan struct{})
+			go func() { defer close(backupDone); backups.RunSchedule(workerCtx, backupScheduleCheck) }()
 			// A variant backfill that was running before a restart resumes.
 			if err := images.StartBackground(workerCtx); err != nil {
 				logger.ErrorContext(cmd.Context(), "variant backfill not resumed", "code", 50002)
@@ -126,6 +132,7 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			stopWorker()
 			images.WaitBackground()
 			<-workerDone
+			<-backupDone
 			return result
 		})
 	}}

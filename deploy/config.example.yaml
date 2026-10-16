@@ -17,6 +17,11 @@ images:
   variant_cors_origins: []
   variant_lookup_per_minute: 60
 
+backup:
+  # Console and scheduled backups (zip: database dump + this config). Keep it
+  # private: archives hold password hashes and deployment secrets.
+  dir: data/backup
+
 security:
   # Empty is sufficient for local-only storage. For S3, inject a base64 32-byte
   # key through IMGNEST_SECURITY_MASTER_KEY and preserve it with private backups.

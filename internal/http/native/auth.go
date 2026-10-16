@@ -350,6 +350,10 @@ func errorResponse(err error) (int, Response) {
 		status, code, message = 400, 10006, "not a Lsky Pro database export"
 	case errors.Is(err, service.ErrImportBusy):
 		status, code, message = 409, 30016, "import already running"
+	case errors.Is(err, service.ErrBackupBusy):
+		status, code, message = 409, 30020, "a backup is already running; try again shortly"
+	case errors.Is(err, service.ErrBackupMismatch):
+		status, code, message = 409, 30021, "backup does not match this installation"
 	case errors.Is(err, service.ErrGroupHasMembers):
 		status, code, message = 409, 30008, "group still has members"
 	case errors.Is(err, service.ErrStillReferenced):
