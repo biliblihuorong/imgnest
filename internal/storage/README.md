@@ -53,5 +53,15 @@ it must not be substituted for compensation or user image deletion.
 A write error can occur after the provider committed. The caller must inspect
 the returned receipt and durable ownership, and compensate all attempted keys.
 No B2/COS/R2 account is implied tested by MinIO passing; endpoints lacking the
-needed conditional-write, multipart, or version-listing capabilities fail
-explicitly instead of receiving an unsafe fallback.
+needed multipart or version-listing capabilities fail explicitly.
+
+Conditional writes have one bounded fallback. An endpoint that rejects
+`If-None-Match` itself with `NotImplemented` (Backblaze B2 does) switches the
+driver to emulated mode during the probe: each put and copy completion first
+`HEAD`s the destination and then writes without the header. The probe enables
+this only after an unconditional double write to a probe key leaves both
+versions listed, so an object raced in between is kept as history rather than
+lost; ImgNest's single instance and database key reservations make such a race
+an external writer's. An endpoint that accepts the header but ignores it is
+still rejected. Provider error codes (never messages) are kept in the redacted
+errors so the request log names the failing step.

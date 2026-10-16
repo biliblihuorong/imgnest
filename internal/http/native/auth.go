@@ -278,6 +278,12 @@ func respond(c *gin.Context, status int, data any) {
 }
 func fail(c *gin.Context, err error) {
 	status, response := errorResponse(err)
+	if errors.Is(err, service.ErrStorage) {
+		// Storage errors are redacted to operation names and provider error
+		// codes; the request log carries them so operators can see which
+		// step failed without the response exposing it.
+		_ = c.Error(err)
+	}
 	c.JSON(status, response)
 }
 

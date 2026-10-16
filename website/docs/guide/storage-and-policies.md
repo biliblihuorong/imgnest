@@ -53,7 +53,7 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest \
   imgnest init-policy --storage-id 2 --name cloud
 ```
 
-`--storage-id` 填第一条命令输出的 ID。创建时会真实测试连接：写入、复制、清理各做一次，不支持所需能力的服务会被拒绝。凭据加密后存入数据库，之后任何接口都不会再返回它。
+`--storage-id` 填第一条命令输出的 ID。创建时会真实测试连接：写入、复制、清理各做一次，不支持所需能力的服务会被拒绝。Backblaze B2 不支持「同名文件存在时拒绝写入」的条件请求，ImgNest 检测到后会自动改为先检查再写入，前提是桶保留历史版本（B2 默认保留）。凭据加密后存入数据库，之后任何接口都不会再返回它。
 
 也可以在管理后台的「存储管理」里创建和测试存储。
 

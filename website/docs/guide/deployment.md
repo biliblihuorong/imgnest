@@ -96,7 +96,7 @@ volumes:
 在同一目录新建 `.env`，按需填写（用 PostgreSQL 时必须填 `POSTGRES_PASSWORD`；这个文件不要提交到 Git）：
 
 ```ini
-IMGNEST_TAG=0.0.3
+IMGNEST_TAG=0.0.4
 IMGNEST_PORT=8080
 # PostgreSQL 必填，生成方式：openssl rand -base64 24
 POSTGRES_PASSWORD=换成一个长随机密码
@@ -148,7 +148,7 @@ docker compose up -d
 ```bash
 git clone https://github.com/biliblihuorong/imgnest
 cd imgnest
-git checkout v0.0.3
+git checkout v0.0.4
 make release   # 先构建前端，再输出 bin/imgnest
 ```
 
