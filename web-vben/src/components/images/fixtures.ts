@@ -35,6 +35,7 @@ export function makeImage(overrides: Partial<ImageView> = {}): ImageView {
       webp: "/i/1/2026/10/04/k1.webp",
       thumbnail_url: "",
     },
+    variants: [],
     local_thumb_url: "/t/1/2026/10/04/k1.webp",
     deleted_at: null,
     purge_at: null,

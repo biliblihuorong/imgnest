@@ -186,6 +186,9 @@ func (s *AdminService) applyPolicyPatch(ctx context.Context, policy *model.Polic
 	if patch.SkipIfLarger != nil {
 		policy.SkipIfLarger = *patch.SkipIfLarger
 	}
+	if patch.ResponsiveVariants != nil {
+		policy.ResponsiveVariants = *patch.ResponsiveVariants
+	}
 	return ctx.Err()
 }
 

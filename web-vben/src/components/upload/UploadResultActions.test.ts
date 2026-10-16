@@ -38,6 +38,7 @@ function makeImage(partialLinks: Partial<ImageView["links"]> = {}): ImageView {
       thumbnail_url: "https://img.example/2026/10/a_thumbs.webp",
       ...partialLinks,
     },
+    variants: [],
     local_thumb_url: "/t/2026/10/a.png",
     deleted_at: null,
     purge_at: null,

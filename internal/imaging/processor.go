@@ -166,6 +166,98 @@ func (p *VipsProcessor) Process(ctx context.Context, data []byte, opts Options) 
 	return result, nil
 }
 
+// Variant is one encoded responsive rendition with its actual pixel size.
+type Variant struct {
+	Width, Height int
+	Data          []byte
+}
+
+// VariantOptions selects the target widths and WebP encoding of renditions.
+type VariantOptions struct {
+	Widths          []int
+	Quality, Effort int
+	Lossless        bool
+	// Probed, when set, is the result of Probe on this exact buffer.
+	Probed *Info
+}
+
+// VariantEncoder produces static responsive renditions of one image.
+type VariantEncoder interface {
+	Variants(context.Context, []byte, VariantOptions) ([]Variant, error)
+}
+
+// Variants encodes one static WebP per target width strictly narrower than
+// the (orientation-corrected) source, keeping the aspect ratio and never
+// enlarging. Animations yield no renditions: a static first frame must
+// never stand in for an animated image. Metadata other than ICC is dropped.
+func (p *VipsProcessor) Variants(ctx context.Context, data []byte, opts VariantOptions) ([]Variant, error) {
+	if err := p.acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer p.release()
+	if opts.Quality == 0 {
+		opts.Quality = 80
+	}
+	if opts.Quality < 1 || opts.Quality > 100 || opts.Effort < 0 || opts.Effort > 6 {
+		return nil, ErrInvalidOptions
+	}
+	var (
+		info Info
+		err  error
+	)
+	if format, _, _ := magic(data); opts.Probed != nil && opts.Probed.Format != "" && opts.Probed.Format == format {
+		info = *opts.Probed
+	} else if info, err = p.probe(data); err != nil {
+		return nil, err
+	}
+	if info.LoadedFrames != 1 {
+		return nil, nil
+	}
+	variants := []Variant{}
+	seen := map[int]bool{}
+	for _, width := range opts.Widths {
+		if width < 1 {
+			return nil, ErrInvalidOptions
+		}
+		if width >= info.Width || seen[width] {
+			continue
+		}
+		seen[width] = true
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("encode image variants: %w", err)
+		}
+		save := vips.DefaultWebpsaveBufferOptions()
+		save.Q = opts.Quality
+		save.Effort = opts.Effort
+		save.Lossless = opts.Lossless
+		save.Keep = vips.KeepIcc
+		variant, err := encodeSized(data, width, &vips.ThumbnailBufferOptions{Height: 10_000_000, Size: vips.SizeDown, FailOn: vips.FailOnError}, save)
+		if err != nil {
+			return nil, err
+		}
+		variants = append(variants, variant)
+	}
+	return variants, nil
+}
+
+// encodeSized encodes like encode and reports the encoded pixel size.
+func encodeSized(data []byte, width int, load *vips.ThumbnailBufferOptions, save *vips.WebpsaveBufferOptions) (Variant, error) {
+	img, err := vips.NewThumbnailBuffer(data, width, load)
+	if err != nil {
+		return Variant{}, ErrInvalidImage
+	}
+	defer img.Close()
+	w, h := img.Width(), img.Height()
+	if w < 1 || h < 1 {
+		return Variant{}, ErrInvalidImage
+	}
+	out, err := img.WebpsaveBuffer(save)
+	if err != nil {
+		return Variant{}, ErrInvalidImage
+	}
+	return Variant{Width: w, Height: h, Data: out}, nil
+}
+
 func (p *VipsProcessor) acquire(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("wait for image processor: %w", err)

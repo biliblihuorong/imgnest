@@ -23,6 +23,19 @@ vi.mock("@/api/admin", () => ({
   updatePolicy: vi.fn(),
   deletePolicy: vi.fn(),
   previewPolicy: vi.fn(),
+  getVariantBackfill: vi.fn(() =>
+    Promise.resolve({
+      status: "idle",
+      cursor: 0,
+      processed: 0,
+      generated: 0,
+      skipped: 0,
+      failed: 0,
+      updated_at: "2026-10-16T00:00:00Z",
+      active: false,
+    }),
+  ),
+  controlVariantBackfill: vi.fn(),
 }));
 
 const listPoliciesMock = vi.mocked(listPolicies);
@@ -71,6 +84,7 @@ const policyFixture: PolicyView = {
   on_conflict: "rename",
   strip_meta: true,
   skip_if_larger: true,
+  responsive_variants: false,
   created_at: "2026-10-04T00:00:00Z",
   updated_at: "2026-10-04T00:00:00Z",
 };

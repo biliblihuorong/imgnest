@@ -67,10 +67,11 @@ A policy first produces a path without an extension, and several files derive fr
 | WebP | `{path}.webp` in the storage | `https://img.example.com/26/10/66ff1b2a3c4d5.webp` |
 | Cloud thumbnail | `{path}_thumbs.webp` in the storage | `https://img.example.com/26/10/66ff1b2a3c4d5_thumbs.webp` |
 | Local thumbnail | `data/thumbs/` on the server | `/t/{key}.webp`, used only by admin lists and previews |
+| Responsive versions (optional) | `{path}_w800_v1.webp` and so on in the storage | `https://img.example.com/26/10/66ff1b2a3c4d5_w800_v1.webp` |
 
 Addresses are not stored in the database. They are built from the storage's `base_url` on every request, so changing the domain only means editing the storage.
 
-`_thumbs` is a reserved suffix. A file name cannot end with it.
+`_thumbs` and `_w<number>_v<number>` (such as `_w800_v1`) are reserved suffixes. A file name cannot end with them.
 
 ## Path templates
 
@@ -144,3 +145,15 @@ How each format is handled:
 - SVG uploads are rejected by default because SVG can embed scripts.
 
 The format is decided from the file header and libvips probing only. The extension and `Content-Type` are not trusted.
+
+## Responsive image versions
+
+Turn on "Responsive variants" in the Transcoding tab of a policy, and new still images also get WebP versions 400, 800 and 1600 pixels wide, so a blog can pick a suitable size with `srcset`. The CDN only caches them; it does not need to resize anything.
+
+- Images are only ever shrunk: a width larger than the source is skipped, and a main WebP that is exactly 1600 wide is reused.
+- Animations get no versions and never turn into a still first frame. The original, WebP, thumbnail and existing links are unchanged.
+- File names carry a processing version (`_v1`) and are never overwritten, so they can be cached for a long time.
+- The extra files count toward quota and are deleted, restored and purged together with the image.
+- The upload API and the Lsky v1 API return an extra `variants: [{url, width, height, bytes, mime}]` field; nothing else changes. It is an empty array when there are no versions.
+- Existing images: start "Responsive variant backfill" at the bottom of the policies page. It can be paused and resumed, and it continues after a restart. Images not processed yet return an empty array and keep working.
+- When you only have an image link, call the public `GET /api/variants?url=<image link>` (up to 50 at once). It only recognises links of this site's storages, never fetches outside URLs, and never returns EXIF or account data. To call it from a browser on your blog, add the blog's origin to `images.variant_cors_origins`. See `docs/examples/responsive-images.html` in the repository for a full example.

@@ -28,6 +28,7 @@ import {
   type FormRules,
 } from "naive-ui";
 import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import VariantBackfillCard from "@/components/admin/VariantBackfillCard.vue";
 import {
   createPolicy,
   deletePolicy,
@@ -248,6 +249,7 @@ interface PolicyFormModel {
   thumb_size: number;
   scrub_mode: ScrubMode;
   strip_meta: boolean;
+  responsive_variants: boolean;
 }
 
 function emptyForm(): PolicyFormModel {
@@ -271,6 +273,7 @@ function emptyForm(): PolicyFormModel {
     thumb_size: 400,
     scrub_mode: "gps",
     strip_meta: true,
+    responsive_variants: false,
   };
 }
 
@@ -317,6 +320,7 @@ function openEdit(row: PolicyView): void {
     thumb_size: row.thumb_size,
     scrub_mode: row.scrub_mode,
     strip_meta: row.strip_meta,
+    responsive_variants: row.responsive_variants ?? false,
   });
   formMode.value = "edit";
   editing.value = row;
@@ -367,6 +371,7 @@ function buildInput(): PolicyInput {
     thumb_size: form.thumb_size,
     scrub_mode: form.scrub_mode,
     strip_meta: form.strip_meta,
+    responsive_variants: form.responsive_variants,
   };
 }
 
@@ -479,6 +484,7 @@ async function runPreview(): Promise<void> {
         </template>
       </NDataTable>
     </NCard>
+    <VariantBackfillCard class="policies-backfill" />
 
     <NModal
       v-model:show="showForm"
@@ -594,6 +600,10 @@ async function runPreview(): Promise<void> {
               <NInputNumber v-model:value="form.max_height" :min="0" :disabled="submitting" />
             </NFormItem>
             <p class="policies-hint">{{ t("admin.policies.dimensionsHint") }}</p>
+            <NFormItem :label="t('admin.policies.responsiveVariants')" path="responsive_variants">
+              <NSwitch v-model:value="form.responsive_variants" :disabled="submitting" />
+            </NFormItem>
+            <p class="policies-hint">{{ t("admin.policies.responsiveVariantsHint") }}</p>
             <NFormItem :label="t('admin.policies.heif')" path="heif_mode">
               <NSelect
                 v-model:value="form.heif_mode"
@@ -649,6 +659,10 @@ async function runPreview(): Promise<void> {
 <style scoped>
 .policies-load-error {
   margin-bottom: 12px;
+}
+
+.policies-backfill {
+  margin-top: 16px;
 }
 
 .policies-form-modal {

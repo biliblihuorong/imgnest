@@ -218,6 +218,8 @@ type PolicyPatch struct {
 	OnConflict   *string `json:"on_conflict,omitempty"`
 	StripMeta    *bool   `json:"strip_meta,omitempty"`
 	SkipIfLarger *bool   `json:"skip_if_larger,omitempty"`
+	// ResponsiveVariants stores 400/800/1600px WebP renditions on upload.
+	ResponsiveVariants *bool `json:"responsive_variants,omitempty"`
 }
 
 // AdminSettingsView is the console's complete site configuration.

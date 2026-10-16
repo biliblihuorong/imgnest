@@ -67,10 +67,11 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest \
 | WebP | 存储里的 `{path}.webp` | `https://img.example.com/26/10/66ff1b2a3c4d5.webp` |
 | 云端缩略图 | 存储里的 `{path}_thumbs.webp` | `https://img.example.com/26/10/66ff1b2a3c4d5_thumbs.webp` |
 | 本机缩略图 | 本机的 `data/thumbs/` | `/t/{key}.webp`，只给后台列表和预览用 |
+| 响应式版本（可选） | 存储里的 `{path}_w800_v1.webp` 等 | `https://img.example.com/26/10/66ff1b2a3c4d5_w800_v1.webp` |
 
 访问地址不存进数据库，每次用存储的 `base_url` 实时拼出来。换域名时只改存储配置，所有链接跟着变。
 
-`_thumbs` 是保留后缀，文件名不能以它结尾。
+`_thumbs` 和 `_w数字_v数字`（如 `_w800_v1`）是保留后缀，文件名不能以它们结尾。
 
 ## 路径模板
 
@@ -144,3 +145,15 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest \
 - SVG 默认拒绝上传，因为它可以内嵌脚本。
 
 格式判断只看文件头和 libvips 的探测结果，后缀和 `Content-Type` 都不作数。
+
+## 响应式图片版本
+
+在「规则管理 → 编辑规则 → 转码」里打开「响应式衍生图」后，新上传的静态图会额外生成宽 400、800、1600 像素的 WebP，方便博客用 `srcset` 按屏幕挑选合适大小。CDN 只需要缓存，不用帮忙裁图。
+
+- 只缩小不放大：原图比目标宽度窄时跳过这一档；主 WebP 宽度正好是 1600 时直接复用它。
+- 动图不生成，不会变成静态首帧。原图、WebP、缩略图和原有链接都不受影响。
+- 文件名带处理版本（`_v1`），生成后从不覆盖，可以放心长期缓存。
+- 衍生文件计入容量，删除、恢复和彻底删除时与原图一起处理。
+- 上传接口和蓝空 v1 接口都会多返回 `variants: [{url, width, height, bytes, mime}]`，其他字段不变；没有版本时是空数组。
+- 已有图片：在规则管理页底部的「响应式图片补生成」卡片里开始，可以随时暂停、继续，重启后接着跑。还没补到的图返回空数组，链接照常可用。
+- 只知道图片链接时，可以调用公开接口 `GET /api/variants?url=图片链接`（一次最多 50 个）。它只认本站存储的链接，不会去抓外部网址，也不返回 EXIF 或账户信息。博客在浏览器里直接调用时，需要在配置里把博客域名加进 `images.variant_cors_origins`。完整示例见仓库里的 `docs/examples/responsive-images.html`。

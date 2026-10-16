@@ -67,6 +67,7 @@ function makeImage(name: string): ImageView {
       webp: `https://img.example/2026/10/${name.replace(/\.png$/, ".webp")}`,
       thumbnail_url: `https://img.example/2026/10/t_${name}`,
     },
+    variants: [],
     local_thumb_url: `/t/2026/10/${name}`,
     deleted_at: null,
     purge_at: null,

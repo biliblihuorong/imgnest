@@ -62,6 +62,15 @@ func TestRandomAndReservedNames(t *testing.T) {
 	if _, err := Build(t.Context(), "", "{rand:1}_thumbs", variables()); err == nil {
 		t.Fatal("permanently reserved random name accepted")
 	}
+	for _, name := range []string{"photo_w800_v1", "photo_W400_V2"} {
+		got, err = Build(t.Context(), "", name, variables())
+		if err != nil || got.Path != name+"-1" {
+			t.Fatalf("reserved variant name %q rendered as %+v %v", name, got, err)
+		}
+	}
+	if _, err := Build(t.Context(), "", "{rand:1}_w800_v1", variables()); err == nil {
+		t.Fatal("permanently reserved random variant name accepted")
+	}
 	for _, bad := range []string{"_trash/image", ".trash/image", "safe/_trash/image"} {
 		if _, err := Build(t.Context(), bad, "photo", variables()); err == nil {
 			t.Fatal("reserved namespace accepted")

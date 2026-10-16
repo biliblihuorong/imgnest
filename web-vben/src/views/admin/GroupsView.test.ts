@@ -57,6 +57,7 @@ function makePolicy(overrides: Partial<PolicyView> = {}): PolicyView {
     path_tpl: "{yyyy}/{MM}/{dd}/{random16}",
     name_tpl: "{random16}",
     webp_mode: "both",
+    responsive_variants: false,
     webp_quality: 80,
     webp_lossless: false,
     webp_effort: 4,

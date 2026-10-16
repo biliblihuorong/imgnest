@@ -74,10 +74,13 @@ type Image struct {
 	Height         int             `json:"height"`
 	Frames         int             `json:"frames"`
 	ObjectManifest []ObjectReceipt `gorm:"serializer:json" json:"-"`
-	DeletedAt      *time.Time      `json:"deleted_at"`
-	PurgeAt        *time.Time      `json:"purge_at"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	// Variants are the responsive renditions already stored and listed in
+	// ObjectManifest; a variant may reuse the primary WebP's key.
+	Variants  VariantList `json:"variants"`
+	DeletedAt *time.Time  `json:"deleted_at"`
+	PurgeAt   *time.Time  `json:"purge_at"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
 }
 
 // UploadReservation binds prepared image bytes and object intent to an authentication proof.

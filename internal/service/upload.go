@@ -216,6 +216,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 			return ImageView{}, err
 		}
 	}
+	sourceFrames := info.LoadedFrames
 	hasOriginal := mode != "webp_only"
 	webp := result.WebP
 	if info.Format == "webp" {
@@ -245,6 +246,19 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 		info, err = s.deps.Imaging.Probe(ctx, primary)
 		if err != nil || info.Format != "webp" {
 			return ImageView{}, processingError(ctx, err)
+		}
+	}
+	// Responsive renditions come from the final display copy, after any
+	// display transformer, so they show exactly what the primary link shows.
+	variantSource, variantFromWebP := webp, true
+	if len(webp) == 0 {
+		variantSource, variantFromWebP = primary, false
+	}
+	var variants variantPlan
+	if sourceFrames == 1 {
+		variants, err = s.planVariants(ctx, policy, variantSource, variantFromWebP)
+		if err != nil {
+			return ImageView{}, err
 		}
 	}
 	srcMD5, srcSHA1 := contentHashes(input.Data)
@@ -293,6 +307,9 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 			return ImageView{}, ErrInvalidInput
 		}
 		objects = makeUploadObjects(image, original, webp, result.Thumbnail)
+		var variantObjects []uploadObject
+		image.Variants, variantObjects = variants.variants(image)
+		objects = append(objects, variantObjects...)
 		manifests := make([]model.ObjectReceipt, 0, len(objects))
 		image.ChargedBytes = 0
 		for _, object := range objects {
@@ -596,7 +613,7 @@ func imageView(image model.Image, backend model.Storage, policy model.Policy) Im
 	if image.HasThumb {
 		localThumb = "/t/" + image.Key + ".webp"
 	}
-	return ImageView{ID: image.ID, Key: image.Key, UserID: image.UserID, AlbumID: image.AlbumID, PolicyID: image.PolicyID, StorageID: image.StorageID, Name: image.OriginName, Path: image.Path, Ext: image.Ext, MIME: image.MIME, Size: image.Size, WebPSize: image.WebPSize, ChargedBytes: image.ChargedBytes, Width: image.Width, Height: image.Height, Frames: image.Frames, HasOriginal: image.HasOriginal, HasWebP: image.HasWebP, HasThumb: image.HasThumb, Scrubbed: image.Scrubbed, IsPublic: image.IsPublic, MD5: image.MD5, SHA1: image.SHA1, SrcMD5: image.SrcMD5, Links: links, LocalThumbURL: localThumb, DeletedAt: image.DeletedAt, PurgeAt: image.PurgeAt, CreatedAt: image.CreatedAt.UTC()}
+	return ImageView{ID: image.ID, Key: image.Key, UserID: image.UserID, AlbumID: image.AlbumID, PolicyID: image.PolicyID, StorageID: image.StorageID, Name: image.OriginName, Path: image.Path, Ext: image.Ext, MIME: image.MIME, Size: image.Size, WebPSize: image.WebPSize, ChargedBytes: image.ChargedBytes, Width: image.Width, Height: image.Height, Frames: image.Frames, HasOriginal: image.HasOriginal, HasWebP: image.HasWebP, HasThumb: image.HasThumb, Scrubbed: image.Scrubbed, IsPublic: image.IsPublic, MD5: image.MD5, SHA1: image.SHA1, SrcMD5: image.SrcMD5, Links: links, Variants: variantViews(image.Variants, backend.BaseURL), LocalThumbURL: localThumb, DeletedAt: image.DeletedAt, PurgeAt: image.PurgeAt, CreatedAt: image.CreatedAt.UTC()}
 }
 
 func objectURL(base, key string) string {

@@ -141,6 +141,7 @@ type ImageDependencies struct {
 type ImageService struct {
 	deps       ImageDependencies
 	operations chan struct{}
+	backfill   backfillRunner
 }
 
 // UploadInput contains a bounded source buffer and caller-controlled upload options.
@@ -168,35 +169,38 @@ type PublicObject struct {
 
 // ImageView deliberately excludes EXIF, IP addresses, and storage-operation internals.
 type ImageView struct {
-	ID            uint64     `json:"id"`
-	Key           string     `json:"key"`
-	UserID        uint64     `json:"user_id"`
-	AlbumID       uint64     `json:"album_id"`
-	PolicyID      uint64     `json:"policy_id"`
-	StorageID     uint64     `json:"storage_id"`
-	Name          string     `json:"name"`
-	Path          string     `json:"-"`
-	Ext           string     `json:"ext"`
-	MIME          string     `json:"mime"`
-	Size          int64      `json:"size"`
-	WebPSize      int64      `json:"webp_size"`
-	ChargedBytes  int64      `json:"charged_bytes"`
-	Width         int        `json:"width"`
-	Height        int        `json:"height"`
-	Frames        int        `json:"frames"`
-	HasOriginal   bool       `json:"has_original"`
-	HasWebP       bool       `json:"has_webp"`
-	HasThumb      bool       `json:"has_thumb"`
-	Scrubbed      bool       `json:"scrubbed"`
-	IsPublic      bool       `json:"is_public"`
-	MD5           string     `json:"md5"`
-	SHA1          string     `json:"sha1"`
-	SrcMD5        string     `json:"src_md5"`
-	Links         ImageLinks `json:"links"`
-	LocalThumbURL string     `json:"local_thumb_url"`
-	DeletedAt     *time.Time `json:"deleted_at"`
-	PurgeAt       *time.Time `json:"purge_at"`
-	CreatedAt     time.Time  `json:"created_at"`
+	ID           uint64     `json:"id"`
+	Key          string     `json:"key"`
+	UserID       uint64     `json:"user_id"`
+	AlbumID      uint64     `json:"album_id"`
+	PolicyID     uint64     `json:"policy_id"`
+	StorageID    uint64     `json:"storage_id"`
+	Name         string     `json:"name"`
+	Path         string     `json:"-"`
+	Ext          string     `json:"ext"`
+	MIME         string     `json:"mime"`
+	Size         int64      `json:"size"`
+	WebPSize     int64      `json:"webp_size"`
+	ChargedBytes int64      `json:"charged_bytes"`
+	Width        int        `json:"width"`
+	Height       int        `json:"height"`
+	Frames       int        `json:"frames"`
+	HasOriginal  bool       `json:"has_original"`
+	HasWebP      bool       `json:"has_webp"`
+	HasThumb     bool       `json:"has_thumb"`
+	Scrubbed     bool       `json:"scrubbed"`
+	IsPublic     bool       `json:"is_public"`
+	MD5          string     `json:"md5"`
+	SHA1         string     `json:"sha1"`
+	SrcMD5       string     `json:"src_md5"`
+	Links        ImageLinks `json:"links"`
+	// Variants are the stored responsive renditions, narrowest first; empty
+	// until generated.
+	Variants      []VariantView `json:"variants"`
+	LocalThumbURL string        `json:"local_thumb_url"`
+	DeletedAt     *time.Time    `json:"deleted_at"`
+	PurgeAt       *time.Time    `json:"purge_at"`
+	CreatedAt     time.Time     `json:"created_at"`
 }
 
 // ImageQuery limits one owner's active images or recycle bin. AlbumID nil

@@ -201,7 +201,9 @@
     "previewInvalid": "模板错误：{error}",
     "deleted": "规则「{name}」已删除",
     "created": "规则「{name}」已创建",
-    "saved": "规则「{name}」已保存"
+    "saved": "规则「{name}」已保存",
+    "responsiveVariants": "响应式衍生图",
+    "responsiveVariantsHint": "上传静态图时额外生成宽 400/800/1600px 的 WebP，只缩小不放大；动图保持原样。历史图片可在下方“响应式图片补生成”中补齐。"
   },
   "settings": {
     "title": "站点设置",
@@ -299,5 +301,22 @@
     "itemTitle": "第 {index} 项",
     "emptyList": "还没有添加任何项",
     "tagPlaceholder": "输入后回车"
+  },
+  "variants": {
+    "title": "响应式图片补生成",
+    "intro": "为已开启“响应式衍生图”的规则下的历史图片逐张补生成 400/800/1600px WebP。低并发运行，可随时暂停，重启服务后会从上次位置继续。",
+    "status": {
+      "idle": "未开始",
+      "running": "运行中",
+      "paused": "已暂停",
+      "done": "已完成"
+    },
+    "progress": "已处理 {processed} 张：生成 {generated}，跳过 {skipped}，失败 {failed}",
+    "start": "开始补生成",
+    "resume": "继续",
+    "pause": "暂停",
+    "restart": "从头开始",
+    "restartConfirm": "从第一张图片重新检查并清零计数？已有衍生图的图片会被跳过。",
+    "loadFailed": "读取补生成状态失败"
   }
 }

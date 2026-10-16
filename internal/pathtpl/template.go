@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,10 @@ type Variables struct {
 	Filename, MD5, SHA1 string
 	Random              io.Reader
 }
+
+// reservedVariant is the responsive-variant name suffix (`_w800_v1`); like
+// `_thumbs` it is reserved so no upload can claim another image's variant key.
+var reservedVariant = regexp.MustCompile(`(?i)_w[0-9]+_v[0-9]+$`)
 
 // Result is the canonical extensionless path and its collision strategy hint.
 type Result struct {
@@ -51,7 +56,7 @@ func Build(ctx context.Context, pathTpl, nameTpl string, vars Variables) (Result
 		if strings.Contains(name, "/") {
 			return Result{}, fmt.Errorf("filename template contains a directory")
 		}
-		if strings.HasSuffix(strings.ToLower(name), "_thumbs") {
+		if strings.HasSuffix(strings.ToLower(name), "_thumbs") || reservedVariant.MatchString(name) {
 			if randomName {
 				continue
 			}

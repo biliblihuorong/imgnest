@@ -83,6 +83,8 @@ Migration scripts are compiled into the program, and running `migrate` again wri
 | Key | Environment variable | Default | Meaning |
 | --- | --- | --- | --- |
 | `images.thumb_cache` | `IMGNEST_IMAGES_THUMB_CACHE` | `data/thumbs` | Local thumbnail directory; safe to delete and rebuild |
+| `images.variant_cors_origins` | `IMGNEST_IMAGES_VARIANT_CORS_ORIGINS` | empty | Sites (such as your blog) whose browsers may call `/api/variants` for responsive versions, comma separated; `*` allows any origin |
+| `images.variant_lookup_per_minute` | `IMGNEST_IMAGES_VARIANT_LOOKUP_PER_MINUTE` | `60` | Lookups allowed per client address per minute |
 | `security.master_key` | `IMGNEST_SECURITY_MASTER_KEY` | empty | Master key that encrypts S3 credentials; may stay empty with local storage only |
 
 S3 storage requires a master key: 32 random bytes, base64-encoded. Keep it together with your database backups. Without it, saved storage credentials cannot be decrypted.
