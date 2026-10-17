@@ -35,7 +35,7 @@ type VariantOptions struct {
 	// CDNMaxAge is how long a CDN or other shared cache may keep a
 	// successful GET lookup (s-maxage); zero leaves it at CacheMaxAge.
 	CDNMaxAge time.Duration
-	Now         func() time.Time
+	Now       func() time.Time
 }
 
 // RegisterVariantRoutes binds the public lookup and the admin backfill.
