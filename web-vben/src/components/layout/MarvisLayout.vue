@@ -87,11 +87,16 @@ onBeforeUnmount(stopAfterEach);
   color: hsl(var(--foreground));
   background: hsl(var(--background-deep));
 }
+/* 内容区与侧栏一样是悬浮卡片：四周同宽留白、同样圆角，避免页头贴边、与侧栏错位。 */
 .mv-main {
   flex: 1;
   min-width: 0;
-  height: 100%;
+  margin: 14px;
   overflow: auto;
+  background: hsl(var(--background-deep));
+  border: 1px solid hsl(var(--border) / 0.6);
+  border-radius: 20px;
+  box-shadow: var(--mv-shadow-side);
 }
 .mv-menu-btn {
   position: fixed;
@@ -131,6 +136,10 @@ onBeforeUnmount(stopAfterEach);
   transform: none;
 }
 .is-narrow .mv-main {
+  margin: 0;
   padding-top: 56px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 </style>

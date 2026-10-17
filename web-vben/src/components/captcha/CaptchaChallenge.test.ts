@@ -1,4 +1,5 @@
 import { i18n } from "@vben/locales";
+import { updatePreferences } from "@vben/preferences";
 import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TurnstileOptions } from "./turnstile";
@@ -80,6 +81,26 @@ describe("CAPTCHA widget lifecycle", () => {
     wrapper.unmount();
     options[2]!.callback("after-unmount");
     expect(wrapper.emitted("token")?.at(-1)).toEqual([null]);
+  });
+  it("keeps a solved or in-progress challenge when the colour mode changes", async () => {
+    updatePreferences({ theme: { mode: "light" } });
+    const wrapper = mount(CaptchaChallenge, { props: { config, action: "login" } });
+    await flushPromises();
+    expect(options[0]?.theme).toBe("light");
+    updatePreferences({ theme: { mode: "dark" } });
+    await flushPromises();
+    updatePreferences({ theme: { mode: "light" } });
+    await flushPromises();
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(remove).not.toHaveBeenCalled();
+    options[0]!.callback("solved");
+    updatePreferences({ theme: { mode: "dark" } });
+    await flushPromises();
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(wrapper.emitted("token")?.at(-1)).toEqual(["solved"]);
+    expect(wrapper.text()).toContain("验证已完成");
+    updatePreferences({ theme: { mode: "light" } });
+    wrapper.unmount();
   });
   it("shows a retryable provider failure and rejects over-budget tokens", async () => {
     const wrapper = mount(CaptchaChallenge, { props: { config, action: "register" } });
