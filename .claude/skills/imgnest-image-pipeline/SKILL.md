@@ -77,8 +77,11 @@ Two modes (web admin page or CLI, same `lsky.Runner` / `ImportImages`):
   limit, not by `server.max_upload_mb`. Fetchers read up to
   `lsky.FetchLimit` (the largest group limit).
 
-**Files over `exif.MaxSourceBytes` (20 MiB)** still upload; the pipeline
-skips what cannot handle them. No Extract (EXIF row = orientation 1 only).
+**EXIF has no file-size cap.** `exif.maxSourceBytes` is only the int32
+range (~2 GiB); `maxMetadataBytes` (20 MiB) bounds the archived metadata
+(ISOBMFF payloads, the opaque-TIFF whole-file fallback). A file past
+`exif.MaxSourceBytes` still uploads; the pipeline skips what cannot handle
+it. No Extract (EXIF row = orientation 1 only).
 With `scrub_mode` gps/all the original cannot be scrubbed, so the upload
 falls back to `webp_only` (never an unscrubbed original); a WebP source or a
 pinned import cannot fall back and fails with `errScrubTooLarge`

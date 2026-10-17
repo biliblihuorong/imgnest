@@ -44,10 +44,7 @@ const message = useMessage();
 const isMobile = useMediaQuery("(max-width: 640px)");
 
 const BYTES_PER_MB = 1024 * 1024;
-/**
- * 超过这个大小（MB，与服务端 EXIF 处理上限 exif.MaxSourceBytes 一致）的文件
- * 不记录 EXIF、无法脱敏，处理时也更吃内存，所以组上限设得更大时要提醒。
- */
+/** 组单文件上限超过这个大小（MB）时提醒内存风险：大文件全程放在内存里处理。 */
 const METADATA_LIMIT_MB = 20;
 
 const EXT_OPTIONS = ["jpg", "png", "gif", "webp", "bmp", "tif", "tiff", "heic", "avif"].map(

@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/biliblihuorong/imgnest/internal/exif"
 	"github.com/biliblihuorong/imgnest/internal/imaging"
 	"github.com/biliblihuorong/imgnest/internal/model"
 )
@@ -70,8 +69,17 @@ func TestUploadLimitsForAnswersWhenAccountIsFull(t *testing.T) {
 	}
 }
 
+// lowMetadataLimit stands in for the real 2 GiB metadata limit.
+func lowMetadataLimit(t *testing.T) int {
+	t.Helper()
+	saved := metadataSourceLimit
+	metadataSourceLimit = 4096
+	t.Cleanup(func() { metadataSourceLimit = saved })
+	return metadataSourceLimit
+}
+
 func TestOversizedUploadSkipsMetadataSteps(t *testing.T) {
-	big := make([]byte, exif.MaxSourceBytes+1)
+	big := make([]byte, lowMetadataLimit(t)+1)
 	for _, tc := range []struct {
 		name, format, scrub, mode string
 		original, webp, scrubbed  bool
@@ -125,7 +133,7 @@ func TestOversizedImportWithScrubIsRefusedClearly(t *testing.T) {
 	svc, rows, policy, _, _ := uploadFixture(t, "png")
 	policy.group.MaxFileBytes = 0
 	policy.group.AllowedExts = nil
-	big := make([]byte, exif.MaxSourceBytes+1)
+	big := make([]byte, lowMetadataLimit(t)+1)
 	_, err := svc.ImportImage(t.Context(), ImportInput{Data: big, Filename: "old.png", Path: "2020/01/old", Ext: "png", UserID: 1, PolicyID: 1})
 	if ErrorReason(err) != "scrub_too_large" || len(rows.rows) != 0 {
 		t.Fatalf("copy import of an oversized scrubbed original = %v", err)
@@ -141,5 +149,23 @@ func TestOversizedImportWithScrubIsRefusedClearly(t *testing.T) {
 	policy.group.MaxFileBytes = int64(len(over)) + 1
 	if _, err := svc.ImportImage(t.Context(), ImportInput{Data: over, Filename: "huge.png", Path: "2020/01/huge", Ext: "png", UserID: 1, PolicyID: 1}); err != nil {
 		t.Fatalf("group limit above the default refused: %v", err)
+	}
+}
+
+// A file past the old 20 MiB cap is an ordinary upload now: its EXIF is
+// archived and its original scrubbed and kept, like any smaller file.
+func TestUploadOver20MiBStillGetsMetadataSteps(t *testing.T) {
+	svc, rows, policy, _, subject := uploadFixture(t, "png")
+	policy.group.MaxFileBytes = 64 << 20
+	policy.group.AllowedExts = nil
+	var extracts, scrubs atomic.Int32
+	counting := countingMetadata{extracts: &extracts, scrubs: &scrubs}
+	svc.deps.Extractor, svc.deps.Scrubber = counting, counting
+	view, err := svc.Upload(t.Context(), subject, UploadInput{Data: make([]byte, 21<<20), Filename: "big.png"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if extracts.Load() != 1 || scrubs.Load() != 1 || !view.HasOriginal || !view.HasWebP || !view.Scrubbed || rows.exif.GPSLat == nil {
+		t.Fatalf("extract=%d scrub=%d view=%+v exif=%+v", extracts.Load(), scrubs.Load(), view, rows.exif)
 	}
 }

@@ -541,10 +541,11 @@ export interface paths {
          *     caller's per-file limit plus 1 MiB), at most 20 files, two concurrent
          *     upload requests, five-minute request deadline. The per-file limit is
          *     the group's own, of any size, or server.max_upload_mb for a group
-         *     without one (see GET /api/upload/limits). Files over 20 MiB get no
-         *     EXIF record; when the rule scrubs EXIF their original is not stored,
-         *     only the WebP (a WebP source answers 422/50003 with reason
-         *     scrub_too_large). File-level failures do not roll back successful siblings.
+         *     without one (see GET /api/upload/limits). EXIF is archived and scrubbed
+         *     at any file size up to about 2 GiB; past that the file gets no EXIF
+         *     record, and when the rule scrubs EXIF only its WebP is stored (a WebP
+         *     source answers 422/50003 with reason scrub_too_large). File-level
+         *     failures do not roll back successful siblings.
          *     A single file returns its ImageView with HTTP 201 or a normal error;
          *     multiple files return HTTP 207 with one result per file, in input order.
          */

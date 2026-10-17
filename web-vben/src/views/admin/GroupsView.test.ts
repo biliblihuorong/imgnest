@@ -262,8 +262,8 @@ describe("GroupsView", () => {
     fileLimit.vm.$emit("update:value", 300);
     await flushPromises();
     const warning = document.body.querySelector("[data-testid='max-file-warning']");
-    expect(warning?.textContent).toContain("超过 20 MB 的文件仍能上传");
-    expect(warning?.textContent).toContain("不会记录 EXIF");
+    expect(warning?.textContent).toContain("超过 20 MB 的文件");
+    expect(warning?.textContent).toContain("内存");
 
     bodyButton("保存")!.click();
     await flushPromises();

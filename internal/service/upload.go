@@ -100,6 +100,10 @@ func (s *ImageService) PreflightLimits(ctx context.Context, subject TokenSubject
 	return s.groupLimits(group), nil
 }
 
+// metadataSourceLimit is the largest upload the metadata extractor and
+// scrubber read (a variable so tests need not allocate gigabytes).
+var metadataSourceLimit = exif.MaxSourceBytes
+
 // groupLimits derives the request-level read bound and per-minute rate from
 // the group caps; they never depend on the rule a request selects. A group's
 // own per-file limit wins over server.max_upload_mb in both directions: the
@@ -202,7 +206,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	// while a group may allow larger files. Such a file is still stored: it
 	// gets no EXIF record, and under an enabled scrub mode its original,
 	// which cannot be cleaned, is replaced by the metadata-free WebP below.
-	oversized := len(input.Data) > exif.MaxSourceBytes
+	oversized := len(input.Data) > metadataSourceLimit
 	metadata := model.ImageExif{Orientation: max(info.Orientation, 1)}
 	if !oversized {
 		metadata, err = s.deps.Extractor.Extract(ctx, input.Data, info)

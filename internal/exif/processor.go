@@ -75,6 +75,12 @@ func (p *Processor) Extract(ctx context.Context, data []byte, info imaging.Info)
 				return model.ImageExif{}, err
 			}
 			if doc.private {
+				// The fallback archives the whole file; past the metadata
+				// budget it would be lost instead, so reject as for any
+				// layout that cannot be archived completely.
+				if len(data) > maxMetadataBytes {
+					return model.ImageExif{}, ErrInvalidMetadata
+				}
 				archive.CaptureMode = "full-source-fallback"
 				archive.Blocks = append(archive.Blocks, rawBlock{Kind: "tiff-container", Offset: 0, Order: len(archive.Blocks), Data: bytes.Clone(data)})
 			} else {
@@ -228,7 +234,15 @@ func (p *Processor) Scrub(ctx context.Context, data []byte, format, mode string)
 	return out, nil
 }
 
-const maxSourceBytes = 20 << 20
+// maxSourceBytes bounds the image a metadata pass reads and every offset or
+// size taken from it. Group upload limits have no product ceiling, so this is
+// only the int32/uint32 range classic TIFF, RIFF and PNG lengths fit in; the
+// metadata itself stays bounded by maxMetadataBytes.
+const maxSourceBytes = math.MaxInt32
+
+// maxMetadataBytes bounds the metadata archived from one image: the unique
+// ISOBMFF item payloads and the whole-file fallback for opaque TIFF layouts.
+const maxMetadataBytes = 20 << 20
 
 // MaxSourceBytes is the largest file Extract and Scrub accept. Larger
 // uploads are still stored, without an EXIF archive and, under an enabled

@@ -116,7 +116,7 @@
       "email_invalid": "邮箱格式不正确",
       "display_name_invalid": "昵称最多 64 个字符，且不能包含控制字符",
       "image_name_invalid": "名称不能为空，不能包含 / 或 \\，最长 255 字节",
-      "scrub_too_large": "超过 20 MiB 的图片无法抹除 EXIF；请改传 JPEG/PNG 等其他格式，或让管理员把规则的脱敏模式改成不脱敏",
+      "scrub_too_large": "图片太大，无法抹除 EXIF；请让管理员把规则的脱敏模式改成不脱敏",
       "storage_denied": "存储拒绝了访问，请检查 AccessKey / SecretKey 和权限",
       "storage_bucket": "存储桶不存在或名称、区域填写有误",
       "storage_busy": "存储服务繁忙，请稍后重试",
