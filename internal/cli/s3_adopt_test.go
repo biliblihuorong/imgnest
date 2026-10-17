@@ -157,7 +157,7 @@ func adoptedLifecycle(t *testing.T, folder string) {
 		if err = db.First(&policy).Error; err != nil {
 			return err
 		}
-		images, _, closeImages, err := newImageServices(ctx, db, cfg, nil, imageHooks{})
+		images, _, closeImages, err := newImageServices(ctx, db, cfg, runtimeCaches{}, imageHooks{})
 		if err != nil {
 			return err
 		}
@@ -252,7 +252,7 @@ func TestRealMinIOAdoptFailureKeepsOriginal(t *testing.T) {
 		if err = db.First(&policy).Error; err != nil {
 			return err
 		}
-		images, _, closeImages, err := newImageServices(ctx, db, cfg, nil, imageHooks{})
+		images, _, closeImages, err := newImageServices(ctx, db, cfg, runtimeCaches{}, imageHooks{})
 		if err != nil {
 			return err
 		}
@@ -314,7 +314,7 @@ func TestRealMinIOAdoptMislabeledWebP(t *testing.T) {
 		if err = db.First(&policy).Error; err != nil {
 			return err
 		}
-		images, _, closeImages, err := newImageServices(ctx, db, cfg, nil, imageHooks{})
+		images, _, closeImages, err := newImageServices(ctx, db, cfg, runtimeCaches{}, imageHooks{})
 		if err != nil {
 			return err
 		}
@@ -390,7 +390,7 @@ func TestRealMinIOAdoptUnreadableMetadata(t *testing.T) {
 		if err = db.First(&policy).Error; err != nil {
 			return err
 		}
-		images, _, closeImages, err := newImageServices(ctx, db, cfg, nil, imageHooks{})
+		images, _, closeImages, err := newImageServices(ctx, db, cfg, runtimeCaches{}, imageHooks{})
 		if err != nil {
 			return err
 		}
@@ -448,7 +448,7 @@ func TestRealMinIOAdoptFollowsGroupFileLimit(t *testing.T) {
 		if err = db.First(&policy).Error; err != nil {
 			return err
 		}
-		images, _, closeImages, err := newImageServices(ctx, db, cfg, nil, imageHooks{})
+		images, _, closeImages, err := newImageServices(ctx, db, cfg, runtimeCaches{}, imageHooks{})
 		if err != nil {
 			return err
 		}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -35,6 +36,8 @@ var environmentKeys = map[string]string{
 	"IMGNEST_IMAGES_THUMB_CACHE":               "images.thumb_cache",
 	"IMGNEST_IMAGES_VARIANT_CORS_ORIGINS":      "images.variant_cors_origins",
 	"IMGNEST_IMAGES_VARIANT_LOOKUP_PER_MINUTE": "images.variant_lookup_per_minute",
+	"IMGNEST_IMAGES_VARIANT_CDN_MAX_AGE":       "images.variant_cdn_max_age",
+	"IMGNEST_CACHE_REDIS_URL":                  "cache.redis_url",
 	"IMGNEST_SECURITY_MASTER_KEY":              "security.master_key",
 	"IMGNEST_DATABASE_DRIVER":                  "database.driver",
 	"IMGNEST_DATABASE_DSN":                     "database.dsn",
@@ -54,6 +57,14 @@ type Config struct {
 	Security Security
 	Backup   Backup
 	Updates  Updates
+	Cache    Cache
+}
+
+// Cache selects where random-link candidates and variant lookups are cached.
+type Cache struct {
+	// RedisURL (redis:// or rediss://) shares the cache between instances;
+	// empty keeps it in this process's memory.
+	RedisURL string
 }
 
 // Updates configures the console's check for newer releases.
@@ -88,6 +99,9 @@ type Images struct {
 	VariantCORSOrigins []string
 	// VariantLookupPerMinute bounds lookups per client address.
 	VariantLookupPerMinute int
+	// VariantCDNMaxAge is how long a CDN may keep a lookup answer
+	// (s-maxage); zero leaves CDNs on the 5-minute browser lifetime.
+	VariantCDNMaxAge time.Duration
 }
 
 // Security contains the deployment key used for encrypted cloud credentials.
@@ -125,7 +139,7 @@ func Load(ctx context.Context, path string, environ []string) (Config, error) {
 			// YAML diagnostics may quote DSNs, so do not retain their raw error.
 			return Config{}, fmt.Errorf("parse configuration YAML: %w", errInvalid)
 		}
-		for _, section := range []string{"server", "database", "images", "security", "backup", "updates"} {
+		for _, section := range []string{"server", "database", "images", "security", "backup", "updates", "cache"} {
 			if k.Exists(section) {
 				if _, ok := k.Get(section).(map[string]any); !ok {
 					return Config{}, invalid(section, "must be a mapping")
@@ -190,6 +204,8 @@ func Load(ctx context.Context, path string, environ []string) (Config, error) {
 		"images.thumb_cache":               "data/thumbs",
 		"images.variant_cors_origins":      []string{},
 		"images.variant_lookup_per_minute": 60,
+		"images.variant_cdn_max_age":       "1h",
+		"cache.redis_url":                  "",
 		"security.master_key":              "",
 		"backup.dir":                       "data/backup",
 		"updates.check":                    true,
@@ -241,6 +257,7 @@ func decode(k *koanf.Koanf) (Config, error) {
 		{key: "images.thumb_cache", value: &cfg.Images.ThumbCache},
 		{key: "security.master_key", value: &cfg.Security.MasterKey},
 		{key: "backup.dir", value: &cfg.Backup.Dir},
+		{key: "cache.redis_url", value: &cfg.Cache.RedisURL},
 	} {
 		value, ok := k.Get(field.key).(string)
 		if !ok {
@@ -282,6 +299,7 @@ func decode(k *koanf.Koanf) (Config, error) {
 		{key: "database.max_lifetime", value: &cfg.Database.MaxLifetime},
 		{key: "database.busy_timeout", value: &cfg.Database.BusyTimeout},
 		{key: "server.processing_timeout", value: &cfg.Server.ProcessingTimeout},
+		{key: "images.variant_cdn_max_age", value: &cfg.Images.VariantCDNMaxAge},
 	} {
 		value, ok := k.Get(field.key).(string)
 		if !ok {
@@ -366,6 +384,12 @@ func validate(cfg Config) error {
 	if cfg.Images.VariantLookupPerMinute < 1 || cfg.Images.VariantLookupPerMinute > 10000 {
 		return invalid("images.variant_lookup_per_minute", "must be between 1 and 10000")
 	}
+	if cfg.Images.VariantCDNMaxAge < 0 || cfg.Images.VariantCDNMaxAge > 7*24*time.Hour {
+		return invalid("images.variant_cdn_max_age", "must be between 0s and 168h")
+	}
+	if cfg.Cache.RedisURL != "" && !validRedisURL(cfg.Cache.RedisURL) {
+		return invalid("cache.redis_url", "must be a redis:// or rediss:// URL")
+	}
 	for _, origin := range cfg.Images.VariantCORSOrigins {
 		if !validOrigin(origin) {
 			return invalid("images.variant_cors_origins", "must contain only * or scheme://host[:port] origins")
@@ -432,4 +456,10 @@ func validOrigin(origin string) bool {
 
 func invalid(field, reason string) error {
 	return fmt.Errorf("configuration %s %s: %w", field, reason, errInvalid)
+}
+
+// validRedisURL checks the shape only; the connection is tried at startup.
+func validRedisURL(raw string) bool {
+	parsed, err := url.Parse(raw)
+	return err == nil && (parsed.Scheme == "redis" || parsed.Scheme == "rediss") && parsed.Host != ""
 }

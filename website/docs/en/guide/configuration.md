@@ -87,6 +87,8 @@ Migration scripts are compiled into the program, and running `migrate` again wri
 | `images.thumb_cache` | `IMGNEST_IMAGES_THUMB_CACHE` | `data/thumbs` | Local thumbnail directory; safe to delete and rebuild |
 | `images.variant_cors_origins` | `IMGNEST_IMAGES_VARIANT_CORS_ORIGINS` | empty | Sites (such as your blog) whose browsers may call `/api/variants` for responsive versions, comma separated; `*` allows any origin |
 | `images.variant_lookup_per_minute` | `IMGNEST_IMAGES_VARIANT_LOOKUP_PER_MINUTE` | `60` | Lookups allowed per client address per minute |
+| `images.variant_cdn_max_age` | `IMGNEST_IMAGES_VARIANT_CDN_MAX_AGE` | `1h` | How long a CDN may keep a `/api/variants` answer (`s-maxage`), up to `168h`; `0s` keeps CDNs on the 5-minute browser lifetime |
+| `cache.redis_url` | `IMGNEST_CACHE_REDIS_URL` | empty | Where random-link and variant-lookup caches live. A `redis://[:password@]host:6379/0` URL (`rediss://` for TLS) shares them between instances; empty keeps them in process memory. An unreachable Redis at startup is logged and memory is used instead |
 | `backup.dir` | `IMGNEST_BACKUP_DIR` | `data/backup` | Where console and scheduled backups are written (zip: database dump + configuration), mode 0600 |
 | `updates.check` | `IMGNEST_UPDATES_CHECK` | `true` | Site settings > About asks GitHub whether a newer release exists and shows administrators a red dot when one does; set `false` on servers that must not call out |
 | `security.master_key` | `IMGNEST_SECURITY_MASTER_KEY` | empty | Master key that encrypts S3 credentials; may stay empty with local storage only |

@@ -18,6 +18,7 @@ services:
       IMGNEST_TEST_S3_ENDPOINT: http://minio:9000
       IMGNEST_TEST_S3_ACCESS_KEY: imgnest-test
       IMGNEST_TEST_S3_SECRET_KEY: isolated-test-only-secret
+      IMGNEST_TEST_REDIS_URL: redis://redis:6379/0
     ports:
       - "127.0.0.1:18080:8080"
   postgres:
@@ -33,6 +34,14 @@ services:
       retries: 30
     volumes:
       - postgres-test:/var/lib/postgresql
+  redis:
+    image: redis:7.4.11-bookworm
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
   minio:
     build:
       context: ..

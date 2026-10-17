@@ -16,6 +16,15 @@ images:
   # Browser origins (your blog) allowed to call /api/variants; "*" allows any.
   variant_cors_origins: []
   variant_lookup_per_minute: 60
+  # How long a CDN may keep a /api/variants answer (s-maxage). 0s leaves CDNs
+  # on the 5-minute browser lifetime.
+  variant_cdn_max_age: 1h
+
+cache:
+  # Random-link candidates and variant lookups are cached here. Set a Redis
+  # URL (redis://[:password@]host:6379/0, or rediss:// for TLS) to share the
+  # cache between instances; empty keeps it in this process's memory.
+  redis_url: ""
 
 backup:
   # Console and scheduled backups (zip: database dump + this config). Keep it

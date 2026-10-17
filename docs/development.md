@@ -67,6 +67,8 @@ PicGo（picgo-plugin-lankong）或 uPic 手工联调步骤：
 | images.thumb_cache | IMGNEST_IMAGES_THUMB_CACHE | data/thumbs；普通WebP可再生成 |
 | images.variant_cors_origins | IMGNEST_IMAGES_VARIANT_CORS_ORIGINS | 空；逗号分隔，`*` 或 `https://blog.example.com`，允许浏览器跨域调用 `/api/variants` |
 | images.variant_lookup_per_minute | IMGNEST_IMAGES_VARIANT_LOOKUP_PER_MINUTE | 60；每客户端地址每分钟查询次数，1–10000 |
+| images.variant_cdn_max_age | IMGNEST_IMAGES_VARIANT_CDN_MAX_AGE | 1h；CDN 缓存 `/api/variants` 结果的时长（`s-maxage`），0s–168h，0s 表示跟浏览器一样 5 分钟 |
+| cache.redis_url | IMGNEST_CACHE_REDIS_URL | 空；`redis://` 或 `rediss://`，随机图片候选与响应式查询缓存放进 Redis，多实例共享；空则用进程内存。启动时连不上会记一条警告并改用内存 |
 | backup.dir | IMGNEST_BACKUP_DIR | data/backup；后台与定时备份目录，归档 0600 |
 | updates.check | IMGNEST_UPDATES_CHECK | true；后台「关于」向 GitHub 查新版本（缓存 6 小时），false 则从不外连 |
 | security.master_key | IMGNEST_SECURITY_MASTER_KEY | 本机可空；S3需base64编码32bytes |

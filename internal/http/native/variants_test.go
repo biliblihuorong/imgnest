@@ -164,3 +164,39 @@ func TestVariantBackfillRoutesRequireAdmin(t *testing.T) {
 		t.Fatalf("actions = %v", stub.actions)
 	}
 }
+
+func TestVariantLookupIsCDNFriendly(t *testing.T) {
+	router := variantRouter(t, &variantsStub{}, native.VariantOptions{CORSOrigins: []string{"*"}, CDNMaxAge: time.Hour})
+	w := callVariants(router, http.MethodGet, "/api/variants?url=x", "", "https://any.example", "")
+	if w.Code != 200 || w.Header().Get("Cache-Control") != "public, max-age=300, s-maxage=3600, stale-while-revalidate=60" {
+		t.Fatalf("CDN cache header: %d %v", w.Code, w.Header())
+	}
+	// Every origin gets the same answer, so a CDN may keep one copy.
+	if w.Header().Get("Vary") != "" {
+		t.Fatalf("wildcard CORS still varies by Origin: %v", w.Header())
+	}
+	etag := w.Header().Get("ETag")
+	if !strings.HasPrefix(etag, `"`) {
+		t.Fatalf("missing ETag: %v", w.Header())
+	}
+	r := httptest.NewRequest(http.MethodGet, "/api/variants?url=x", nil)
+	r.Header.Set("If-None-Match", "W/"+etag)
+	revalidated := httptest.NewRecorder()
+	router.ServeHTTP(revalidated, r)
+	if revalidated.Code != http.StatusNotModified || revalidated.Body.Len() != 0 || revalidated.Header().Get("ETag") != etag {
+		t.Fatalf("revalidation: %d %q %v", revalidated.Code, revalidated.Body.String(), revalidated.Header())
+	}
+	r = httptest.NewRequest(http.MethodGet, "/api/variants?url=y", nil)
+	r.Header.Set("If-None-Match", etag)
+	other := httptest.NewRecorder()
+	router.ServeHTTP(other, r)
+	if other.Code != 200 {
+		t.Fatalf("different links answered 304: %d", other.Code)
+	}
+	// Without configured origins the answer does not depend on Origin either.
+	router = variantRouter(t, &variantsStub{}, native.VariantOptions{})
+	w = callVariants(router, http.MethodGet, "/api/variants?url=x", "", "https://any.example", "")
+	if w.Header().Get("Vary") != "" || w.Header().Get("Cache-Control") != "public, max-age=300" {
+		t.Fatalf("no-CORS lookup headers: %v", w.Header())
+	}
+}

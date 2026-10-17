@@ -14,6 +14,8 @@ services:
       IMGNEST_SERVER_TRUSTED_PROXIES: ${IMGNEST_SERVER_TRUSTED_PROXIES:-}
       # Comma-separated sites (such as your blog) allowed to call /api/variants from the browser.
       IMGNEST_IMAGES_VARIANT_CORS_ORIGINS: ${IMGNEST_IMAGES_VARIANT_CORS_ORIGINS:-}
+      # Optional Redis shared by several instances, e.g. redis://redis:6379/0.
+      IMGNEST_CACHE_REDIS_URL: ${IMGNEST_CACHE_REDIS_URL:-}
     volumes:
       # Database, local image objects and the thumbnail cache.
       - imgnest-data:/app/data

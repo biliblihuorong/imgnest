@@ -357,14 +357,17 @@ CDN 缓存不在本程序处理范围内。
 - 默认跳转 WebP，`?format=original` 跳原图；图片缺少所请求的版本时回退到另一个版本。其他 `format` 值返回 400。
 - 随机接口响应一律 `Cache-Control: no-store`，不返回图片元数据与 EXIF。`uid`/`token` 格式不符、未知、链接停用、用户被禁用、相册无可用图片，统一返回相同的 404/10001，不区分原因。日志只记路由模板，不记 `uid` 与 `token`。
 - 限流：每客户端地址每分钟 600 次，使用独立的限流表（上限 16384 条），超限 429/30003；与登录注册的限流互不挤占。
-- 候选图经 `RandomPool` 接口缓存：每相册最多 5000 张（超出时随机采样），TTL 60 秒；上传到相册、移入移出相册、进回收站、恢复、新建或删除链接时主动失效。链接本身每次请求都查库，停用、重置、禁用用户立即生效。本轮只有进程内实现；多实例部署且未接共享缓存时，其他实例上的失效最多延迟 60 秒（此时跳转目标已是 404，不泄露内容）。Redis 等共享实现只需满足同一接口，目前未引入依赖。
+- 候选图经 `RandomPool` 接口缓存：每相册最多 5000 张（超出时随机采样），TTL 60 秒；上传到相册、移入移出相册、进回收站、恢复、新建或删除链接时主动失效。链接本身每次请求都查库，停用、重置、禁用用户立即生效。
+- **缓存后端（2026-10-17）**：配置 `cache.redis_url`（`IMGNEST_CACHE_REDIS_URL`）时候选图存在 Redis（键 `imgnest:random:album:{id}`，JSON），所有实例共享，任一实例上的失效立即对全部生效；未配置时用进程内存，多实例下其他实例的失效最多延迟 60 秒（此时跳转目标已是 404，不泄露内容）。启动时 Redis 连不上记警告并退回内存；运行中 Redis 出错按未命中处理，直接查库，不影响跳转。Redis 读写超时 500ms、连接超时 2s（URL 里写了的以 URL 为准），日志与错误不含 URL 与密码。依赖 `github.com/redis/go-redis/v9`，见 `docs/versions.md`。
 
 ### 7.6 响应式版本查询（2026-10-16）
 
 - `GET /api/variants?url=…&url=…` 或 `POST /api/variants`（`{"urls":[…]}`），公开只读，每批 1–50 个链接、单个 ≤ 2048 字节，返回 `{"items":[{"url","found","variants"}]}`，顺序与请求一致。
 - 只按已配置存储的 `base_url`（主机 + 最长路径前缀，忽略协议、查询串与片段）在库内匹配，**从不抓取外部 URL**。原图、`.webp`、`_thumbs.webp` 和衍生版本链接都能反查到同一张图；不在清单里的 Key、`_trash/` 前缀、回收站或已删除的图一律 `found=false`。
 - 只返回 `variants` 数组，不返回 EXIF、上传者、IP、key 或任何凭据。持有链接即可直接访问图片，所以查询不额外区分图片公开性。
-- 每客户端地址每分钟 60 次（`images.variant_lookup_per_minute`），超限 429/30003；成功响应 `Cache-Control: public, max-age=300`、`Vary: Origin`，进回收站后缓存的查询结果最多滞后 5 分钟，但其中的文件地址已立即 404。
+- 每客户端地址每分钟 60 次（`images.variant_lookup_per_minute`），超限 429/30003。
+- **CDN 缓存（2026-10-17）**：成功响应 `Cache-Control: public, max-age=300, s-maxage=<images.variant_cdn_max_age>, stale-while-revalidate=60`（默认 `s-maxage=3600`；设 `0s` 时只有 `max-age=300`），并带 `ETag`（响应体 SHA-256 前 16 字节）；GET 带匹配的 `If-None-Match` 返回 304。只有 `variant_cors_origins` 列了具体来源时才发 `Vary: Origin`，未配置或为 `*` 时所有来源拿到同样的响应，CDN 每个 URL 只存一份。想让 CDN 缓存请用 GET（POST 不缓存）。进回收站后，浏览器缓存的结果最多滞后 5 分钟、CDN 最多滞后 `s-maxage`，但其中的文件地址已立即 404。
+- **服务端缓存**：查询按（存储，路径）把「是否在用、对象 Key、衍生版本」缓存 5 分钟（`cache.redis_url` 配了用 Redis，否则进程内存，上限 16384 条），上传、进回收站、恢复、补生成衍生版本时立即删除对应条目；缓存出错按未命中处理，只多一次数据库查询。
 - 浏览器跨域读取需在 `images.variant_cors_origins` 列出来源（`https://blog.example.com`，或 `*`），默认不发 CORS 头。用法示例见 [`docs/examples/responsive-images.html`](examples/responsive-images.html)。
 
 ### 7.7 系统设置二级页、SMTP 与邮箱验证码（2026-10-16）

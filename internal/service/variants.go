@@ -5,12 +5,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -168,7 +170,7 @@ func (s *ImageService) LookupVariants(ctx context.Context, links []string) ([]Va
 		storage uint64
 		path    string
 	}
-	found := map[location]*model.Image{}
+	found := map[location]lookupRecord{}
 	items := make([]VariantLookupItem, 0, len(links))
 	for _, link := range links {
 		item := VariantLookupItem{URL: link, Variants: []VariantView{}}
@@ -176,29 +178,87 @@ func (s *ImageService) LookupVariants(ctx context.Context, links []string) ([]Va
 		if ok {
 			for _, base := range directBases(key) {
 				at := location{storage: backend.ID, path: base}
-				image, cached := found[at]
+				record, cached := found[at]
 				if !cached {
-					row, findErr := s.deps.Images.FindByPath(ctx, backend.ID, base)
-					switch {
-					case findErr == nil:
-						image = &row
-					case errors.Is(findErr, ErrNotFound):
-					default:
-						return nil, fmt.Errorf("find linked image: %w", findErr)
+					if record, err = s.lookupRecord(ctx, backend.ID, base); err != nil {
+						return nil, err
 					}
-					found[at] = image
+					found[at] = record
 				}
-				if image == nil || image.State != model.ImageStateActive || !declaresCloudKey(*image, key) {
+				if !record.Live || !slices.Contains(record.Keys, key) {
 					continue
 				}
 				item.Found = true
-				item.Variants = variantViews(image.Variants, backend.BaseURL)
+				item.Variants = variantViews(record.Variants, backend.BaseURL)
 				break
 			}
 		}
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+// lookupCacheTTL matches the public max-age of a lookup response, so the
+// server-side cache adds no staleness the HTTP cache did not already allow;
+// trash, restore, uploads and new variants also drop the entry at once.
+const lookupCacheTTL = 5 * time.Minute
+
+// lookupRecord is what a lookup needs to know about the image stored at one
+// path: whether it is live, its cloud object keys and its variants. Live is
+// false when nothing is stored there or the image is not active.
+type lookupRecord struct {
+	Live     bool                 `json:"live"`
+	Keys     []string             `json:"keys,omitempty"`
+	Variants []model.ImageVariant `json:"variants,omitempty"`
+}
+
+func lookupCacheKey(storageID uint64, path string) string {
+	return "variants:" + strconv.FormatUint(storageID, 10) + ":" + path
+}
+
+// lookupRecord reads through the lookup cache. A failing or undecodable
+// cache only costs the database read.
+func (s *ImageService) lookupRecord(ctx context.Context, storageID uint64, path string) (lookupRecord, error) {
+	cacheKey := lookupCacheKey(storageID, path)
+	if s.deps.LookupCache != nil {
+		if raw, ok, err := s.deps.LookupCache.Get(ctx, cacheKey); err == nil && ok {
+			var record lookupRecord
+			if json.Unmarshal(raw, &record) == nil {
+				return record, nil
+			}
+		}
+	}
+	record := lookupRecord{}
+	row, err := s.deps.Images.FindByPath(ctx, storageID, path)
+	switch {
+	case err == nil:
+		if row.State == model.ImageStateActive {
+			record.Live, record.Variants = true, row.Variants
+			for _, receipt := range row.ObjectManifest {
+				if receipt.Location == model.ObjectLocationCloud {
+					record.Keys = append(record.Keys, receipt.Key)
+				}
+			}
+		}
+	case errors.Is(err, ErrNotFound):
+	default:
+		return lookupRecord{}, fmt.Errorf("find linked image: %w", err)
+	}
+	if s.deps.LookupCache != nil {
+		if raw, encodeErr := json.Marshal(record); encodeErr == nil {
+			_ = s.deps.LookupCache.Set(ctx, cacheKey, raw, lookupCacheTTL)
+		}
+	}
+	return record, nil
+}
+
+// invalidateLookup drops the cached lookup of an image whose live state or
+// variants changed. Failures are ignored: the entry expires on its own.
+func (s *ImageService) invalidateLookup(ctx context.Context, image model.Image) {
+	if s.deps.LookupCache == nil || image.Path == "" {
+		return
+	}
+	_ = s.deps.LookupCache.Delete(ctx, lookupCacheKey(image.StorageID, image.Path))
 }
 
 // matchStorage resolves a link to the storage whose base URL prefixes it,
@@ -319,11 +379,13 @@ func (s *ImageService) generateVariants(ctx context.Context, image model.Image) 
 		defer cancel()
 		if pending, checkErr := repo.HasVariantJob(checkCtx, current.ID); checkErr == nil && !pending {
 			if done, findErr := s.deps.Images.FindByKey(checkCtx, current.Key); findErr == nil && len(done.Variants) > 0 {
+				s.invalidateLookup(checkCtx, current)
 				return true, nil
 			}
 		}
 		return false, s.failVariants(ctx, repo, current, op, receipts, driver, fmt.Errorf("finish variants: %w", err))
 	}
+	s.invalidateLookup(ctx, current)
 	return true, nil
 }
 

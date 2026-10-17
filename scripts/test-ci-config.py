@@ -38,7 +38,7 @@ class CICacheConfigTest(unittest.TestCase):
         self.assertIn("file: deploy/Dockerfile.minio-test", self.workflow)
         self.assertIn("cache-from: type=gha,scope=minio-test", self.workflow)
         self.assertIn("cache-to: type=gha,scope=minio-test,mode=max", self.workflow)
-        self.assertIn("up -d --no-build --wait postgres minio", self.workflow)
+        self.assertIn("up -d --no-build --wait postgres minio redis", self.workflow)
 
     def test_runtime_cache_is_restored_for_each_go_job(self):
         self.assertEqual(self.workflow.count("uses: actions/cache@v5"), 2)
@@ -119,6 +119,8 @@ class CICacheConfigTest(unittest.TestCase):
         self.assertIn("host=postgres", env["IMGNEST_TEST_POSTGRES_DSN"])
         self.assertEqual(env["IMGNEST_TEST_S3_ENDPOINT"], "http://minio:9000")
         self.assertIn("healthcheck", services["postgres"])
+        self.assertIn("healthcheck", services["redis"])
+        self.assertEqual(env["IMGNEST_TEST_REDIS_URL"], "redis://redis:6379/0")
         self.assertIn("tmpfs", services["minio"])
 
 

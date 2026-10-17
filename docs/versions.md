@@ -46,6 +46,7 @@ M4 执行补充：无新增前后端依赖。`/api/v1` 与 `/api/admin` 契约�
 | golang.org/x/crypto | v0.57.0 | bcrypt |
 | golang.org/x/sync | v0.23.0 | semaphore / errgroup |
 | github.com/stretchr/testify | v1.12.1 | 测试 |
+| github.com/redis/go-redis/v9 | v9.21.0 | 2026-10-17 新增：可选的 Redis 缓存（随机图片候选、响应式查询）。选 v9.21.0 而不是更新的 v9.23.0，是因为后者会把间接依赖 klauspost/cpuid 一起升级；本版只新增 cespare/xxhash/v2 与 go.uber.org/atomic 两个间接依赖 |
 
 可直接粘贴的 `go.mod` 片段：
 
@@ -67,6 +68,7 @@ require (
 	github.com/knadh/koanf/providers/env/v2 v2.0.1
 	github.com/knadh/koanf/providers/file v1.2.1
 	github.com/knadh/koanf/v2 v2.3.7
+	github.com/redis/go-redis/v9 v9.21.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/crypto v0.57.0

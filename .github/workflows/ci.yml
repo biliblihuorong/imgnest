@@ -96,8 +96,8 @@ jobs:
           load: true
           cache-from: type=gha,scope=minio-test
           cache-to: type=gha,scope=minio-test,mode=max
-      - name: Start Postgres and MinIO
-        run: $COMPOSE up -d --no-build --wait postgres minio
+      - name: Start Postgres, MinIO and Redis
+        run: $COMPOSE up -d --no-build --wait postgres minio redis
       - name: Vet
         run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev go vet ./...
       - name: Test
@@ -107,7 +107,7 @@ jobs:
         run: $COMPOSE run --rm -e GOFLAGS=-buildvcs=false --no-deps dev go build -trimpath -o /tmp/imgnest ./cmd/imgnest
       - name: Logs on failure
         if: failure()
-        run: $COMPOSE logs --no-color postgres minio | tail -200
+        run: $COMPOSE logs --no-color postgres minio redis | tail -200
       # Containers run as root; restore runner ownership before cache post-save.
       - name: Restore cache ownership
         if: always()
