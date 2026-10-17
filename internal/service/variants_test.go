@@ -212,3 +212,35 @@ func TestDirectBasesPreferVariantThenLegacyPath(t *testing.T) {
 		t.Fatalf("bare suffix bases = %v", got)
 	}
 }
+
+// panickingPolicies stands in for a decoder or driver bug deep inside one
+// image's generation.
+type panickingPolicies struct{ *uploadPolicy }
+
+func (panickingPolicies) Find(context.Context, uint64) (model.Policy, error) {
+	panic("corrupt image")
+}
+
+func TestBackfillOneTurnsPanicIntoFailure(t *testing.T) {
+	svc, _, policy, _, _ := variantFixture(t)
+	svc.deps.Policies = panickingPolicies{policy}
+	// Generation needs the variant capability; the panic fires before any
+	// of its methods is called.
+	svc.deps.Images = struct {
+		ImageRepository
+		VariantRepository
+	}{ImageRepository: svc.deps.Images}
+	added, err := svc.backfillOne(t.Context(), model.Image{ID: 7, Key: "k", State: model.ImageStateActive, Frames: 1})
+	if added || !errors.Is(err, ErrProcessing) {
+		t.Fatalf("backfillOne = %v, %v; want a processing failure instead of a crash", added, err)
+	}
+}
+
+func TestNewImageServiceRequiresSettings(t *testing.T) {
+	svc, _, _, _, _ := uploadFixture(t, "png")
+	deps := svc.deps
+	deps.Settings = nil
+	if _, err := NewImageService(t.Context(), deps); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("missing Settings accepted: %v", err)
+	}
+}

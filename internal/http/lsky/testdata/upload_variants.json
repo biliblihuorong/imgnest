@@ -1,0 +1,27 @@
+{
+  "status": true,
+  "message": "上传成功",
+  "data": {
+    "key": "<string>",
+    "size": "<positive>",
+    "links": {
+      "url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.webp$"
+    },
+    "variants": [
+      {
+        "url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}_w400_v1\\.webp$",
+        "width": 400,
+        "height": 200,
+        "bytes": "<positive>",
+        "mime": "image/webp"
+      },
+      {
+        "url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}_w800_v1\\.webp$",
+        "width": 800,
+        "height": 400,
+        "bytes": "<positive>",
+        "mime": "image/webp"
+      }
+    ]
+  }
+}

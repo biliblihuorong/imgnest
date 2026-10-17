@@ -35,7 +35,9 @@ echo "Found $TOTAL test files"
 echo ""
 
 COUNT=0
-for TEST_FILE in $TEST_FILES; do
+# Read one path per line so names with spaces stay whole.
+while IFS= read -r TEST_FILE; do
+  [ -n "$TEST_FILE" ] || continue
   COUNT=$((COUNT + 1))
 
   # Skip if pollution already exists
@@ -48,7 +50,7 @@ for TEST_FILE in $TEST_FILES; do
   echo "[$COUNT/$TOTAL] Testing: $TEST_FILE"
 
   # Run the test
-  npm test "$TEST_FILE" > /dev/null 2>&1 || true
+  npm test "$TEST_FILE" < /dev/null > /dev/null 2>&1 || true
 
   # Check if pollution appeared
   if [ -e "$POLLUTION_CHECK" ]; then
@@ -61,11 +63,11 @@ for TEST_FILE in $TEST_FILES; do
     ls -la "$POLLUTION_CHECK"
     echo ""
     echo "To investigate:"
-    echo "  npm test $TEST_FILE    # Run just this test"
-    echo "  cat $TEST_FILE         # Review test code"
+    echo "  npm test \"$TEST_FILE\"    # Run just this test"
+    echo "  cat \"$TEST_FILE\"         # Review test code"
     exit 1
   fi
-done
+done <<< "$TEST_FILES"
 
 echo ""
 echo "✅ No polluter found - all tests clean!"

@@ -1872,6 +1872,8 @@ paths:
           $ref: '#/components/responses/LskyDisabled'
         '429':
           $ref: '#/components/responses/LskyThrottled'
+        '500':
+          $ref: '#/components/responses/LskyServerError'
     delete:
       operationId: v1RevokeTokens
       tags: [Lsky v1]
@@ -1887,6 +1889,8 @@ paths:
           $ref: '#/components/responses/LskyUnauthenticated'
         '403':
           $ref: '#/components/responses/LskyDisabled'
+        '500':
+          $ref: '#/components/responses/LskyServerError'
   /api/v1/strategies:
     get:
       operationId: v1ListStrategies
@@ -1911,6 +1915,8 @@ paths:
           $ref: '#/components/responses/LskyUnauthenticated'
         '403':
           $ref: '#/components/responses/LskyDisabled'
+        '500':
+          $ref: '#/components/responses/LskyServerError'
   /api/v1/upload:
     post:
       operationId: v1Upload
@@ -1958,6 +1964,8 @@ paths:
           $ref: '#/components/responses/LskyDisabled'
         '429':
           $ref: '#/components/responses/LskyThrottled'
+        '500':
+          $ref: '#/components/responses/LskyServerError'
   /api/v1/images:
     get:
       operationId: v1ListImages
@@ -1996,6 +2004,8 @@ paths:
           $ref: '#/components/responses/LskyUnauthenticated'
         '403':
           $ref: '#/components/responses/LskyDisabled'
+        '500':
+          $ref: '#/components/responses/LskyServerError'
   /api/v1/images/{key}:
     delete:
       operationId: v1DeleteImage
@@ -2024,6 +2034,8 @@ paths:
           $ref: '#/components/responses/LskyUnauthenticated'
         '403':
           $ref: '#/components/responses/LskyDisabled'
+        '500':
+          $ref: '#/components/responses/LskyServerError'
   /api/v1/albums:
     get:
       operationId: v1ListAlbums
@@ -2051,6 +2063,8 @@ paths:
           $ref: '#/components/responses/LskyUnauthenticated'
         '403':
           $ref: '#/components/responses/LskyDisabled'
+        '500':
+          $ref: '#/components/responses/LskyServerError'
   /api/v1/albums/{id}:
     delete:
       operationId: v1DeleteAlbum
@@ -2076,6 +2090,8 @@ paths:
           $ref: '#/components/responses/LskyUnauthenticated'
         '403':
           $ref: '#/components/responses/LskyDisabled'
+        '500':
+          $ref: '#/components/responses/LskyServerError'
   /api/v1/profile:
     get:
       operationId: v1GetProfile
@@ -2093,6 +2109,8 @@ paths:
           $ref: '#/components/responses/LskyUnauthenticated'
         '403':
           $ref: '#/components/responses/LskyDisabled'
+        '500':
+          $ref: '#/components/responses/LskyServerError'
   /api/admin/users:
     post:
       operationId: adminCreateUser
@@ -4900,13 +4918,26 @@ components:
           properties:
             data: {$ref: '#/components/schemas/LskyAlbumPage'}
     LskyAlbumPage:
-      allOf:
-        - $ref: '#/components/schemas/LskyImagePage'
-        - type: object
-          properties:
-            data:
-              type: array
-              items: {$ref: '#/components/schemas/LskyAlbumItem'}
+      type: object
+      additionalProperties: false
+      description: Same Laravel paginator shape as LskyImagePage, with album items in data.
+      required: [current_page, data, first_page_url, from, last_page, last_page_url, links, next_page_url, path, per_page, prev_page_url, to, total]
+      properties:
+        current_page: {type: integer, minimum: 1}
+        data:
+          type: array
+          items: {$ref: '#/components/schemas/LskyAlbumItem'}
+        first_page_url: {type: string}
+        from: {type: integer, nullable: true, minimum: 1}
+        last_page: {type: integer, minimum: 1}
+        last_page_url: {type: string}
+        links: {type: array, items: {type: object, additionalProperties: true}}
+        next_page_url: {type: string, nullable: true}
+        path: {type: string, description: Absolute request origin plus the route path.}
+        per_page: {type: integer, enum: [40]}
+        prev_page_url: {type: string, nullable: true}
+        to: {type: integer, nullable: true, minimum: 1}
+        total: {type: integer, minimum: 0}
     LskyAlbumItem:
       type: object
       additionalProperties: false
@@ -5025,6 +5056,16 @@ components:
               - type: object
                 properties:
                   message: {type: string, enum: ["管理员未启用 API"]}
+    LskyServerError:
+      description: Unexpected storage, database or processing failure (or a recovered panic); the Lsky envelope is kept so v1 clients can parse it.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/LskyFailure'
+              - type: object
+                properties:
+                  message: {type: string, enum: ["服务器内部错误", "internal error"]}
     LskyThrottled:
       description: Fixed window exceeded — three token attempts per client address per minute, or the group's upload rate.
       content:

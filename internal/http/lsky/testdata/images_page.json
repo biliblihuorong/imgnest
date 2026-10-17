@@ -25,6 +25,7 @@
           "markdown_with_link": "<string>",
           "thumbnail_url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}_thumbs\\.webp$"
         },
+        "variants": [],
         "human_date": "刚刚",
         "date": "2026-10-04 12:00:00"
       },
@@ -49,6 +50,7 @@
           "markdown_with_link": "<string>",
           "thumbnail_url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}_thumbs\\.webp$"
         },
+        "variants": [],
         "human_date": "刚刚",
         "date": "2026-10-04 12:00:00"
       }

@@ -287,7 +287,7 @@ func NewImageService(ctx context.Context, deps ImageDependencies) (*ImageService
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("construct image service: %w", err)
 	}
-	if deps.Images == nil || deps.Policies == nil || deps.Storages == nil || deps.Users == nil || deps.Tokens == nil || deps.Drivers == nil || deps.Paths == nil || deps.Imaging == nil || deps.Extractor == nil || deps.Scrubber == nil || deps.Cache == nil || deps.Now == nil || deps.MaxFileBytes <= 0 {
+	if deps.Images == nil || deps.Policies == nil || deps.Storages == nil || deps.Users == nil || deps.Tokens == nil || deps.Drivers == nil || deps.Paths == nil || deps.Imaging == nil || deps.Extractor == nil || deps.Scrubber == nil || deps.Cache == nil || deps.Settings == nil || deps.Now == nil || deps.MaxFileBytes <= 0 {
 		return nil, ErrInvalidInput
 	}
 	return &ImageService{deps: deps, operations: make(chan struct{}, 1)}, nil

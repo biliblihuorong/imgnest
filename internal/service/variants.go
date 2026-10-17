@@ -626,6 +626,19 @@ func (s *ImageService) launchBackfill() {
 	}()
 }
 
+// backfillOne generates one image's variants and turns a panic into a
+// failure, so a decoder bug on one corrupt file cannot take the process down
+// from this background goroutine (the HTTP recovery never sees it). A job log
+// left half-written is cleaned by the next startup recovery.
+func (s *ImageService) backfillOne(ctx context.Context, image model.Image) (added bool, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			added, err = false, fmt.Errorf("generate variants for image %d: %w", image.ID, ErrProcessing)
+		}
+	}()
+	return s.generateVariants(ctx, image)
+}
+
 // runBackfill walks idle active images in ID order and saves the cursor
 // after each one, so a pause, crash or restart resumes where it stopped.
 // Images that fail are counted and left without variants.
@@ -652,7 +665,7 @@ func (s *ImageService) runBackfill(ctx context.Context) error {
 			return repo.SaveVariantBackfill(ctx, state)
 		}
 		for _, image := range batch {
-			added, genErr := s.generateVariants(ctx, image)
+			added, genErr := s.backfillOne(ctx, image)
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}

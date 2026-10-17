@@ -20,6 +20,7 @@
       "thumbnail_url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}_thumbs\\.webp$",
       "origin_url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.png$",
       "webp_url": "re:^http://images\\.test/i/1/2026/10/[0-9a-f]{13}\\.webp$"
-    }
+    },
+    "variants": []
   }
 }
