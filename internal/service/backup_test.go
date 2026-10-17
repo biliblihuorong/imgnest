@@ -169,6 +169,10 @@ func TestBackupOpenAndDeleteRejectForeignNames(t *testing.T) {
 
 func TestBackupScheduleRunsWhenDueAndPrunesOnlyAutomaticArchives(t *testing.T) {
 	fixture := newBackupFixture(t)
+	// The schedule compares the clock with archive file times, which the
+	// filesystem stamps from the real clock; a fixed past date would make
+	// every archive look newer than "now" and nothing would ever be due.
+	*fixture.now = time.Now().UTC().Truncate(time.Hour)
 	ctx := t.Context()
 	// Disabled by default.
 	if err := fixture.service.RunScheduled(ctx); err != nil {
