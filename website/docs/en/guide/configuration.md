@@ -49,6 +49,8 @@ These settings cap the resources the server spends on uploads.
 
 One request can carry at most 20 files. These limits are checked before a file is read in full.
 
+A group's per-file limit overrides `server.max_upload_mb` in both directions. Above 20 MB the group editor warns: large files are held in memory in full, and the reverse proxy's body limit must be raised to match. Files beyond 2 GiB skip the EXIF steps; when the rule scrubs, only the WebP is kept so an unscrubbed original is never stored (WebP sources beyond that size are rejected).
+
 ## Database
 
 | Key | Environment variable | Default |
