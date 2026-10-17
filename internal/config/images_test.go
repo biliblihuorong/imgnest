@@ -24,7 +24,13 @@ func TestImageDeploymentSettings(t *testing.T) {
 	if cfg.Server.MaxUploadMB != 10 || cfg.Server.MaxRequestMB != 12 || cfg.Server.MaxPixels != 2000 || cfg.Security.MasterKey != key || cfg.Images.ThumbCache != "cache/thumbs" {
 		t.Fatal("image env ignored")
 	}
-	for _, assignment := range []string{"IMGNEST_SERVER_MAX_UPLOAD_MB=0", "IMGNEST_SERVER_MAX_UPLOAD_MB=21", "IMGNEST_SERVER_MAX_REQUEST_MB=0", "IMGNEST_SERVER_UPLOAD_CONCURRENCY=0", "IMGNEST_SERVER_MAX_PIXELS=0", "IMGNEST_SERVER_PROCESSING_TIMEOUT=0s", "IMGNEST_SECURITY_MASTER_KEY=secret-marker"} {
+	// Neither size has a product ceiling: a request always stretches to one
+	// file of the group's limit, so a small request bound is fine too.
+	cfg, err = Load(t.Context(), "", []string{"IMGNEST_SERVER_MAX_UPLOAD_MB=500", "IMGNEST_SERVER_MAX_REQUEST_MB=8"})
+	if err != nil || cfg.Server.MaxUploadMB != 500 || cfg.Server.MaxRequestMB != 8 {
+		t.Fatalf("large upload settings rejected: %v", err)
+	}
+	for _, assignment := range []string{"IMGNEST_SERVER_MAX_UPLOAD_MB=0", "IMGNEST_SERVER_MAX_UPLOAD_MB=1048577", "IMGNEST_SERVER_MAX_REQUEST_MB=0", "IMGNEST_SERVER_MAX_REQUEST_MB=1048577", "IMGNEST_SERVER_UPLOAD_CONCURRENCY=0", "IMGNEST_SERVER_MAX_PIXELS=0", "IMGNEST_SERVER_PROCESSING_TIMEOUT=0s", "IMGNEST_SECURITY_MASTER_KEY=secret-marker"} {
 		if _, err = Load(t.Context(), "", []string{assignment}); err == nil || strings.Contains(err.Error(), "secret-marker") {
 			t.Fatalf("bad config accepted or leaked: %s", assignment)
 		}

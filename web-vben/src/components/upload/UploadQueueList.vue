@@ -66,7 +66,12 @@ function progressPercent(item: UploadQueueItem): number {
             t("user.upload.itemError", {
               code: item.error.code,
               error: formatApiError(
-                new ApiError(item.error.code, item.error.message, item.error.status),
+                new ApiError(
+                  item.error.code,
+                  item.error.message,
+                  item.error.status,
+                  item.error.data,
+                ),
                 "user.upload.failedFallback",
               ),
             })

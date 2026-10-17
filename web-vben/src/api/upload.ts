@@ -12,22 +12,26 @@
  */
 
 import { formatBytes } from "@/lib/format";
-import { ApiError, getToken, notifyUnauthorized } from "./client";
+import { ApiError, getToken, notifyUnauthorized, request } from "./client";
 import type { components } from "./schema";
 
 export type ImageView = components["schemas"]["ImageView"];
 export type ImageLinks = components["schemas"]["ImageLinks"];
 export type ImageBatchItem = components["schemas"]["ImageBatchItem"];
+export type UploadLimits = components["schemas"]["UploadLimits"];
 
 /**
- * 客户端预检限额，与服务端一致：
- * docs/openapi.yaml /api/upload（"Defaults: 64 MiB total request, at most 20
- * files"）与 deploy/config.example.yaml server.max_upload_mb=20、
- * server.max_request_mb=64。超限直接拒绝，不发请求。
+ * 客户端预检：单次最多选 20 个文件（与 /api/upload 的 max_files 一致）。
+ * 单文件上限按用户组而定、没有固定值，从 GET /api/upload/limits 读取；
+ * 读不到时不在客户端拦，交给服务端判断。每个文件单独一个请求，所以
+ * 没有「合计」上限。超限直接拒绝，不发请求。
  */
 export const MAX_UPLOAD_FILES = 20;
-export const MAX_UPLOAD_FILE_BYTES = 20 * 1024 * 1024; // server.max_upload_mb=20（MiB，1024 进制）
-export const MAX_UPLOAD_TOTAL_BYTES = 64 * 1024 * 1024; // server.max_request_mb=64
+
+/** 当前用户的上传限额（单文件上限按用户组，可大于 20 MiB）。 */
+export function getUploadLimits(): Promise<UploadLimits> {
+  return request<UploadLimits>("/api/upload/limits");
+}
 
 /** 客户端预检结果：不通过时 errors 为可直接展示的中文提示。 */
 export interface PreflightResult {
@@ -35,8 +39,14 @@ export interface PreflightResult {
   errors: string[];
 }
 
-/** 上传前的客户端预检：文件数 / 单文件字节 / 合计字节。 */
-export function preflightUpload(files: readonly File[]): PreflightResult {
+/**
+ * 上传前的客户端预检：文件数 / 单文件字节。maxFileBytes 为 null（限额
+ * 还没读到）时不检查单文件大小。
+ */
+export function preflightUpload(
+  files: readonly File[],
+  maxFileBytes: number | null = null,
+): PreflightResult {
   const errors: string[] = [];
   if (files.length === 0) {
     errors.push("请先选择要上传的文件");
@@ -45,22 +55,13 @@ export function preflightUpload(files: readonly File[]): PreflightResult {
     errors.push(`单次最多上传 ${MAX_UPLOAD_FILES} 个文件，当前选择了 ${files.length} 个`);
   }
   const oversized: string[] = [];
-  let total = 0;
   for (const file of files) {
-    total += file.size;
-    if (file.size > MAX_UPLOAD_FILE_BYTES) {
+    if (maxFileBytes !== null && file.size > maxFileBytes) {
       oversized.push(`「${file.name}」(${formatBytes(file.size)})`);
     }
   }
-  if (oversized.length > 0) {
-    errors.push(
-      `单文件上限 ${formatBytes(MAX_UPLOAD_FILE_BYTES)}，超限文件：${oversized.join("、")}`,
-    );
-  }
-  if (total > MAX_UPLOAD_TOTAL_BYTES) {
-    errors.push(
-      `单次合计上限 ${formatBytes(MAX_UPLOAD_TOTAL_BYTES)}，本次共 ${formatBytes(total)}`,
-    );
+  if (maxFileBytes !== null && oversized.length > 0) {
+    errors.push(`单文件上限 ${formatBytes(maxFileBytes)}，超限文件：${oversized.join("、")}`);
   }
   return { ok: errors.length === 0, errors };
 }
@@ -68,7 +69,15 @@ export function preflightUpload(files: readonly File[]): PreflightResult {
 /** 单个文件的上传结果（对应 openapi 201 data=ImageView 与 207 data=ImageBatchItem[]）。 */
 export type UploadItemResult =
   | { ok: true; filename: string; status: number; image: ImageView }
-  | { ok: false; filename: string; status: number; code: number; message: string };
+  | {
+      ok: false;
+      filename: string;
+      status: number;
+      code: number;
+      message: string;
+      /** 错误外壳的 data（可能带 reason 提示码）。 */
+      data?: unknown;
+    };
 
 export interface UploadImageOptions {
   policyId: number | null;
@@ -164,6 +173,7 @@ async function uploadOne(
       status: apiError.status,
       code: apiError.code,
       message: apiError.message,
+      data: apiError.data,
     };
   }
 }
@@ -275,7 +285,7 @@ function parseUploadResponse(
   const message = typeof envelope.message === "string" ? envelope.message : "未知错误";
   if (code !== 0) {
     notifyUnauthorized(code, token, signal);
-    throw new ApiError(code, message, status);
+    throw new ApiError(code, message, status, envelope.data);
   }
   if (status === 207) {
     // 批量响应：data 为逐文件结果；单文件请求只取第一项

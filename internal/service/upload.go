@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/biliblihuorong/imgnest/internal/exif"
 	"github.com/biliblihuorong/imgnest/internal/imaging"
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/pathtpl"
@@ -99,14 +100,35 @@ func (s *ImageService) PreflightLimits(ctx context.Context, subject TokenSubject
 	return s.groupLimits(group), nil
 }
 
+// metadataSourceLimit is the largest upload the metadata extractor and
+// scrubber read (a variable so tests need not allocate gigabytes).
+var metadataSourceLimit = exif.MaxSourceBytes
+
 // groupLimits derives the request-level read bound and per-minute rate from
-// the group caps; they never depend on the rule a request selects.
+// the group caps; they never depend on the rule a request selects. A group's
+// own per-file limit wins over server.max_upload_mb in both directions: the
+// administrator may allow files of any size and owns the memory cost.
 func (s *ImageService) groupLimits(group model.Group) UploadLimits {
 	cap := s.deps.MaxFileBytes
-	if group.MaxFileBytes > 0 && group.MaxFileBytes < cap {
+	if group.MaxFileBytes > 0 {
 		cap = group.MaxFileBytes
 	}
 	return UploadLimits{MaxFileBytes: cap, PerMinute: group.UploadPerMin}
+}
+
+// UploadLimitsFor returns the authenticated user's per-file limit and
+// upload rate so a client can check files before sending them. Unlike
+// PreflightLimits it answers even when the account is full.
+func (s *ImageService) UploadLimitsFor(ctx context.Context, subject TokenSubject) (UploadLimits, error) {
+	user, err := s.actor(ctx, subject)
+	if err != nil {
+		return UploadLimits{}, err
+	}
+	group, err := s.deps.Policies.UploadGroup(ctx, user.ID)
+	if err != nil {
+		return UploadLimits{}, fmt.Errorf("resolve upload group: %w", err)
+	}
+	return s.groupLimits(group), nil
 }
 
 type uploadObject struct {
@@ -180,7 +202,15 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	// An adopted original stays in the bucket exactly as it is, so it is
 	// neither scrubbed nor replaced by its WebP.
 	adopt := plan.pinned != nil && plan.pinned.adoptVersion != ""
-	metadata, err := s.deps.Extractor.Extract(ctx, input.Data, info)
+	// Metadata parsing and lossless scrubbing stop at exif.MaxSourceBytes,
+	// while a group may allow larger files. Such a file is still stored: it
+	// gets no EXIF record, and under an enabled scrub mode its original,
+	// which cannot be cleaned, is replaced by the metadata-free WebP below.
+	oversized := len(input.Data) > metadataSourceLimit
+	metadata := model.ImageExif{Orientation: max(info.Orientation, 1)}
+	if !oversized {
+		metadata, err = s.deps.Extractor.Extract(ctx, input.Data, info)
+	}
 	if err != nil {
 		// Nothing rewrites an adopted original, so metadata the parser
 		// cannot read is left in it and simply not recorded.
@@ -216,9 +246,18 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 	if mislabeled && !adopt {
 		mode = "webp_only"
 	}
+	keepsOriginal := func() bool { return !adopt && (mode != "webp_only" || info.Format == "webp") }
+	if oversized && keepsOriginal() && policy.ScrubMode != "none" {
+		// A WebP source is its own display copy, and an import must keep
+		// its historic extension, so neither can fall back to a WebP alone.
+		if info.Format == "webp" || plan.pinned != nil {
+			return ImageView{}, errScrubTooLarge
+		}
+		mode = "webp_only"
+	}
 	original := input.Data
 	scrubbed := false
-	if !adopt && (mode != "webp_only" || info.Format == "webp") {
+	if keepsOriginal() && !oversized {
 		original, err = s.deps.Scrubber.Scrub(ctx, input.Data, info.Format, policy.ScrubMode)
 		if err != nil || len(original) == 0 {
 			return ImageView{}, processingFailure(ctx, ProcessingScrub, err)
@@ -244,7 +283,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 		}
 	}
 	if info.Format != "webp" && mode != "none" && len(result.WebP) > 0 && len(s.deps.Display) > 0 {
-		result.WebP, err = s.transformDisplay(ctx, DisplayImage{UserID: plan.userID, GroupID: group.ID, PolicyID: policy.ID, StorageID: backend.ID, Format: info.Format, Quality: policy.WebPQuality, Effort: policy.WebPEffort, Lossless: policy.WebPLossless}, result.WebP)
+		result.WebP, err = s.transformDisplay(ctx, max(s.deps.MaxFileBytes, int64(len(input.Data))), DisplayImage{UserID: plan.userID, GroupID: group.ID, PolicyID: policy.ID, StorageID: backend.ID, Format: info.Format, Quality: policy.WebPQuality, Effort: policy.WebPEffort, Lossless: policy.WebPLossless}, result.WebP)
 		if err != nil {
 			return ImageView{}, err
 		}
@@ -466,7 +505,8 @@ func (s *ImageService) inspect(ctx context.Context, upload UploadInspection, ima
 
 // transformDisplay runs each display transformer and accepts only a WebP with
 // the same pixel size and frame count, so a plugin cannot swap the image.
-func (s *ImageService) transformDisplay(ctx context.Context, image DisplayImage, webp []byte) ([]byte, error) {
+// limit bounds each result; it is never below the upload itself.
+func (s *ImageService) transformDisplay(ctx context.Context, limit int64, image DisplayImage, webp []byte) ([]byte, error) {
 	before, err := s.deps.Imaging.Probe(ctx, webp)
 	if err != nil {
 		return nil, processingError(ctx, err)
@@ -474,7 +514,7 @@ func (s *ImageService) transformDisplay(ctx context.Context, image DisplayImage,
 	image.Width, image.Height, image.Frames = before.Width, before.Height, before.LoadedFrames
 	for _, transformer := range s.deps.Display {
 		out, err := transformer.TransformDisplay(ctx, image, webp)
-		if err != nil || len(out) == 0 || int64(len(out)) > s.deps.MaxFileBytes {
+		if err != nil || len(out) == 0 || int64(len(out)) > limit {
 			return nil, processingError(ctx, err)
 		}
 		after, err := s.deps.Imaging.Probe(ctx, out)

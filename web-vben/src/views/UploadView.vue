@@ -30,7 +30,7 @@ import { listPolicies } from "@/api/policies";
 import type { AlbumView } from "@/api/albums";
 import { listAllAlbums } from "@/api/allAlbums";
 import type { PolicySummary } from "@/api/types";
-import { MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES } from "@/api/upload";
+import { getUploadLimits, MAX_UPLOAD_FILES } from "@/api/upload";
 import { copyText } from "@/lib/clipboard";
 import { formatBytes } from "@/lib/format";
 import { formatApiError } from "@/locales/errors";
@@ -41,6 +41,8 @@ const policies = ref<PolicySummary[] | null>(null);
 const policiesError = ref<unknown>(null);
 const policiesLoading = ref(false);
 const policyId = ref<number | null>(null);
+// 单文件上限按用户组而定；读到之前（或读取失败）不在客户端拦，交给服务端。
+const maxFileBytes = ref<number | null>(null);
 const isPublic = ref(false);
 const albums = ref<AlbumView[]>([]);
 const albumsFailed = ref(false);
@@ -75,11 +77,14 @@ const {
   onFiles,
   startUpload,
   retryItem,
-} = useUploadQueue(() => ({
-  policyId: policyId.value,
-  albumId: albumId.value,
-  isPublic: isPublic.value,
-}));
+} = useUploadQueue(
+  () => ({
+    policyId: policyId.value,
+    albumId: albumId.value,
+    isPublic: isPublic.value,
+  }),
+  () => maxFileBytes.value,
+);
 
 const successItems = computed(() =>
   items.value.filter((item) => item.state === "success" && item.image),
@@ -128,7 +133,16 @@ async function copyAllLinks(): Promise<void> {
 onMounted(() => {
   void loadPolicies();
   void loadAlbums();
+  void loadLimits();
 });
+async function loadLimits() {
+  try {
+    const limits = await getUploadLimits();
+    if (active) maxFileBytes.value = limits.max_file_bytes;
+  } catch {
+    // 读不到就不预检单文件大小，服务端仍会按组上限拒绝。
+  }
+}
 async function loadPolicies() {
   if (policiesLoading.value) return;
   policiesLoading.value = true;
@@ -182,11 +196,12 @@ async function loadAlbums() {
         <UploadDropzone :disabled="uploading" @files="handleFiles" />
         <p class="upload-view__limits">
           {{
-            t("user.upload.limits", {
-              count: MAX_UPLOAD_FILES,
-              fileSize: formatBytes(MAX_UPLOAD_FILE_BYTES),
-              totalSize: formatBytes(MAX_UPLOAD_TOTAL_BYTES),
-            })
+            maxFileBytes === null
+              ? t("user.upload.limitsCount", { count: MAX_UPLOAD_FILES })
+              : t("user.upload.limits", {
+                  count: MAX_UPLOAD_FILES,
+                  fileSize: formatBytes(maxFileBytes),
+                })
           }}
         </p>
 

@@ -116,6 +116,7 @@
       "email_invalid": "The email address is not valid.",
       "display_name_invalid": "The nickname can be at most 64 characters with no control characters.",
       "image_name_invalid": "The name can't be empty, can't contain / or \\, and must be at most 255 bytes.",
+      "scrub_too_large": "This image is too large to scrub its EXIF; ask an administrator to turn off EXIF scrubbing for this rule",
       "storage_denied": "The storage rejected the request; check the access key, secret key and permissions.",
       "storage_bucket": "The bucket doesn't exist, or its name or region is wrong.",
       "storage_busy": "The storage service is busy; try again later.",

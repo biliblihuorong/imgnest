@@ -19,9 +19,9 @@ var ErrImportLinkChanged = errors.New("imported image would change its link")
 // limit.
 var ErrFileTooLarge = errors.New("imported file exceeds the group's file size limit")
 
-// MaxImportFileBytes bounds one imported file. An import follows the owner
-// group's per-file limit instead of server.max_upload_mb, which guards
-// request bodies; a group without a limit is held to this ceiling.
+// MaxImportFileBytes bounds one imported file whose owner group sets no
+// per-file limit. A group's own limit applies as it is, with no ceiling, the
+// same as for uploads; server.max_upload_mb does not apply to imports.
 const MaxImportFileBytes = 100 << 20
 
 // ImportInput is one historic image re-ingested by an operator-run import.
@@ -70,11 +70,15 @@ func (s *ImageService) ImportImage(ctx context.Context, input ImportInput) (Imag
 	now := s.deps.Now().UTC()
 	grant := model.TokenGrant{UserID: user.ID, ExpectedPasswordHash: user.PasswordHash, At: now, Clock: s.deps.Now}
 	upload := UploadInput{Data: input.Data, Filename: input.Filename, IP: input.IP, PolicyID: input.PolicyID, AlbumID: input.AlbumID, IsPublic: input.IsPublic}
-	return s.publish(ctx, upload, UploadLimits{MaxFileBytes: MaxImportFileBytes}, uploadPlan{
+	return s.publish(ctx, upload, UploadLimits{MaxFileBytes: max(MaxImportFileBytes, int64(len(input.Data)))}, uploadPlan{
 		userID: user.ID,
 		policy: func(ctx context.Context, policyID uint64) (model.Policy, model.Storage, model.Group, error) {
 			policy, backend, group, err := s.deps.Policies.UploadPolicy(ctx, user.ID, policyID)
-			if err == nil && group.MaxFileBytes > 0 && int64(len(input.Data)) > group.MaxFileBytes {
+			limit := group.MaxFileBytes
+			if limit <= 0 {
+				limit = MaxImportFileBytes
+			}
+			if err == nil && int64(len(input.Data)) > limit {
 				return policy, backend, group, ErrFileTooLarge
 			}
 			return policy, backend, group, err

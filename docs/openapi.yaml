@@ -762,9 +762,15 @@ paths:
         not be repeated. Unknown fields are rejected. The selected policy is
         checked again before processing. Real image format is detected from
         bytes by the shared image service, not from filenames or Content-Type.
-        Defaults: 64 MiB total request, at most 20 files, two concurrent upload
-        requests, five-minute request deadline. Group and deployment file caps
-        also apply. File-level failures do not roll back successful siblings.
+        Defaults: 64 MiB total request (stretched to fit one file of the
+        caller's per-file limit plus 1 MiB), at most 20 files, two concurrent
+        upload requests, five-minute request deadline. The per-file limit is
+        the group's own, of any size, or server.max_upload_mb for a group
+        without one (see GET /api/upload/limits). EXIF is archived and scrubbed
+        at any file size up to about 2 GiB; past that the file gets no EXIF
+        record, and when the rule scrubs EXIF only its WebP is stored (a WebP
+        source answers 422/50003 with reason scrub_too_large). File-level
+        failures do not roll back successful siblings.
         A single file returns its ImageView with HTTP 201 or a normal error;
         multiple files return HTTP 207 with one result per file, in input order.
       security: [{bearerAuth: []}]
@@ -822,6 +828,27 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         default:
           $ref: '#/components/responses/ImageFailure'
+  /api/upload/limits:
+    get:
+      operationId: getUploadLimits
+      tags: [Images]
+      summary: Read the authenticated user's upload limits
+      description: |
+        The per-file limit /api/upload applies to the caller: the group's own
+        limit, of any size, or server.max_upload_mb when the group sets none.
+        Clients check files against it before sending them. Answers even when
+        the account's capacity is used up.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: The caller's limits.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UploadLimitsEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/images:
     get:
       operationId: listImages
@@ -4081,7 +4108,7 @@ components:
         which form field broke a rule, or why a storage call failed (rejected credentials,
         missing bucket, unreachable endpoint, full disk...). Never carries input values,
         credentials or provider messages. Clients must tolerate codes they do not know.
-      enum: [api_disabled, password_length, username_length, email_invalid, display_name_invalid, image_name_invalid, storage_denied, storage_bucket, storage_busy, storage_clock, storage_quota, storage_unsupported, storage_tls, storage_unreachable, storage_timeout, storage_disk_full, storage_read_only, storage_permission]
+      enum: [api_disabled, password_length, username_length, email_invalid, display_name_invalid, image_name_invalid, storage_denied, storage_bucket, storage_busy, storage_clock, storage_quota, storage_unsupported, storage_tls, storage_unreachable, storage_timeout, storage_disk_full, storage_read_only, storage_permission, scrub_too_large]
     ErrorData:
       type: object
       nullable: true
@@ -4452,6 +4479,31 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/SiteView'
+    UploadLimits:
+      type: object
+      additionalProperties: false
+      required: [max_file_bytes, max_files, upload_per_min]
+      properties:
+        max_file_bytes:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Largest file one upload accepts, in bytes.
+        max_files:
+          type: integer
+          minimum: 1
+          description: Most files one multipart request may carry.
+        upload_per_min:
+          type: integer
+          minimum: 0
+          description: Uploads allowed per minute; zero means unthrottled.
+    UploadLimitsEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/UploadLimits'
     PolicyListEnvelope:
       allOf:
         - $ref: '#/components/schemas/SuccessEnvelope'

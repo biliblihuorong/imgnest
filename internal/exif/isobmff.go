@@ -13,11 +13,11 @@ type isoItem struct {
 }
 
 func isobmffBlocks(data []byte) ([]rawBlock, error) {
-	return isobmffBlocksWithBudget(data, maxSourceBytes)
+	return isobmffBlocksWithBudget(data, maxMetadataBytes)
 }
 
 func isobmffBlocksWithBudget(data []byte, budget int) ([]rawBlock, error) {
-	if budget < 0 || budget > maxSourceBytes {
+	if budget < 0 || budget > maxMetadataBytes {
 		return nil, ErrInvalidMetadata
 	}
 	items := map[uint64]string{}

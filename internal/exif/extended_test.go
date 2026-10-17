@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/biliblihuorong/imgnest/internal/imaging"
@@ -26,8 +27,11 @@ func TestTIFFArchiveModesAndNativePixels(t *testing.T) {
 	if archive.CaptureMode != "full-source-fallback" || !bytes.Equal(archive.Blocks[0].Data, metadataTIFF()) {
 		t.Fatal("private TIFF fallback was not explicit and exact")
 	}
-	if _, err := p.Extract(t.Context(), make([]byte, maxSourceBytes+1), imaging.Info{Format: "tiff"}); err == nil {
-		t.Fatal("metadata archive source cap ignored")
+	// The whole-file fallback stays within the metadata budget: a larger
+	// opaque TIFF is rejected rather than archived in part.
+	large := append(metadataTIFF(), make([]byte, maxMetadataBytes)...)
+	if _, err := p.Extract(t.Context(), large, imaging.Info{Format: "tiff"}); !errors.Is(err, ErrInvalidMetadata) {
+		t.Fatalf("metadata archive budget ignored: %v", err)
 	}
 	imageProc, err := imaging.NewProcessor(t.Context(), 100_000_000, 1)
 	if err != nil {

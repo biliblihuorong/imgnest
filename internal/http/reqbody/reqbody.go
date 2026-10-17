@@ -3,6 +3,7 @@ package reqbody
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"time"
 )
@@ -26,4 +27,17 @@ func Bound(ctx context.Context, w http.ResponseWriter, r *http.Request, limit in
 			_ = controller.SetReadDeadline(time.Time{})
 		}
 	}
+}
+
+// multipartOverhead is the room a request gets beyond one file for its
+// multipart headers, boundaries and small form fields.
+const multipartOverhead = 1 << 20
+
+// Fit returns the request bound for an upload: the configured request limit,
+// stretched when needed so one file of the caller's per-file limit fits.
+func Fit(requestLimit, fileLimit int64) int64 {
+	if fileLimit > math.MaxInt64-multipartOverhead {
+		return math.MaxInt64
+	}
+	return max(requestLimit, fileLimit+multipartOverhead)
 }

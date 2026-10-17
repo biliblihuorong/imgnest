@@ -96,7 +96,7 @@ volumes:
 在同一目录新建 `.env`，按需填写（用 PostgreSQL 时必须填 `POSTGRES_PASSWORD`；这个文件不要提交到 Git）：
 
 ```ini
-IMGNEST_TAG=0.0.8
+IMGNEST_TAG=0.0.9
 IMGNEST_PORT=8080
 # PostgreSQL 必填，生成方式：openssl rand -base64 24
 POSTGRES_PASSWORD=换成一个长随机密码
@@ -148,7 +148,7 @@ docker compose up -d
 ```bash
 git clone https://github.com/biliblihuorong/imgnest
 cd imgnest
-git checkout v0.0.8
+git checkout v0.0.9
 make release   # 先构建前端，再输出 bin/imgnest
 ```
 
@@ -232,7 +232,7 @@ sudo systemctl enable --now imgnest
 
 ## 反向代理
 
-不管哪种方式，正式使用时都建议在前面放 Nginx、Caddy 等反向代理处理 HTTPS，并把代理地址填进 `IMGNEST_SERVER_TRUSTED_PROXIES`，否则记录的上传 IP 都会是代理的地址。上传大小上限由 ImgNest 控制，代理的请求体上限要不小于它（Nginx 的 `client_max_body_size`）。
+不管哪种方式，正式使用时都建议在前面放 Nginx、Caddy 等反向代理处理 HTTPS，并把代理地址填进 `IMGNEST_SERVER_TRUSTED_PROXIES`，否则记录的上传 IP 都会是代理的地址。上传大小上限由 ImgNest 控制，代理的请求体上限要不小于它（Nginx 的 `client_max_body_size`）；如果在用户组里把单文件上限调大了，代理也要跟着调大。大文件在上传、转码、处理 EXIF 时整个放在内存里，要留够服务器内存。
 
 ::: warning 只运行一个实例
 不要对同一份数据同时启动多个 ImgNest，也不要让 Docker 版和二进制版同时连同一个数据库。

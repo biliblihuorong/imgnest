@@ -96,7 +96,7 @@ volumes:
 Create `.env` in the same directory (PostgreSQL needs `POSTGRES_PASSWORD`; never commit this file):
 
 ```ini
-IMGNEST_TAG=0.0.8
+IMGNEST_TAG=0.0.9
 IMGNEST_PORT=8080
 # Required for PostgreSQL; generate with: openssl rand -base64 24
 POSTGRES_PASSWORD=use-a-long-random-password
@@ -148,7 +148,7 @@ You need Git and Docker. Check out the version to deploy and build it in the dev
 ```bash
 git clone https://github.com/biliblihuorong/imgnest
 cd imgnest
-git checkout v0.0.8
+git checkout v0.0.9
 make release   # builds the frontend, then writes bin/imgnest
 ```
 
@@ -232,7 +232,7 @@ Files are named like `{path}_w800_v1.webp`, live in the same storage as the orig
 
 ## Reverse proxy
 
-Either way, put Nginx, Caddy or similar in front for HTTPS and list the proxy in `IMGNEST_SERVER_TRUSTED_PROXIES`, otherwise every upload is recorded with the proxy's IP. ImgNest enforces the upload size limit; keep the proxy's body limit (Nginx `client_max_body_size`) at least as large.
+Either way, put Nginx, Caddy or similar in front for HTTPS and list the proxy in `IMGNEST_SERVER_TRUSTED_PROXIES`, otherwise every upload is recorded with the proxy's IP. ImgNest enforces the upload size limit; keep the proxy's body limit (Nginx `client_max_body_size`) at least as large, and raise it too if you raise a user group's per-file limit. Large files are held in memory in full while they upload, convert and have their EXIF processed, so leave the server enough.
 
 ::: warning Run a single instance
 Never run more than one ImgNest against the same data, and never point the Docker and binary versions at the same database at once.

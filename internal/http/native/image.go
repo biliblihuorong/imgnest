@@ -30,6 +30,7 @@ type ImageOptions struct {
 type ImageService interface {
 	Preflight(context.Context, service.TokenSubject, uint64) (service.UploadLimits, error)
 	PreflightLimits(context.Context, service.TokenSubject) (service.UploadLimits, error)
+	UploadLimitsFor(context.Context, service.TokenSubject) (service.UploadLimits, error)
 	Upload(context.Context, service.TokenSubject, service.UploadInput) (service.ImageView, error)
 	Get(context.Context, service.TokenSubject, uint64) (service.ImageView, error)
 	List(context.Context, service.TokenSubject, service.ImageQuery) (service.ImagePage, error)
@@ -73,6 +74,7 @@ func (h *Handler) RegisterImageRoutes(ctx context.Context, router gin.IRouter, i
 	h.v2Images = image
 	protected := router.Group("/api", h.authenticate)
 	protected.POST("/upload", image.upload)
+	protected.GET("/upload/limits", image.uploadLimits)
 	protected.GET("/policies", image.listPolicies)
 	protected.GET("/images", image.list)
 	protected.GET("/albums/:id/images", image.listAlbumSearch)

@@ -295,9 +295,10 @@ func (s *ImageService) Thumbnail(ctx context.Context, subject TokenSubject, key 
 			_ = cloud.Close()
 			continue
 		}
-		data, readErr := io.ReadAll(io.LimitReader(cloud, s.deps.MaxFileBytes+1))
+		limit := objectReadLimit(s.deps.MaxFileBytes, image)
+		data, readErr := io.ReadAll(io.LimitReader(cloud, limit+1))
 		closeErr := cloud.Close()
-		if readErr != nil || closeErr != nil || int64(len(data)) > s.deps.MaxFileBytes {
+		if readErr != nil || closeErr != nil || int64(len(data)) > limit {
 			return PublicObject{}, ErrStorage
 		}
 		if candidate != name {
@@ -333,6 +334,13 @@ func (s *ImageService) cachePreview(ctx context.Context, image model.Image, name
 		return
 	}
 	_ = s.deps.Cache.Put(ctx, image.StorageID, name, data)
+}
+
+// objectReadLimit bounds reading one stored object of image back into
+// memory: the default per-file limit, or the image's own recorded sizes when
+// its group allowed a larger file.
+func objectReadLimit(base int64, image model.Image) int64 {
+	return max(base, image.Size, image.WebPSize, image.ThumbBytes)
 }
 
 func boundedPreview(body io.ReadCloser, limit int64) (PublicObject, error) {

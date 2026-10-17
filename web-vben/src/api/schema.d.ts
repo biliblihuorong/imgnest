@@ -537,13 +537,42 @@ export interface paths {
          *     not be repeated. Unknown fields are rejected. The selected policy is
          *     checked again before processing. Real image format is detected from
          *     bytes by the shared image service, not from filenames or Content-Type.
-         *     Defaults: 64 MiB total request, at most 20 files, two concurrent upload
-         *     requests, five-minute request deadline. Group and deployment file caps
-         *     also apply. File-level failures do not roll back successful siblings.
+         *     Defaults: 64 MiB total request (stretched to fit one file of the
+         *     caller's per-file limit plus 1 MiB), at most 20 files, two concurrent
+         *     upload requests, five-minute request deadline. The per-file limit is
+         *     the group's own, of any size, or server.max_upload_mb for a group
+         *     without one (see GET /api/upload/limits). EXIF is archived and scrubbed
+         *     at any file size up to about 2 GiB; past that the file gets no EXIF
+         *     record, and when the rule scrubs EXIF only its WebP is stored (a WebP
+         *     source answers 422/50003 with reason scrub_too_large). File-level
+         *     failures do not roll back successful siblings.
          *     A single file returns its ImageView with HTTP 201 or a normal error;
          *     multiple files return HTTP 207 with one result per file, in input order.
          */
         post: operations["uploadImages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/upload/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the authenticated user's upload limits
+         * @description The per-file limit /api/upload applies to the caller: the group's own
+         *     limit, of any size, or server.max_upload_mb when the group sets none.
+         *     Clients check files against it before sending them. Answers even when
+         *     the account's capacity is used up.
+         */
+        get: operations["getUploadLimits"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2788,7 +2817,7 @@ export interface components {
          * @description Fixed hint code that narrows a generic error, so a client can say what to fix: which form field broke a rule, or why a storage call failed (rejected credentials, missing bucket, unreachable endpoint, full disk...). Never carries input values, credentials or provider messages. Clients must tolerate codes they do not know.
          * @enum {string}
          */
-        ErrorReason: "api_disabled" | "password_length" | "username_length" | "email_invalid" | "display_name_invalid" | "image_name_invalid" | "storage_denied" | "storage_bucket" | "storage_busy" | "storage_clock" | "storage_quota" | "storage_unsupported" | "storage_tls" | "storage_unreachable" | "storage_timeout" | "storage_disk_full" | "storage_read_only" | "storage_permission";
+        ErrorReason: "api_disabled" | "password_length" | "username_length" | "email_invalid" | "display_name_invalid" | "image_name_invalid" | "storage_denied" | "storage_bucket" | "storage_busy" | "storage_clock" | "storage_quota" | "storage_unsupported" | "storage_tls" | "storage_unreachable" | "storage_timeout" | "storage_disk_full" | "storage_read_only" | "storage_permission" | "scrub_too_large";
         /** @description null, or a reason hint for the error. */
         ErrorData: {
             reason?: components["schemas"]["ErrorReason"];
@@ -3031,6 +3060,20 @@ export interface components {
         };
         SiteEnvelope: components["schemas"]["SuccessEnvelope"] & {
             data?: components["schemas"]["SiteView"];
+        };
+        UploadLimits: {
+            /**
+             * Format: int64
+             * @description Largest file one upload accepts, in bytes.
+             */
+            max_file_bytes: number;
+            /** @description Most files one multipart request may carry. */
+            max_files: number;
+            /** @description Uploads allowed per minute; zero means unthrottled. */
+            upload_per_min: number;
+        };
+        UploadLimitsEnvelope: components["schemas"]["SuccessEnvelope"] & {
+            data?: components["schemas"]["UploadLimits"];
         };
         PolicyListEnvelope: components["schemas"]["SuccessEnvelope"] & {
             data?: components["schemas"]["PolicySummary"][];
@@ -4274,6 +4317,28 @@ export interface operations {
                 };
             };
             default: components["responses"]["ImageFailure"];
+        };
+    };
+    getUploadLimits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's limits. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadLimitsEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
         };
     };
     listImages: {

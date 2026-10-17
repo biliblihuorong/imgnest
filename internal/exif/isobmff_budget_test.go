@@ -228,7 +228,7 @@ func TestISOBMFFArchiveBudgetValidation(t *testing.T) {
 	}{
 		{name: "empty metadata accepts zero budget", budget: 0},
 		{name: "negative budget", budget: -1, bad: true},
-		{name: "above production budget", budget: maxSourceBytes + 1, bad: true},
+		{name: "above production budget", budget: maxMetadataBytes + 1, bad: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			blocks, err := isobmffBlocksWithBudget(data, tc.budget)

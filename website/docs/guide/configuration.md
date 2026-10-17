@@ -41,8 +41,8 @@ imgnest serve --config config.yaml
 
 | 配置项 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `server.max_upload_mb` | `IMGNEST_SERVER_MAX_UPLOAD_MB` | `20` | 单个文件的大小上限，范围 1 到 20 |
-| `server.max_request_mb` | `IMGNEST_SERVER_MAX_REQUEST_MB` | `64` | 整个请求的大小上限，最大 256 |
+| `server.max_upload_mb` | `IMGNEST_SERVER_MAX_UPLOAD_MB` | `20` | 没设单文件上限的用户组用的单文件上限。组自己的上限在后台「用户组」里设，可以更大 |
+| `server.max_request_mb` | `IMGNEST_SERVER_MAX_REQUEST_MB` | `64` | 一次请求（可含多个文件）的大小上限；只传一个文件时会自动放宽到装得下组的单文件上限 |
 | `server.upload_concurrency` | `IMGNEST_SERVER_UPLOAD_CONCURRENCY` | `2` | 同时处理的上传请求数 |
 | `server.processing_timeout` | `IMGNEST_SERVER_PROCESSING_TIMEOUT` | `5m` | 单次上传的处理时限，最长 30 分钟 |
 | `server.max_pixels` | `IMGNEST_SERVER_MAX_PIXELS` | `100000000` | 像素总量上限，动图按全部帧计算 |

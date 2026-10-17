@@ -44,6 +44,8 @@ const message = useMessage();
 const isMobile = useMediaQuery("(max-width: 640px)");
 
 const BYTES_PER_MB = 1024 * 1024;
+/** 组单文件上限超过这个大小（MB）时提醒内存风险：大文件全程放在内存里处理。 */
+const METADATA_LIMIT_MB = 20;
 
 const EXT_OPTIONS = ["jpg", "png", "gif", "webp", "bmp", "tif", "tiff", "heic", "avif"].map(
   (ext) => ({ label: ext, value: ext }),
@@ -274,7 +276,10 @@ const columns = computed<DataTableColumns<GroupView>>(() => [
     title: t("admin.groups.maxFile"),
     key: "max_file_bytes",
     width: 110,
-    render: (row) => formatBytesOrUnlimited(row.max_file_bytes, t),
+    render: (row) =>
+      row.max_file_bytes > 0
+        ? formatBytesOrUnlimited(row.max_file_bytes, t)
+        : t("admin.groups.maxFileServerDefault"),
   },
   {
     title: t("admin.groups.uploadRate"),
@@ -416,6 +421,15 @@ const columns = computed<DataTableColumns<GroupView>>(() => [
               :disabled="saving"
             />
             <p class="field-hint">{{ t("admin.groups.maxFileHint") }}</p>
+            <NAlert
+              v-if="(form.max_file_mb ?? 0) > METADATA_LIMIT_MB"
+              class="field-alert"
+              type="warning"
+              :show-icon="false"
+              data-testid="max-file-warning"
+            >
+              {{ t("admin.groups.maxFileLargeWarning", { limit: METADATA_LIMIT_MB }) }}
+            </NAlert>
           </div>
         </NFormItem>
         <NFormItem :label="t('admin.groups.extensions')" path="allowed_exts">
@@ -512,6 +526,10 @@ const columns = computed<DataTableColumns<GroupView>>(() => [
 
 .field-control {
   width: 100%;
+}
+
+.field-alert {
+  margin-top: 8px;
 }
 
 .field-hint {

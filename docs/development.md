@@ -59,8 +59,8 @@ PicGo（picgo-plugin-lankong）或 uPic 手工联调步骤：
 | database.max_open/max_idle | IMGNEST_DATABASE_MAX_OPEN/MAX_IDLE | SQLite 1/1，PG 25/10 |
 | database.max_lifetime | IMGNEST_DATABASE_MAX_LIFETIME | SQLite 0，PG 5m |
 | database.busy_timeout | IMGNEST_DATABASE_BUSY_TIMEOUT | 5s |
-| server.max_upload_mb | IMGNEST_SERVER_MAX_UPLOAD_MB | 20；1–20，单个源文件 |
-| server.max_request_mb | IMGNEST_SERVER_MAX_REQUEST_MB | 64；含 multipart 尾部，最多256 |
+| server.max_upload_mb | IMGNEST_SERVER_MAX_UPLOAD_MB | 20；没设单文件上限的组用它，组自己的上限可以更大 |
+| server.max_request_mb | IMGNEST_SERVER_MAX_REQUEST_MB | 64；整请求（含 multipart 尾部），会自动放宽到装得下一个组上限大小的文件 |
 | server.upload_concurrency | IMGNEST_SERVER_UPLOAD_CONCURRENCY | 2；有界请求内存 |
 | server.processing_timeout | IMGNEST_SERVER_PROCESSING_TIMEOUT | 5m；最多30m |
 | server.max_pixels | IMGNEST_SERVER_MAX_PIXELS | 100000000；含实际加载动画帧 |
@@ -135,7 +135,7 @@ Remove-Variable taskPlainPassword, taskPassword
 插件额外实现下面的接口，就会被接入对应位置；都不实现时，插件只影响自己的路由。原版构建没有插件，这些位置全部为空操作。
 
 - `EventSubscriber`：`HandleEvent(ctx, event)` 接收已提交的变化：`image.uploaded`、`image.trashed`、`image.restored`、`image.purged`、`user.registered`。每个订阅者有自己的队列（256）和 goroutine，慢的只拖慢自己；队列满时丢弃并记日志，`serve` 退出时最多等 10 秒把队列发完。事件里不带 EXIF、凭据和邮箱；图片事件带当时的原图、WebP、缩略图公开 URL。
-- `DisplayTransformer`：`TransformDisplay(ctx, image, webp)` 可以改写上传时**单独编码出来的展示 WebP**（例如加水印）。原图、缩略图、本身就是 WebP 的上传和 `webp_mode=none` 的规则都不会经过它，所以原图永远不会被重新编码。返回值必须是尺寸和帧数不变的 WebP，且不超过单文件上限；出错或不合规都会拒绝这次上传（走正常的补偿流程，不会留下对象）。多个插件按注册顺序依次执行。
+- `DisplayTransformer`：`TransformDisplay(ctx, image, webp)` 可以改写上传时**单独编码出来的展示 WebP**（例如加水印）。原图、缩略图、本身就是 WebP 的上传和 `webp_mode=none` 的规则都不会经过它，所以原图永远不会被重新编码。返回值必须是尺寸和帧数不变的 WebP，且不超过单文件上限（上传文件比它大时以上传文件大小为准）；出错或不合规都会拒绝这次上传（走正常的补偿流程，不会留下对象）。多个插件按注册顺序依次执行。
 - `AccessGuard`：`GuardAccess(c, kind)` 在服务端自己出的公开图片路由之前运行：`object`（`/i/...`，只有本机存储）、`thumbnail`（`/t/...`）、`random`（`/random/...`，对所有存储有效，因为跳转前会经过服务端）。返回 `false` 表示插件已经写好响应（例如 403）。S3 直链不经过服务端，这里管不到；前面有 CDN 缓存时，命中缓存的请求也不会到这里。
 - `UploadInspector`：`InspectUpload(ctx, upload, image)` 在上传解码、处理完之后、写入任何对象和占用容量之前运行，可以拒绝这次上传（例如送内容审核）。`image` 是展示版：服务端编码出的 WebP；没有单独编码 WebP 时是脱敏后的原图。它在 `DisplayTransformer` 之前运行，看到的是没加水印的图。返回 `extension.ErrUploadRejected` 时上传失败，原生接口 422/30013，蓝空 v1 返回「图片未通过内容审核」；返回 `extension.ErrReviewUnavailable` 时 503/50005「内容审核暂不可用」；返回 `extension.ErrUploadLimitReached` 时 429/30015「已达到上传次数上限」；其他错误按处理失败（50003）。多个插件按注册顺序执行，第一个拒绝就停止。
 - `TrashPolicy`：`TrashDays(ctx, owner)` 在图片移入回收站时询问这张图的保留天数（`owner` 带所有者的用户 ID 和用户组 ID），返回 `ok=false` 使用站点设置。第一个返回 `ok=true` 的插件生效；天数限制在 0 到 36500，0 表示立即彻底删除。游客上传的图片不询问。天数在移入回收站时确定，之后改设置不影响已在回收站里的图片。对象移动失败时，重试沿用已记录的保留期限，不重读站点或插件策略。

@@ -15,6 +15,6 @@ export interface UploadQueueItem {
   state: UploadQueueState;
   loaded: number;
   total: number;
-  error: { code: number; message: string; status: number } | null;
+  error: { code: number; message: string; status: number; data?: unknown } | null;
   image: ImageView | null;
 }

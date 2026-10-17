@@ -414,9 +414,9 @@ func TestRealMinIOAdoptUnreadableMetadata(t *testing.T) {
 	}
 }
 
-// An import follows the owner group's per-file limit, not the 20 MiB
-// request cap: an unlimited group adopts a larger original, a limited one
-// refuses it.
+// An import follows the owner group's per-file limit, not
+// server.max_upload_mb: an unlimited group adopts a larger original, a
+// limited one refuses it.
 func TestRealMinIOAdoptFollowsGroupFileLimit(t *testing.T) {
 	client, bucket, _, path := minioPipeline(t, `{"skip_if_larger":false}`, "")
 	ctx := t.Context()
