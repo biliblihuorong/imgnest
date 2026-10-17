@@ -43,5 +43,7 @@ Not done yet: migrating directly from a MySQL Lsky Pro database (convert it to P
 ## Next
 
 - To run it, read [Getting started](./getting-started).
-- To connect PicGo, read [Lsky API and PicGo](./lsky-api).
+- To connect PicGo, read [Lsky API and PicGo](./lsky-api); for your own scripts, read [Native API v2](./api-v2).
 - To learn where images are stored and how they are named, read [Storage and policies](./storage-and-policies).
+- To find images fast, read [Search syntax](./search); for a random blog background, read [Random image links](./random-links).
+- For scheduled backups and restores, read [Backup and restore](./backup).
