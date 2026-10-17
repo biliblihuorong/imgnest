@@ -1,0 +1,13 @@
+{
+  "title": "Home",
+  "nav": "Site navigation",
+  "subtitle": "Drop an image in, get a link out",
+  "gallery": "Gallery",
+  "console": "Open console",
+  "guestNote": "Guest uploads never appear in the public gallery and cannot be deleted by you; sign up to manage your images.",
+  "guestClosed": "Guest uploads are closed on this site. Sign in to upload images.",
+  "signedIn": "You are signed in. Upload and manage images in the console.",
+  "signInToUpload": "Sign in to upload",
+  "latest": "Latest public images",
+  "moreGallery": "See more"
+}

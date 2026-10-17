@@ -111,6 +111,21 @@ func (r *SettingsRepository) GalleryEnabled(ctx context.Context) (bool, error) {
 	return *enabled, nil
 }
 
+// GuestUploadOpen reports whether anonymous uploads currently work: the
+// switch is on and a guest group exists.
+func (r *SettingsRepository) GuestUploadOpen(ctx context.Context) (bool, error) {
+	value, found, err := settingValue(ctx, r.db, "guest_upload_enabled")
+	if err != nil || !found {
+		return false, err
+	}
+	enabled, err := decodeBool(value, false)
+	if err != nil || !enabled {
+		return false, err
+	}
+	_, ok, err := resolveGuestGroup(ctx, r.db)
+	return ok, err
+}
+
 // GalleryPublicAlbumsOnly reports whether the gallery shows only images in
 // public albums. An absent key reads as false.
 func (r *SettingsRepository) GalleryPublicAlbumsOnly(ctx context.Context) (bool, error) {

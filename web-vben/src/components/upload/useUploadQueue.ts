@@ -12,7 +12,13 @@ import type { UploadQueueItem } from "./types";
 
 /** Local queue state; all writes remain in the API transport. */
 export function useUploadQueue(
-  options: () => { policyId: number | null; albumId: number | null; isPublic: boolean },
+  /** guest=true 时走游客上传（公开图床页），不需要选择规则。 */
+  options: () => {
+    policyId: number | null;
+    albumId: number | null;
+    isPublic: boolean;
+    guest?: boolean;
+  },
   /** 当前用户的单文件上限（字节）；null = 还没读到，不在客户端拦。 */
   maxFileBytes: () => number | null = () => null,
 ) {
@@ -39,11 +45,9 @@ export function useUploadQueue(
     controller?.abort();
     window.removeEventListener("imgnest:session-cleared", endSession);
   });
+  const hasRule = () => options().policyId !== null || options().guest === true;
   const canUpload = computed(
-    () =>
-      options().policyId !== null &&
-      !uploading.value &&
-      items.value.some((item) => item.state === "queued"),
+    () => hasRule() && !uploading.value && items.value.some((item) => item.state === "queued"),
   );
   const preflightErrors = computed(() => {
     if (ignoredWhileUploading.value) return [t("user.upload.busyIgnored")];
@@ -115,7 +119,7 @@ export function useUploadQueue(
   }
   async function runUpload(targets: UploadQueueItem[]) {
     const settings = options();
-    if (uploading.value || settings.policyId === null || !targets.length || !active) return;
+    if (uploading.value || !hasRule() || !targets.length || !active) return;
     if (
       !preflightUpload(
         targets.map((item) => item.file),

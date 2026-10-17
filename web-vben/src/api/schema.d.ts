@@ -579,6 +579,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guest/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload images anonymously from the public page
+         * @description Open only while guest uploads are on and a guest group exists (see
+         *     GET /api/site guest_upload); otherwise 401/20001. Same multipart body,
+         *     limits, batch rules and responses as POST /api/upload, governed by the
+         *     guest group. Guests cannot use albums (403/20003), is_public is
+         *     ignored (guest uploads never appear in the gallery), and the guest
+         *     group's per-minute allowance is counted per client address and shared
+         *     with the Lsky v1 guest upload. No bearer token is read.
+         */
+        post: operations["guestUploadImages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guest/upload/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the guest group's upload limits */
+        get: operations["getGuestUploadLimits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/images": {
         parameters: {
             query?: never;
@@ -3149,6 +3192,8 @@ export interface components {
             email_verification: boolean;
             /** @description A forgotten password can be reset by email; true while SMTP works. */
             password_reset: boolean;
+            /** @description Visitors can upload from the public page without an account (POST /api/guest/upload); true while guest uploads are on and a guest group exists. */
+            guest_upload: boolean;
             /** @description Extra sign-in options contributed by server extensions; empty on a stock build. */
             login_providers: components["schemas"]["LoginProvider"][];
         };
@@ -3369,8 +3414,25 @@ export interface components {
         LskyAlbumPageEnvelope: components["schemas"]["LskyEnvelope"] & {
             data?: components["schemas"]["LskyAlbumPage"];
         };
-        LskyAlbumPage: components["schemas"]["LskyImagePage"] & {
-            data?: components["schemas"]["LskyAlbumItem"][];
+        /** @description Same Laravel paginator shape as LskyImagePage, with album items in data. */
+        LskyAlbumPage: {
+            current_page: number;
+            data: components["schemas"]["LskyAlbumItem"][];
+            first_page_url: string;
+            from: number | null;
+            last_page: number;
+            last_page_url: string;
+            links: {
+                [key: string]: unknown;
+            }[];
+            next_page_url: string | null;
+            /** @description Absolute request origin plus the route path. */
+            path: string;
+            /** @enum {integer} */
+            per_page: 40;
+            prev_page_url: string | null;
+            to: number | null;
+            total: number;
         };
         LskyAlbumItem: {
             id: components["schemas"]["ID"];
@@ -3540,6 +3602,18 @@ export interface components {
                 "application/json": components["schemas"]["LskyFailure"] & {
                     /** @enum {string} */
                     message?: "管理员未启用 API";
+                };
+            };
+        };
+        /** @description Unexpected storage, database or processing failure (or a recovered panic); the Lsky envelope is kept so v1 clients can parse it. */
+        LskyServerError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["LskyFailure"] & {
+                    /** @enum {string} */
+                    message?: "服务器内部错误" | "internal error";
                 };
             };
         };
@@ -4475,6 +4549,67 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The caller's limits. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadLimitsEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    guestUploadImages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    file?: string[];
+                    "files[]"?: string[];
+                    policy_id?: components["schemas"]["ID"];
+                } | unknown | unknown;
+            };
+        };
+        responses: {
+            /** @description One image committed. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageEnvelope"];
+                };
+            };
+            /** @description Per-file results; inspect every item's status and code. */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageBatchEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            default: components["responses"]["ImageFailure"];
+        };
+    };
+    getGuestUploadLimits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The guest group's limits. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5689,6 +5824,7 @@ export interface operations {
             };
             403: components["responses"]["LskyDisabled"];
             429: components["responses"]["LskyThrottled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1RevokeTokens: {
@@ -5711,6 +5847,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1ListStrategies: {
@@ -5733,6 +5870,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1Upload: {
@@ -5775,6 +5913,7 @@ export interface operations {
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
             429: components["responses"]["LskyThrottled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1ListImages: {
@@ -5803,6 +5942,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1DeleteImage: {
@@ -5827,6 +5967,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1ListAlbums: {
@@ -5853,6 +5994,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1DeleteAlbum: {
@@ -5877,6 +6019,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1GetProfile: {
@@ -5899,6 +6042,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     adminListUsers: {

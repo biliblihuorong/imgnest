@@ -63,10 +63,10 @@ func TestSiteViewExposesOnlyPublicFields(t *testing.T) {
 			if err := json.Unmarshal(raw, &fields); err != nil {
 				t.Fatal(err)
 			}
-			if len(fields) != 5 {
+			if len(fields) != 6 {
 				t.Fatalf("site view exposes %d fields: %s", len(fields), raw)
 			}
-			for _, key := range []string{"site_name", "register_enabled", "gallery_enabled", "email_verification", "password_reset"} {
+			for _, key := range []string{"site_name", "register_enabled", "gallery_enabled", "email_verification", "password_reset", "guest_upload"} {
 				if _, ok := fields[key]; !ok {
 					t.Fatalf("site view lacks %s: %s", key, raw)
 				}

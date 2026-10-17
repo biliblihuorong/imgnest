@@ -65,6 +65,7 @@ async function mountLoginView(options: MountOptions = {}) {
     gallery_enabled: true,
     email_verification: false,
     password_reset: options.passwordReset ?? false,
+    guest_upload: false,
     login_providers: options.loginProviders ?? [],
   });
 

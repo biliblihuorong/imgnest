@@ -41,3 +41,31 @@ func TestTrashDaysSettings(t *testing.T) {
 		}
 	})
 }
+
+func TestGuestUploadOpenNeedsSwitchAndGroup(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		_, settings := repositories(t, db)
+		ctx := t.Context()
+		if open, err := settings.GuestUploadOpen(ctx); err != nil || open {
+			t.Fatalf("default = %v, %v; want closed", open, err)
+		}
+		if err := db.WithContext(ctx).Exec("UPDATE settings SET value = 'true' WHERE key = 'guest_upload_enabled'").Error; err != nil {
+			t.Fatal(err)
+		}
+		var guests int64
+		if err := db.WithContext(ctx).Table("groups").Where("is_guest = ?", true).Count(&guests).Error; err != nil {
+			t.Fatal(err)
+		}
+		if guests == 0 {
+			if open, err := settings.GuestUploadOpen(ctx); err != nil || open {
+				t.Fatalf("switch on without a guest group = %v, %v; want closed", open, err)
+			}
+			if err := db.WithContext(ctx).Create(&model.Group{Name: "Guests", IsGuest: true, AllowedExts: []string{"png"}}).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
+		if open, err := settings.GuestUploadOpen(ctx); err != nil || !open {
+			t.Fatalf("switch on with a guest group = %v, %v; want open", open, err)
+		}
+	})
+}

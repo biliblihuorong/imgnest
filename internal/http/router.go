@@ -41,6 +41,9 @@ type Dependencies struct {
 	RandomLinks native.RandomLinks
 	// Lsky serves the Lsky-compatible /api/v1 routes when configured.
 	Lsky *lsky.Handler
+	// Guest opens the public page's anonymous uploads when Images also
+	// serves guests; nil leaves only the v1 guest upload.
+	Guest native.GuestState
 	// Admin serves the /api/admin management routes when configured.
 	Admin native.AdminService
 	// AdminImages is the site-wide image portion of the management console.
@@ -154,6 +157,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.Images != nil {
 		if err := handler.RegisterImageRoutes(ctx, router, deps.Images, deps.ImageOptions); err != nil {
 			return nil, fmt.Errorf("register image routes: %w", err)
+		}
+	}
+	if guests, ok := deps.Images.(native.GuestImages); ok && deps.Guest != nil {
+		if err := handler.RegisterGuestUploadRoutes(ctx, router, guests, deps.Guest); err != nil {
+			return nil, fmt.Errorf("register guest upload routes: %w", err)
 		}
 	}
 	if deps.Variants != nil {
