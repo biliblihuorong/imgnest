@@ -46,7 +46,7 @@ func TestTokenPersistenceOwnershipAndTouch(t *testing.T) {
 			t.Fatal("token nullable dates changed")
 		}
 		at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
-		if err := tokens.TouchToken(t.Context(), created.ID, at); err != nil {
+		if err := tokens.TouchToken(t.Context(), model.TokenUse{TokenID: created.ID, At: at}); err != nil {
 			t.Fatal(err)
 		}
 		found, err = tokens.FindToken(t.Context(), created.ID)
@@ -85,7 +85,7 @@ func TestOutOfRangeIDsAreAbsent(t *testing.T) {
 		if _, err := tokens.FindToken(t.Context(), math.MaxUint64); !errors.Is(err, model.ErrNotFound) {
 			t.Errorf("out-of-range token lookup error=%v, want ErrNotFound", err)
 		}
-		if err := tokens.TouchToken(t.Context(), math.MaxUint64, time.Now()); !errors.Is(err, model.ErrNotFound) {
+		if err := tokens.TouchToken(t.Context(), model.TokenUse{TokenID: math.MaxUint64, At: time.Now()}); !errors.Is(err, model.ErrNotFound) {
 			t.Errorf("out-of-range token touch error=%v, want ErrNotFound", err)
 		}
 		if err := tokens.RevokeToken(t.Context(), 1, math.MaxUint64); !errors.Is(err, model.ErrForbidden) {

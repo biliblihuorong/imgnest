@@ -7,6 +7,7 @@ import { fetchDashboardMetric } from "@/api/dashboard";
 import { useAuthStore } from "@/stores/auth";
 import DashboardView from "./DashboardView.vue";
 vi.mock("@/api/dashboard", () => ({ fetchDashboardMetric: vi.fn() }));
+vi.mock("@/api/activity", () => ({ fetchMyActivity: vi.fn(() => new Promise(() => {})) }));
 const fetchMetric = vi.mocked(fetchDashboardMetric);
 enableAutoUnmount(afterEach);
 const user = {

@@ -17,6 +17,7 @@ import { ApiError, TOKEN_STORAGE_KEY } from "@/api/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as adminApi from "@/api/admin";
 import type { AdminUserPage, AdminUserView, GroupView } from "@/api/admin";
+import * as activityApi from "@/api/activity";
 import UsersView from "./UsersView.vue";
 
 vi.mock("@/api/admin", () => ({
@@ -26,6 +27,8 @@ vi.mock("@/api/admin", () => ({
   resetUserPassword: vi.fn(),
   listGroups: vi.fn(),
 }));
+
+vi.mock("@/api/activity", () => ({ fetchUserActivity: vi.fn() }));
 
 const adminApiMock = vi.mocked(adminApi);
 const { replaceRoute } = vi.hoisted(() => ({ replaceRoute: vi.fn() }));
@@ -121,6 +124,29 @@ beforeEach(() => {
 });
 
 describe("UsersView", () => {
+  it("点击用户打开详情抽屉并加载该用户的活动", async () => {
+    vi.mocked(activityApi).fetchUserActivity.mockResolvedValue({
+      last_seen_at: null,
+      last_login: null,
+      logins: [],
+      active_sessions: 0,
+      tokens: [],
+      api_usage: [],
+      api_requests: 7,
+    });
+    const wrapper = mountView();
+    await flushPromises();
+    expect(wrapper.text()).toContain("最近在线");
+    const detail = wrapper
+      .findAll("button")
+      .find((button) => button.attributes("aria-label") === "查看 bob 的详情");
+    await detail!.trigger("click");
+    await flushPromises();
+    expect(activityApi.fetchUserActivity).toHaveBeenCalledWith(2);
+    expect(document.body.textContent).toContain("bob 的详情");
+    expect(document.body.textContent).toContain("bob@example.com");
+  });
+
   it("releases pending feedback timers before its test host is unmounted", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {

@@ -57,7 +57,9 @@
     "generatePassword": "随机生成",
     "resetPasswordConfirm": "确定给 {name} 设置这个新密码吗？该用户会在所有设备上退出登录。",
     "resetPasswordHint": "设置后请把新密码转交给用户；用户的所有登录和 API Token 会立即失效。",
-    "passwordReset": "已重置 {name} 的密码"
+    "passwordReset": "已重置 {name} 的密码",
+    "lastSeen": "最近在线",
+    "detailLabel": "查看 {name} 的详情"
   },
   "groups": {
     "title": "用户组管理",
@@ -272,6 +274,10 @@
       "backup": {
         "title": "备份/导出",
         "description": "数据库与配置备份、下载、定时备份，以及从蓝空迁移。"
+      },
+      "about": {
+        "title": "关于",
+        "description": "当前版本、更新与项目链接。"
       }
     },
     "emailVerification": "注册邮箱验证",
@@ -314,7 +320,43 @@
         "auth": "用户名或密码（授权码）被拒绝。",
         "rejected": "服务器拒收了这封邮件，请检查发件地址是否与账号一致。"
       }
-    }
+    },
+    "about": {
+      "versionTitle": "当前版本",
+      "loadError": "无法读取版本信息",
+      "updateTag": "有新版本",
+      "upToDate": "已是最新",
+      "updateTitle": "v{version} 已发布",
+      "updateBody": "发布于 {date}。升级前先在「备份/导出」里做一次备份，再按部署文档更新镜像。",
+      "releaseNotes": "查看更新说明",
+      "latest": "最新发布",
+      "checkedAt": "上次检查",
+      "checkNow": "检查更新",
+      "checkFailed": "最近一次检查没能连上 GitHub，显示的是上次成功检查的结果。",
+      "checkDisabled": "已关闭",
+      "checkDisabledHint": "部署配置里关闭了更新检查（updates.check: false），服务器不会访问 GitHub。",
+      "linksTitle": "项目",
+      "license": "ImgNest 是开源项目，欢迎在 GitHub 上提问题和贡献代码。",
+      "links": {
+        "repository": {
+          "title": "GitHub 仓库",
+          "description": "源代码与 Star"
+        },
+        "docs": {
+          "title": "使用文档",
+          "description": "部署、配置与升级指南"
+        },
+        "releases": {
+          "title": "版本发布",
+          "description": "每个版本的更新说明与镜像"
+        },
+        "issues": {
+          "title": "问题反馈",
+          "description": "报告问题或提出建议"
+        }
+      }
+    },
+    "updateDot": "有新版本可用"
   },
   "images": {
     "title": "全站图片",

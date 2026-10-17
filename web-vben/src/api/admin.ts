@@ -30,6 +30,8 @@ export interface AdminUserView {
   /** 已用容量（字节）。 */
   used_bytes: number;
   created_at: string;
+  /** 网页会话最近一次活跃的时间；从未记录时为 null（旧服务端不返回）。 */
+  last_seen_at?: string | null;
   avatar_provider: AvatarProvider;
   avatar_url: string | null;
   avatar_config_version: number;

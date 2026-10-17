@@ -2202,6 +2202,83 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorEnvelope'}
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/account/activity:
+    get:
+      operationId: getAccountActivity
+      tags: [Auth]
+      summary: Read the caller's sign-ins, sessions and API token usage
+      description: |
+        Returns the newest sign-ins (address and browser), when a web session
+        was last active, the number of unexpired web sessions, every API token
+        with its request count and last use, and a 30-day series of API token
+        requests per UTC day ending today. Request counts are written at most
+        once per minute per token, so the newest minute may not be included
+        yet and a restart can drop up to a minute of them.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Account activity.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ActivityEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/users/{id}/activity:
+    get:
+      operationId: adminGetUserActivity
+      tags: [Admin]
+      summary: Read any account's activity
+      description: Same view as /api/account/activity for the named account. Requires the administrator role.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/ImageID'}
+      responses:
+        '200':
+          description: Account activity.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ActivityEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/admin/system/version:
+    get:
+      operationId: adminGetSystemVersion
+      tags: [Admin]
+      summary: Read the running version and whether a newer release exists
+      description: |
+        The update check asks the GitHub releases API for the newest
+        non-prerelease release. Answers are cached for six hours (30 minutes
+        after a failed check); refresh=1 checks again, at most once a minute.
+        Deployments that set updates.check to false never call out and
+        report check_enabled false.
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: refresh
+          in: query
+          required: false
+          schema: {type: string, enum: ['1', 'true']}
+      responses:
+        '200':
+          description: Version information.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SystemVersionEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/admin/users/{id}/password:
     put:
       operationId: adminResetUserPassword
@@ -4301,6 +4378,10 @@ components:
           description: Storage usage in bytes.
         created_at:
           $ref: '#/components/schemas/Timestamp'
+        last_seen_at:
+          allOf:
+            - $ref: '#/components/schemas/NullableTimestamp'
+          description: When a web session of the account was last active (refreshed at most once a minute); null before the first sign-in that recorded it. Always sent; optional only for older clients.
         avatar_provider:
           type: string
           enum: [weavatar, gravatar]
@@ -4341,8 +4422,138 @@ components:
           $ref: '#/components/schemas/NullableTimestamp'
         last_used_at:
           $ref: '#/components/schemas/NullableTimestamp'
+        last_used_ip:
+          type: string
+          description: Client address of the most recent recorded use; empty before the first use. Always sent.
+        use_count:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Authenticated requests made with the token, written at most once per minute. Always sent.
         created_at:
           $ref: '#/components/schemas/Timestamp'
+    LoginRecord:
+      type: object
+      additionalProperties: false
+      required: [at, ip, user_agent]
+      properties:
+        at:
+          $ref: '#/components/schemas/Timestamp'
+        ip:
+          type: string
+        user_agent:
+          type: string
+          maxLength: 255
+    UsageDay:
+      type: object
+      additionalProperties: false
+      required: [day, requests]
+      properties:
+        day:
+          type: string
+          format: date
+          description: UTC day.
+        requests:
+          type: integer
+          format: int64
+          minimum: 0
+    Activity:
+      type: object
+      additionalProperties: false
+      required: [last_seen_at, last_login, logins, active_sessions, tokens, api_usage, api_requests]
+      properties:
+        last_seen_at:
+          $ref: '#/components/schemas/NullableTimestamp'
+        last_login:
+          allOf:
+            - $ref: '#/components/schemas/LoginRecord'
+          nullable: true
+        logins:
+          type: array
+          maxItems: 10
+          description: Newest sign-ins first; 20 are kept per account.
+          items: {$ref: '#/components/schemas/LoginRecord'}
+        active_sessions:
+          type: integer
+          minimum: 0
+          description: Unexpired web sessions.
+        tokens:
+          type: array
+          description: API tokens only, oldest first.
+          items: {$ref: '#/components/schemas/TokenView'}
+        api_usage:
+          type: array
+          minItems: 30
+          maxItems: 30
+          description: API token requests per UTC day, oldest first, ending today.
+          items: {$ref: '#/components/schemas/UsageDay'}
+        api_requests:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Sum of api_usage.
+    ActivityEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/Activity'}
+    ReleaseInfo:
+      type: object
+      additionalProperties: false
+      required: [version, url, published_at]
+      properties:
+        version:
+          type: string
+        url:
+          type: string
+          format: uri
+        published_at:
+          $ref: '#/components/schemas/Timestamp'
+    SystemVersion:
+      type: object
+      additionalProperties: false
+      required: [current, latest, update_available, check_enabled, checked_at, check_failed, repository_url, docs_url, releases_url, issues_url]
+      properties:
+        current:
+          type: string
+          description: Version of the running build (the repository's VERSION file).
+        latest:
+          allOf:
+            - $ref: '#/components/schemas/ReleaseInfo'
+          nullable: true
+          description: Newest published release; null until a check has succeeded.
+        update_available:
+          type: boolean
+        check_enabled:
+          type: boolean
+        checked_at:
+          $ref: '#/components/schemas/NullableTimestamp'
+        check_failed:
+          type: boolean
+          description: The newest check could not reach GitHub; latest keeps the last good answer.
+        repository_url:
+          type: string
+          format: uri
+        docs_url:
+          type: string
+          format: uri
+        releases_url:
+          type: string
+          format: uri
+        issues_url:
+          type: string
+          format: uri
+    SystemVersionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/SystemVersion'}
     LoginData:
       type: object
       additionalProperties: false

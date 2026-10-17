@@ -19,6 +19,9 @@ type TokenGrant struct {
 	// a source token that expires while the request waits or processes an
 	// image is rejected at commit time instead of at the request's start.
 	Clock func() time.Time
+	// Login, when set, records a sign-in in the same transaction that
+	// creates the web session.
+	Login *LoginEvent
 }
 
 // Token stores a bearer-secret digest; plaintext tokens never enter this model.
@@ -30,7 +33,12 @@ type Token struct {
 	Kind       string
 	Abilities  []string `gorm:"serializer:json"`
 	LastUsedAt *time.Time
-	ExpiresAt  *time.Time
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	// LastUsedIP is the client address of the most recent recorded use.
+	LastUsedIP string
+	// UseCount counts authenticated requests; uses since the last write are
+	// buffered in memory, so a restart can drop up to a minute of them.
+	UseCount  int64
+	ExpiresAt *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }

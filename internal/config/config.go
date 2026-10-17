@@ -43,6 +43,7 @@ var environmentKeys = map[string]string{
 	"IMGNEST_DATABASE_MAX_LIFETIME":            "database.max_lifetime",
 	"IMGNEST_DATABASE_BUSY_TIMEOUT":            "database.busy_timeout",
 	"IMGNEST_BACKUP_DIR":                       "backup.dir",
+	"IMGNEST_UPDATES_CHECK":                    "updates.check",
 }
 
 // Config contains the HTTP server and database deployment settings.
@@ -52,6 +53,14 @@ type Config struct {
 	Images   Images
 	Security Security
 	Backup   Backup
+	Updates  Updates
+}
+
+// Updates configures the console's check for newer releases.
+type Updates struct {
+	// Check lets administrators see whether a newer release is published on
+	// GitHub; turn it off on servers that must not call out.
+	Check bool
 }
 
 // Backup configures where database and configuration backups are written.
@@ -116,7 +125,7 @@ func Load(ctx context.Context, path string, environ []string) (Config, error) {
 			// YAML diagnostics may quote DSNs, so do not retain their raw error.
 			return Config{}, fmt.Errorf("parse configuration YAML: %w", errInvalid)
 		}
-		for _, section := range []string{"server", "database", "images", "security", "backup"} {
+		for _, section := range []string{"server", "database", "images", "security", "backup", "updates"} {
 			if k.Exists(section) {
 				if _, ok := k.Get(section).(map[string]any); !ok {
 					return Config{}, invalid(section, "must be a mapping")
@@ -183,6 +192,7 @@ func Load(ctx context.Context, path string, environ []string) (Config, error) {
 		"images.variant_lookup_per_minute": 60,
 		"security.master_key":              "",
 		"backup.dir":                       "data/backup",
+		"updates.check":                    true,
 		"database.driver":                  driver,
 		"database.dsn":                     "data/imgnest.db",
 		"database.max_open":                1,
@@ -282,6 +292,18 @@ func decode(k *koanf.Koanf) (Config, error) {
 			return Config{}, invalid(field.key, "must be a duration string")
 		}
 		*field.value = duration
+	}
+	switch value := k.Get("updates.check").(type) {
+	case bool:
+		cfg.Updates.Check = value
+	case string:
+		check, err := strconv.ParseBool(value)
+		if err != nil {
+			return Config{}, invalid("updates.check", "must be true or false")
+		}
+		cfg.Updates.Check = check
+	default:
+		return Config{}, invalid("updates.check", "must be true or false")
 	}
 	var err error
 	if cfg.Server.TrustedProxies, err = stringList(k, "server.trusted_proxies", "must be a list of IP addresses or CIDRs"); err != nil {

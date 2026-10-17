@@ -32,9 +32,12 @@ type User struct {
 	RegisteredIP string
 	// PublicID is the random base62 handle used in anonymous URLs; nil until
 	// the account first needs one.
-	PublicID  *string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	PublicID *string
+	// LastSeenAt is the last time a web session of this account made a
+	// request, refreshed at most once per minute.
+	LastSeenAt *time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 // UserChanges is the explicit allowlist of administrator-editable account

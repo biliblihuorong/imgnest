@@ -15,6 +15,7 @@ import (
 	"github.com/biliblihuorong/imgnest/internal/config"
 	"github.com/biliblihuorong/imgnest/internal/http/lsky"
 	"github.com/biliblihuorong/imgnest/internal/http/native"
+	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -60,7 +61,11 @@ type Dependencies struct {
 	// LskyImport serves the console's Lsky Pro migration when configured.
 	LskyImport native.LskyImport
 	// Backups serves the console's backup page when configured.
-	Backups        native.Backups
+	Backups native.Backups
+	// Activity serves account activity to owners and administrators.
+	Activity native.Activity
+	// System serves the console's version and update check.
+	System         native.SystemInfo
 	Variants       native.Variants
 	VariantOptions native.VariantOptions
 }
@@ -118,6 +123,13 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 		}()
 		c.Next()
 	})
+	// Sign-ins and token use record the client; the address honours the
+	// trusted-proxy configuration above.
+	router.Use(func(c *gin.Context) {
+		client := service.ClientInfo{IP: c.ClientIP(), UserAgent: c.Request.UserAgent()}
+		c.Request = c.Request.WithContext(service.WithClient(c.Request.Context(), client))
+		c.Next()
+	})
 	handler, err := native.NewHandler(ctx, deps.Users, deps.Tokens, deps.Now)
 	if err != nil {
 		return nil, fmt.Errorf("create native handler: %w", err)
@@ -172,6 +184,16 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.Backups != nil {
 		if err := handler.RegisterBackupRoutes(ctx, router, deps.Backups); err != nil {
 			return nil, fmt.Errorf("register backup routes: %w", err)
+		}
+	}
+	if deps.Activity != nil {
+		if err := handler.RegisterActivityRoutes(ctx, router, deps.Activity); err != nil {
+			return nil, fmt.Errorf("register activity routes: %w", err)
+		}
+	}
+	if deps.System != nil {
+		if err := handler.RegisterSystemRoutes(ctx, router, deps.System); err != nil {
+			return nil, fmt.Errorf("register system routes: %w", err)
 		}
 	}
 	if deps.PluginSettings != nil {

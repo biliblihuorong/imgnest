@@ -1445,6 +1445,75 @@ export interface paths {
         patch: operations["adminPatchUser"];
         trace?: never;
     };
+    "/api/account/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the caller's sign-ins, sessions and API token usage
+         * @description Returns the newest sign-ins (address and browser), when a web session
+         *     was last active, the number of unexpired web sessions, every API token
+         *     with its request count and last use, and a 30-day series of API token
+         *     requests per UTC day ending today. Request counts are written at most
+         *     once per minute per token, so the newest minute may not be included
+         *     yet and a restart can drop up to a minute of them.
+         */
+        get: operations["getAccountActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read any account's activity
+         * @description Same view as /api/account/activity for the named account. Requires the administrator role.
+         */
+        get: operations["adminGetUserActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/system/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the running version and whether a newer release exists
+         * @description The update check asks the GitHub releases API for the newest
+         *     non-prerelease release. Answers are cached for six hours (30 minutes
+         *     after a failed check); refresh=1 checks again, at most once a minute.
+         *     Deployments that set updates.check to false never call out and
+         *     report check_enabled false.
+         */
+        get: operations["adminGetSystemVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/users/{id}/password": {
         parameters: {
             query?: never;
@@ -2956,6 +3025,8 @@ export interface components {
              */
             used_bytes: number;
             created_at: components["schemas"]["Timestamp"];
+            /** @description When a web session of the account was last active (refreshed at most once a minute); null before the first sign-in that recorded it. Always sent; optional only for older clients. */
+            last_seen_at?: components["schemas"]["NullableTimestamp"];
             /**
              * @description Site-wide avatar source that produced avatar_url.
              * @enum {string}
@@ -2982,7 +3053,82 @@ export interface components {
             abilities: "*"[];
             expires_at: components["schemas"]["NullableTimestamp"];
             last_used_at: components["schemas"]["NullableTimestamp"];
+            /** @description Client address of the most recent recorded use; empty before the first use. Always sent. */
+            last_used_ip?: string;
+            /**
+             * Format: int64
+             * @description Authenticated requests made with the token, written at most once per minute. Always sent.
+             */
+            use_count?: number;
             created_at: components["schemas"]["Timestamp"];
+        };
+        LoginRecord: {
+            at: components["schemas"]["Timestamp"];
+            ip: string;
+            user_agent: string;
+        };
+        UsageDay: {
+            /**
+             * Format: date
+             * @description UTC day.
+             */
+            day: string;
+            /** Format: int64 */
+            requests: number;
+        };
+        Activity: {
+            last_seen_at: components["schemas"]["NullableTimestamp"];
+            last_login: components["schemas"]["LoginRecord"] | null;
+            /** @description Newest sign-ins first; 20 are kept per account. */
+            logins: components["schemas"]["LoginRecord"][];
+            /** @description Unexpired web sessions. */
+            active_sessions: number;
+            /** @description API tokens only, oldest first. */
+            tokens: components["schemas"]["TokenView"][];
+            /** @description API token requests per UTC day, oldest first, ending today. */
+            api_usage: components["schemas"]["UsageDay"][];
+            /**
+             * Format: int64
+             * @description Sum of api_usage.
+             */
+            api_requests: number;
+        };
+        ActivityEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["Activity"];
+        };
+        ReleaseInfo: {
+            version: string;
+            /** Format: uri */
+            url: string;
+            published_at: components["schemas"]["Timestamp"];
+        };
+        SystemVersion: {
+            /** @description Version of the running build (the repository's VERSION file). */
+            current: string;
+            /** @description Newest published release; null until a check has succeeded. */
+            latest: components["schemas"]["ReleaseInfo"] | null;
+            update_available: boolean;
+            check_enabled: boolean;
+            checked_at: components["schemas"]["NullableTimestamp"];
+            /** @description The newest check could not reach GitHub; latest keeps the last good answer. */
+            check_failed: boolean;
+            /** Format: uri */
+            repository_url: string;
+            /** Format: uri */
+            docs_url: string;
+            /** Format: uri */
+            releases_url: string;
+            /** Format: uri */
+            issues_url: string;
+        };
+        SystemVersionEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["SystemVersion"];
         };
         LoginData: {
             token: components["schemas"]["PlaintextToken"];
@@ -5858,6 +6004,81 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAccountActivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account activity. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminGetUserActivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account activity. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminGetSystemVersion: {
+        parameters: {
+            query?: {
+                refresh?: "1" | "true";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Version information. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemVersionEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
             500: components["responses"]["InternalError"];
         };
     };

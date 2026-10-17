@@ -17,6 +17,7 @@ import {
 import { landingPath } from "@/router/landing";
 import { useAuthStore } from "@/stores/auth";
 import { useSiteStore } from "@/stores/site";
+import { useSystemStore } from "@/stores/system";
 
 /**
  * Marvis 外壳的漂浮侧栏：只负责呈现与发出意图，搜索/设置/退出/折叠由布局处理。
@@ -35,6 +36,7 @@ const { t } = useI18n();
 const router = useRouter();
 const auth = useAuthStore();
 const site = useSiteStore();
+const system = useSystemStore();
 const avatarUrl = useUserAvatar(computed(() => auth.user));
 const user = computed(() => (auth.token ? auth.user : null));
 
@@ -46,7 +48,7 @@ interface Section {
 
 /** 顶层菜单为一组；带子项的菜单（站点管理）展开成带标题的分组，自身不可点。 */
 const sections = computed<Section[]>(() => {
-  const menus = workspaceMenus(user.value?.role, site.galleryEnabled);
+  const menus = workspaceMenus(user.value?.role, site.galleryEnabled, system.updateAvailable);
   const result: Section[] = [{ key: "main", items: menus.filter((menu) => !menu.children) }];
   for (const menu of menus)
     if (menu.children) result.push({ key: menu.path, label: menu.name, items: menu.children });
@@ -152,6 +154,15 @@ function goHome(): void {
           >
             <component :is="menuIcons[item.icon]" class="mv-icon" />
             <span v-if="!collapsed" class="mv-nav__text">{{ t(item.name) }}</span>
+            <span
+              v-if="item.dot"
+              class="mv-nav__dot"
+              :class="{ 'is-collapsed': collapsed }"
+              role="status"
+              :aria-label="t('admin.settings.updateDot')"
+              :title="t('admin.settings.updateDot')"
+              data-testid="sidebar-update-dot"
+            />
           </RouterLink>
           <slot v-if="item.path === '/albums' && !collapsed" name="albums" />
         </template>
@@ -348,6 +359,7 @@ function goHome(): void {
   letter-spacing: 0.06em;
 }
 .mv-nav__item {
+  position: relative;
   display: flex;
   gap: 10px;
   align-items: center;
@@ -424,6 +436,19 @@ function goHome(): void {
 }
 .is-collapsed .mv-brand,
 .is-collapsed .mv-search,
+.mv-nav__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: hsl(var(--destructive));
+}
+.mv-nav__dot.is-collapsed {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+}
 .is-collapsed .mv-nav__item {
   justify-content: center;
   padding-inline: 0;

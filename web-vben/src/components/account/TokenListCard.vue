@@ -84,6 +84,18 @@ const columns = computed<DataTableColumns<TokenView>>(() => [
       row.last_used_at ? formatTimestamp(row.last_used_at) : t("account.neverUsed"),
   },
   {
+    title: t("activity.useCount"),
+    key: "use_count",
+    width: 110,
+    render: (row) => new Intl.NumberFormat(locale.value).format(row.use_count ?? 0),
+  },
+  {
+    title: t("activity.lastUsedIp"),
+    key: "last_used_ip",
+    width: 150,
+    render: (row) => row.last_used_ip || "-",
+  },
+  {
     title: t("account.createdAt"),
     key: "created_at",
     width: 200,
@@ -133,7 +145,7 @@ const columns = computed<DataTableColumns<TokenView>>(() => [
       :data="tokens"
       :loading="loading"
       :row-key="(row: TokenView) => row.id"
-      :scroll-x="1100"
+      :scroll-x="1360"
       ><template #empty><NEmpty :description="t('account.empty')" /></template
     ></NDataTable>
   </NCard>

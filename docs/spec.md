@@ -139,7 +139,9 @@ v1 用方案 A 快速跑通，M6 再评估是否换 B。运行参数参照 imago
 | `images` | id, key(短 ID, 唯一), user\_id, album\_id, policy\_id, storage\_id, path(不含后缀), ext, has\_original, has\_webp, has\_thumb, scrubbed, origin\_name, mime, size, webp\_size, width, height, frames, src\_md5, md5, sha1, is\_public, ip, deleted\_at, purge\_at | `src_md5` = 用户上传文件的哈希（去重用），`md5`/`sha1` = 云端实际存放文件的哈希（抹除 GPS 后会不同）；`(storage_id, path)` 唯一索引；`deleted_at` 非空即在回收站 |
 | `image_exif` | image\_id(PK), make, model, lens, taken\_at, exposure, f\_number, iso, focal\_length, orientation, gps\_lat, gps\_lng, gps\_alt, raw | 只存本地数据库；`raw` = 全量 EXIF + XMP（PG 用 JSONB，SQLite 用 JSON 文本）；GPS 与 `raw` 仅本人/管理员可读 |
 | `albums` | id, user\_id, name, intro, is\_public, cover\_image\_id, image\_count | 删除相册时图片 `album_id` 置空，不删图 |
-| `tokens` | id, user\_id, name, token\_hash, kind(web/api), abilities, last\_used\_at, expires\_at | 明文只在创建时返回一次 |
+| `tokens` | id, user\_id, name, token\_hash, kind(web/api), abilities, last\_used\_at, last\_used\_ip, use\_count, expires\_at | 明文只在创建时返回一次；用量见 7.9 |
+| `login_events` | id, user\_id, ip, user\_agent, created\_at | 网页登录记录，每个账户只保留最新 20 条；同时刷新 `users.last_seen_at`。见 7.9 |
+| `api_usage_daily` | user\_id, day(UTC `YYYY-MM-DD`), requests | 每账户每天 API Token 请求数，主键 `(user_id, day)`；吊销 Token 不删历史。见 7.9 |
 | `random_links` | id, user\_id, album\_id(唯一), token(唯一, 明文), enabled | 相册随机图片链接，一个相册一条；删除相册时同事务删除；另有 `users.public_id`（10 位 base62，首次创建链接时惰性生成）。见 7.5 |
 | `settings` | key, value(JSON) | 站点名、开放注册、游客上传、画廊开关、默认组、回收站保留天数等 |
 | `user_identities` | id, user\_id, provider, subject, created\_at | 外部登录（SSO 扩展）身份；`(provider, subject)` 唯一，`provider` 形如 `sso:github`；不复制外部资料，只存稳定的 subject。见 `docs/development.md` 的「扩展插件」 |
@@ -316,6 +318,8 @@ CDN 缓存不在本程序处理范围内。
 | 随机图片 | `GET/HEAD /random/{uid}/{token}`（307 跳转） | 公开（凭链接） |
 | 响应式版本 | `GET/POST /api/variants`（按已有链接批量查衍生版本，见 7.6） | 公开（限流，可配 CORS） |
 | Token | `GET/POST /api/tokens`、`DELETE /api/tokens/{id}` | 本人 |
+| 账户活动 | `GET /api/account/activity`；管理员看任一账户 `GET /api/admin/users/{id}/activity`（见 7.9） | 本人 / 管理员 |
+| 版本 | `GET /api/admin/system/version`（`?refresh=1` 立即重新检查，见 7.9） | 管理员 |
 | 画廊 | `GET /api/gallery`、`GET /api/site` | 公开（受开关控制） |
 | 管理 | `/api/admin/users`、`groups`、`storages`（含 `POST /{id}/test`）、`policies`（含 `POST /preview` 模板预览）、`images`、`trash`（清空全站回收站）、`settings`、`plugins`（扩展插件的设置卡片，`PUT /{name}/settings` 保存）、`tasks/backfill`（补 WebP/缩略图/EXIF）、`variants/backfill`（补响应式版本，见 6.3） | 管理员 |
 
@@ -381,6 +385,14 @@ CDN 缓存不在本程序处理范围内。
 - 定时备份存在 `settings` 的 `backup_schedule` 键：`enabled`（默认关）、`interval_hours` 1–720（默认 24）、`keep` 1–365（默认 7）。服务每 5 分钟检查一次，到期写 `-auto` 归档，之后只清理多出的自动归档，手动备份不会被删。
 - 还原只走命令行，先停服务：`imgnest backup restore --yes <归档>`。目标库必须已由同一版本迁移（驱动与 `schema_version` 不一致返回 30021），在一个事务里清空全部数据表再导入，只执行备份格式里的 INSERT/UPDATE；Postgres 自增序列随后对齐。配置文件不会自动覆盖，需要时手工拷回。`imgnest backup create` 可用于 cron。
 - 新码：30020=已有备份在进行(409)、30021=备份与当前安装不匹配(409)。
+
+### 7.9 账户活动与版本信息（2026-10-17）
+
+- 登录（密码、SSO）创建网页会话时同事务写一条 `login_events`（IP 按 `server.trusted_proxies` 取真实地址，User-Agent 截到 255 字节），每账户保留最新 20 条，并刷新 `users.last_seen_at`。之后网页会话每次鉴权最多每分钟刷新一次 `last_seen_at`。
+- Token 用量：每次鉴权先在内存里计数，距上次写入满 1 分钟时一次写入 `tokens.last_used_at / last_used_ip / use_count`，API Token 同时累加到 `api_usage_daily`。进程重启最多丢一分钟的计数；内存里最多 1 万个 Token 的待写计数，超出清零。计数只是参考，不用于限流或计费。
+- `GET /api/account/activity` 返回最近在线、最近 10 次登录（时间、IP、浏览器）、未过期网页会话数、API Token 列表（含次数与最后 IP）和近 30 个 UTC 日的 API 请求数（固定 30 项，缺的天补 0）。只给本人和管理员（`/api/admin/users/{id}/activity`）；IP 与 User-Agent 不进日志、不进公开接口和蓝空 v1 接口。前端：本人在「数据概览」页，管理员在「用户管理」点用户名或「详情」打开抽屉；用户列表多一列「最近在线」。
+- 版本号来自仓库根目录 `VERSION`，由根包 `imgnest.Version()` 用 `go:embed` 编译进二进制，`scripts/bump-version.py` 改它即可，无需 ldflags。`GET /api/admin/system/version` 返回当前版本、GitHub 最新正式版（`releases/latest`，跳过草稿和预发布）、`update_available`、项目链接。检查结果在进程内缓存 6 小时，失败后 30 分钟重试，`refresh=1` 最多每分钟一次；`updates.check: false`（`IMGNEST_UPDATES_CHECK`）时从不外连。请求走 `HTTPS_PROXY`。
+- 前端：「站点设置 → 关于」（`/admin/settings/about`）显示版本、更新提示和仓库/文档/发布/反馈链接；有新版本时管理员菜单的「站点设置」和设置页的「关于」显示小红点。只有管理员会请求版本接口。
 
 ## 8. 工程规范
 

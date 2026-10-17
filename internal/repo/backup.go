@@ -25,6 +25,7 @@ import (
 // fails when a migration adds a table this list does not cover.
 var backupTables = []string{
 	"settings", "storages", "policies", "groups", "group_policies", "users", "tokens",
+	"login_events", "api_usage_daily",
 	"user_identities", "albums", "images", "image_exif", "image_variant_jobs",
 	"variant_backfill", "random_links", "email_codes", "plugin_counters",
 }

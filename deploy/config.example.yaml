@@ -22,6 +22,11 @@ backup:
   # private: archives hold password hashes and deployment secrets.
   dir: data/backup
 
+updates:
+  # Let the console ask GitHub whether a newer release exists (Site settings >
+  # About). Set false on servers that must not call out.
+  check: true
+
 security:
   # Empty is sufficient for local-only storage. For S3, inject a base64 32-byte
   # key through IMGNEST_SECURITY_MASTER_KEY and preserve it with private backups.
