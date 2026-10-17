@@ -12,10 +12,16 @@ API_FILE_LIMIT = 3000
 GO_ONLY_FILES = {"go.mod", "go.sum", ".golangci.yml"}
 
 
+def is_help_page(path):
+    # The console's "?" links point at these pages, and a frontend test checks
+    # that every linked page and heading still exists.
+    return path.startswith(("website/docs/guide/", "website/docs/en/guide/")) and path.endswith(".md")
+
+
 def is_documentation(path):
-    # website/ is the standalone project site; it is deployed separately and
-    # no CI job builds or embeds it.
-    if path.startswith((".claude/", "website/")):
+    # The rest of website/ is the standalone project site; it is deployed
+    # separately and no CI job builds or embeds it.
+    if path.startswith((".claude/", "website/")) and not is_help_page(path):
         return True
     return path.endswith(".md") and ("/" not in path or path.startswith("docs/"))
 
@@ -38,7 +44,7 @@ def scopes(paths):
         return {"backend": True, "frontend": True}
     relevant = [path for path in paths if not is_documentation(path)]
     return {
-        "backend": any(not is_vben_source(path) for path in relevant),
+        "backend": any(not is_vben_source(path) and not is_help_page(path) for path in relevant),
         "frontend": any(not is_go_source(path) for path in relevant),
     }
 

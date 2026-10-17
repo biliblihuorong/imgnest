@@ -17,6 +17,7 @@ import {
   type FormRules,
 } from "naive-ui";
 import { computed, onMounted, reactive, ref } from "vue";
+import DocHelp from "@/components/help/DocHelp.vue";
 import {
   getSettings,
   listGroups,
@@ -189,12 +190,10 @@ defineExpose({ model });
       :label-placement="isMobile ? 'top' : 'left'"
       :label-width="isMobile ? undefined : 150"
     >
-      <NFormItem
-        v-for="field in fields"
-        :key="field.key"
-        :label="t(`admin.settings.${field.label}`)"
-        :path="field.key"
-      >
+      <NFormItem v-for="field in fields" :key="field.key" :path="field.key">
+        <template #label
+          >{{ t(`admin.settings.${field.label}`) }}<DocHelp v-if="field.doc" :topic="field.doc"
+        /></template>
         <div class="field">
           <NInput
             v-if="field.kind === 'text'"

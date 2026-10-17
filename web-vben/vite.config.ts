@@ -14,6 +14,10 @@ export default defineConfig({
   build: {
     outDir: "dist",
   },
+  server: {
+    // docs.test.ts 读取 website/docs 核对帮助链接；只额外放开这一个目录。
+    fs: { allow: [".", "../website/docs"] },
+  },
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.ts"],

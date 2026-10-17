@@ -1,4 +1,5 @@
 import type { AdminSettings } from "@/api/admin";
+import type { DocTopicName } from "@/lib/docs";
 
 export type SettingsFieldKind = "text" | "switch" | "number" | "group" | "avatar";
 
@@ -9,6 +10,8 @@ export interface SettingsField {
   label: string;
   hint: string;
   placeholder?: string;
+  /** 标签旁「?」打开的文档，见 @/lib/docs。 */
+  doc?: DocTopicName;
 }
 
 export const SITE_NAME: SettingsField = {
@@ -59,6 +62,7 @@ export const GUEST_UPLOAD: SettingsField = {
   kind: "switch",
   label: "guestUpload",
   hint: "guestUploadHint",
+  doc: "guestUpload",
 };
 export const GUEST_GROUP: SettingsField = {
   key: "guest_group_id",
@@ -72,6 +76,7 @@ export const GALLERY: SettingsField = {
   kind: "switch",
   label: "gallery",
   hint: "galleryHint",
+  doc: "gallery",
 };
 export const GALLERY_PUBLIC_ALBUMS_ONLY: SettingsField = {
   key: "gallery_public_albums_only",

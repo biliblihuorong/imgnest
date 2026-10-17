@@ -25,6 +25,7 @@ import {
   type FormRules,
 } from "naive-ui";
 import { computed, h, onMounted, reactive, ref } from "vue";
+import DocHelp from "@/components/help/DocHelp.vue";
 import {
   createStorage,
   deleteStorage,
@@ -402,12 +403,16 @@ function closeTestResult(show: boolean): void {
 
 <template>
   <Page
-    :title="t('admin.storages.title')"
     :description="t('admin.storages.description')"
     class="storages-view min-w-0"
     header-class="flex-wrap items-center gap-4"
     content-class="min-w-0"
   >
+    <template #title>
+      <div class="mb-2 flex items-center text-lg font-semibold">
+        {{ t("admin.storages.title") }}<DocHelp topic="storage" />
+      </div>
+    </template>
     <template #extra>
       <NButton type="primary" size="small" @click="openCreate">{{
         t("admin.storages.create")

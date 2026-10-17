@@ -308,7 +308,7 @@ CDN 缓存不在本程序处理范围内。
 | 分组 | 接口 | 权限 |
 | --- | --- | --- |
 | 认证 | `POST /api/auth/login`、`POST /api/auth/register`、`POST /api/auth/logout`、`GET /api/auth/me`、`PATCH /api/auth/profile` | 公开 / 登录 |
-| 上传 | `POST /api/upload`（可一次多文件） | 登录或游客 |
+| 上传 | `POST /api/upload`（可一次多文件）；游客走 `POST /api/guest/upload`、`GET /api/guest/upload/limits`（见 7.10） | 登录 / 游客 |
 | 图片 | `GET /api/images`、`PATCH /api/images/{id}`（改可见性 `is_public` / 改显示名称 `name`，只改名称不改对象键和链接）、`POST /api/images/batch`（删除/移动/改权限） | 本人 |
 | EXIF | `GET /api/images/{id}/exif`（含 GPS 与全量 `raw`） | 本人 / 管理员 |
 | 本地缩略图 | `GET /t/{key}.webp`（缺失时懒生成） | 本人 / 管理员；公开图片可匿名 |
@@ -396,6 +396,19 @@ CDN 缓存不在本程序处理范围内。
 - `GET /api/account/activity` 返回最近在线、最近 10 次登录（时间、IP、浏览器）、未过期网页会话数、API Token 列表（含次数与最后 IP）和近 30 个 UTC 日的 API 请求数（固定 30 项，缺的天补 0）。只给本人和管理员（`/api/admin/users/{id}/activity`）；IP 与 User-Agent 不进日志、不进公开接口和蓝空 v1 接口。前端：本人在「数据概览」页，管理员在「用户管理」点用户名或「详情」打开抽屉；用户列表多一列「最近在线」。
 - 版本号来自仓库根目录 `VERSION`，由根包 `imgnest.Version()` 用 `go:embed` 编译进二进制，`scripts/bump-version.py` 改它即可，无需 ldflags。`GET /api/admin/system/version` 返回当前版本、GitHub 最新正式版（`releases/latest`，跳过草稿和预发布）、`update_available`、项目链接。检查结果在进程内缓存 6 小时，失败后 30 分钟重试，`refresh=1` 最多每分钟一次；`updates.check: false`（`IMGNEST_UPDATES_CHECK`）时从不外连。请求走 `HTTPS_PROXY`。
 - 前端：「站点设置 → 关于」（`/admin/settings/about`）显示版本、更新提示和仓库/文档/发布/反馈链接；有新版本时管理员菜单的「站点设置」和设置页的「关于」显示小红点。只有管理员会请求版本接口。
+
+### 7.10 公开图床首页与游客上传（2026-10-17）
+
+- 前端新增公开首页 `/home`（`PublicHomeView.vue`）。未登录访问 `/` 先到这里，已登录照旧进控制台；游客上传和画廊都没开时，`/home` 直接转去 `/login`，表现与之前一致。首页有站点名、画廊与登录/注册入口、游客上传区（拖拽、队列、复制链接），开放画廊时再展示最新 12 张公开图片。
+- 游客上传走独立的 `POST /api/guest/upload`（字段同 `/api/upload`，但不接受 `album_id`，带了返回 403；`is_public` 一律为 false，游客图片不进画廊）和 `GET /api/guest/upload/limits`。不复用 `/api/upload`，是为了让控制台里 Token 过期的请求照旧得到 401，而不是悄悄变成游客上传。
+- 只有「游客上传」开关打开且存在游客组时才开放（`GET /api/site` 新增 `guest_upload`），否则两个接口返回 401/20001。限额取游客组，限流按客户端地址，与蓝空 v1 匿名上传共用同一个计数（`upload:guest:{ip}`），换接口不能绕过限流。
+
+### 7.11 功能旁的文档帮助链接（2026-10-17）
+
+- 有深度的功能旁边放一个「?」（`web-vben/src/components/help/DocHelp.vue`），新标签页打开对应文档，中文界面打开 `website/docs/guide/`，其他语言打开 `website/docs/en/guide/`。文档没有单独部署，链到 GitHub 上渲染好的 Markdown。
+- 所有帮助点统一登记在 `web-vben/src/lib/docs.ts` 的 `DOC_TOPICS`（主题 → 页面 + 中英文锚点），界面里只写 `<DocHelp topic="..." />`，不手写文档地址。站点设置项在 `fields.ts` 里用 `doc` 字段挂帮助点。
+- `docs.test.ts` 读取 `website/docs` 核对每个登记的页面和锚点都存在；改了文档文件名或标题要同步改登记表，否则测试失败；因此 PR 改动 `website/docs/guide/`、`website/docs/en/guide/` 下的页面时会跑前端 CI（`scripts/ci-scope.py`）。
+- 当前帮助点：存储管理、路径模板、响应式衍生图（规则开关与补生成卡片）、EXIF 清理档位、随机图片链接、搜索语法、游客上传、公开画廊、API Token 接入、备份、蓝空迁移、人机验证、邮件。
 
 ## 8. 工程规范
 

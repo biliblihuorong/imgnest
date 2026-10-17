@@ -18,6 +18,7 @@ import {
   NTag,
 } from "naive-ui";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import DocHelp from "@/components/help/DocHelp.vue";
 import {
   cancelLskyImport,
   discardLskyDump,
@@ -183,7 +184,9 @@ onBeforeUnmount(() => {
   <!-- 蓝空迁移：放在 站点设置 → 备份/导出 页的末尾。 -->
   <section class="lsky-import min-w-0" data-testid="lsky-import">
     <header class="lsky-import__header">
-      <h2 class="lsky-import__title">{{ t("admin.lskyImport.title") }}</h2>
+      <h2 class="lsky-import__title">
+        {{ t("admin.lskyImport.title") }}<DocHelp topic="lskyMigration" />
+      </h2>
       <p class="lsky-import__hint">{{ t("admin.lskyImport.description") }}</p>
     </header>
     <div class="lsky-import__stack">

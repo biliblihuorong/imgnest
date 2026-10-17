@@ -2,6 +2,7 @@
 import { useI18n } from "@vben/locales";
 import { NAlert, NButton, NCard, NPopconfirm, NSpace, NTag } from "naive-ui";
 import { computed, onBeforeUnmount, onMounted, shallowRef } from "vue";
+import DocHelp from "@/components/help/DocHelp.vue";
 import {
   controlVariantBackfill,
   getVariantBackfill,
@@ -70,7 +71,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <NCard :title="t('admin.variants.title')" class="variant-backfill">
+  <NCard class="variant-backfill">
+    <template #header
+      >{{ t("admin.variants.title") }}<DocHelp topic="responsiveVariants"
+    /></template>
     <p class="variant-backfill__intro">{{ t("admin.variants.intro") }}</p>
     <NAlert v-if="error" type="error" class="variant-backfill__notice">
       {{ formatApiError(error, "admin.variants.loadFailed") }}

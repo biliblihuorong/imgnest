@@ -2,6 +2,7 @@
 import { useI18n } from "@vben/locales";
 import { NAlert, NButton, NInput, NPopconfirm, NSwitch, useMessage } from "naive-ui";
 import { computed, onScopeDispose, shallowRef, watch } from "vue";
+import DocHelp from "@/components/help/DocHelp.vue";
 import {
   deleteRandomLink,
   getRandomLink,
@@ -101,7 +102,7 @@ onScopeDispose(() => {
           {{ t("albums.randomLink.title") }}
         </h2>
         <p class="album-random-link__hint text-muted-foreground">
-          {{ t("albums.randomLink.description") }}
+          {{ t("albums.randomLink.description") }}<DocHelp topic="randomLinks" />
         </p>
       </div>
       <template v-if="link">

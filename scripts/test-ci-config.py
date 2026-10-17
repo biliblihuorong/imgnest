@@ -142,11 +142,16 @@ class CIScopeTest(unittest.TestCase):
 
     def test_project_website_changes_skip_every_job(self):
         # website/ is a standalone VitePress workspace that no CI job builds.
-        self.assertEqual(self.scopes("website/docs/guide/introduction.md", "website/package.json",
+        self.assertEqual(self.scopes("website/docs/index.md", "website/package.json",
                                      "website/.vitepress/theme/home/HomePage.vue"),
                          {"backend": False, "frontend": False})
         self.assertEqual(self.scopes("website/docs/index.md", "internal/service/user.go"),
                          {"backend": True, "frontend": False})
+
+    def test_help_pages_run_the_frontend_job(self):
+        # web-vben/src/lib/docs.test.ts checks the "?" links against these pages.
+        for path in ("website/docs/guide/introduction.md", "website/docs/en/guide/search.md"):
+            self.assertEqual(self.scopes(path), {"backend": False, "frontend": True}, path)
 
     def test_vben_only_changes_skip_the_go_jobs(self):
         self.assertEqual(self.scopes("web-vben/src/App.vue", "web-vben/pnpm-lock.yaml", "docs/spec.md"),

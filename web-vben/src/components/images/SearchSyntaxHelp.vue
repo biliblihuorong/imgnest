@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, shallowRef, useTemplateRef } from "vue";
+import DocHelp from "@/components/help/DocHelp.vue";
 import { NModal, NTooltip } from "naive-ui";
 import { useI18n } from "@vben/locales";
 import { FIELDS } from "@/domain/search/query";
@@ -88,7 +89,9 @@ function replace(query: string) {
     @after-leave="closed"
   >
     <div :id="id" class="search-help-content">
-      <h2 :id="`${id}-heading`" class="search-help-heading">{{ t("search.helpIntro") }}</h2>
+      <h2 :id="`${id}-heading`" class="search-help-heading">
+        {{ t("search.helpIntro") }}<DocHelp topic="search" />
+      </h2>
       <p>{{ t("search.timezone", { timezone }) }}</p>
       <p class="search-help-note">{{ t("search.displayTimezone") }}</p>
       <div class="search-help-conditions">
