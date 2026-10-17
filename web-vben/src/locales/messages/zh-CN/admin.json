@@ -231,7 +231,7 @@
     "registration": "开放注册",
     "registrationHint": "关闭后新用户无法自行注册，已有用户不受影响。",
     "guestUpload": "游客上传",
-    "guestUploadHint": "允许未登录用户通过蓝空 v1 兼容接口上传，走游客用户组的容量与限流配置。",
+    "guestUploadHint": "允许未登录用户在公开首页和蓝空 v1 兼容接口上传，走游客用户组的容量与限流配置。",
     "gallery": "公共画廊",
     "galleryHint": "关闭后画廊页面不再对外展示公开图片。",
     "galleryPublicAlbumsOnly": "画廊仅展示公开相册",

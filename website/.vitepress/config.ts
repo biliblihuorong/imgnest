@@ -31,6 +31,7 @@ const GUIDE: { title: [zh: string, en: string]; pages: [slug: string, zh: string
     pages: [
       ["lsky-api", "蓝空 API 与 PicGo", "Lsky API and PicGo"],
       ["api-v2", "原生 API v2", "Native API v2"],
+      ["responsive-images", "响应式图片 API", "Responsive images API"],
       ["lsky-migration", "从蓝空迁移", "Migrating from Lsky Pro"],
     ],
   },

@@ -30,6 +30,16 @@ Control it under Admin → Settings → Visitors and gallery:
 
 Opening a [random image link](./random-links) for an album is another common way to share; the two do not affect each other.
 
+## Public home page and guest uploads
+
+When guest uploads or the gallery are open, signed-out visitors land on the public home page (`/home`): links to the gallery and to sign in or sign up at the top, an upload area in the middle, and the 12 latest public images below when the gallery is on. With both off, visitors still go straight to the sign-in page.
+
+Turn on "Guest uploads" under "System settings → Guests & gallery" and pick a guest group, and visitors can drop images on the home page and copy the links without an account:
+
+- The guest group sets the file size limit, allowed formats and available policies. Rate limiting is per visitor address and shares one counter with anonymous Lsky v1 uploads.
+- Guests cannot pick an album, and their images are always private, so they never appear in the gallery. Guests cannot delete them afterwards; an administrator can.
+- Signed-in users see "Open console" on the home page and keep uploading from the console.
+
 ## How visibility fits in
 
 An image's public / private flag decides whether it appears in the gallery and via public direct links; albums themselves have no visibility. To expose "a whole album", either mark its images public, or use a random link — a random link serves every image in the album including private ones, and the UI warns about this when you enable it.
