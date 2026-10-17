@@ -312,12 +312,19 @@ func stringList(k *koanf.Koanf, key, reason string) ([]string, error) {
 	return list, nil
 }
 
+// maxSizeMB (1 TiB) bounds the size settings given in MiB.
+const maxSizeMB = 1 << 20
+
 func validate(cfg Config) error {
-	if cfg.Server.MaxUploadMB < 1 || cfg.Server.MaxUploadMB > 20 {
-		return invalid("server.max_upload_mb", "must be between 1 and 20")
+	// max_upload_mb only applies to groups without their own per-file
+	// limit, and a request always stretches to fit one file of the group's
+	// limit, so neither has a product ceiling; the bound only keeps the byte
+	// arithmetic far from overflow.
+	if cfg.Server.MaxUploadMB < 1 || cfg.Server.MaxUploadMB > maxSizeMB {
+		return invalid("server.max_upload_mb", "must be between 1 and 1048576")
 	}
-	if cfg.Server.MaxRequestMB < cfg.Server.MaxUploadMB || cfg.Server.MaxRequestMB > 256 {
-		return invalid("server.max_request_mb", "must cover one file and be at most 256")
+	if cfg.Server.MaxRequestMB < 1 || cfg.Server.MaxRequestMB > maxSizeMB {
+		return invalid("server.max_request_mb", "must be between 1 and 1048576")
 	}
 	if cfg.Server.UploadConcurrency < 1 || cfg.Server.UploadConcurrency > 64 {
 		return invalid("server.upload_concurrency", "must be between 1 and 64")

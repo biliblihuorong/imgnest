@@ -82,6 +82,12 @@ func TestGuestPreflightAppliesGroupLimits(t *testing.T) {
 	if err != nil || limits.MaxFileBytes != 256 || limits.PerMinute != 0 {
 		t.Fatalf("capped limits = %+v err=%v", limits, err)
 	}
+	// A group limit above the deployment default is the group's call.
+	guests.group.MaxFileBytes = 4096
+	limits, err = svc.GuestPreflight(t.Context(), 0)
+	if err != nil || limits.MaxFileBytes != 4096 {
+		t.Fatalf("raised limits = %+v err=%v", limits, err)
+	}
 
 	guests.err = ErrForbidden
 	guests.calls = 0

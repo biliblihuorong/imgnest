@@ -100,6 +100,10 @@ var (
 	errImageNameInvalid   = &ReasonError{Reason: "image_name_invalid", Err: ErrInvalidInput}
 )
 
+// errScrubTooLarge rejects a file over the metadata size limit whose
+// original must be scrubbed and cannot be replaced by its WebP alone.
+var errScrubTooLarge = &ReasonError{Reason: "scrub_too_large", Err: &ProcessingError{Step: ProcessingScrub}}
+
 // ErrorReason returns the hint code carried by err: an explicit ReasonError,
 // or for storage failures the class of the underlying driver error (denied
 // credentials, a missing bucket, an unreachable endpoint, a full disk...).

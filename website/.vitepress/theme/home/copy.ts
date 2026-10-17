@@ -113,7 +113,7 @@ export const copy: Record<MockLang, HomeCopy> = {
         waiting: "排队",
         rows: [
           ["同时处理的上传请求", "2 个"],
-          ["单个文件", "20 MiB"],
+          ["单个文件", "默认 20 MiB，按用户组可调"],
           ["整个请求", "64 MiB"],
           ["像素总量（含动图各帧）", "1 亿"],
           ["单次处理时长", "5 分钟"],
@@ -219,7 +219,7 @@ export const copy: Record<MockLang, HomeCopy> = {
         waiting: "Waiting",
         rows: [
           ["Uploads processed at once", "2"],
-          ["Single file", "20 MiB"],
+          ["Single file", "20 MiB by default, set per group"],
           ["Whole request", "64 MiB"],
           ["Total pixels, animation frames included", "100 million"],
           ["Processing time per upload", "5 minutes"],

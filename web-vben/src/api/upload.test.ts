@@ -1,13 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setUnauthorizedHandler, TOKEN_STORAGE_KEY } from "./client";
-import {
-  MAX_UPLOAD_FILES,
-  MAX_UPLOAD_FILE_BYTES,
-  MAX_UPLOAD_TOTAL_BYTES,
-  preflightUpload,
-  uploadImages,
-  type ImageView,
-} from "./upload";
+import { MAX_UPLOAD_FILES, preflightUpload, uploadImages, type ImageView } from "./upload";
 
 /**
  * 最小 XHR 桩：记录请求细节，测试里手动触发进度 / 响应 / 网络错误。
@@ -122,28 +115,26 @@ describe("preflightUpload", () => {
     expect(result.errors[0]).toContain(`单次最多上传 ${MAX_UPLOAD_FILES} 个文件`);
   });
 
-  it("单文件超过 20MiB 拒绝", () => {
-    const files = [makeFile("small.png", 10), makeFile("big.png", MAX_UPLOAD_FILE_BYTES + 1)];
-    const result = preflightUpload(files);
+  it("单文件超过用户组上限拒绝", () => {
+    const limit = 300 * 1024 * 1024;
+    const files = [makeFile("small.png", 10), makeFile("big.png", limit + 1)];
+    const result = preflightUpload(files, limit);
     expect(result.ok).toBe(false);
-    expect(result.errors.some((error) => error.includes("单文件上限"))).toBe(true);
+    expect(result.errors.some((error) => error.includes("单文件上限 300"))).toBe(true);
     expect(result.errors.some((error) => error.includes("big.png"))).toBe(true);
     expect(result.errors.some((error) => error.includes("small.png"))).toBe(false);
   });
 
-  it("合计超过 64MiB 拒绝", () => {
-    const half = Math.floor(MAX_UPLOAD_TOTAL_BYTES / 2) + 1;
-    const files = [makeFile("a.png", half), makeFile("b.png", half)];
-    const result = preflightUpload(files);
-    expect(result.ok).toBe(false);
-    expect(result.errors.some((error) => error.includes("单次合计上限"))).toBe(true);
-  });
-
-  it("限额内全部通过", () => {
-    const files = [makeFile("a.png", 1024), makeFile("b.png", MAX_UPLOAD_FILE_BYTES)];
-    const result = preflightUpload(files);
+  it("用户组上限大于 20MiB 时大文件通过，也没有合计上限", () => {
+    const files = [makeFile("a.png", 100 * 1024 * 1024), makeFile("b.png", 100 * 1024 * 1024)];
+    const result = preflightUpload(files, 100 * 1024 * 1024);
     expect(result.ok).toBe(true);
     expect(result.errors).toEqual([]);
+  });
+
+  it("还没读到上限时不预检单文件大小", () => {
+    const result = preflightUpload([makeFile("big.png", 500 * 1024 * 1024)], null);
+    expect(result.ok).toBe(true);
   });
 });
 
@@ -398,7 +389,14 @@ describe("uploadImages", () => {
     );
     const results = await promise;
     expect(results).toEqual([
-      { ok: false, filename: "a.png", status: 415, code: 30007, message: "不支持的图片格式" },
+      {
+        ok: false,
+        filename: "a.png",
+        status: 415,
+        code: 30007,
+        data: null,
+        message: "不支持的图片格式",
+      },
     ]);
   });
 

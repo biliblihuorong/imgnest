@@ -15,7 +15,9 @@ checklist; if the two disagree, the spec wins and this file must be updated.
    `allowed_exts` applies to the uploaded (source) format, also when only the
    WebP is stored; the per-minute rate is one counter per account shared by
    the native and v1 APIs.
-2. **Read into memory** with a hard cap (`server.max_upload_mb`).
+2. **Read into memory** with a hard cap: the group's `max_file_bytes`, of
+   any size, or `server.max_upload_mb` when the group sets none. The request
+   bound stretches to one such file + 1 MiB (`reqbody.Fit`).
 3. **Detect the real format** from magic bytes + libvips probe. Never trust the
    file name or `Content-Type`. Reject SVG. Enforce the pixel limit
    (default 100 MP, frames included).
@@ -70,9 +72,19 @@ Two modes (web admin page or CLI, same `lsky.Runner` / `ImportImages`):
   metadata (nothing is rewritten). Other mismatches in copy mode still fail
   with `ErrImportLinkChanged`. `ProcessingError{Step}` (matches
   `ErrProcessing`) tells the import report which step failed. Imports are
-  capped by the owner group's `max_file_bytes` (`ErrFileTooLarge`), or
-  `service.MaxImportFileBytes` (100 MiB) when the group has no limit, not by
-  `server.max_upload_mb`.
+  capped by the owner group's `max_file_bytes` (`ErrFileTooLarge`, no
+  ceiling), or `service.MaxImportFileBytes` (100 MiB) when the group has no
+  limit, not by `server.max_upload_mb`. Fetchers read up to
+  `lsky.FetchLimit` (the largest group limit).
+
+**Files over `exif.MaxSourceBytes` (20 MiB)** still upload; the pipeline
+skips what cannot handle them. No Extract (EXIF row = orientation 1 only).
+With `scrub_mode` gps/all the original cannot be scrubbed, so the upload
+falls back to `webp_only` (never an unscrubbed original); a WebP source or a
+pinned import cannot fall back and fails with `errScrubTooLarge`
+(`ReasonError` `scrub_too_large` over `ProcessingError{Step: scrub}`). With
+`scrub_mode=none` the original is stored as is. Reads of stored objects are
+bounded by `objectReadLimit` (never below the image's recorded sizes).
 
 See `docs/lsky-migration.md` and spec §5.1 / §6.2.
 

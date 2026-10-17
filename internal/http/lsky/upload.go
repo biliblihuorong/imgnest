@@ -74,19 +74,20 @@ func (h *Handler) upload(c *gin.Context) {
 		return
 	}
 
-	if c.Request.ContentLength > h.options.MaxRequestBytes {
+	requestLimit := reqbody.Fit(h.options.MaxRequestBytes, limits.MaxFileBytes)
+	if c.Request.ContentLength > requestLimit {
 		h.uploadFailure(c, errV1TooLarge)
 		return
 	}
 	// Without a read deadline a slow body would hold the upload slot past the
 	// timeout; anonymous callers reach this path when guest uploads are on.
-	defer reqbody.Bound(ctx, c.Writer, c.Request, h.options.MaxRequestBytes)()
+	defer reqbody.Bound(ctx, c.Writer, c.Request, requestLimit)()
 	reader, err := c.Request.MultipartReader()
 	if err != nil {
 		h.uploadFailure(c, errV1MissingFile)
 		return
 	}
-	file, fields, err := readV1Upload(ctx, reader, limits.MaxFileBytes, h.options.MaxRequestBytes)
+	file, fields, err := readV1Upload(ctx, reader, limits.MaxFileBytes, requestLimit)
 	if err == nil {
 		err = file.err
 	}

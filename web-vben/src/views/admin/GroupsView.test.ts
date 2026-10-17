@@ -122,7 +122,7 @@ beforeEach(() => {
 });
 
 describe("GroupsView", () => {
-  it("列表渲染：0 显示「不限」，非 0 显示容量与频率", async () => {
+  it("列表渲染：0 显示「不限」/「服务器默认」，非 0 显示容量与频率", async () => {
     const wrapper = await mountView();
     const text = wrapper.text();
 
@@ -131,8 +131,9 @@ describe("GroupsView", () => {
     expect(text).toContain("游客组");
     expect(text).toContain("100 MB");
     expect(text).toContain("10.0 MB");
-    // 游客组：容量/单文件/上传频率 三个 0 → 「不限」
-    expect(text.split("不限").length - 1).toBeGreaterThanOrEqual(3);
+    // 游客组：容量/上传频率为 0 → 「不限」；单文件为 0 → 跟随服务器默认值
+    expect(text.split("不限").length - 1).toBeGreaterThanOrEqual(2);
+    expect(text).toContain("服务器默认");
     expect(text).toContain("30 次/分");
     // 默认策略列显示策略名；0 显示「—」
     expect(text).toContain("本地策略");
@@ -244,6 +245,29 @@ describe("GroupsView", () => {
     expect(patch).not.toHaveProperty("is_guest");
     expect(patch.max_file_bytes).toBe(5000 * 1024);
     expect(Number.isInteger(patch.capacity_bytes)).toBe(true);
+  });
+
+  it("单文件上限大于 20 MB 时提醒风险，但照常允许保存", async () => {
+    adminApiMock.listGroups.mockResolvedValue([makeGroup({ max_file_bytes: 10 * MB })]);
+    adminApiMock.updateGroup.mockResolvedValue(makeGroup());
+    const wrapper = await mountView();
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "编辑")!
+      .trigger("click");
+    await flushPromises();
+    expect(document.body.querySelector("[data-testid='max-file-warning']")).toBeNull();
+
+    const fileLimit = wrapper.findAllComponents(NInputNumber)[1]!;
+    fileLimit.vm.$emit("update:value", 300);
+    await flushPromises();
+    const warning = document.body.querySelector("[data-testid='max-file-warning']");
+    expect(warning?.textContent).toContain("超过 20 MB 的文件仍能上传");
+    expect(warning?.textContent).toContain("不会记录 EXIF");
+
+    bodyButton("保存")!.click();
+    await flushPromises();
+    expect(adminApiMock.updateGroup.mock.calls[0]![1].max_file_bytes).toBe(300 * MB);
   });
 
   it("删除成功：确认后调用 DELETE 并刷新列表", async () => {

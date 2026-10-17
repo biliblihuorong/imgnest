@@ -47,6 +47,9 @@ func (s *imagesStub) PreflightLimits(context.Context, service.TokenSubject) (ser
 	}
 	return service.UploadLimits{MaxFileBytes: limit, PerMinute: s.perMinute}, s.preflightErr
 }
+func (s *imagesStub) UploadLimitsFor(context.Context, service.TokenSubject) (service.UploadLimits, error) {
+	return service.UploadLimits{MaxFileBytes: s.maxFile, PerMinute: s.perMinute}, s.preflightErr
+}
 func (s *imagesStub) Upload(_ context.Context, _ service.TokenSubject, input service.UploadInput) (service.ImageView, error) {
 	s.inputs = append(s.inputs, input)
 	if input.Filename == "bad.bin" {
@@ -221,8 +224,30 @@ func TestImageUploadBoundsAndStrictFields(t *testing.T) {
 		body, contentType = multipartBody(t, entries...)
 		expectCode(t, uploadRequest(router, body, contentType), 400, 10001)
 	}
+	// The request bound stretches to one file of the caller's per-file
+	// limit, so a small max_request_mb never blocks a single allowed file.
 	tiny := imageRouter(t, &imagesStub{}, native.ImageOptions{MaxRequestBytes: 20})
+	body, contentType = multipartBody(t, multipartEntry{"file", "a.png", strings.Repeat("x", 600)})
+	expectCode(t, uploadRequest(tiny, body, contentType), 201, 0)
+	// Beyond that stretch the body is still refused before it is parsed.
+	body, contentType = multipartBody(t, multipartEntry{"file", "a.png", strings.Repeat("x", 2<<20)})
 	expectCode(t, uploadRequest(tiny, body, contentType), 413, 10002)
+}
+
+func TestUploadLimitsReportTheCallersGroupLimit(t *testing.T) {
+	router := imageRouter(t, &imagesStub{maxFile: 300 << 20, perMinute: 7}, native.ImageOptions{})
+	r := httptest.NewRequest("GET", "/api/upload/limits", nil)
+	r.Header.Set("Authorization", "Bearer "+testBearer)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	expectCode(t, w, 200, 0)
+	if got := string(envelope(t, w)["data"]); got != `{"max_file_bytes":314572800,"max_files":20,"upload_per_min":7}` {
+		t.Fatalf("limits = %s", got)
+	}
+	r = httptest.NewRequest("GET", "/api/upload/limits", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	expectCode(t, w, 401, 20001)
 }
 
 func TestImageMetadataAndBatchAuthorization(t *testing.T) {
@@ -276,7 +301,9 @@ func TestImageUploadRejectsChunkedOversizedEpilogue(t *testing.T) {
 	images := &imagesStub{}
 	router := imageRouter(t, images, native.ImageOptions{MaxRequestBytes: 1024})
 	body, contentType := multipartBody(t, multipartEntry{"file", "a.png", "abc"})
-	body = append(body, bytes.Repeat([]byte("x"), 2048)...)
+	// The bound stretches to one file of the caller's limit plus 1 MiB of
+	// multipart room; a longer epilogue still overruns it.
+	body = append(body, bytes.Repeat([]byte("x"), 2<<20)...)
 	r := httptest.NewRequest("POST", "/api/upload", bytes.NewReader(body))
 	r.ContentLength = -1
 	r.Header.Set("Authorization", "Bearer "+testBearer)

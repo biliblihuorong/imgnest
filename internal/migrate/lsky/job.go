@@ -121,14 +121,23 @@ func (r *Runner) Start(ctx context.Context, opts service.LskyImportOptions) (ser
 	if opts.Mode == service.LskyModeCopy && policy.WebPMode == "webp_only" {
 		return service.LskyImportStatus{}, service.ErrInvalidInput
 	}
-	var fetch Fetcher = HTTPFetcher{Client: r.deps.HTTP, BaseURL: opts.SourceURL, MaxBytes: r.deps.MaxBytes}
+	r.mu.Lock()
+	loaded := r.snap
+	r.mu.Unlock()
+	if loaded == nil {
+		return service.LskyImportStatus{}, service.ErrNotFound
+	}
+	maxBytes, err := FetchLimit(ctx, r.deps.DB, *loaded, r.deps.MaxBytes)
+	if err != nil {
+		return service.LskyImportStatus{}, err
+	}
+	var fetch Fetcher = HTTPFetcher{Client: r.deps.HTTP, BaseURL: opts.SourceURL, MaxBytes: maxBytes}
 	var open service.ObjectOpener
 	if opts.Mode == service.LskyModeAdopt {
-		var err error
 		if open, err = r.deps.Adoption(ctx, opts.PolicyID); err != nil {
 			return service.LskyImportStatus{}, err
 		}
-		fetch = StorageFetcher{Open: open, MaxBytes: r.deps.MaxBytes}
+		fetch = StorageFetcher{Open: open, MaxBytes: maxBytes}
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()

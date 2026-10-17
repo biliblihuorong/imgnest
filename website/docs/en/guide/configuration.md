@@ -41,8 +41,8 @@ These settings cap the resources the server spends on uploads.
 
 | Key | Environment variable | Default | Meaning |
 | --- | --- | --- | --- |
-| `server.max_upload_mb` | `IMGNEST_SERVER_MAX_UPLOAD_MB` | `20` | Size limit for one file, 1 to 20 |
-| `server.max_request_mb` | `IMGNEST_SERVER_MAX_REQUEST_MB` | `64` | Size limit for the whole request, at most 256 |
+| `server.max_upload_mb` | `IMGNEST_SERVER_MAX_UPLOAD_MB` | `20` | Per-file limit for user groups that set none. A group's own limit (under User groups in the admin console) can be larger |
+| `server.max_request_mb` | `IMGNEST_SERVER_MAX_REQUEST_MB` | `64` | Size limit for one request, which may carry several files; it grows to fit one file of the group's limit |
 | `server.upload_concurrency` | `IMGNEST_SERVER_UPLOAD_CONCURRENCY` | `2` | Upload requests processed at once |
 | `server.processing_timeout` | `IMGNEST_SERVER_PROCESSING_TIMEOUT` | `5m` | Time limit for one upload, at most 30 minutes |
 | `server.max_pixels` | `IMGNEST_SERVER_MAX_PIXELS` | `100000000` | Total pixel limit; animations count every frame |

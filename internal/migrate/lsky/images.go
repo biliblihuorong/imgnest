@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -140,6 +141,24 @@ func (f StorageFetcher) Fetch(ctx context.Context, image Image, _ Strategy) (Fet
 		return Fetched{}, err
 	}
 	return Fetched{Data: data, Version: info.VersionID}, nil
+}
+
+// FetchLimit is the most a fetcher reads of one original: base (the limit of
+// a group without its own) or the largest per-file limit of any ImgNest group
+// or exported Lsky group, which become or merge into ImgNest groups. The
+// import then holds each file to its owner group's limit.
+func FetchLimit(ctx context.Context, db *gorm.DB, snap Snapshot, base int64) (int64, error) {
+	var largest int64
+	if err := db.WithContext(ctx).Model(&model.Group{}).Select("COALESCE(MAX(max_file_bytes), 0)").Scan(&largest).Error; err != nil {
+		return 0, fmt.Errorf("read group file limits: %w", err)
+	}
+	limit := max(base, largest)
+	for _, group := range snap.Groups {
+		if group.MaxFileKB > 0 && group.MaxFileKB < math.MaxInt64/1024 {
+			limit = max(limit, int64(math.Round(group.MaxFileKB*1024)))
+		}
+	}
+	return limit, nil
 }
 
 func readCapped(body io.Reader, limit int64) ([]byte, error) {

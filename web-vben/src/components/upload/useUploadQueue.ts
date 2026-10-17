@@ -3,8 +3,6 @@ import { useI18n } from "@vben/locales";
 import { ApiError } from "@/api/client";
 import {
   MAX_UPLOAD_FILES,
-  MAX_UPLOAD_FILE_BYTES,
-  MAX_UPLOAD_TOTAL_BYTES,
   preflightUpload,
   uploadImages,
   type UploadItemResult,
@@ -15,6 +13,8 @@ import type { UploadQueueItem } from "./types";
 /** Local queue state; all writes remain in the API transport. */
 export function useUploadQueue(
   options: () => { policyId: number | null; albumId: number | null; isPublic: boolean },
+  /** 当前用户的单文件上限（字节）；null = 还没读到，不在客户端拦。 */
+  maxFileBytes: () => number | null = () => null,
 ) {
   const { t } = useI18n();
   const items = ref<UploadQueueItem[]>([]);
@@ -53,20 +53,13 @@ export function useUploadQueue(
     if (!files.length) errors.push(t("user.upload.selectFiles"));
     if (files.length > MAX_UPLOAD_FILES)
       errors.push(t("user.upload.tooMany", { max: MAX_UPLOAD_FILES, count: files.length }));
-    const oversized = files.filter((file) => file.size > MAX_UPLOAD_FILE_BYTES);
-    if (oversized.length)
+    const limit = maxFileBytes();
+    const oversized = limit === null ? [] : files.filter((file) => file.size > limit);
+    if (limit !== null && oversized.length)
       errors.push(
         t("user.upload.fileLimit", {
-          limit: formatBytes(MAX_UPLOAD_FILE_BYTES),
+          limit: formatBytes(limit),
           files: oversized.map((file) => `${file.name} (${formatBytes(file.size)})`).join(", "),
-        }),
-      );
-    const total = files.reduce((sum, file) => sum + file.size, 0);
-    if (total > MAX_UPLOAD_TOTAL_BYTES)
-      errors.push(
-        t("user.upload.totalLimit", {
-          limit: formatBytes(MAX_UPLOAD_TOTAL_BYTES),
-          total: formatBytes(total),
         }),
       );
     return errors;
@@ -85,7 +78,7 @@ export function useUploadQueue(
       ...items.value.filter((item) => item.state === "queued").map((item) => item.file),
       ...files,
     ];
-    if (!preflightUpload(pending).ok) {
+    if (!preflightUpload(pending, maxFileBytes()).ok) {
       rejectedFiles.value = pending;
       return;
     }
@@ -112,13 +105,23 @@ export function useUploadQueue(
       item.error = null;
     } else {
       item.state = "failed";
-      item.error = { code: result.code, message: result.message, status: result.status };
+      item.error = {
+        code: result.code,
+        message: result.message,
+        status: result.status,
+        data: result.data,
+      };
     }
   }
   async function runUpload(targets: UploadQueueItem[]) {
     const settings = options();
     if (uploading.value || settings.policyId === null || !targets.length || !active) return;
-    if (!preflightUpload(targets.map((item) => item.file)).ok) {
+    if (
+      !preflightUpload(
+        targets.map((item) => item.file),
+        maxFileBytes(),
+      ).ok
+    ) {
       rejectedFiles.value = targets.map((item) => item.file);
       return;
     }

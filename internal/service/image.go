@@ -133,8 +133,10 @@ type ImageDependencies struct {
 	TrashPolicies []TrashPolicy
 	// Display transformers run in order on each separately encoded display
 	// WebP; an error or invalid result rejects the upload.
-	Display      []DisplayTransformer
-	Now          func() time.Time
+	Display []DisplayTransformer
+	Now     func() time.Time
+	// MaxFileBytes is the per-file limit of a group that sets none
+	// (server.max_upload_mb); a group's own limit replaces it, larger or not.
 	MaxFileBytes int64
 }
 

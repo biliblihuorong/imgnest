@@ -23,11 +23,13 @@ vi.mock("@/api/albums", () => ({
 vi.mock("@/api/upload", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/upload")>()),
   uploadImages: vi.fn(),
+  getUploadLimits: vi.fn(),
 }));
 
 const policiesApiMock = vi.mocked(policiesApi);
 const listAlbumsMock = vi.mocked(listAlbums);
 const uploadImagesMock = vi.mocked(uploadApi.uploadImages);
+const getUploadLimitsMock = vi.mocked(uploadApi.getUploadLimits);
 enableAutoUnmount(afterEach);
 
 function makeFile(name: string, size: number): File {
@@ -142,6 +144,11 @@ describe("UploadView", () => {
         disconnect(): void {}
       },
     );
+    getUploadLimitsMock.mockResolvedValue({
+      max_file_bytes: 20 * 1024 * 1024,
+      max_files: 20,
+      upload_per_min: 0,
+    });
     listAlbumsMock.mockResolvedValue({
       items: [makeAlbum({ id: 5, name: "旅行" })],
       total: 1,
@@ -178,15 +185,35 @@ describe("UploadView", () => {
     expect(uploadImagesMock).not.toHaveBeenCalled();
   });
 
-  it("预检：合计超过 64MiB 拒绝且不发请求", async () => {
+  it("预检跟随用户组上限：组上限 300MiB 时 100MiB 的文件可以入队", async () => {
+    getUploadLimitsMock.mockResolvedValue({
+      max_file_bytes: 300 * 1024 * 1024,
+      max_files: 20,
+      upload_per_min: 0,
+    });
     const wrapper = mountView();
     await flushPromises();
 
-    const half = 32 * 1024 * 1024 + 1;
-    await chooseFiles(wrapper, [makeFile("a.png", half), makeFile("b.png", half)]);
+    expect(wrapper.text()).toContain("单文件不超过 300");
+    await chooseFiles(wrapper, [
+      makeFile("a.png", 100 * 1024 * 1024),
+      makeFile("b.png", 100 * 1024 * 1024),
+    ]);
 
-    expect(wrapper.text()).toContain("单次合计上限");
-    expect(uploadImagesMock).not.toHaveBeenCalled();
+    expect(wrapper.text()).not.toContain("单文件上限");
+    expect(wrapper.find("[aria-label='上传队列数量']").text()).toBe("2 个文件");
+  });
+
+  it("读不到上限时不在客户端拦大文件", async () => {
+    getUploadLimitsMock.mockRejectedValue(new Error("offline"));
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("单次最多 20 个文件。");
+    await chooseFiles(wrapper, [makeFile("big.png", 50 * 1024 * 1024)]);
+
+    expect(wrapper.text()).not.toContain("单文件上限");
+    expect(wrapper.find("[aria-label='上传队列数量']").text()).toBe("1 个文件");
   });
 
   it("单文件 201 成功后展示复制操作，URL 与 Markdown 拼接正确", async () => {

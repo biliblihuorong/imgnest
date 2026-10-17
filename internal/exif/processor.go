@@ -230,6 +230,11 @@ func (p *Processor) Scrub(ctx context.Context, data []byte, format, mode string)
 
 const maxSourceBytes = 20 << 20
 
+// MaxSourceBytes is the largest file Extract and Scrub accept. Larger
+// uploads are still stored, without an EXIF archive and, under an enabled
+// scrub mode, without their original (see the upload pipeline).
+const MaxSourceBytes = maxSourceBytes
+
 type rawArchive struct {
 	Version     int        `json:"version"`
 	Format      string     `json:"format"`

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/config"
+	"github.com/biliblihuorong/imgnest/internal/exif"
 	"github.com/biliblihuorong/imgnest/internal/migrate"
 	"github.com/biliblihuorong/imgnest/internal/migrate/lsky"
 	"github.com/biliblihuorong/imgnest/internal/model"
@@ -144,7 +145,10 @@ func runLskyImport(ctx context.Context, out *lineWriter, db *gorm.DB, cfg config
 	if run.skipImages {
 		return nil
 	}
-	maxBytes := int64(service.MaxImportFileBytes)
+	maxBytes, err := lsky.FetchLimit(ctx, db, snap, service.MaxImportFileBytes)
+	if err != nil {
+		return err
+	}
 	var fetch lsky.Fetcher = lsky.HTTPFetcher{Client: &http.Client{Timeout: 2 * time.Minute}, BaseURL: run.sourceURL, MaxBytes: maxBytes}
 	if run.sourceDir != "" {
 		fetch = lsky.DirFetcher{Root: run.sourceDir, MaxBytes: maxBytes}
@@ -220,6 +224,8 @@ func lskyImageError(err error) error {
 	switch {
 	case err == nil:
 		return nil
+	case service.ErrorReason(err) == "scrub_too_large":
+		return fmt.Errorf("文件超过 %d MiB，无法无损抹除 EXIF；可改用原地接管，或把规则的脱敏模式改成不脱敏", exif.MaxSourceBytes>>20)
 	case errors.As(err, &processing):
 		return errors.New("图片处理失败：" + processingReason(processing.Step))
 	case errors.Is(err, service.ErrFileTooLarge):

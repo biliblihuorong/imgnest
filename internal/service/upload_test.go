@@ -25,6 +25,7 @@ type uploadRepo struct {
 	rows                                  map[string]model.Image
 	commitErr                             error
 	committedDespiteError, cleanupFailure bool
+	exif                                  model.ImageExif
 }
 
 func (r *uploadRepo) ReserveUpload(_ context.Context, in model.UploadReservation) (model.Image, error) {
@@ -58,9 +59,10 @@ func (r *uploadRepo) RecordObjectReceipt(_ context.Context, key, op string, rece
 	r.rows[key] = row
 	return nil
 }
-func (r *uploadRepo) CommitUpload(_ context.Context, key, op string, _ model.ImageExif, _ model.TokenGrant) (model.Image, error) {
+func (r *uploadRepo) CommitUpload(_ context.Context, key, op string, exif model.ImageExif, _ model.TokenGrant) (model.Image, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.exif = exif
 	row := r.rows[key]
 	if r.commitErr == nil || r.committedDespiteError {
 		row.State = model.ImageStateActive

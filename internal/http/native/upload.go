@@ -63,11 +63,12 @@ func (h *imageHandler) upload(c *gin.Context) {
 		fail(c, errUploadRateLimited)
 		return
 	}
-	if c.Request.ContentLength > h.options.MaxRequestBytes {
+	requestLimit := reqbody.Fit(h.options.MaxRequestBytes, limits.MaxFileBytes)
+	if c.Request.ContentLength > requestLimit {
 		fail(c, errUploadTooLarge)
 		return
 	}
-	defer reqbody.Bound(ctx, c.Writer, c.Request, h.options.MaxRequestBytes)()
+	defer reqbody.Bound(ctx, c.Writer, c.Request, requestLimit)()
 	reader, err := c.Request.MultipartReader()
 	if err != nil {
 		fail(c, service.ErrInvalidInput)
@@ -80,7 +81,7 @@ func (h *imageHandler) upload(c *gin.Context) {
 		fail(c, errUploadRateLimited)
 		return
 	}
-	files, fields, err := readUpload(ctx, reader, limits.MaxFileBytes, h.options.MaxRequestBytes)
+	files, fields, err := readUpload(ctx, reader, limits.MaxFileBytes, requestLimit)
 	if err != nil {
 		fail(c, err)
 		return
@@ -122,6 +123,26 @@ func (h *imageHandler) upload(c *gin.Context) {
 	respond(c, 207, results)
 }
 
+// uploadLimitsView is what a client checks files against before sending
+// them: the caller's per-file limit and how many files one request takes.
+type uploadLimitsView struct {
+	MaxFileBytes int64 `json:"max_file_bytes"`
+	MaxFiles     int   `json:"max_files"`
+	UploadPerMin int   `json:"upload_per_min"`
+}
+
+func (h *imageHandler) uploadLimits(c *gin.Context) {
+	limits, err := h.images.UploadLimitsFor(c.Request.Context(), identity(c).Subject)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	respond(c, 200, uploadLimitsView{MaxFileBytes: limits.MaxFileBytes, MaxFiles: maxUploadFiles, UploadPerMin: limits.PerMinute})
+}
+
+// maxUploadFiles is how many files one multipart request may carry.
+const maxUploadFiles = 20
+
 func readUpload(ctx context.Context, reader *multipart.Reader, fileLimit, requestLimit int64) ([]uploadFile, uploadFields, error) {
 	var files []uploadFile
 	fields := uploadFields{}
@@ -139,7 +160,7 @@ func readUpload(ctx context.Context, reader *multipart.Reader, fileLimit, reques
 		}
 		name := part.FormName()
 		if name == "file" || name == "files[]" {
-			if len(files) >= 20 {
+			if len(files) >= maxUploadFiles {
 				_ = part.Close()
 				return nil, fields, service.ErrInvalidInput
 			}

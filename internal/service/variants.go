@@ -334,7 +334,7 @@ func (s *ImageService) readOwnedObject(ctx context.Context, driver storage.Drive
 	if err != nil {
 		return nil, storageError(ctx, err)
 	}
-	limit := 4 * s.deps.MaxFileBytes
+	limit := max(4*s.deps.MaxFileBytes, objectReadLimit(0, image))
 	data, readErr := io.ReadAll(io.LimitReader(body, limit+1))
 	closeErr := body.Close()
 	if readErr != nil || closeErr != nil || int64(len(data)) > limit {

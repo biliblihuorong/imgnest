@@ -14,11 +14,11 @@
 ::: code-group
 
 ```bash [Bash]
-IMGNEST_TAG=0.0.8 docker compose -f deploy/compose.sqlite.yaml up -d
+IMGNEST_TAG=0.0.9 docker compose -f deploy/compose.sqlite.yaml up -d
 ```
 
 ```powershell [PowerShell]
-$env:IMGNEST_TAG = '0.0.8'
+$env:IMGNEST_TAG = '0.0.9'
 docker compose -f deploy/compose.sqlite.yaml up -d
 ```
 
@@ -27,7 +27,7 @@ docker compose -f deploy/compose.sqlite.yaml up -d
 容器启动时会自动执行数据库迁移。数据存在名为 `imgnest-data` 的数据卷里，包括数据库、本机图片和缩略图缓存。
 
 ::: tip 选哪个 tag
-`0.0.8` 是当前的预览版本，固定不变，适合先试用。`latest` 指向最新的发布版本，`edge` 跟随 `main` 分支的最新提交、可能不稳定。升级时改 `IMGNEST_TAG` 后重新执行上面的命令，容器启动时会自动迁移数据库。
+`0.0.9` 是当前的预览版本，固定不变，适合先试用。`latest` 指向最新的发布版本，`edge` 跟随 `main` 分支的最新提交、可能不稳定。升级时改 `IMGNEST_TAG` 后重新执行上面的命令，容器启动时会自动迁移数据库。
 :::
 
 ## 2. 创建管理员
