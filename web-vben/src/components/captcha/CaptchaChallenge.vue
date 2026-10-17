@@ -118,6 +118,7 @@ function reset(): void {
     state.value = "unavailable";
   }
 }
+// theme 只在渲染时读取：Turnstile 不能原地换主题，重建会作废已通过或进行中的验证。
 watch(
   () => [
     container.value,
@@ -128,7 +129,6 @@ watch(
     props.action,
     props.size,
     language.value,
-    theme.value,
   ],
   () => {
     void render();

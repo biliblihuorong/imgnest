@@ -434,8 +434,6 @@ function goHome(): void {
   gap: 8px;
   align-items: center;
 }
-.is-collapsed .mv-brand,
-.is-collapsed .mv-search,
 .mv-nav__dot {
   flex: none;
   width: 8px;
@@ -449,6 +447,8 @@ function goHome(): void {
   top: 6px;
   right: 10px;
 }
+.is-collapsed .mv-brand,
+.is-collapsed .mv-search,
 .is-collapsed .mv-nav__item {
   justify-content: center;
   padding-inline: 0;
