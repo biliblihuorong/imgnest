@@ -28,6 +28,7 @@ import {
   type FormRules,
 } from "naive-ui";
 import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import DocHelp from "@/components/help/DocHelp.vue";
 import VariantBackfillCard from "@/components/admin/VariantBackfillCard.vue";
 import {
   createPolicy,
@@ -522,7 +523,10 @@ async function runPreview(): Promise<void> {
             <NFormItem :label="t('admin.common.enabled')" path="enabled">
               <NSwitch v-model:value="form.enabled" :disabled="submitting" />
             </NFormItem>
-            <NFormItem :label="t('admin.policies.pathTemplate')" path="path_tpl">
+            <NFormItem path="path_tpl">
+              <template #label
+                >{{ t("admin.policies.pathTemplate") }}<DocHelp topic="pathTemplate"
+              /></template>
               <NInput
                 v-model:value="form.path_tpl"
                 placeholder="{Y}/{m}/{d}"
@@ -600,7 +604,10 @@ async function runPreview(): Promise<void> {
               <NInputNumber v-model:value="form.max_height" :min="0" :disabled="submitting" />
             </NFormItem>
             <p class="policies-hint">{{ t("admin.policies.dimensionsHint") }}</p>
-            <NFormItem :label="t('admin.policies.responsiveVariants')" path="responsive_variants">
+            <NFormItem path="responsive_variants">
+              <template #label
+                >{{ t("admin.policies.responsiveVariants") }}<DocHelp topic="responsiveVariants"
+              /></template>
               <NSwitch v-model:value="form.responsive_variants" :disabled="submitting" />
             </NFormItem>
             <p class="policies-hint">{{ t("admin.policies.responsiveVariantsHint") }}</p>
@@ -626,7 +633,10 @@ async function runPreview(): Promise<void> {
             </NFormItem>
           </NTabPane>
           <NTabPane name="privacy" :tab="t('admin.policies.privacy')">
-            <NFormItem :label="t('admin.policies.scrubMode')" path="scrub_mode">
+            <NFormItem path="scrub_mode">
+              <template #label
+                >{{ t("admin.policies.scrubMode") }}<DocHelp topic="exifScrub"
+              /></template>
               <NSelect
                 v-model:value="form.scrub_mode"
                 :options="SCRUB_MODE_OPTIONS"

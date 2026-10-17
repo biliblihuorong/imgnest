@@ -135,6 +135,7 @@ beforeEach(() => {
     gallery_enabled: false,
     email_verification: false,
     password_reset: false,
+    guest_upload: false,
     login_providers: [],
   });
   listGalleryMock.mockResolvedValue({ items: [], total: 0, page: 1, size: 30 });
@@ -154,6 +155,7 @@ describe("SettingsFieldsForm", () => {
       gallery_enabled: true,
       email_verification: false,
       password_reset: false,
+      guest_upload: false,
       login_providers: [{ id: "sso", name: "SSO", start_url: "/api/ext/sso/start" }],
     });
 
@@ -191,6 +193,7 @@ describe("SettingsFieldsForm", () => {
       gallery_enabled: true,
       email_verification: false,
       password_reset: false,
+      guest_upload: false,
       login_providers: [],
     });
     await wrapper.find("input[placeholder='站点名称']").setValue("Saved site");
@@ -207,6 +210,7 @@ describe("SettingsFieldsForm", () => {
       gallery_enabled: false,
       email_verification: false,
       password_reset: false,
+      guest_upload: false,
       login_providers: [],
     });
     await older;
@@ -225,6 +229,7 @@ describe("SettingsFieldsForm", () => {
       gallery_enabled: true,
       email_verification: false,
       password_reset: false,
+      guest_upload: false,
       login_providers: [],
     });
     await wrapper.find("input[placeholder='站点名称']").setValue("Rejected site");

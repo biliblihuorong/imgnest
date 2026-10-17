@@ -171,6 +171,7 @@ func (s *ImageService) trash(ctx context.Context, subject TokenSubject, key stri
 		}
 		// The row left the active set here, whatever happens to its objects.
 		s.invalidateRandom(ctx, image.AlbumID)
+		s.invalidateLookup(ctx, image)
 	}
 	if err = s.moveToTrash(ctx, image); err != nil {
 		return err
@@ -335,6 +336,7 @@ func (s *ImageService) Restore(ctx context.Context, subject TokenSubject, key st
 		}
 		if current.State == model.ImageStateActive && current.OperationID == op {
 			s.invalidateRandom(checkCtx, current.AlbumID)
+			s.invalidateLookup(checkCtx, current)
 			s.emit(checkCtx, EventImageRestored, current, backend)
 			return s.clearRestoreTrash(checkCtx, current)
 		}
@@ -342,6 +344,7 @@ func (s *ImageService) Restore(ctx context.Context, subject TokenSubject, key st
 	}
 	// The row is active again, whether or not its trash copies clear now.
 	s.invalidateRandom(ctx, active.AlbumID)
+	s.invalidateLookup(ctx, active)
 	s.emit(ctx, EventImageRestored, active, backend)
 	return s.clearRestoreTrash(ctx, active)
 }

@@ -24,7 +24,11 @@ class FakeXHR {
     FakeXHR.instances.push(this);
   }
 
-  open(): void {}
+  url = "";
+
+  open(_method: string, url: string): void {
+    this.url = url;
+  }
 
   setRequestHeader(name: string, value: string): void {
     this.headers.set(name, value);
@@ -358,6 +362,48 @@ describe("uploadImages", () => {
     expect(xhr.sent?.get("is_public")).toBe("true");
     xhr.respond(201, envelopeJson(imageView));
     await promise;
+  });
+
+  it("游客上传走 /api/guest/upload，不带 Token、相册和公开字段，规则照常发送", async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|tok");
+    const promise = uploadImages({
+      files: [makeFile("a.png", 1)],
+      policyId: 3,
+      albumId: 5,
+      isPublic: true,
+      guest: true,
+    });
+    const xhr = FakeXHR.instances[0]!;
+    expect(xhr.url).toBe("/api/guest/upload");
+    expect(xhr.headers.has("Authorization")).toBe(false);
+    expect(xhr.sent?.get("album_id")).toBeNull();
+    expect(xhr.sent?.get("is_public")).toBeNull();
+    expect(xhr.sent?.get("policy_id")).toBe("3");
+    xhr.respond(201, envelopeJson(imageView));
+    expect(await promise).toEqual([{ ok: true, filename: "a.png", status: 201, image: imageView }]);
+  });
+
+  it("游客上传遇 401 不清掉当前登录会话", async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|tok");
+    const onUnauthorized = vi.fn();
+    setUnauthorizedHandler(onUnauthorized);
+    try {
+      const promise = uploadImages({
+        files: [makeFile("a.png", 1)],
+        policyId: null,
+        isPublic: false,
+        guest: true,
+      });
+      FakeXHR.instances[0]!.respond(
+        401,
+        JSON.stringify({ code: 20001, message: "closed", data: null }),
+      );
+      const [result] = await promise;
+      expect(result?.ok).toBe(false);
+      expect(onUnauthorized).not.toHaveBeenCalled();
+    } finally {
+      setUnauthorizedHandler(null);
+    }
   });
 
   it("albumId 提供时发送 album_id 表单字段；未提供时不发送", async () => {

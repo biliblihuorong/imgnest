@@ -14,6 +14,8 @@ Usage:
       -- python test.py
 """
 
+import os
+import signal
 import subprocess
 import socket
 import time
@@ -65,12 +67,14 @@ def main():
         for i, server in enumerate(servers):
             print(f"Starting server {i+1}/{len(servers)}: {server['cmd']}")
 
-            # Use shell=True to support commands with cd and &&
+            # Use shell=True to support commands with cd and &&. Output goes
+            # to this terminal (an unread pipe blocks the server once it fills),
+            # and the server leads its own process group so cleanup reaches
+            # the children the shell starts, not just the shell.
             process = subprocess.Popen(
                 server['cmd'],
                 shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                start_new_session=True
             )
             server_processes.append(process)
 
@@ -93,10 +97,15 @@ def main():
         print(f"\nStopping {len(server_processes)} server(s)...")
         for i, process in enumerate(server_processes):
             try:
-                process.terminate()
+                os.killpg(process.pid, signal.SIGTERM)
                 process.wait(timeout=5)
+            except ProcessLookupError:
+                pass
             except subprocess.TimeoutExpired:
-                process.kill()
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
                 process.wait()
             print(f"Server {i+1} stopped")
         print("All servers stopped")

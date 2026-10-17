@@ -8,6 +8,8 @@ import {
   NButton,
   NCard,
   NDataTable,
+  NDrawer,
+  NDrawerContent,
   NEmpty,
   NForm,
   NFormItem,
@@ -42,6 +44,9 @@ import {
 } from "@/api/admin";
 import { formatBytes } from "@/lib/format";
 import { formatDateTime } from "@/components/admin/format";
+import ActivityPanel from "@/components/activity/ActivityPanel.vue";
+import { relativeTime } from "@/components/activity/format";
+import { fetchUserActivity } from "@/api/activity";
 
 const { t, locale } = useI18n();
 const message = useMessage();
@@ -247,6 +252,19 @@ async function handleGroupChange(row: AdminUserView, groupId: number): Promise<v
   } finally {
     busyIds.delete(row.id);
   }
+}
+
+/* ---------------- 用户详情（账户活动） ---------------- */
+
+const detailUser = shallowRef<AdminUserView | null>(null);
+const detailShow = shallowRef(false);
+function openDetail(user: AdminUserView): void {
+  detailUser.value = user;
+  detailShow.value = true;
+}
+function loadDetail() {
+  const id = detailUser.value?.id;
+  return id === undefined ? Promise.reject(new Error("no user")) : fetchUserActivity(id);
 }
 
 /* ---------------- 创建 / 编辑账户 ---------------- */
@@ -463,7 +481,23 @@ async function submitForm(): Promise<void> {
 }
 
 const columns = computed<DataTableColumns<AdminUserView>>(() => [
-  { title: t("admin.users.username"), key: "username", minWidth: 150, ellipsis: { tooltip: true } },
+  {
+    title: t("admin.users.username"),
+    key: "username",
+    minWidth: 150,
+    ellipsis: { tooltip: true },
+    render: (row) =>
+      h(
+        NButton,
+        {
+          text: true,
+          type: "primary",
+          "aria-label": t("admin.users.detailLabel", { name: row.username }),
+          onClick: () => openDetail(row),
+        },
+        { default: () => row.username },
+      ),
+  },
   {
     title: t("admin.users.displayName"),
     key: "display_name",
@@ -526,6 +560,19 @@ const columns = computed<DataTableColumns<AdminUserView>>(() => [
     render: (row) => formatBytes(row.used_bytes),
   },
   {
+    title: t("admin.users.lastSeen"),
+    key: "last_seen_at",
+    width: 130,
+    render: (row) =>
+      row.last_seen_at
+        ? h(
+            "span",
+            { title: formatDateTime(row.last_seen_at, locale.value) },
+            relativeTime(row.last_seen_at, locale.value),
+          )
+        : t("activity.never"),
+  },
+  {
     title: t("admin.users.createdAt"),
     key: "created_at",
     width: 190,
@@ -534,20 +581,32 @@ const columns = computed<DataTableColumns<AdminUserView>>(() => [
   {
     title: t("admin.common.actions"),
     key: "actions",
-    width: 90,
+    width: 150,
     fixed: "right",
     render: (row) =>
-      h(
-        NButton,
-        {
-          size: "small",
-          secondary: true,
-          disabled: busyIds.has(row.id) || saving.value,
-          "aria-label": t("admin.users.editLabel", { name: row.username }),
-          onClick: () => openEdit(row),
-        },
-        { default: () => t("admin.common.edit") },
-      ),
+      h(NSpace, { size: 6, wrap: false }, () => [
+        h(
+          NButton,
+          {
+            size: "small",
+            secondary: true,
+            "aria-label": t("admin.users.detailLabel", { name: row.username }),
+            onClick: () => openDetail(row),
+          },
+          { default: () => t("activity.detailButton") },
+        ),
+        h(
+          NButton,
+          {
+            size: "small",
+            secondary: true,
+            disabled: busyIds.has(row.id) || saving.value,
+            "aria-label": t("admin.users.editLabel", { name: row.username }),
+            onClick: () => openEdit(row),
+          },
+          { default: () => t("admin.common.edit") },
+        ),
+      ]),
   },
 ]);
 </script>
@@ -586,7 +645,7 @@ const columns = computed<DataTableColumns<AdminUserView>>(() => [
       <NDataTable
         :columns="columns"
         :data="users"
-        :scroll-x="1285"
+        :scroll-x="1475"
         :loading="loading"
         :row-key="(row: AdminUserView) => row.id"
       >
@@ -604,6 +663,22 @@ const columns = computed<DataTableColumns<AdminUserView>>(() => [
         />
       </div>
     </NCard>
+
+    <NDrawer v-model:show="detailShow" :width="isMobile ? '100%' : 760" placement="right">
+      <NDrawerContent
+        v-if="detailUser"
+        :title="t('activity.detailTitle', { name: detailUser.display_name || detailUser.username })"
+        closable
+      >
+        <p class="users-detail-meta">
+          {{ detailUser.email }} · {{ ROLE_LABELS[detailUser.role] }} ·
+          {{ groupLabel(detailUser.group_id) }} · {{ t("admin.users.usedBytes") }}
+          {{ formatBytes(detailUser.used_bytes) }} · {{ t("admin.users.createdAt") }}
+          {{ formatDateTime(detailUser.created_at, locale) }}
+        </p>
+        <ActivityPanel :load="loadDetail" :reload-key="detailUser.id" />
+      </NDrawerContent>
+    </NDrawer>
 
     <NModal
       :show="formShow"
@@ -758,6 +833,12 @@ const columns = computed<DataTableColumns<AdminUserView>>(() => [
 <style scoped>
 .users-field {
   width: 100%;
+}
+
+.users-detail-meta {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
 }
 
 .users-field-hint {

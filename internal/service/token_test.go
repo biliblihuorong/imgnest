@@ -489,7 +489,7 @@ type touchFailure struct {
 	err error
 }
 
-func (failure touchFailure) TouchToken(context.Context, uint64, time.Time) error {
+func (failure touchFailure) TouchToken(context.Context, model.TokenUse) error {
 	return failure.err
 }
 

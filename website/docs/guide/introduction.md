@@ -14,7 +14,7 @@ ImgNest 是一个自托管图床，后端用 Go，界面用 Vue 3。它的目标
 ## 当前状态
 
 ::: warning 预览版本
-ImgNest 仍在开发中，当前预览版本是 **v0.0.9**（镜像 tag `0.0.9`，`latest` 也指向它），尚未发布 v1.0.0。`edge` 这个 tag 跟随 `main` 分支的最新提交，可能不稳定。
+ImgNest 仍在开发中，当前预览版本是 **v0.1.0**（镜像 tag `0.1.0`，`latest` 也指向它），尚未发布 v1.0.0。`edge` 这个 tag 跟随 `main` 分支的最新提交，可能不稳定。
 :::
 
 已经实现的部分：
@@ -43,5 +43,7 @@ ImgNest 仍在开发中，当前预览版本是 **v0.0.9**（镜像 tag `0.0.9`�
 ## 接下来
 
 - 想先跑起来，看[快速开始](./getting-started)。
-- 想接入 PicGo，看[蓝空 API 与 PicGo](./lsky-api)。
+- 想接入 PicGo，看[蓝空 API 与 PicGo](./lsky-api)；写自己的脚本看[原生 API v2](./api-v2)。
 - 想了解图片存在哪里、叫什么名字，看[存储与规则](./storage-and-policies)。
+- 想快速找图，看[搜索语法](./search)；想给博客配随机背景图，看[随机图片链接](./random-links)。
+- 数据安全与定时备份，看[备份与还原](./backup)。

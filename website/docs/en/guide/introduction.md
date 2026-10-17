@@ -14,7 +14,7 @@ ImgNest is a self-hosted image host with a Go backend and a Vue 3 interface. It 
 ## Current status
 
 ::: warning Preview release
-ImgNest is under active development. The current preview release is **v0.0.9** (image tag `0.0.9`, also `latest`); version 1.0.0 has not been released. The `edge` tag follows the latest commit on `main` and may be unstable.
+ImgNest is under active development. The current preview release is **v0.1.0** (image tag `0.1.0`, also `latest`); version 1.0.0 has not been released. The `edge` tag follows the latest commit on `main` and may be unstable.
 :::
 
 What is implemented:
@@ -43,5 +43,7 @@ Not done yet: migrating directly from a MySQL Lsky Pro database (convert it to P
 ## Next
 
 - To run it, read [Getting started](./getting-started).
-- To connect PicGo, read [Lsky API and PicGo](./lsky-api).
+- To connect PicGo, read [Lsky API and PicGo](./lsky-api); for your own scripts, read [Native API v2](./api-v2).
 - To learn where images are stored and how they are named, read [Storage and policies](./storage-and-policies).
+- To find images fast, read [Search syntax](./search); for a random blog background, read [Random image links](./random-links).
+- For scheduled backups and restores, read [Backup and restore](./backup).

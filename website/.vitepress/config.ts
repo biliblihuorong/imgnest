@@ -17,12 +17,29 @@ const GUIDE: { title: [zh: string, en: string]; pages: [slug: string, zh: string
     ],
   },
   {
-    title: ["使用", "Usage"],
+    title: ["图库功能", "Library"],
     pages: [
       ["storage-and-policies", "存储与规则", "Storage and policies"],
+      ["albums-and-gallery", "相册与画廊", "Albums and gallery"],
+      ["random-links", "随机图片链接", "Random image links"],
+      ["search", "搜索语法", "Search syntax"],
       ["privacy-and-trash", "隐私与回收站", "Privacy and recycle bin"],
+    ],
+  },
+  {
+    title: ["API 与集成", "API and integrations"],
+    pages: [
       ["lsky-api", "蓝空 API 与 PicGo", "Lsky API and PicGo"],
+      ["api-v2", "原生 API v2", "Native API v2"],
+      ["responsive-images", "响应式图片 API", "Responsive images API"],
       ["lsky-migration", "从蓝空迁移", "Migrating from Lsky Pro"],
+    ],
+  },
+  {
+    title: ["站点运维", "Operations"],
+    pages: [
+      ["backup", "备份与还原", "Backup and restore"],
+      ["sign-in-protection", "登录保护", "Sign-in protection"],
       ["frontends", "界面与主题", "Interface and themes"],
     ],
   },

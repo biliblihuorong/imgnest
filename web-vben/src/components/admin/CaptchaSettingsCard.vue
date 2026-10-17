@@ -13,6 +13,7 @@ import {
   NTag,
 } from "naive-ui";
 import { computed, onBeforeUnmount, onMounted, shallowRef } from "vue";
+import DocHelp from "@/components/help/DocHelp.vue";
 import {
   configureCaptcha,
   getCaptchaSettings,
@@ -158,7 +159,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <NCard :title="t('captcha.admin.title')" class="captcha-settings">
+  <NCard class="captcha-settings">
+    <template #header>{{ t("captcha.admin.title") }}<DocHelp topic="signInProtection" /></template>
     <template #header-extra>
       <NTag v-if="settings" :type="settings.enabled ? 'success' : 'default'" data-captcha-status>{{
         t(settings.enabled ? "captcha.admin.enabled" : "captcha.admin.disabled")

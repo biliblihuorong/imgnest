@@ -36,4 +36,13 @@ describe("Vben 工作区导航权限", () => {
     expect(workspaceMenus(undefined, true).map((m) => m.path)).toEqual(["/gallery"]);
     expect(workspaceMenus("user", false).some((m) => m.path === "/gallery")).toBe(false);
   });
+  it("有新版本时只在管理员的系统设置上挂小红点", () => {
+    const admin = workspaceMenus("admin", false, true).find((menu) => menu.path === "/admin");
+    expect(admin?.dot).toBe(true);
+    expect(admin?.children?.filter((menu) => menu.dot).map((menu) => menu.path)).toEqual([
+      "/admin/settings",
+    ]);
+    expect(workspaceMenus("user", false, true).some((menu) => menu.dot)).toBe(false);
+    expect(workspaceMenus("admin").find((menu) => menu.path === "/admin")?.dot).toBeUndefined();
+  });
 });

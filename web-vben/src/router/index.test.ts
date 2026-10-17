@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from "pinia";
 import { useAuthStore } from "@/stores/auth";
+import { useSiteStore } from "@/stores/site";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TOKEN_STORAGE_KEY } from "@/api/client";
 import { ROUTER_NAMES, setupRouter } from "./index";
@@ -27,6 +28,7 @@ vi.mock("@/views/TokensView.vue", () => ({
 vi.mock("@/views/GalleryView.vue", () => ({ default: { template: "<div />" } }));
 vi.mock("@/views/AlbumsView.vue", () => ({ default: { template: "<div />" } }));
 vi.mock("@/views/DashboardView.vue", () => ({ default: { template: "<div />" } }));
+vi.mock("@/views/PublicHomeView.vue", () => ({ default: { template: "<div />" } }));
 
 describe("router 守卫", () => {
   beforeEach(() => {
@@ -164,9 +166,10 @@ describe("router 守卫", () => {
     expect(router.currentRoute.value.query.redirect).toBe("/upload");
   });
 
-  it("ROUTER_NAMES 暴露七个命名路由", () => {
+  it("ROUTER_NAMES 暴露八个命名路由", () => {
     expect(Object.keys(ROUTER_NAMES).sort()).toEqual([
       "accountSettings",
+      "home",
       "images",
       "login",
       "register",
@@ -175,6 +178,43 @@ describe("router 守卫", () => {
       "upload",
     ]);
   });
+  it("未登录访问 / 时进入公开首页", async () => {
+    useSiteStore().$patch({ loaded: true, guestUpload: true });
+    const router = setupRouter();
+    await router.push("/");
+    await router.isReady();
+
+    expect(router.currentRoute.value.path).toBe("/home");
+  });
+
+  it("游客上传和画廊都未开放时公开首页转去登录", async () => {
+    useSiteStore().$patch({ loaded: true, guestUpload: false, galleryEnabled: false });
+    const router = setupRouter();
+    await router.push("/");
+    await router.isReady();
+
+    expect(router.currentRoute.value.path).toBe("/login");
+  });
+
+  it("只开放画廊时公开首页仍可访问", async () => {
+    useSiteStore().$patch({ loaded: true, guestUpload: false, galleryEnabled: true });
+    const router = setupRouter();
+    await router.push("/home");
+    await router.isReady();
+
+    expect(router.currentRoute.value.path).toBe("/home");
+  });
+
+  it("已登录访问 / 时照旧进入控制台", async () => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|token");
+    useAuthStore().user = { id: 1, role: "user" } as never;
+    const router = setupRouter();
+    await router.push("/");
+    await router.isReady();
+
+    expect(router.currentRoute.value.path).toBe("/upload");
+  });
+
   it("匿名与登录状态均可打开画廊", async () => {
     const router = setupRouter();
     await router.push("/gallery");

@@ -15,6 +15,7 @@ import {
   useMessage,
 } from "naive-ui";
 import { computed, onBeforeUnmount, onMounted, reactive, shallowRef } from "vue";
+import DocHelp from "@/components/help/DocHelp.vue";
 import { ApiError } from "@/api/client";
 import {
   getMailSettings,
@@ -157,7 +158,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <NCard :bordered="false" :title="t('admin.settings.mail.title')" class="mail-settings">
+  <NCard :bordered="false" class="mail-settings">
+    <template #header>{{ t("admin.settings.mail.title") }}<DocHelp topic="mail" /></template>
     <NAlert v-if="loadError" type="error" class="notice">
       {{ formatApiError(loadError, "admin.errors.settingsLoad") }}
       <NButton size="tiny" quaternary type="primary" :disabled="loading" @click="load">{{

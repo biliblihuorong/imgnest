@@ -139,7 +139,9 @@ v1 用方案 A 快速跑通，M6 再评估是否换 B。运行参数参照 imago
 | `images` | id, key(短 ID, 唯一), user\_id, album\_id, policy\_id, storage\_id, path(不含后缀), ext, has\_original, has\_webp, has\_thumb, scrubbed, origin\_name, mime, size, webp\_size, width, height, frames, src\_md5, md5, sha1, is\_public, ip, deleted\_at, purge\_at | `src_md5` = 用户上传文件的哈希（去重用），`md5`/`sha1` = 云端实际存放文件的哈希（抹除 GPS 后会不同）；`(storage_id, path)` 唯一索引；`deleted_at` 非空即在回收站 |
 | `image_exif` | image\_id(PK), make, model, lens, taken\_at, exposure, f\_number, iso, focal\_length, orientation, gps\_lat, gps\_lng, gps\_alt, raw | 只存本地数据库；`raw` = 全量 EXIF + XMP（PG 用 JSONB，SQLite 用 JSON 文本）；GPS 与 `raw` 仅本人/管理员可读 |
 | `albums` | id, user\_id, name, intro, is\_public, cover\_image\_id, image\_count | 删除相册时图片 `album_id` 置空，不删图 |
-| `tokens` | id, user\_id, name, token\_hash, kind(web/api), abilities, last\_used\_at, expires\_at | 明文只在创建时返回一次 |
+| `tokens` | id, user\_id, name, token\_hash, kind(web/api), abilities, last\_used\_at, last\_used\_ip, use\_count, expires\_at | 明文只在创建时返回一次；用量见 7.9 |
+| `login_events` | id, user\_id, ip, user\_agent, created\_at | 网页登录记录，每个账户只保留最新 20 条；同时刷新 `users.last_seen_at`。见 7.9 |
+| `api_usage_daily` | user\_id, day(UTC `YYYY-MM-DD`), requests | 每账户每天 API Token 请求数，主键 `(user_id, day)`；吊销 Token 不删历史。见 7.9 |
 | `random_links` | id, user\_id, album\_id(唯一), token(唯一, 明文), enabled | 相册随机图片链接，一个相册一条；删除相册时同事务删除；另有 `users.public_id`（10 位 base62，首次创建链接时惰性生成）。见 7.5 |
 | `settings` | key, value(JSON) | 站点名、开放注册、游客上传、画廊开关、默认组、回收站保留天数等 |
 | `user_identities` | id, user\_id, provider, subject, created\_at | 外部登录（SSO 扩展）身份；`(provider, subject)` 唯一，`provider` 形如 `sso:github`；不复制外部资料，只存稳定的 subject。见 `docs/development.md` 的「扩展插件」 |
@@ -306,7 +308,7 @@ CDN 缓存不在本程序处理范围内。
 | 分组 | 接口 | 权限 |
 | --- | --- | --- |
 | 认证 | `POST /api/auth/login`、`POST /api/auth/register`、`POST /api/auth/logout`、`GET /api/auth/me`、`PATCH /api/auth/profile` | 公开 / 登录 |
-| 上传 | `POST /api/upload`（可一次多文件） | 登录或游客 |
+| 上传 | `POST /api/upload`（可一次多文件）；游客走 `POST /api/guest/upload`、`GET /api/guest/upload/limits`（见 7.10） | 登录 / 游客 |
 | 图片 | `GET /api/images`、`PATCH /api/images/{id}`（改可见性 `is_public` / 改显示名称 `name`，只改名称不改对象键和链接）、`POST /api/images/batch`（删除/移动/改权限） | 本人 |
 | EXIF | `GET /api/images/{id}/exif`（含 GPS 与全量 `raw`） | 本人 / 管理员 |
 | 本地缩略图 | `GET /t/{key}.webp`（缺失时懒生成） | 本人 / 管理员；公开图片可匿名 |
@@ -316,6 +318,8 @@ CDN 缓存不在本程序处理范围内。
 | 随机图片 | `GET/HEAD /random/{uid}/{token}`（307 跳转） | 公开（凭链接） |
 | 响应式版本 | `GET/POST /api/variants`（按已有链接批量查衍生版本，见 7.6） | 公开（限流，可配 CORS） |
 | Token | `GET/POST /api/tokens`、`DELETE /api/tokens/{id}` | 本人 |
+| 账户活动 | `GET /api/account/activity`；管理员看任一账户 `GET /api/admin/users/{id}/activity`（见 7.9） | 本人 / 管理员 |
+| 版本 | `GET /api/admin/system/version`（`?refresh=1` 立即重新检查，见 7.9） | 管理员 |
 | 画廊 | `GET /api/gallery`、`GET /api/site` | 公开（受开关控制） |
 | 管理 | `/api/admin/users`、`groups`、`storages`（含 `POST /{id}/test`）、`policies`（含 `POST /preview` 模板预览）、`images`、`trash`（清空全站回收站）、`settings`、`plugins`（扩展插件的设置卡片，`PUT /{name}/settings` 保存）、`tasks/backfill`（补 WebP/缩略图/EXIF）、`variants/backfill`（补响应式版本，见 6.3） | 管理员 |
 
@@ -353,14 +357,17 @@ CDN 缓存不在本程序处理范围内。
 - 默认跳转 WebP，`?format=original` 跳原图；图片缺少所请求的版本时回退到另一个版本。其他 `format` 值返回 400。
 - 随机接口响应一律 `Cache-Control: no-store`，不返回图片元数据与 EXIF。`uid`/`token` 格式不符、未知、链接停用、用户被禁用、相册无可用图片，统一返回相同的 404/10001，不区分原因。日志只记路由模板，不记 `uid` 与 `token`。
 - 限流：每客户端地址每分钟 600 次，使用独立的限流表（上限 16384 条），超限 429/30003；与登录注册的限流互不挤占。
-- 候选图经 `RandomPool` 接口缓存：每相册最多 5000 张（超出时随机采样），TTL 60 秒；上传到相册、移入移出相册、进回收站、恢复、新建或删除链接时主动失效。链接本身每次请求都查库，停用、重置、禁用用户立即生效。本轮只有进程内实现；多实例部署且未接共享缓存时，其他实例上的失效最多延迟 60 秒（此时跳转目标已是 404，不泄露内容）。Redis 等共享实现只需满足同一接口，目前未引入依赖。
+- 候选图经 `RandomPool` 接口缓存：每相册最多 5000 张（超出时随机采样），TTL 60 秒；上传到相册、移入移出相册、进回收站、恢复、新建或删除链接时主动失效。链接本身每次请求都查库，停用、重置、禁用用户立即生效。
+- **缓存后端（2026-10-17）**：配置 `cache.redis_url`（`IMGNEST_CACHE_REDIS_URL`）时候选图存在 Redis（键 `imgnest:random:album:{id}`，JSON），所有实例共享，任一实例上的失效立即对全部生效；未配置时用进程内存，多实例下其他实例的失效最多延迟 60 秒（此时跳转目标已是 404，不泄露内容）。启动时 Redis 连不上记警告并退回内存；运行中 Redis 出错按未命中处理，直接查库，不影响跳转。Redis 读写超时 500ms、连接超时 2s（URL 里写了的以 URL 为准），日志与错误不含 URL 与密码。依赖 `github.com/redis/go-redis/v9`，见 `docs/versions.md`。
 
 ### 7.6 响应式版本查询（2026-10-16）
 
 - `GET /api/variants?url=…&url=…` 或 `POST /api/variants`（`{"urls":[…]}`），公开只读，每批 1–50 个链接、单个 ≤ 2048 字节，返回 `{"items":[{"url","found","variants"}]}`，顺序与请求一致。
 - 只按已配置存储的 `base_url`（主机 + 最长路径前缀，忽略协议、查询串与片段）在库内匹配，**从不抓取外部 URL**。原图、`.webp`、`_thumbs.webp` 和衍生版本链接都能反查到同一张图；不在清单里的 Key、`_trash/` 前缀、回收站或已删除的图一律 `found=false`。
 - 只返回 `variants` 数组，不返回 EXIF、上传者、IP、key 或任何凭据。持有链接即可直接访问图片，所以查询不额外区分图片公开性。
-- 每客户端地址每分钟 60 次（`images.variant_lookup_per_minute`），超限 429/30003；成功响应 `Cache-Control: public, max-age=300`、`Vary: Origin`，进回收站后缓存的查询结果最多滞后 5 分钟，但其中的文件地址已立即 404。
+- 每客户端地址每分钟 60 次（`images.variant_lookup_per_minute`），超限 429/30003。
+- **CDN 缓存（2026-10-17）**：成功响应 `Cache-Control: public, max-age=300, s-maxage=<images.variant_cdn_max_age>, stale-while-revalidate=60`（默认 `s-maxage=3600`；设 `0s` 时只有 `max-age=300`），并带 `ETag`（响应体 SHA-256 前 16 字节）；GET 带匹配的 `If-None-Match` 返回 304。只有 `variant_cors_origins` 列了具体来源时才发 `Vary: Origin`，未配置或为 `*` 时所有来源拿到同样的响应，CDN 每个 URL 只存一份。想让 CDN 缓存请用 GET（POST 不缓存）。进回收站后，浏览器缓存的结果最多滞后 5 分钟、CDN 最多滞后 `s-maxage`，但其中的文件地址已立即 404。
+- **服务端缓存**：查询按（存储，路径）把「是否在用、对象 Key、衍生版本」缓存 5 分钟（`cache.redis_url` 配了用 Redis，否则进程内存，上限 16384 条），上传、进回收站、恢复、补生成衍生版本时立即删除对应条目；缓存出错按未命中处理，只多一次数据库查询。
 - 浏览器跨域读取需在 `images.variant_cors_origins` 列出来源（`https://blog.example.com`，或 `*`），默认不发 CORS 头。用法示例见 [`docs/examples/responsive-images.html`](examples/responsive-images.html)。
 
 ### 7.7 系统设置二级页、SMTP 与邮箱验证码（2026-10-16）
@@ -381,6 +388,27 @@ CDN 缓存不在本程序处理范围内。
 - 定时备份存在 `settings` 的 `backup_schedule` 键：`enabled`（默认关）、`interval_hours` 1–720（默认 24）、`keep` 1–365（默认 7）。服务每 5 分钟检查一次，到期写 `-auto` 归档，之后只清理多出的自动归档，手动备份不会被删。
 - 还原只走命令行，先停服务：`imgnest backup restore --yes <归档>`。目标库必须已由同一版本迁移（驱动与 `schema_version` 不一致返回 30021），在一个事务里清空全部数据表再导入，只执行备份格式里的 INSERT/UPDATE；Postgres 自增序列随后对齐。配置文件不会自动覆盖，需要时手工拷回。`imgnest backup create` 可用于 cron。
 - 新码：30020=已有备份在进行(409)、30021=备份与当前安装不匹配(409)。
+
+### 7.9 账户活动与版本信息（2026-10-17）
+
+- 登录（密码、SSO）创建网页会话时同事务写一条 `login_events`（IP 按 `server.trusted_proxies` 取真实地址，User-Agent 截到 255 字节），每账户保留最新 20 条，并刷新 `users.last_seen_at`。之后网页会话每次鉴权最多每分钟刷新一次 `last_seen_at`。
+- Token 用量：每次鉴权先在内存里计数，距上次写入满 1 分钟时一次写入 `tokens.last_used_at / last_used_ip / use_count`，API Token 同时累加到 `api_usage_daily`。进程重启最多丢一分钟的计数；内存里最多 1 万个 Token 的待写计数，超出清零。计数只是参考，不用于限流或计费。
+- `GET /api/account/activity` 返回最近在线、最近 10 次登录（时间、IP、浏览器）、未过期网页会话数、API Token 列表（含次数与最后 IP）和近 30 个 UTC 日的 API 请求数（固定 30 项，缺的天补 0）。只给本人和管理员（`/api/admin/users/{id}/activity`）；IP 与 User-Agent 不进日志、不进公开接口和蓝空 v1 接口。前端：本人在「数据概览」页，管理员在「用户管理」点用户名或「详情」打开抽屉；用户列表多一列「最近在线」。
+- 版本号来自仓库根目录 `VERSION`，由根包 `imgnest.Version()` 用 `go:embed` 编译进二进制，`scripts/bump-version.py` 改它即可，无需 ldflags。`GET /api/admin/system/version` 返回当前版本、GitHub 最新正式版（`releases/latest`，跳过草稿和预发布）、`update_available`、项目链接。检查结果在进程内缓存 6 小时，失败后 30 分钟重试，`refresh=1` 最多每分钟一次；`updates.check: false`（`IMGNEST_UPDATES_CHECK`）时从不外连。请求走 `HTTPS_PROXY`。
+- 前端：「站点设置 → 关于」（`/admin/settings/about`）显示版本、更新提示和仓库/文档/发布/反馈链接；有新版本时管理员菜单的「站点设置」和设置页的「关于」显示小红点。只有管理员会请求版本接口。
+
+### 7.10 公开图床首页与游客上传（2026-10-17）
+
+- 前端新增公开首页 `/home`（`PublicHomeView.vue`）。未登录访问 `/` 先到这里，已登录照旧进控制台；游客上传和画廊都没开时，`/home` 直接转去 `/login`，表现与之前一致。首页有站点名、画廊与登录/注册入口、游客上传区（拖拽、队列、复制链接），开放画廊时再展示最新 12 张公开图片。
+- 游客上传走独立的 `POST /api/guest/upload`（字段同 `/api/upload`，但不接受 `album_id`，带了返回 403；`is_public` 一律为 false，游客图片不进画廊）和 `GET /api/guest/upload/limits`。不复用 `/api/upload`，是为了让控制台里 Token 过期的请求照旧得到 401，而不是悄悄变成游客上传。
+- 只有「游客上传」开关打开且存在游客组时才开放（`GET /api/site` 新增 `guest_upload`），否则两个接口返回 401/20001。限额取游客组，限流按客户端地址，与蓝空 v1 匿名上传共用同一个计数（`upload:guest:{ip}`），换接口不能绕过限流。
+
+### 7.11 功能旁的文档帮助链接（2026-10-17）
+
+- 有深度的功能旁边放一个「?」（`web-vben/src/components/help/DocHelp.vue`），新标签页打开对应文档，中文界面打开 `website/docs/guide/`，其他语言打开 `website/docs/en/guide/`。文档没有单独部署，链到 GitHub 上渲染好的 Markdown。
+- 所有帮助点统一登记在 `web-vben/src/lib/docs.ts` 的 `DOC_TOPICS`（主题 → 页面 + 中英文锚点），界面里只写 `<DocHelp topic="..." />`，不手写文档地址。站点设置项在 `fields.ts` 里用 `doc` 字段挂帮助点。
+- `docs.test.ts` 读取 `website/docs` 核对每个登记的页面和锚点都存在；改了文档文件名或标题要同步改登记表，否则测试失败；因此 PR 改动 `website/docs/guide/`、`website/docs/en/guide/` 下的页面时会跑前端 CI（`scripts/ci-scope.py`）。
+- 当前帮助点：存储管理、路径模板、响应式衍生图（规则开关与补生成卡片）、EXIF 清理档位、随机图片链接、搜索语法、游客上传、公开画廊、API Token 接入、备份、蓝空迁移、人机验证、邮件。
 
 ## 8. 工程规范
 

@@ -92,6 +92,9 @@ type UserView struct {
 	Status      string    `json:"status"`
 	UsedBytes   int64     `json:"used_bytes"`
 	CreatedAt   time.Time `json:"created_at"`
+	// LastSeenAt is when a web session of the account was last active; null
+	// until the account signs in after activity tracking was added.
+	LastSeenAt *time.Time `json:"last_seen_at"`
 	// AvatarProvider is the site-wide avatar source that produced avatar_url.
 	AvatarProvider string `json:"avatar_provider"`
 	// AvatarURL is the HTTPS avatar address derived from the email hash; null
@@ -436,6 +439,6 @@ func userView(user model.User) UserView {
 	return UserView{
 		ID: user.ID, GroupID: user.GroupID, Username: user.Username, DisplayName: user.DisplayName,
 		Email: user.Email, Role: user.Role, Status: user.Status, UsedBytes: user.UsedBytes,
-		CreatedAt: user.CreatedAt.UTC(),
+		CreatedAt: user.CreatedAt.UTC(), LastSeenAt: utcTime(user.LastSeenAt),
 	}
 }

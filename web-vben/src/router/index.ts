@@ -8,6 +8,7 @@ import {
 import { getToken } from "@/api/client";
 import { landingPath } from "./landing";
 import { useAuthStore } from "@/stores/auth";
+import { useSiteStore } from "@/stores/site";
 import { settingsRoutes } from "@/views/admin/settings/sections";
 
 declare module "vue-router" {
@@ -20,6 +21,7 @@ declare module "vue-router" {
 }
 
 export const ROUTER_NAMES = {
+  home: "home",
   login: "login",
   register: "register",
   resetPassword: "reset-password",
@@ -67,12 +69,35 @@ export async function adminGuard(to: RouteLocationNormalized): Promise<RouteLoca
   return true;
 }
 
+/**
+ * 公开首页只在站点开放了游客上传或公开画廊时才有内容；都没开时，未登录的
+ * 访客直接去登录页，表现与没有首页时一致。
+ */
+export async function publicHomeGuard(): Promise<RouteLocationRaw | boolean> {
+  if (getToken()) return true;
+  const site = useSiteStore();
+  await site.ensureLoaded();
+  if (!site.guestUpload && !site.galleryEnabled) return { path: "/login" };
+  return true;
+}
+
 /** 创建带全局守卫的路由实例；守卫只做本地 token 存在性检查，真实校验靠 API 401。 */
 export function setupRouter(): Router {
   const router = createRouter({
     history: createWebHistory(),
     routes: [
-      { path: "/", redirect: () => landingPath(useAuthStore().user?.role) },
+      // 未登录的访客先看到公开图床首页；已登录（含身份尚未恢复）照旧进控制台。
+      {
+        path: "/",
+        redirect: () => (getToken() ? landingPath(useAuthStore().user?.role) : "/home"),
+      },
+      {
+        path: "/home",
+        name: ROUTER_NAMES.home,
+        component: () => import("@/views/PublicHomeView.vue"),
+        meta: { bare: true, title: "home.title" },
+        beforeEnter: publicHomeGuard,
+      },
       {
         path: "/login",
         component: () => import("@/components/layout/AuthLayout.vue"),
@@ -225,7 +250,7 @@ export function setupRouter(): Router {
 
   router.beforeEach(async (to) => {
     // 单点登录回调要用票据换新会话，即使本地已有旧 token 也要放行。
-    if (to.path === "/gallery" || to.path === "/auth/sso") return true;
+    if (to.path === "/gallery" || to.path === "/home" || to.path === "/auth/sso") return true;
     const token = getToken();
     const isPublic = PUBLIC_PATHS.has(to.path);
     if (!isPublic && !token) {

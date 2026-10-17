@@ -10,6 +10,8 @@ interface SiteState {
   emailVerification: boolean;
   /** 可以通过邮件找回密码。 */
   passwordReset: boolean;
+  /** 访客无需账号即可在首页上传。 */
+  guestUpload: boolean;
   /** 服务端扩展提供的额外登录方式（如 SSO），原版为空。 */
   loginProviders: LoginProvider[];
   loaded: boolean;
@@ -25,6 +27,7 @@ export const useSiteStore = defineStore("site", {
     galleryEnabled: false,
     emailVerification: false,
     passwordReset: false,
+    guestUpload: false,
     loginProviders: [],
     loaded: false,
   }),
@@ -50,6 +53,7 @@ export const useSiteStore = defineStore("site", {
           this.galleryEnabled = site.gallery_enabled;
           this.emailVerification = site.email_verification ?? false;
           this.passwordReset = site.password_reset ?? false;
+          this.guestUpload = site.guest_upload ?? false;
           this.loginProviders = site.login_providers ?? [];
           this.loaded = true;
         } catch {

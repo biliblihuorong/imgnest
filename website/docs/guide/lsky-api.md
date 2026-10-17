@@ -127,6 +127,8 @@ curl -X POST https://img.example.com/api/v1/upload \
 带了 `Authorization` 头但 Token 无效时，返回 401，不会当作游客上传。
 :::
 
+网页上的游客上传在公开首页进行，见[相册与画廊](./albums-and-gallery#公开首页与游客上传)，与这里共用同一个限流计数。
+
 ## 和蓝空的差别
 
 - 删除图片是移入回收站，不是立即删除，见[隐私与回收站](./privacy-and-trash)。

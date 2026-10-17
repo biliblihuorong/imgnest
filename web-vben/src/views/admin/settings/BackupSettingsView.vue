@@ -15,6 +15,7 @@ import {
   useMessage,
 } from "naive-ui";
 import { computed, onMounted, reactive, shallowRef } from "vue";
+import DocHelp from "@/components/help/DocHelp.vue";
 import {
   createBackup,
   deleteBackup,
@@ -132,7 +133,8 @@ onMounted(() => void load());
 
 <template>
   <div class="backup-settings">
-    <NCard :bordered="false" :title="t('admin.backups.title')">
+    <NCard :bordered="false">
+      <template #header>{{ t("admin.backups.title") }}<DocHelp topic="backup" /></template>
       <p class="hint">{{ t("admin.backups.description") }}</p>
       <NAlert type="warning" class="notice">{{ t("admin.backups.secretWarning") }}</NAlert>
       <NAlert v-if="loadError" type="error" class="notice" data-backups-error>

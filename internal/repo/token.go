@@ -47,7 +47,13 @@ func (r *TokenRepository) CreateToken(ctx context.Context, token model.Token, gr
 		if err := validateGrant(ctx, tx, user, grant); err != nil {
 			return err
 		}
-		return tx.Create(&token).Error
+		if err := tx.Create(&token).Error; err != nil {
+			return err
+		}
+		if grant.Login != nil {
+			return recordLogin(tx, user.ID, *grant.Login)
+		}
+		return nil
 	})
 	if errors.Is(err, model.ErrUnauthenticated) {
 		return model.Token{}, fmt.Errorf("create token: %w", model.ErrUnauthenticated)
@@ -70,17 +76,49 @@ func (r *TokenRepository) FindToken(ctx context.Context, id uint64) (model.Token
 	return token, nil
 }
 
-// TouchToken records a successful use and reports a token revoked during authentication.
-func (r *TokenRepository) TouchToken(ctx context.Context, id uint64, at time.Time) error {
-	if err := checkRecordID(ctx, id); err != nil {
+// TouchToken records a batch of successful uses and reports a token revoked
+// during authentication. Web sessions also refresh the owner's last-seen
+// time; API tokens add their requests to the owner's daily usage.
+func (r *TokenRepository) TouchToken(ctx context.Context, use model.TokenUse) error {
+	if err := checkRecordID(ctx, use.TokenID); err != nil {
 		return fmt.Errorf("touch token: %w", err)
 	}
-	updated := r.db.WithContext(ctx).Model(&model.Token{}).Where("id = ?", id).Update("last_used_at", at.UTC())
-	if updated.Error != nil {
-		return repositoryError("touch token", updated.Error)
+	if use.Requests < 0 {
+		return fmt.Errorf("touch token: %w", model.ErrInvalidInput)
 	}
-	if updated.RowsAffected == 0 {
+	at := use.At.UTC()
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		updated := tx.Model(&model.Token{}).Where("id = ?", use.TokenID).Updates(map[string]any{
+			"last_used_at": at,
+			"last_used_ip": use.IP,
+			"use_count":    gorm.Expr("use_count + ?", use.Requests),
+		})
+		if updated.Error != nil {
+			return updated.Error
+		}
+		if updated.RowsAffected == 0 {
+			return model.ErrNotFound
+		}
+		if use.UserID == 0 {
+			return nil
+		}
+		switch {
+		case use.Kind == model.TokenKindWeb:
+			return tx.Model(&model.User{}).Where("id = ?", use.UserID).UpdateColumn("last_seen_at", at).Error
+		case use.Kind == model.TokenKindAPI && use.Requests > 0:
+			return tx.Exec(
+				"INSERT INTO api_usage_daily (user_id, day, requests) VALUES (?, ?, ?) "+
+					"ON CONFLICT (user_id, day) DO UPDATE SET requests = api_usage_daily.requests + excluded.requests",
+				use.UserID, at.Format(time.DateOnly), use.Requests,
+			).Error
+		}
+		return nil
+	})
+	if errors.Is(err, model.ErrNotFound) {
 		return fmt.Errorf("touch token: %w", model.ErrNotFound)
+	}
+	if err != nil {
+		return repositoryError("touch token", err)
 	}
 	return nil
 }

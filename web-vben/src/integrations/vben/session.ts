@@ -7,6 +7,7 @@ import { $t, i18n } from "@vben/locales";
 import { useSiteStore } from "@/stores/site";
 import { landingPath } from "@/router/landing";
 import { useAuthStore } from "@/stores/auth";
+import { useSystemStore } from "@/stores/system";
 import { useUserAvatar } from "@/components/account/useUserAvatar";
 import { menuIcons } from "./menuIcons";
 import { workspaceMenus, type WorkspaceMenu } from "./navigation";
@@ -17,6 +18,7 @@ function menuWithIcons(menu: WorkspaceMenu): MenuRecordRaw {
     name: $t(menu.name),
     path: menu.path,
     icon: icon ? markRaw(icon) : undefined,
+    ...(menu.dot ? { badgeType: "dot" as const, badgeVariants: "destructive" } : {}),
     children: menu.children?.map(menuWithIcons),
   };
 }
@@ -28,6 +30,7 @@ function menuWithIcons(menu: WorkspaceMenu): MenuRecordRaw {
 export function connectVbenSession(pinia: Pinia, router: Router): () => void {
   const auth = useAuthStore(pinia);
   const site = useSiteStore(pinia);
+  const system = useSystemStore(pinia);
   const access = useAccessStore(pinia);
   const userStore = useUserStore(pinia);
   const tabbar = useTabbarStore(pinia);
@@ -43,8 +46,9 @@ export function connectVbenSession(pinia: Pinia, router: Router): () => void {
         site.galleryEnabled,
         i18n.global.locale.value,
         avatarUrl.value,
+        system.updateAvailable,
       ] as const,
-    ([user, hasToken, galleryEnabled, , avatar]) => {
+    ([user, hasToken, galleryEnabled, , avatar, updateAvailable]) => {
       const current = hasToken ? user : null;
       const identity = current ? `${current.id}:${current.role}` : "anonymous";
       if (previousIdentity !== undefined && previousIdentity !== identity) {
@@ -69,10 +73,16 @@ export function connectVbenSession(pinia: Pinia, router: Router): () => void {
         }
       }
       previousIdentity = identity;
+      // Only administrators ask for the version; the answer drives the red
+      // dot on the console menu.
+      if (current?.role === "admin") void system.load();
+      else if (system.version) system.clear();
       access.setAccessToken(null);
       access.setRefreshToken(null);
       access.setAccessCodes([]);
-      access.setAccessMenus(workspaceMenus(current?.role, galleryEnabled).map(menuWithIcons));
+      access.setAccessMenus(
+        workspaceMenus(current?.role, galleryEnabled, updateAvailable).map(menuWithIcons),
+      );
       access.setAccessRoutes(
         current
           ? router.options.routes.filter(

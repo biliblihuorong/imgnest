@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DocHelp from "@/components/help/DocHelp.vue";
 import { useI18n } from "@vben/locales";
 import { NAlert, NCard } from "naive-ui";
 const { t } = useI18n();
@@ -7,7 +8,8 @@ const origin = window.location.origin;
 const uploadEndpoint = `${origin}/api/v1/upload`;
 </script>
 <template>
-  <NCard :title="t('account.integration.title')" :bordered="false">
+  <NCard :bordered="false">
+    <template #header>{{ t("account.integration.title") }}<DocHelp topic="apiTokens" /></template>
     <p class="token-help__intro">{{ t("account.integration.description") }}</p>
     <dl class="token-help__fields">
       <div>

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
@@ -27,7 +28,7 @@ const (
 type TokenRepository interface {
 	CreateToken(ctx context.Context, token model.Token, grant model.TokenGrant) (model.Token, error)
 	FindToken(ctx context.Context, id uint64) (model.Token, error)
-	TouchToken(ctx context.Context, id uint64, at time.Time) error
+	TouchToken(ctx context.Context, use model.TokenUse) error
 	ListTokens(ctx context.Context, userID uint64) ([]model.Token, error)
 	RevokeToken(ctx context.Context, userID, tokenID uint64) error
 	RevokeAllTokens(ctx context.Context, userID uint64) error
@@ -48,8 +49,12 @@ type TokenView struct {
 	Kind       string     `json:"kind"`
 	Abilities  []string   `json:"abilities"`
 	LastUsedAt *time.Time `json:"last_used_at"`
-	ExpiresAt  *time.Time `json:"expires_at"`
-	CreatedAt  time.Time  `json:"created_at"`
+	// LastUsedIP is the client address of the most recent recorded use.
+	LastUsedIP string `json:"last_used_ip"`
+	// UseCount is the number of authenticated requests made with the token.
+	UseCount  int64      `json:"use_count"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 // IssuedToken returns the plaintext credential exactly once, at creation.
@@ -72,6 +77,7 @@ type TokenService struct {
 	users    UserRepository
 	settings SettingsRepository
 	now      func() time.Time
+	usage    tokenUsage
 }
 
 // NewTokenService constructs token operations with persistence and a clock.
@@ -108,6 +114,11 @@ func (s *TokenService) Issue(ctx context.Context, subject TokenSubject, input To
 		return IssuedToken{}, ErrInvalidInput
 	}
 	now := s.now().UTC()
+	var login *model.LoginEvent
+	if input.Kind == TokenKindWeb {
+		client := ClientFrom(ctx)
+		login = &model.LoginEvent{IP: client.IP, UserAgent: client.UserAgent, CreatedAt: now}
+	}
 	expires := utcTime(input.ExpiresAt)
 	if expires == nil && input.Kind == TokenKindWeb {
 		at := now.Add(24 * time.Hour)
@@ -128,6 +139,7 @@ func (s *TokenService) Issue(ctx context.Context, subject TokenSubject, input To
 		ExpiresAt: expires, CreatedAt: now, UpdatedAt: now,
 	}, model.TokenGrant{
 		ExpectedPasswordHash: subject.passwordHash, ExpectedAccountState: subject.accountState, SourceTokenID: subject.sourceTokenID, At: now, Clock: s.now,
+		Login: login,
 	})
 	if err != nil {
 		if errors.Is(err, ErrUnauthenticated) && subject.sourceTokenID == 0 {
@@ -180,13 +192,20 @@ func (s *TokenService) Authenticate(ctx context.Context, raw string) (Identity, 
 	if err != nil {
 		return Identity{}, fmt.Errorf("find bearer owner: %w", err)
 	}
-	// last_used_at is advisory; refreshing it at most once per minute keeps a
-	// page of previews from turning into one database write per image.
+	// Usage is advisory; requests are counted in memory and written at most
+	// once per minute so a page of previews is not one write per image.
+	s.usage.add(token.ID)
 	if token.LastUsedAt == nil || now.Sub(token.LastUsedAt.UTC()) >= tokenTouchInterval {
-		if err := s.tokens.TouchToken(ctx, token.ID, now); err != nil {
+		requests := s.usage.take(token.ID)
+		use := model.TokenUse{
+			TokenID: token.ID, UserID: token.UserID, Kind: token.Kind,
+			At: now, IP: ClientFrom(ctx).IP, Requests: requests,
+		}
+		if err := s.tokens.TouchToken(ctx, use); err != nil {
 			if errors.Is(err, ErrNotFound) {
 				return Identity{}, ErrUnauthenticated
 			}
+			s.usage.restore(token.ID, requests)
 			return Identity{}, fmt.Errorf("touch bearer token: %w", err)
 		}
 	}
@@ -308,7 +327,8 @@ func tokenView(token model.Token) TokenView {
 	return TokenView{
 		ID: token.ID, Name: token.Name, Kind: token.Kind,
 		Abilities:  append([]string{}, token.Abilities...),
-		LastUsedAt: utcTime(token.LastUsedAt), ExpiresAt: utcTime(token.ExpiresAt),
+		LastUsedAt: utcTime(token.LastUsedAt), LastUsedIP: token.LastUsedIP,
+		UseCount: token.UseCount, ExpiresAt: utcTime(token.ExpiresAt),
 		CreatedAt: token.CreatedAt.UTC(),
 	}
 }
@@ -319,4 +339,43 @@ func utcTime(value *time.Time) *time.Time {
 	}
 	at := value.UTC()
 	return &at
+}
+
+// maxPendingTokens bounds the in-memory request counters; past it the
+// buffered counts are dropped, which only undercounts an advisory number.
+const maxPendingTokens = 10000
+
+// tokenUsage buffers per-token request counts between database writes.
+type tokenUsage struct {
+	mu      sync.Mutex
+	pending map[uint64]int64
+}
+
+func (u *tokenUsage) add(id uint64) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.pending == nil || len(u.pending) >= maxPendingTokens {
+		u.pending = map[uint64]int64{}
+	}
+	u.pending[id]++
+}
+
+func (u *tokenUsage) take(id uint64) int64 {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	count := u.pending[id]
+	delete(u.pending, id)
+	return count
+}
+
+func (u *tokenUsage) restore(id uint64, count int64) {
+	if count == 0 {
+		return
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.pending == nil {
+		u.pending = map[uint64]int64{}
+	}
+	u.pending[id] += count
 }

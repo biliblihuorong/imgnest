@@ -2,6 +2,9 @@ package native
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -27,9 +30,12 @@ type VariantOptions struct {
 	CORSOrigins []string
 	// PerMinute bounds lookups per client address; zero uses 60.
 	PerMinute int
-	// CacheMaxAge is the shared-cache lifetime of a successful lookup.
+	// CacheMaxAge is the browser lifetime of a successful lookup.
 	CacheMaxAge time.Duration
-	Now         func() time.Time
+	// CDNMaxAge is how long a CDN or other shared cache may keep a
+	// successful GET lookup (s-maxage); zero leaves it at CacheMaxAge.
+	CDNMaxAge time.Duration
+	Now       func() time.Time
 }
 
 // RegisterVariantRoutes binds the public lookup and the admin backfill.
@@ -37,7 +43,7 @@ func (h *Handler) RegisterVariantRoutes(ctx context.Context, router gin.IRouter,
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("register variant routes: %w", err)
 	}
-	if variants == nil || opts.PerMinute < 0 || opts.CacheMaxAge < 0 {
+	if variants == nil || opts.PerMinute < 0 || opts.CacheMaxAge < 0 || opts.CDNMaxAge < 0 {
 		return service.ErrInvalidInput
 	}
 	if opts.PerMinute == 0 {
@@ -53,6 +59,10 @@ func (h *Handler) RegisterVariantRoutes(ctx context.Context, router gin.IRouter,
 	for _, origin := range opts.CORSOrigins {
 		handler.origins[strings.TrimRight(strings.TrimSpace(origin), "/")] = true
 	}
+	handler.cacheControl = fmt.Sprintf("public, max-age=%d", int(opts.CacheMaxAge.Seconds()))
+	if opts.CDNMaxAge > 0 {
+		handler.cacheControl += fmt.Sprintf(", s-maxage=%d, stale-while-revalidate=60", int(opts.CDNMaxAge.Seconds()))
+	}
 	router.GET("/api/variants", handler.cors, handler.lookupQuery)
 	router.POST("/api/variants", handler.cors, handler.lookupBody)
 	router.OPTIONS("/api/variants", handler.cors, handler.preflight)
@@ -63,16 +73,21 @@ func (h *Handler) RegisterVariantRoutes(ctx context.Context, router gin.IRouter,
 }
 
 type variantHandler struct {
-	variants Variants
-	options  VariantOptions
-	limits   *ratelimit.Limiter
-	origins  map[string]bool
+	variants     Variants
+	options      VariantOptions
+	limits       *ratelimit.Limiter
+	origins      map[string]bool
+	cacheControl string
 }
 
-// cors answers configured origins only; responses vary by Origin so a shared
-// cache never hands one site's grant to another.
+// cors answers configured origins only. Only a list of named origins makes
+// the response depend on Origin, so only then does it say Vary: Origin; with
+// no origins or "*" every visitor gets the same bytes and a CDN keeps one
+// copy per URL instead of one per referring site.
 func (h *variantHandler) cors(c *gin.Context) {
-	c.Header("Vary", "Origin")
+	if len(h.origins) > 0 && !h.origins["*"] {
+		c.Header("Vary", "Origin")
+	}
 	origin := c.GetHeader("Origin")
 	if origin == "" || len(h.origins) == 0 {
 		return
@@ -121,8 +136,34 @@ func (h *variantHandler) lookup(c *gin.Context, links []string) {
 		fail(c, err)
 		return
 	}
-	c.Header("Cache-Control", fmt.Sprintf("public, max-age=%d", int(h.options.CacheMaxAge.Seconds())))
-	respond(c, http.StatusOK, gin.H{"items": items})
+	body, err := json.Marshal(Response{Code: 0, Message: "ok", Data: gin.H{"items": items}})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	// The ETag lets a browser or CDN revalidate with a 304 instead of
+	// downloading the same answer again once its copy goes stale.
+	digest := sha256.Sum256(body)
+	etag := `"` + hex.EncodeToString(digest[:16]) + `"`
+	c.Header("Cache-Control", h.cacheControl)
+	c.Header("ETag", etag)
+	if c.Request.Method == http.MethodGet && etagMatches(c.GetHeader("If-None-Match"), etag) {
+		c.Status(http.StatusNotModified)
+		return
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+}
+
+// etagMatches reports whether an If-None-Match header names etag (weak
+// comparison, as RFC 9110 requires for If-None-Match).
+func etagMatches(header, etag string) bool {
+	for _, candidate := range strings.Split(header, ",") {
+		candidate = strings.TrimPrefix(strings.TrimSpace(candidate), "W/")
+		if candidate == "*" || candidate == etag {
+			return true
+		}
+	}
+	return false
 }
 
 func requireAdmin(c *gin.Context) bool {

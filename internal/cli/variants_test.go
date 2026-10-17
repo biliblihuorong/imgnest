@@ -131,7 +131,7 @@ func TestResponsiveVariantsLocalLifecycle(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		images, _, closeImages, err := newImageServices(ctx, db, cfg, nil, imageHooks{})
+		images, _, closeImages, err := newImageServices(ctx, db, cfg, runtimeCaches{}, imageHooks{})
 		if err != nil {
 			return err
 		}
@@ -408,7 +408,7 @@ func TestRealMinIOResponsiveVariants(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		images, _, closeImages, err := newImageServices(ctx, db, cfg, nil, imageHooks{})
+		images, _, closeImages, err := newImageServices(ctx, db, cfg, runtimeCaches{}, imageHooks{})
 		if err != nil {
 			return err
 		}

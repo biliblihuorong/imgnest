@@ -57,7 +57,9 @@
     "generatePassword": "Generate",
     "resetPasswordConfirm": "Set this new password for {name}? They will be signed out on every device.",
     "resetPasswordHint": "Hand the new password to the user afterwards; all of their sessions and API tokens stop working immediately.",
-    "passwordReset": "Password reset for {name}"
+    "passwordReset": "Password reset for {name}",
+    "lastSeen": "Last online",
+    "detailLabel": "View details of {name}"
   },
   "groups": {
     "title": "User groups",
@@ -229,7 +231,7 @@
     "registration": "Allow registration",
     "registrationHint": "Turning this off prevents new sign-ups. Existing users are unaffected.",
     "guestUpload": "Guest uploads",
-    "guestUploadHint": "Allow signed-out users to upload through the Lsky v1-compatible API, using the guest group’s capacity and rate limits.",
+    "guestUploadHint": "Allow signed-out users to upload from the public home page and the Lsky v1-compatible API, using the guest group’s capacity and rate limits.",
     "gallery": "Public gallery",
     "galleryHint": "Turning this off hides the public image gallery.",
     "galleryPublicAlbumsOnly": "Gallery shows public albums only",
@@ -272,6 +274,10 @@
       "backup": {
         "title": "Backup / export",
         "description": "Database and configuration backups, downloads, schedule, and Lsky Pro migration."
+      },
+      "about": {
+        "title": "About",
+        "description": "Version, updates and project links."
       }
     },
     "emailVerification": "Email verification",
@@ -314,7 +320,43 @@
         "auth": "The username or password was rejected.",
         "rejected": "The server rejected the message. Check that the from address matches the account."
       }
-    }
+    },
+    "about": {
+      "versionTitle": "Current version",
+      "loadError": "Version information could not be loaded",
+      "updateTag": "Update available",
+      "upToDate": "Up to date",
+      "updateTitle": "v{version} is available",
+      "updateBody": "Published {date}. Take a backup under Backup / export first, then update the image as the deployment guide describes.",
+      "releaseNotes": "Read the release notes",
+      "latest": "Latest release",
+      "checkedAt": "Last checked",
+      "checkNow": "Check for updates",
+      "checkFailed": "The latest check could not reach GitHub; this shows the last successful result.",
+      "checkDisabled": "Off",
+      "checkDisabledHint": "Update checks are turned off in the deployment config (updates.check: false), so the server never calls GitHub.",
+      "linksTitle": "Project",
+      "license": "ImgNest is open source. Questions and contributions are welcome on GitHub.",
+      "links": {
+        "repository": {
+          "title": "GitHub repository",
+          "description": "Source code and stars"
+        },
+        "docs": {
+          "title": "Documentation",
+          "description": "Deploy, configure and upgrade"
+        },
+        "releases": {
+          "title": "Releases",
+          "description": "Release notes and images for each version"
+        },
+        "issues": {
+          "title": "Issues",
+          "description": "Report a problem or suggest a feature"
+        }
+      }
+    },
+    "updateDot": "Update available"
   },
   "images": {
     "title": "All images",

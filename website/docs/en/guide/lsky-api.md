@@ -127,6 +127,8 @@ After an administrator enables guest uploads in the site settings, an upload req
 A request that carries an `Authorization` header with an invalid token gets 401. It is not treated as a guest upload.
 :::
 
+Guests can also upload from the web on the public home page; see [Albums and gallery](./albums-and-gallery#public-home-page-and-guest-uploads). Both share one rate-limit counter.
+
 ## Differences from Lsky Pro
 
 - Deleting an image moves it to the recycle bin instead of removing it at once. See [Privacy and recycle bin](./privacy-and-trash).

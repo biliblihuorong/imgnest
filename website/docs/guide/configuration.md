@@ -49,6 +49,8 @@ imgnest serve --config config.yaml
 
 一次请求最多带 20 个文件。这些限制在完整读取文件之前就会检查。
 
+用户组的「单文件上限」优先于 `server.max_upload_mb`,可以更高也可以更低。超过 20 MB 时组编辑页会提醒:大文件会完整驻留内存,反向代理的请求体限制也要同步放开。超过 2 GiB 的文件会跳过 EXIF 步骤;若规则开启了脱敏,则只保存 WebP 版本,绝不保留未脱敏的原图(WebP 源文件超过该大小时直接拒绝)。
+
 ## 数据库
 
 | 配置项 | 环境变量 | 默认值 |
@@ -85,7 +87,10 @@ IMGNEST_DATABASE_DSN=postgres://user:password@host:5432/imgnest
 | `images.thumb_cache` | `IMGNEST_IMAGES_THUMB_CACHE` | `data/thumbs` | 本机缩略图目录，可以整个删掉重建 |
 | `images.variant_cors_origins` | `IMGNEST_IMAGES_VARIANT_CORS_ORIGINS` | 空 | 允许哪些网站（如你的博客）在浏览器里调用 `/api/variants` 查响应式版本，逗号分隔；`*` 表示任意来源 |
 | `images.variant_lookup_per_minute` | `IMGNEST_IMAGES_VARIANT_LOOKUP_PER_MINUTE` | `60` | 每个客户端地址每分钟可查询的次数 |
+| `images.variant_cdn_max_age` | `IMGNEST_IMAGES_VARIANT_CDN_MAX_AGE` | `1h` | CDN 可以把 `/api/variants` 的查询结果缓存多久（`s-maxage`），最长 `168h`；`0s` 表示和浏览器一样只缓存 5 分钟 |
+| `cache.redis_url` | `IMGNEST_CACHE_REDIS_URL` | 空 | 随机图片和响应式查询的缓存放在哪里。填 `redis://[:密码@]主机:6379/0`（TLS 用 `rediss://`）就用 Redis，多台实例共享；留空用程序内存。启动时连不上 Redis 会记一条警告并改用内存 |
 | `backup.dir` | `IMGNEST_BACKUP_DIR` | `data/backup` | 后台「备份/导出」与定时备份写入的目录（zip：数据库导出 + 配置），文件权限 0600 |
+| `updates.check` | `IMGNEST_UPDATES_CHECK` | `true` | 后台「站点设置 → 关于」向 GitHub 查询是否有新版本，有新版本时管理员菜单显示小红点；不允许服务器访问外网时设为 `false` |
 | `security.master_key` | `IMGNEST_SECURITY_MASTER_KEY` | 空 | 加密 S3 凭据用的主密钥，只用本机存储时可以留空 |
 
 使用 S3 存储时必须提供主密钥：32 个随机字节的 base64 编码。它和数据库备份要一起保管，丢了就解不开已保存的存储凭据。

@@ -2,9 +2,15 @@
 // 系统设置外壳：左侧（窄屏为顶部）二级导航，右侧渲染当前设置页。
 import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
+import { onMounted } from "vue";
+import { useSystemStore } from "@/stores/system";
 import { SETTINGS_SECTIONS } from "./settings/sections";
 
 const { t } = useI18n();
+const system = useSystemStore();
+onMounted(() => {
+  void system.load();
+});
 </script>
 
 <template>
@@ -23,9 +29,16 @@ const { t } = useI18n();
           class="settings-nav__item"
           :data-section="section.key"
         >
-          <span class="settings-nav__title">{{
-            t(`admin.settings.sections.${section.key}.title`)
-          }}</span>
+          <span class="settings-nav__title"
+            >{{ t(`admin.settings.sections.${section.key}.title`)
+            }}<span
+              v-if="section.key === 'about' && system.updateAvailable"
+              class="settings-nav__dot"
+              role="status"
+              :aria-label="t('admin.settings.updateDot')"
+              :title="t('admin.settings.updateDot')"
+              data-testid="settings-update-dot"
+          /></span>
           <span class="settings-nav__description">{{
             t(`admin.settings.sections.${section.key}.description`)
           }}</span>
@@ -75,6 +88,16 @@ const { t } = useI18n();
 
 .settings-nav__title {
   font-weight: 600;
+}
+
+.settings-nav__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: hsl(var(--destructive));
 }
 
 .settings-nav__description {

@@ -17,7 +17,6 @@ import (
 	"github.com/biliblihuorong/imgnest/internal/migrate"
 	lskymigrate "github.com/biliblihuorong/imgnest/internal/migrate/lsky"
 	"github.com/biliblihuorong/imgnest/internal/pathtpl"
-	"github.com/biliblihuorong/imgnest/internal/randompool"
 	"github.com/biliblihuorong/imgnest/internal/repo"
 	"github.com/biliblihuorong/imgnest/internal/secret"
 	"github.com/biliblihuorong/imgnest/internal/service"
@@ -40,9 +39,15 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 				return err
 			}
 			logger := slog.New(slog.NewJSONHandler(cmd.OutOrStdout(), nil))
-			// One process-local pool is shared by the link service that fills it
-			// and the image service that invalidates it.
-			randomPool := randompool.NewMemory(time.Now)
+			// One pool is shared by the link service that fills it and the
+			// image service that invalidates it: Redis when configured, so
+			// every instance sees each invalidation, else this process's memory.
+			caches, closeCaches, err := openCaches(cmd.Context(), cfg.Cache, logger)
+			if err != nil {
+				return err
+			}
+			defer closeCaches()
+			randomPool := caches.pool
 			// Plugin events are delivered asynchronously; Close drains them
 			// after the server stops taking requests.
 			events := newPluginEvents(cmd.Context(), plugins, logger)
@@ -50,7 +55,7 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			if events != nil {
 				users.UseEvents(events)
 			}
-			images, albums, closeImages, err := newImageServices(cmd.Context(), db, cfg, randomPool, pluginImageHooks(plugins, events))
+			images, albums, closeImages, err := newImageServices(cmd.Context(), db, cfg, runtimeCaches{Random: randomPool, Lookup: caches.lookup}, pluginImageHooks(plugins, events))
 			if err != nil {
 				return err
 			}
@@ -69,7 +74,7 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			uploads := ratelimit.New(time.Now, time.Minute, ratelimit.DefaultCapacity)
 			// Likewise one semaphore bounds concurrent uploads across both APIs.
 			uploadSlots := make(chan struct{}, max(cfg.Server.UploadConcurrency, 1))
-			lskyHandler, err := newLskyHandler(cmd.Context(), db, cfg, users, tokens, images, albums, uploads, uploadSlots)
+			lskyHandler, guestState, err := newLskyHandler(cmd.Context(), db, cfg, users, tokens, images, albums, uploads, uploadSlots)
 			if err != nil {
 				return err
 			}
@@ -105,11 +110,19 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			activity, err := newActivityService(cmd.Context(), db)
+			if err != nil {
+				return err
+			}
+			system, err := newSystemService(cmd.Context(), cfg)
+			if err != nil {
+				return err
+			}
 			webFS, err := frontendDistFS()
 			if err != nil {
 				return fmt.Errorf("open embedded web app: %w", err)
 			}
-			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Email: users, Mail: mailService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads, Slots: uploadSlots}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, PluginSettings: pluginSettings, ExternalSignIn: users, LskyImport: lskyImport, Backups: backups, Variants: images, VariantOptions: httpapi.VariantOptions{CORSOrigins: cfg.Images.VariantCORSOrigins, PerMinute: cfg.Images.VariantLookupPerMinute}})
+			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Email: users, Mail: mailService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads, Slots: uploadSlots}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Guest: guestState, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, PluginSettings: pluginSettings, ExternalSignIn: users, LskyImport: lskyImport, Backups: backups, Activity: activity, System: system, Variants: images, VariantOptions: httpapi.VariantOptions{CORSOrigins: cfg.Images.VariantCORSOrigins, PerMinute: cfg.Images.VariantLookupPerMinute, CDNMaxAge: cfg.Images.VariantCDNMaxAge}})
 			if err != nil {
 				return err
 			}
@@ -205,22 +218,22 @@ func newRandomLinkService(ctx context.Context, db *gorm.DB, pool service.RandomP
 // newLskyHandler wires the Lsky v1 compatibility layer onto the shared
 // services; it owns no business rules of its own. The album service is shared
 // with the native routes so both APIs observe the same ownership rules.
-func newLskyHandler(ctx context.Context, db *gorm.DB, cfg config.Config, users *service.UserService, tokens *service.TokenService, images *service.ImageService, albums *service.AlbumService, uploads *ratelimit.Limiter, slots chan struct{}) (*lsky.Handler, error) {
+func newLskyHandler(ctx context.Context, db *gorm.DB, cfg config.Config, users *service.UserService, tokens *service.TokenService, images *service.ImageService, albums *service.AlbumService, uploads *ratelimit.Limiter, slots chan struct{}) (*lsky.Handler, *service.LskyService, error) {
 	lskyRepo, err := repo.NewLskyRepository(ctx, db)
 	if err != nil {
-		return nil, fmt.Errorf("create lsky repository: %w", err)
+		return nil, nil, fmt.Errorf("create lsky repository: %w", err)
 	}
 	albumsRepo, err := repo.NewAlbumRepository(ctx, db)
 	if err != nil {
-		return nil, fmt.Errorf("create album repository: %w", err)
+		return nil, nil, fmt.Errorf("create album repository: %w", err)
 	}
 	policiesRepo, err := repo.NewPolicyRepository(ctx, db)
 	if err != nil {
-		return nil, fmt.Errorf("create policy repository: %w", err)
+		return nil, nil, fmt.Errorf("create policy repository: %w", err)
 	}
 	lskyService, err := service.NewLskyService(ctx, service.LskyDependencies{Lsky: lskyRepo, Albums: albumsRepo, Policies: policiesRepo, Now: time.Now})
 	if err != nil {
-		return nil, fmt.Errorf("create lsky service: %w", err)
+		return nil, nil, fmt.Errorf("create lsky service: %w", err)
 	}
 	handler, err := lsky.NewHandler(ctx, lsky.Dependencies{
 		Users: users, Tokens: tokens, Images: images, Albums: albums, Lsky: lskyService,
@@ -235,9 +248,9 @@ func newLskyHandler(ctx context.Context, db *gorm.DB, cfg config.Config, users *
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create lsky handler: %w", err)
+		return nil, nil, fmt.Errorf("create lsky handler: %w", err)
 	}
-	return handler, nil
+	return handler, lskyService, nil
 }
 
 // newAdminService wires the management console onto the same repositories the

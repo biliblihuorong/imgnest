@@ -579,6 +579,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/guest/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload images anonymously from the public page
+         * @description Open only while guest uploads are on and a guest group exists (see
+         *     GET /api/site guest_upload); otherwise 401/20001. Same multipart body,
+         *     limits, batch rules and responses as POST /api/upload, governed by the
+         *     guest group. Guests cannot use albums (403/20003), is_public is
+         *     ignored (guest uploads never appear in the gallery), and the guest
+         *     group's per-minute allowance is counted per client address and shared
+         *     with the Lsky v1 guest upload. No bearer token is read.
+         */
+        post: operations["guestUploadImages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guest/upload/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the guest group's upload limits */
+        get: operations["getGuestUploadLimits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/images": {
         parameters: {
             query?: never;
@@ -1443,6 +1486,75 @@ export interface paths {
          *     server-owned. Self-service username/email remain read-only.
          */
         patch: operations["adminPatchUser"];
+        trace?: never;
+    };
+    "/api/account/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the caller's sign-ins, sessions and API token usage
+         * @description Returns the newest sign-ins (address and browser), when a web session
+         *     was last active, the number of unexpired web sessions, every API token
+         *     with its request count and last use, and a 30-day series of API token
+         *     requests per UTC day ending today. Request counts are written at most
+         *     once per minute per token, so the newest minute may not be included
+         *     yet and a restart can drop up to a minute of them.
+         */
+        get: operations["getAccountActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read any account's activity
+         * @description Same view as /api/account/activity for the named account. Requires the administrator role.
+         */
+        get: operations["adminGetUserActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/system/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the running version and whether a newer release exists
+         * @description The update check asks the GitHub releases API for the newest
+         *     non-prerelease release. Answers are cached for six hours (30 minutes
+         *     after a failed check); refresh=1 checks again, at most once a minute.
+         *     Deployments that set updates.check to false never call out and
+         *     report check_enabled false.
+         */
+        get: operations["adminGetSystemVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/admin/users/{id}/password": {
@@ -2956,6 +3068,8 @@ export interface components {
              */
             used_bytes: number;
             created_at: components["schemas"]["Timestamp"];
+            /** @description When a web session of the account was last active (refreshed at most once a minute); null before the first sign-in that recorded it. Always sent; optional only for older clients. */
+            last_seen_at?: components["schemas"]["NullableTimestamp"];
             /**
              * @description Site-wide avatar source that produced avatar_url.
              * @enum {string}
@@ -2982,7 +3096,82 @@ export interface components {
             abilities: "*"[];
             expires_at: components["schemas"]["NullableTimestamp"];
             last_used_at: components["schemas"]["NullableTimestamp"];
+            /** @description Client address of the most recent recorded use; empty before the first use. Always sent. */
+            last_used_ip?: string;
+            /**
+             * Format: int64
+             * @description Authenticated requests made with the token, written at most once per minute. Always sent.
+             */
+            use_count?: number;
             created_at: components["schemas"]["Timestamp"];
+        };
+        LoginRecord: {
+            at: components["schemas"]["Timestamp"];
+            ip: string;
+            user_agent: string;
+        };
+        UsageDay: {
+            /**
+             * Format: date
+             * @description UTC day.
+             */
+            day: string;
+            /** Format: int64 */
+            requests: number;
+        };
+        Activity: {
+            last_seen_at: components["schemas"]["NullableTimestamp"];
+            last_login: components["schemas"]["LoginRecord"] | null;
+            /** @description Newest sign-ins first; 20 are kept per account. */
+            logins: components["schemas"]["LoginRecord"][];
+            /** @description Unexpired web sessions. */
+            active_sessions: number;
+            /** @description API tokens only, oldest first. */
+            tokens: components["schemas"]["TokenView"][];
+            /** @description API token requests per UTC day, oldest first, ending today. */
+            api_usage: components["schemas"]["UsageDay"][];
+            /**
+             * Format: int64
+             * @description Sum of api_usage.
+             */
+            api_requests: number;
+        };
+        ActivityEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["Activity"];
+        };
+        ReleaseInfo: {
+            version: string;
+            /** Format: uri */
+            url: string;
+            published_at: components["schemas"]["Timestamp"];
+        };
+        SystemVersion: {
+            /** @description Version of the running build (the repository's VERSION file). */
+            current: string;
+            /** @description Newest published release; null until a check has succeeded. */
+            latest: components["schemas"]["ReleaseInfo"] | null;
+            update_available: boolean;
+            check_enabled: boolean;
+            checked_at: components["schemas"]["NullableTimestamp"];
+            /** @description The newest check could not reach GitHub; latest keeps the last good answer. */
+            check_failed: boolean;
+            /** Format: uri */
+            repository_url: string;
+            /** Format: uri */
+            docs_url: string;
+            /** Format: uri */
+            releases_url: string;
+            /** Format: uri */
+            issues_url: string;
+        };
+        SystemVersionEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["SystemVersion"];
         };
         LoginData: {
             token: components["schemas"]["PlaintextToken"];
@@ -3003,6 +3192,8 @@ export interface components {
             email_verification: boolean;
             /** @description A forgotten password can be reset by email; true while SMTP works. */
             password_reset: boolean;
+            /** @description Visitors can upload from the public page without an account (POST /api/guest/upload); true while guest uploads are on and a guest group exists. */
+            guest_upload: boolean;
             /** @description Extra sign-in options contributed by server extensions; empty on a stock build. */
             login_providers: components["schemas"]["LoginProvider"][];
         };
@@ -3223,8 +3414,25 @@ export interface components {
         LskyAlbumPageEnvelope: components["schemas"]["LskyEnvelope"] & {
             data?: components["schemas"]["LskyAlbumPage"];
         };
-        LskyAlbumPage: components["schemas"]["LskyImagePage"] & {
-            data?: components["schemas"]["LskyAlbumItem"][];
+        /** @description Same Laravel paginator shape as LskyImagePage, with album items in data. */
+        LskyAlbumPage: {
+            current_page: number;
+            data: components["schemas"]["LskyAlbumItem"][];
+            first_page_url: string;
+            from: number | null;
+            last_page: number;
+            last_page_url: string;
+            links: {
+                [key: string]: unknown;
+            }[];
+            next_page_url: string | null;
+            /** @description Absolute request origin plus the route path. */
+            path: string;
+            /** @enum {integer} */
+            per_page: 40;
+            prev_page_url: string | null;
+            to: number | null;
+            total: number;
         };
         LskyAlbumItem: {
             id: components["schemas"]["ID"];
@@ -3394,6 +3602,18 @@ export interface components {
                 "application/json": components["schemas"]["LskyFailure"] & {
                     /** @enum {string} */
                     message?: "管理员未启用 API";
+                };
+            };
+        };
+        /** @description Unexpected storage, database or processing failure (or a recovered panic); the Lsky envelope is kept so v1 clients can parse it. */
+        LskyServerError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["LskyFailure"] & {
+                    /** @enum {string} */
+                    message?: "服务器内部错误" | "internal error";
                 };
             };
         };
@@ -4329,6 +4549,67 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The caller's limits. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadLimitsEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    guestUploadImages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    file?: string[];
+                    "files[]"?: string[];
+                    policy_id?: components["schemas"]["ID"];
+                } | unknown | unknown;
+            };
+        };
+        responses: {
+            /** @description One image committed. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageEnvelope"];
+                };
+            };
+            /** @description Per-file results; inspect every item's status and code. */
+            207: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageBatchEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            default: components["responses"]["ImageFailure"];
+        };
+    };
+    getGuestUploadLimits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The guest group's limits. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5543,6 +5824,7 @@ export interface operations {
             };
             403: components["responses"]["LskyDisabled"];
             429: components["responses"]["LskyThrottled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1RevokeTokens: {
@@ -5565,6 +5847,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1ListStrategies: {
@@ -5587,6 +5870,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1Upload: {
@@ -5629,6 +5913,7 @@ export interface operations {
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
             429: components["responses"]["LskyThrottled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1ListImages: {
@@ -5657,6 +5942,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1DeleteImage: {
@@ -5681,6 +5967,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1ListAlbums: {
@@ -5707,6 +5994,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1DeleteAlbum: {
@@ -5731,6 +6019,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     v1GetProfile: {
@@ -5753,6 +6042,7 @@ export interface operations {
             };
             401: components["responses"]["LskyUnauthenticated"];
             403: components["responses"]["LskyDisabled"];
+            500: components["responses"]["LskyServerError"];
         };
     };
     adminListUsers: {
@@ -5858,6 +6148,81 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAccountActivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account activity. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminGetUserActivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Authenticated native numeric image identifier. */
+                id: components["parameters"]["ImageID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account activity. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminGetSystemVersion: {
+        parameters: {
+            query?: {
+                refresh?: "1" | "true";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Version information. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemVersionEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
             500: components["responses"]["InternalError"];
         };
     };

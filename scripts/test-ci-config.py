@@ -38,7 +38,7 @@ class CICacheConfigTest(unittest.TestCase):
         self.assertIn("file: deploy/Dockerfile.minio-test", self.workflow)
         self.assertIn("cache-from: type=gha,scope=minio-test", self.workflow)
         self.assertIn("cache-to: type=gha,scope=minio-test,mode=max", self.workflow)
-        self.assertIn("up -d --no-build --wait postgres minio", self.workflow)
+        self.assertIn("up -d --no-build --wait postgres minio redis", self.workflow)
 
     def test_runtime_cache_is_restored_for_each_go_job(self):
         self.assertEqual(self.workflow.count("uses: actions/cache@v5"), 2)
@@ -119,6 +119,8 @@ class CICacheConfigTest(unittest.TestCase):
         self.assertIn("host=postgres", env["IMGNEST_TEST_POSTGRES_DSN"])
         self.assertEqual(env["IMGNEST_TEST_S3_ENDPOINT"], "http://minio:9000")
         self.assertIn("healthcheck", services["postgres"])
+        self.assertIn("healthcheck", services["redis"])
+        self.assertEqual(env["IMGNEST_TEST_REDIS_URL"], "redis://redis:6379/0")
         self.assertIn("tmpfs", services["minio"])
 
 
@@ -140,11 +142,16 @@ class CIScopeTest(unittest.TestCase):
 
     def test_project_website_changes_skip_every_job(self):
         # website/ is a standalone VitePress workspace that no CI job builds.
-        self.assertEqual(self.scopes("website/docs/guide/introduction.md", "website/package.json",
+        self.assertEqual(self.scopes("website/docs/index.md", "website/package.json",
                                      "website/.vitepress/theme/home/HomePage.vue"),
                          {"backend": False, "frontend": False})
         self.assertEqual(self.scopes("website/docs/index.md", "internal/service/user.go"),
                          {"backend": True, "frontend": False})
+
+    def test_help_pages_run_the_frontend_job(self):
+        # web-vben/src/lib/docs.test.ts checks the "?" links against these pages.
+        for path in ("website/docs/guide/introduction.md", "website/docs/en/guide/search.md"):
+            self.assertEqual(self.scopes(path), {"backend": False, "frontend": True}, path)
 
     def test_vben_only_changes_skip_the_go_jobs(self):
         self.assertEqual(self.scopes("web-vben/src/App.vue", "web-vben/pnpm-lock.yaml", "docs/spec.md"),

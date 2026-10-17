@@ -182,6 +182,41 @@ func TestV1UploadContract(t *testing.T) {
 	}
 }
 
+// TestV1UploadVariantsContract pins the ImgNest-only variants field on a
+// rule with responsive renditions on: sizes stay integer bytes (never KB like
+// size), widths are the real encoded widths, and URLs use the v1 file names.
+func TestV1UploadVariantsContract(t *testing.T) {
+	for _, driver := range []string{"sqlite", "postgres"} {
+		t.Run(driver, func(t *testing.T) {
+			fixture := newV1Fixture(t, driver)
+			if err := fixture.db.Exec("UPDATE policies SET responsive_variants = ? WHERE id = ?", true, fixture.policy.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+			token := fixture.login(t)
+			uploaded := fixture.upload(t, "wide.png", pngBytes(t, 900, 450), token)
+			mustStatus(t, uploaded, 200)
+			assertGolden(t, "upload_variants.json", uploaded.Body.Bytes())
+
+			data := v1Data(t, uploaded.Body.Bytes())
+			var stored modelImage
+			if err := fixture.db.Where("key = ?", data["key"]).First(&stored).Error; err != nil {
+				t.Fatalf("upload row missing: %v", err)
+			}
+			listed, _ := data["variants"].([]any)
+			if len(listed) != len(stored.Variants) {
+				t.Fatalf("variants = %d, stored %d", len(listed), len(stored.Variants))
+			}
+			for i, item := range listed {
+				variant, _ := item.(map[string]any)
+				object := readStoredObject(t, fixture, stored.Variants[i].Key)
+				if variant["bytes"] != float64(len(object)) {
+					t.Fatalf("variants[%d].bytes = %v, want the stored object's %d bytes", i, variant["bytes"], len(object))
+				}
+			}
+		})
+	}
+}
+
 // assertUploadValues pins the field *values* the golden patterns cannot
 // carry: the KB unit, the hashes of the exact stored bytes, pathname/name
 // derivation, link consistency and ownership of the fresh upload.

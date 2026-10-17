@@ -1,13 +1,20 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
 import { NButton, NCard } from "naive-ui";
 import { RouterLink } from "vue-router";
 import DashboardMetricCard from "@/components/dashboard/DashboardMetricCard.vue";
 import { useDashboard } from "@/components/dashboard/useDashboard";
+import ActivityPanel from "@/components/activity/ActivityPanel.vue";
+import { fetchMyActivity } from "@/api/activity";
 const { t } = useI18n();
-const { isAdmin, metrics, keys, loading, refresh, refreshMetric } = useDashboard();
+const { isAdmin, metrics, keys, loading, refresh: refreshMetrics, refreshMetric } = useDashboard();
+const activityPanel = ref<InstanceType<typeof ActivityPanel> | null>(null);
+function refresh(): void {
+  refreshMetrics();
+  void activityPanel.value?.reload();
+}
 const personalKeys = computed(() =>
   keys.value.filter((key) => key !== "globalImages" && key !== "accounts"),
 );
@@ -58,6 +65,13 @@ const links = computed(() => [
           />
         </div>
       </section>
+      <NCard :bordered="false" data-testid="dashboard-activity">
+        <template #header>
+          <h2 class="dashboard-view__section">{{ t("activity.title") }}</h2>
+          <p class="dashboard-view__card-description">{{ t("activity.description") }}</p>
+        </template>
+        <ActivityPanel ref="activityPanel" :load="fetchMyActivity" />
+      </NCard>
       <NCard :title="t('dashboard.quickLinks')" :bordered="false">
         <nav class="dashboard-view__links" :aria-label="t('dashboard.quickLinks')">
           <RouterLink
@@ -91,6 +105,12 @@ const links = computed(() => [
   margin: 0 0 12px;
   font-size: 14px;
   font-weight: 600;
+}
+.dashboard-view__card-description {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
 }
 .dashboard-view__metrics {
   display: grid;

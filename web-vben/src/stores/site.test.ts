@@ -25,6 +25,7 @@ describe("site store", () => {
       gallery_enabled: true,
       email_verification: false,
       password_reset: false,
+      guest_upload: false,
       login_providers: [],
     });
     const store = useSiteStore();
@@ -52,6 +53,7 @@ describe("site store", () => {
       gallery_enabled: false,
       email_verification: false,
       password_reset: false,
+      guest_upload: false,
       login_providers: [],
     });
     const store = useSiteStore();
@@ -67,6 +69,7 @@ describe("site store", () => {
       gallery_enabled: false,
       email_verification: false,
       password_reset: false,
+      guest_upload: false,
       login_providers: [],
     });
     const store = useSiteStore();
@@ -91,6 +94,7 @@ describe("site store", () => {
       gallery_enabled: true,
       email_verification: false,
       password_reset: false,
+      guest_upload: false,
       login_providers: [],
     });
     const store = useSiteStore();
@@ -105,6 +109,7 @@ describe("site store", () => {
       gallery_enabled: false,
       email_verification: false,
       password_reset: false,
+      guest_upload: false,
       login_providers: [],
     });
     await older;
@@ -139,6 +144,7 @@ describe("site store", () => {
       gallery_enabled: false,
       email_verification: false,
       password_reset: false,
+      guest_upload: false,
       login_providers: [],
     });
     await older;
@@ -152,6 +158,7 @@ describe("site store", () => {
       gallery_enabled: true,
       email_verification: false,
       password_reset: false,
+      guest_upload: false,
       login_providers: [],
     });
     await Promise.all([newer, joined]);

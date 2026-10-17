@@ -33,6 +33,11 @@ export function getUploadLimits(): Promise<UploadLimits> {
   return request<UploadLimits>("/api/upload/limits");
 }
 
+/** 游客组的上传限额；游客上传关闭时为 401。 */
+export function getGuestUploadLimits(): Promise<UploadLimits> {
+  return request<UploadLimits>("/api/guest/upload/limits");
+}
+
 /** 客户端预检结果：不通过时 errors 为可直接展示的中文提示。 */
 export interface PreflightResult {
   ok: boolean;
@@ -81,6 +86,11 @@ export type UploadItemResult =
 
 export interface UploadImageOptions {
   policyId: number | null;
+  /**
+   * 游客上传（公开图床页）：走 POST /api/guest/upload，不带 Token、不发
+   * album_id / is_public，401 也不触发登出。
+   */
+  guest?: boolean;
   isPublic: boolean;
   /**
    * 目标相册 id；null/undefined = 不入相册（不发送 album_id 字段）。
@@ -109,7 +119,8 @@ export interface UploadImagesOptions extends UploadImageOptions {
  */
 export async function uploadImages(options: UploadImagesOptions): Promise<UploadItemResult[]> {
   // A batch belongs to the session that started it, including guest sessions.
-  const token = getToken();
+  // Guest uploads never send a token, so a later sign-in does not cancel them.
+  const token = options.guest ? null : getToken();
   const controller = new AbortController();
   const abort = () => controller.abort();
   options.signal?.addEventListener("abort", abort, { once: true });
@@ -117,11 +128,12 @@ export async function uploadImages(options: UploadImagesOptions): Promise<Upload
   if (options.signal?.aborted) abort();
   const results: UploadItemResult[] = [];
   try {
+    const sessionChanged = () => !options.guest && getToken() !== token;
     for (const [index, file] of options.files.entries()) {
-      if (getToken() !== token) abort();
+      if (sessionChanged()) abort();
       if (!controller.signal.aborted) options.onFileStart?.(index, file);
       // A callback may clear the session before the request is constructed.
-      if (getToken() !== token) abort();
+      if (sessionChanged()) abort();
       const onProgress = options.onFileProgress
         ? (loaded: number, total: number) => options.onFileProgress?.(index, file, loaded, total)
         : options.onProgress;
@@ -131,6 +143,7 @@ export async function uploadImages(options: UploadImagesOptions): Promise<Upload
           policyId: options.policyId,
           isPublic: options.isPublic,
           albumId: options.albumId,
+          guest: options.guest,
           signal: controller.signal,
           onProgress,
         },
@@ -154,16 +167,18 @@ async function uploadOne(
   token: string | null,
 ): Promise<UploadItemResult> {
   try {
+    const guest = options.guest === true;
     const { image, status } = await requestUpload(
       file,
       options.policyId,
       options.isPublic,
       options.albumId ?? null,
       token,
+      guest,
       options.signal,
       options.onProgress,
     );
-    if (options.signal?.aborted || getToken() !== token) throw uploadAborted();
+    if (options.signal?.aborted || (!guest && getToken() !== token)) throw uploadAborted();
     return { ok: true, filename: file.name, status, image };
   } catch (error) {
     const apiError = error instanceof ApiError ? error : new ApiError(-1, "网络错误", 0);
@@ -189,11 +204,13 @@ function requestUpload(
   isPublic: boolean,
   albumId: number | null,
   token: string | null,
+  guest: boolean,
   signal?: AbortSignal,
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<{ image: ImageView; status: number }> {
+  const sessionChanged = () => !guest && getToken() !== token;
   return new Promise((resolve, reject) => {
-    if (signal?.aborted || getToken() !== token) {
+    if (signal?.aborted || sessionChanged()) {
       reject(uploadAborted());
       return;
     }
@@ -202,10 +219,13 @@ function requestUpload(
     if (policyId !== null) {
       form.append("policy_id", String(policyId));
     }
-    // openapi：multipart 文本必须精确为 true / false
-    form.append("is_public", isPublic ? "true" : "false");
-    if (albumId !== null) {
-      form.append("album_id", String(albumId));
+    // 游客不能选相册，可见性由服务端固定为私有，两个字段都不发。
+    if (!guest) {
+      // openapi：multipart 文本必须精确为 true / false
+      form.append("is_public", isPublic ? "true" : "false");
+      if (albumId !== null) {
+        form.append("album_id", String(albumId));
+      }
     }
 
     const xhr = new XMLHttpRequest();
@@ -229,8 +249,8 @@ function requestUpload(
       xhr.abort();
       reject(uploadAborted());
     }
-    xhr.open("POST", "/api/upload");
-    if (token) {
+    xhr.open("POST", guest ? "/api/guest/upload" : "/api/upload");
+    if (token && !guest) {
       // token 只进 Authorization 头，不进 URL、不进日志
       xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     }
@@ -245,8 +265,8 @@ function requestUpload(
       // clear the session, but its original per-file error must be preserved.
       cleanup();
       try {
-        if (signal?.aborted || getToken() !== token) throw uploadAborted();
-        resolve(parseUploadResponse(xhr, token, signal));
+        if (signal?.aborted || sessionChanged()) throw uploadAborted();
+        resolve(parseUploadResponse(xhr, token, signal, !guest));
       } catch (error) {
         reject(error);
       }
@@ -268,10 +288,12 @@ interface Envelope {
   data?: unknown;
 }
 
+/** notify=false（游客上传）时 401 只是本文件失败，不清空登录态。 */
 function parseUploadResponse(
   xhr: XMLHttpRequest,
   token: string | null,
   signal?: AbortSignal,
+  notify = true,
 ): { image: ImageView; status: number } {
   const status = xhr.status;
   let envelope: Envelope;
@@ -284,7 +306,7 @@ function parseUploadResponse(
   const code = typeof envelope.code === "number" ? envelope.code : -1;
   const message = typeof envelope.message === "string" ? envelope.message : "未知错误";
   if (code !== 0) {
-    notifyUnauthorized(code, token, signal);
+    if (notify) notifyUnauthorized(code, token, signal);
     throw new ApiError(code, message, status, envelope.data);
   }
   if (status === 207) {
@@ -295,7 +317,7 @@ function parseUploadResponse(
       throw new ApiError(-1, "上传响应缺少结果项", status);
     }
     if (item.code !== 0 || !isImageView(item.data)) {
-      notifyUnauthorized(item.code || -1, token, signal);
+      if (notify) notifyUnauthorized(item.code || -1, token, signal);
       throw new ApiError(item.code || -1, item.message || "上传失败", item.status || status);
     }
     return { image: item.data as ImageView, status: item.status || status };

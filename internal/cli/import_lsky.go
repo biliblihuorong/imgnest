@@ -153,7 +153,7 @@ func runLskyImport(ctx context.Context, out *lineWriter, db *gorm.DB, cfg config
 	if run.sourceDir != "" {
 		fetch = lsky.DirFetcher{Root: run.sourceDir, MaxBytes: maxBytes}
 	}
-	images, _, closeImages, err := newImageServices(ctx, db, cfg, nil, imageHooks{})
+	images, _, closeImages, err := newImageServices(ctx, db, cfg, runtimeCaches{}, imageHooks{})
 	if err != nil {
 		return err
 	}

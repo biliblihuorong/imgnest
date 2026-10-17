@@ -19,6 +19,15 @@ type SiteView struct {
 	EmailVerification bool `json:"email_verification"`
 	// PasswordReset means a forgotten password can be reset by email.
 	PasswordReset bool `json:"password_reset"`
+	// GuestUpload means visitors can upload from the public page without
+	// an account.
+	GuestUpload bool `json:"guest_upload"`
+}
+
+// GuestUploadSwitch is the optional settings capability behind
+// SiteView.GuestUpload; settings without it report guest uploads closed.
+type GuestUploadSwitch interface {
+	GuestUploadOpen(ctx context.Context) (bool, error)
 }
 
 // Site returns the public site view. Registration mirrors the account
@@ -48,6 +57,12 @@ func (s *UserService) Site(ctx context.Context) (SiteView, error) {
 	if err != nil {
 		return SiteView{}, fmt.Errorf("read email features: %w", err)
 	}
+	guest := false
+	if switcher, ok := s.settings.(GuestUploadSwitch); ok {
+		if guest, err = switcher.GuestUploadOpen(ctx); err != nil {
+			return SiteView{}, fmt.Errorf("read guest upload setting: %w", err)
+		}
+	}
 	return SiteView{SiteName: name, RegisterEnabled: enabled, GalleryEnabled: gallery,
-		EmailVerification: verification && enabled, PasswordReset: reset}, nil
+		EmailVerification: verification && enabled, PasswordReset: reset, GuestUpload: guest}, nil
 }

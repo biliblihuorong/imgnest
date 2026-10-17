@@ -471,6 +471,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 		cancel()
 		if checkErr == nil && current.State == model.ImageStateActive && current.OperationID == op {
 			s.invalidateRandom(ctx, current.AlbumID)
+			s.invalidateLookup(ctx, current)
 			s.emit(ctx, EventImageUploaded, current, backend)
 			return imageView(current, backend, policy), nil
 		}
@@ -480,6 +481,7 @@ func (s *ImageService) publish(ctx context.Context, input UploadInput, limits Up
 		return ImageView{}, s.failUpload(ctx, image, driver, fmt.Errorf("commit upload: %w", err))
 	}
 	s.invalidateRandom(ctx, committed.AlbumID)
+	s.invalidateLookup(ctx, committed)
 	s.emit(ctx, EventImageUploaded, committed, backend)
 	return imageView(committed, backend, policy), nil
 }

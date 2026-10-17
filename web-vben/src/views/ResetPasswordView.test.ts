@@ -21,6 +21,7 @@ async function renderView(passwordReset = true) {
     gallery_enabled: false,
     email_verification: false,
     password_reset: passwordReset,
+    guest_upload: false,
     login_providers: [],
   });
   const router = createRouter({

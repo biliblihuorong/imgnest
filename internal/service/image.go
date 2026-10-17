@@ -98,6 +98,14 @@ type ThumbCache interface {
 	Delete(context.Context, uint64, string) error
 }
 
+// ByteCache is a short-lived cache shared by every instance when it is
+// Redis, or local to this process otherwise. Errors count as misses.
+type ByteCache interface {
+	Get(ctx context.Context, key string) ([]byte, bool, error)
+	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
+	Delete(ctx context.Context, keys ...string) error
+}
+
 // ImageSettings provides the recycle-bin retention period.
 type ImageSettings interface {
 	TrashDays(context.Context) (int, error)
@@ -123,6 +131,10 @@ type ImageDependencies struct {
 	// RandomPool drops cached random-link candidates when an album's active
 	// images change; nil disables invalidation.
 	RandomPool RandomPoolInvalidator
+	// LookupCache remembers which image a looked-up link resolves to, so
+	// blogs asking for the same links again skip the database; nil reads the
+	// database every time.
+	LookupCache ByteCache
 	// Events receives committed image changes; nil disables them.
 	Events EventSink
 	// Inspectors run in order on each processed upload before anything is
@@ -287,7 +299,7 @@ func NewImageService(ctx context.Context, deps ImageDependencies) (*ImageService
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("construct image service: %w", err)
 	}
-	if deps.Images == nil || deps.Policies == nil || deps.Storages == nil || deps.Users == nil || deps.Tokens == nil || deps.Drivers == nil || deps.Paths == nil || deps.Imaging == nil || deps.Extractor == nil || deps.Scrubber == nil || deps.Cache == nil || deps.Now == nil || deps.MaxFileBytes <= 0 {
+	if deps.Images == nil || deps.Policies == nil || deps.Storages == nil || deps.Users == nil || deps.Tokens == nil || deps.Drivers == nil || deps.Paths == nil || deps.Imaging == nil || deps.Extractor == nil || deps.Scrubber == nil || deps.Cache == nil || deps.Settings == nil || deps.Now == nil || deps.MaxFileBytes <= 0 {
 		return nil, ErrInvalidInput
 	}
 	return &ImageService{deps: deps, operations: make(chan struct{}, 1)}, nil

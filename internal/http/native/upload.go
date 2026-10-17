@@ -31,7 +31,36 @@ type uploadFields struct {
 	public            bool
 }
 
+// uploadMode is who an upload is for: an account, or a guest when the
+// administrator allows anonymous uploads. Everything else about the request
+// (slots, body bounds, per-minute allowance, batch handling) is shared.
+type uploadMode struct {
+	// limits bounds the body read before the form fields are known.
+	limits func(context.Context) (service.UploadLimits, error)
+	// preflight judges the rule named in the form fields.
+	preflight func(context.Context, uint64) (service.UploadLimits, error)
+	store     func(context.Context, service.UploadInput) (service.ImageView, error)
+	// rateKey is the per-minute allowance the attempt spends.
+	rateKey string
+	// guest refuses albums and keeps uploads out of the public gallery.
+	guest bool
+}
+
 func (h *imageHandler) upload(c *gin.Context) {
+	subject, userID := identity(c).Subject, identity(c).User.ID
+	h.receive(c, uploadMode{
+		limits: func(ctx context.Context) (service.UploadLimits, error) { return h.images.PreflightLimits(ctx, subject) },
+		preflight: func(ctx context.Context, policyID uint64) (service.UploadLimits, error) {
+			return h.images.Preflight(ctx, subject, policyID)
+		},
+		store: func(ctx context.Context, input service.UploadInput) (service.ImageView, error) {
+			return h.images.Upload(ctx, subject, input)
+		},
+		rateKey: ratelimit.UploadKey(userID),
+	})
+}
+
+func (h *imageHandler) receive(c *gin.Context, mode uploadMode) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), h.options.Timeout)
 	defer cancel()
 	c.Request = c.Request.WithContext(ctx)
@@ -48,7 +77,7 @@ func (h *imageHandler) upload(c *gin.Context) {
 	// The first gate only bounds the body read: the group's default rule may
 	// be unusable while the request names an explicit, usable rule in its
 	// fields, so the terminal rule check waits for the second preflight.
-	limits, err := h.images.PreflightLimits(ctx, identity(c).Subject)
+	limits, err := mode.limits(ctx)
 	if err != nil {
 		fail(c, err)
 		return
@@ -57,8 +86,7 @@ func (h *imageHandler) upload(c *gin.Context) {
 		fail(c, service.ErrInvalidInput)
 		return
 	}
-	userID := identity(c).User.ID
-	if limits.PerMinute > 0 && h.options.Uploads.Exceeded(ratelimit.UploadKey(userID), limits.PerMinute) {
+	if limits.PerMinute > 0 && h.options.Uploads.Exceeded(mode.rateKey, limits.PerMinute) {
 		// An exhausted allowance is refused before the body is read.
 		fail(c, errUploadRateLimited)
 		return
@@ -77,7 +105,7 @@ func (h *imageHandler) upload(c *gin.Context) {
 	// Reserve the first file's attempt before reading or draining the body.
 	// Per-file rejection, epilogue errors and an unusable selected rule still
 	// spend this allowance; cheap header-only rejections above do not.
-	if !h.allowUpload(userID, limits.PerMinute) {
+	if !h.options.Uploads.Allow(mode.rateKey, limits.PerMinute) {
 		fail(c, errUploadRateLimited)
 		return
 	}
@@ -91,7 +119,14 @@ func (h *imageHandler) upload(c *gin.Context) {
 		fail(c, uploadReadError(ctx, err))
 		return
 	}
-	limits, err = h.images.Preflight(ctx, identity(c).Subject, fields.policyID)
+	if mode.guest {
+		if fields.albumID != 0 {
+			fail(c, service.ErrForbidden)
+			return
+		}
+		fields.public = false
+	}
+	limits, err = mode.preflight(ctx, fields.policyID)
 	if err != nil {
 		fail(c, err)
 		return
@@ -102,14 +137,14 @@ func (h *imageHandler) upload(c *gin.Context) {
 		err := file.err
 		// The first attempt was reserved before parsing. Every additional
 		// batch file spends its own attempt, including rejected files.
-		if index > 0 && !h.allowUpload(userID, limits.PerMinute) {
+		if index > 0 && !h.options.Uploads.Allow(mode.rateKey, limits.PerMinute) {
 			err = errUploadRateLimited
 		}
 		if err == nil && int64(len(file.data)) > limits.MaxFileBytes {
 			err = errUploadTooLarge
 		}
 		if err == nil {
-			result.Data, err = h.images.Upload(ctx, identity(c).Subject, service.UploadInput{Data: file.data, Filename: file.name, IP: c.ClientIP(), PolicyID: fields.policyID, AlbumID: fields.albumID, IsPublic: fields.public})
+			result.Data, err = mode.store(ctx, service.UploadInput{Data: file.data, Filename: file.name, IP: c.ClientIP(), PolicyID: fields.policyID, AlbumID: fields.albumID, IsPublic: fields.public})
 		}
 		if err != nil {
 			result.Status, result.Response = errorResponse(err)
@@ -238,7 +273,4 @@ func uploadReadError(ctx context.Context, err error) error {
 		return errUploadTooLarge
 	}
 	return service.ErrInvalidInput
-}
-func (h *imageHandler) allowUpload(userID uint64, perMinute int) bool {
-	return h.options.Uploads.Allow(ratelimit.UploadKey(userID), perMinute)
 }

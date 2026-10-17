@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/biliblihuorong/imgnest/internal/cache"
 	"github.com/biliblihuorong/imgnest/internal/imaging"
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/storage"
@@ -210,5 +211,67 @@ func TestDirectBasesPreferVariantThenLegacyPath(t *testing.T) {
 	}
 	if got := directBases("_w400_v1.webp"); len(got) != 1 || got[0] != "_w400_v1" {
 		t.Fatalf("bare suffix bases = %v", got)
+	}
+}
+
+// panickingPolicies stands in for a decoder or driver bug deep inside one
+// image's generation.
+type panickingPolicies struct{ *uploadPolicy }
+
+func (panickingPolicies) Find(context.Context, uint64) (model.Policy, error) {
+	panic("corrupt image")
+}
+
+func TestBackfillOneTurnsPanicIntoFailure(t *testing.T) {
+	svc, _, policy, _, _ := variantFixture(t)
+	svc.deps.Policies = panickingPolicies{policy}
+	// Generation needs the variant capability; the panic fires before any
+	// of its methods is called.
+	svc.deps.Images = struct {
+		ImageRepository
+		VariantRepository
+	}{ImageRepository: svc.deps.Images}
+	added, err := svc.backfillOne(t.Context(), model.Image{ID: 7, Key: "k", State: model.ImageStateActive, Frames: 1})
+	if added || !errors.Is(err, ErrProcessing) {
+		t.Fatalf("backfillOne = %v, %v; want a processing failure instead of a crash", added, err)
+	}
+}
+
+func TestNewImageServiceRequiresSettings(t *testing.T) {
+	svc, _, _, _, _ := uploadFixture(t, "png")
+	deps := svc.deps
+	deps.Settings = nil
+	if _, err := NewImageService(t.Context(), deps); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("missing Settings accepted: %v", err)
+	}
+}
+
+func TestLookupVariantsCachesAndTrashInvalidates(t *testing.T) {
+	svc, rows, _, _, subject := variantFixture(t)
+	svc.deps.LookupCache = cache.NewMemory(0, nil)
+	view, err := svc.Upload(t.Context(), subject, UploadInput{Data: []byte("source"), Filename: "a.png"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	links := []string{view.Links.Original}
+	if items, err := svc.LookupVariants(t.Context(), links); err != nil || !items[0].Found || len(items[0].Variants) != 3 {
+		t.Fatalf("first lookup = %+v, %v", items, err)
+	}
+	// A change behind the service's back is not seen while the entry lives:
+	// the second lookup is answered from the cache.
+	rows.mu.Lock()
+	row := rows.rows[view.Key]
+	row.Variants = nil
+	rows.rows[view.Key] = row
+	rows.mu.Unlock()
+	if items, _ := svc.LookupVariants(t.Context(), links); len(items[0].Variants) != 3 {
+		t.Fatalf("second lookup read the database: %+v", items)
+	}
+	// Moving the image to the recycle bin drops the entry at once.
+	if err := svc.Trash(t.Context(), subject, view.Key); err != nil {
+		t.Fatal(err)
+	}
+	if items, err := svc.LookupVariants(t.Context(), links); err != nil || items[0].Found {
+		t.Fatalf("recycled image still resolves from the cache: %+v, %v", items, err)
 	}
 }

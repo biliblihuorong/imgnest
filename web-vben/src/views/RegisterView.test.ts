@@ -24,6 +24,7 @@ async function renderView(enabled = true, emailVerification = false) {
     gallery_enabled: true,
     email_verification: emailVerification,
     password_reset: false,
+    guest_upload: false,
     login_providers: [],
   });
   const router = createRouter({

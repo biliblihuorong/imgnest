@@ -49,6 +49,8 @@ These settings cap the resources the server spends on uploads.
 
 One request can carry at most 20 files. These limits are checked before a file is read in full.
 
+A group's per-file limit overrides `server.max_upload_mb` in both directions. Above 20 MB the group editor warns: large files are held in memory in full, and the reverse proxy's body limit must be raised to match. Files beyond 2 GiB skip the EXIF steps; when the rule scrubs, only the WebP is kept so an unscrubbed original is never stored (WebP sources beyond that size are rejected).
+
 ## Database
 
 | Key | Environment variable | Default |
@@ -85,7 +87,10 @@ Migration scripts are compiled into the program, and running `migrate` again wri
 | `images.thumb_cache` | `IMGNEST_IMAGES_THUMB_CACHE` | `data/thumbs` | Local thumbnail directory; safe to delete and rebuild |
 | `images.variant_cors_origins` | `IMGNEST_IMAGES_VARIANT_CORS_ORIGINS` | empty | Sites (such as your blog) whose browsers may call `/api/variants` for responsive versions, comma separated; `*` allows any origin |
 | `images.variant_lookup_per_minute` | `IMGNEST_IMAGES_VARIANT_LOOKUP_PER_MINUTE` | `60` | Lookups allowed per client address per minute |
+| `images.variant_cdn_max_age` | `IMGNEST_IMAGES_VARIANT_CDN_MAX_AGE` | `1h` | How long a CDN may keep a `/api/variants` answer (`s-maxage`), up to `168h`; `0s` keeps CDNs on the 5-minute browser lifetime |
+| `cache.redis_url` | `IMGNEST_CACHE_REDIS_URL` | empty | Where random-link and variant-lookup caches live. A `redis://[:password@]host:6379/0` URL (`rediss://` for TLS) shares them between instances; empty keeps them in process memory. An unreachable Redis at startup is logged and memory is used instead |
 | `backup.dir` | `IMGNEST_BACKUP_DIR` | `data/backup` | Where console and scheduled backups are written (zip: database dump + configuration), mode 0600 |
+| `updates.check` | `IMGNEST_UPDATES_CHECK` | `true` | Site settings > About asks GitHub whether a newer release exists and shows administrators a red dot when one does; set `false` on servers that must not call out |
 | `security.master_key` | `IMGNEST_SECURITY_MASTER_KEY` | empty | Master key that encrypts S3 credentials; may stay empty with local storage only |
 
 S3 storage requires a master key: 32 random bytes, base64-encoded. Keep it together with your database backups. Without it, saved storage credentials cannot be decrypted.

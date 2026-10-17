@@ -1,3 +1,5 @@
+import os
+
 from playwright.sync_api import sync_playwright
 
 # Example: Capturing console logs during browser automation
@@ -27,9 +29,10 @@ with sync_playwright() as p:
 
     browser.close()
 
-# Save console logs to file
-with open('/mnt/user-data/outputs/console.log', 'w') as f:
+# Save console logs to SCREENSHOT_DIR, or the current directory by default
+log_path = os.path.join(os.environ.get('SCREENSHOT_DIR', '.'), 'console.log')
+with open(log_path, 'w') as f:
     f.write('\n'.join(console_logs))
 
 print(f"\nCaptured {len(console_logs)} console messages")
-print(f"Logs saved to: /mnt/user-data/outputs/console.log")
+print(f"Logs saved to: {log_path}")
