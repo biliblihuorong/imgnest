@@ -100,7 +100,7 @@ func (r *ImageRepository) ReserveUpload(ctx context.Context, req model.UploadRes
 		if !errors.Is(lookup, gorm.ErrRecordNotFound) {
 			return lookup
 		}
-		if err := checkQuota(tx, user, image.ChargedBytes); err != nil {
+		if err := checkQuota(tx, user, image.ChargedBytes, group.CapacityBytes); err != nil {
 			return err
 		}
 		if err := checkVariantKeys(tx, image.StorageID, ownVariantKeys(image)); err != nil {
@@ -197,7 +197,7 @@ func (r *ImageRepository) CommitUpload(ctx context.Context, key, op string, exif
 		if err := checkUploadGroup(*image, "", group); err != nil {
 			return err
 		}
-		if err := checkQuota(tx, owner, 0); err != nil {
+		if err := checkQuota(tx, owner, 0, group.CapacityBytes); err != nil {
 			return err
 		}
 		if len(exif.Raw) == 0 {
@@ -767,7 +767,7 @@ func checkUploadGroup(image model.Image, sourceExt string, group model.Group) er
 	return nil
 }
 
-func checkQuota(tx *gorm.DB, user model.User, additional int64) error {
+func checkQuota(tx *gorm.DB, user model.User, additional int64, groupCapacity int64) error {
 	var reserved int64
 	err := tx.Model(&model.Image{}).
 		Where("user_id = ? AND (state = ? OR (state = ? AND operation = ?))", user.ID, model.ImageStatePending, model.ImageStateTrash, model.ImageOperationRestore).
@@ -785,11 +785,7 @@ func checkQuota(tx *gorm.DB, user model.User, additional int64) error {
 	if additional > math.MaxInt64-total {
 		return model.ErrQuotaExceeded
 	}
-	var group model.Group
-	if err := tx.First(&group, "id = ?", user.GroupID).Error; err != nil {
-		return err
-	}
-	if group.CapacityBytes > 0 && (total > group.CapacityBytes || additional > group.CapacityBytes-total) {
+	if groupCapacity > 0 && (total > groupCapacity || additional > groupCapacity-total) {
 		return model.ErrQuotaExceeded
 	}
 	return nil

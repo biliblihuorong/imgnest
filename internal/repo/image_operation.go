@@ -262,7 +262,11 @@ func chargeOwner(tx *gorm.DB, owner model.User, delta int64) error {
 // enforce, so an administrator can still restore earlier guest uploads.
 func checkOwnerQuota(ctx context.Context, tx *gorm.DB, owner model.User, additional int64) error {
 	if owner.ID != 0 {
-		return checkQuota(tx, owner, additional)
+		var group model.Group
+		if err := tx.First(&group, "id = ?", owner.GroupID).Error; err != nil {
+			return err
+		}
+		return checkQuota(tx, owner, additional, group.CapacityBytes)
 	}
 	if err := lockGuestQuota(ctx, tx); err != nil {
 		return err

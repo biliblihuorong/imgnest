@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/http/native"
@@ -18,6 +19,7 @@ import (
 // never fall back to HTML, so unknown API endpoints keep their JSON 404.
 type spaHandler struct {
 	files fs.FS
+	cache sync.Map // map[string][]byte — embedded FS is immutable, so cache forever
 }
 
 func (s *spaHandler) reserved(requestPath string) bool {
@@ -49,6 +51,9 @@ func (s *spaHandler) handle(c *gin.Context) {
 }
 
 func (s *spaHandler) readFile(name string) ([]byte, bool) {
+	if cached, ok := s.cache.Load(name); ok {
+		return cached.([]byte), true
+	}
 	f, err := s.files.Open(name)
 	if err != nil {
 		return nil, false
@@ -62,6 +67,7 @@ func (s *spaHandler) readFile(name string) ([]byte, bool) {
 	if err != nil {
 		return nil, false
 	}
+	s.cache.Store(name, data)
 	return data, true
 }
 
@@ -76,8 +82,8 @@ func (s *spaHandler) serveFile(c *gin.Context, name string, data []byte) {
 }
 
 func (s *spaHandler) serveIndex(c *gin.Context) {
-	data, err := fs.ReadFile(s.files, "index.html")
-	if err != nil {
+	data, ok := s.readFile("index.html")
+	if !ok {
 		c.JSON(http.StatusInternalServerError, native.Response{Code: 50001, Message: "internal error", Data: nil})
 		return
 	}
