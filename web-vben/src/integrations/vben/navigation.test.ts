@@ -17,6 +17,7 @@ describe("Vben 工作区导航权限", () => {
   it("管理员看到六个管理页和真实 M5 相册", () => {
     const admin = workspaceMenus("admin").find((menu) => menu.path === "/admin");
     expect(admin?.children?.map((menu) => menu.path)).toEqual([
+      "/admin/overview",
       "/admin/users",
       "/admin/groups",
       "/admin/storages",

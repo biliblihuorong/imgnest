@@ -16,6 +16,7 @@ export function shellTestRouter(): Router {
       "/gallery",
       "/login",
       "/account/settings",
+      "/admin/overview",
       "/admin/users",
       "/admin/groups",
       "/admin/storages",

@@ -13,7 +13,8 @@
     "policies": "Upload policies",
     "settings": "Site settings",
     "allImages": "All images",
-    "lskyImport": "Lsky migration"
+    "lskyImport": "Lsky migration",
+    "overview": "Site overview"
   },
   "account": "Account",
   "administrator": "Administrator",

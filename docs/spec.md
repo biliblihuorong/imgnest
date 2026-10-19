@@ -320,6 +320,7 @@ CDN 缓存不在本程序处理范围内。
 | Token | `GET/POST /api/tokens`、`DELETE /api/tokens/{id}` | 本人 |
 | 账户活动 | `GET /api/account/activity`；管理员看任一账户 `GET /api/admin/users/{id}/activity`（见 7.9） | 本人 / 管理员 |
 | 版本 | `GET /api/admin/system/version`（`?refresh=1` 立即重新检查，见 7.9） | 管理员 |
+| 站点概览 | `GET /api/admin/overview`（总量、按存储/规则的用量、近 30 天上传、用量前十，见 7.9） | 管理员 |
 | 画廊 | `GET /api/gallery`、`GET /api/site` | 公开（受开关控制） |
 | 管理 | `/api/admin/users`、`groups`、`storages`（含 `POST /{id}/test`）、`policies`（含 `POST /preview` 模板预览）、`images`、`trash`（清空全站回收站）、`settings`、`plugins`（扩展插件的设置卡片，`PUT /{name}/settings` 保存）、`tasks/backfill`（补 WebP/缩略图/EXIF）、`variants/backfill`（补响应式版本，见 6.3） | 管理员 |
 
@@ -396,6 +397,7 @@ CDN 缓存不在本程序处理范围内。
 - `GET /api/account/activity` 返回最近在线、最近 10 次登录（时间、IP、浏览器）、未过期网页会话数、API Token 列表（含次数与最后 IP）和近 30 个 UTC 日的 API 请求数（固定 30 项，缺的天补 0）。只给本人和管理员（`/api/admin/users/{id}/activity`）；IP 与 User-Agent 不进日志、不进公开接口和蓝空 v1 接口。前端：本人在「数据概览」页，管理员在「用户管理」点用户名或「详情」打开抽屉；用户列表多一列「最近在线」。
 - 版本号来自仓库根目录 `VERSION`，由根包 `imgnest.Version()` 用 `go:embed` 编译进二进制，`scripts/bump-version.py` 改它即可，无需 ldflags。`GET /api/admin/system/version` 返回当前版本、GitHub 最新正式版（`releases/latest`，跳过草稿和预发布）、`update_available`、项目链接。检查结果在进程内缓存 6 小时，失败后 30 分钟重试，`refresh=1` 最多每分钟一次；`updates.check: false`（`IMGNEST_UPDATES_CHECK`）时从不外连。请求走 `HTTPS_PROXY`。
 - 前端：「站点设置 → 关于」（`/admin/settings/about`）显示版本、更新提示和仓库/文档/发布/反馈链接；有新版本时管理员菜单的「站点设置」和设置页的「关于」显示小红点。只有管理员会请求版本接口。
+- 站点概览（2026-10-19）：`GET /api/admin/overview` 只给管理员，由 `service.OverviewService` 调 `repo.OverviewRepository` 的几条只读聚合查询（SQLite / PostgreSQL 通用，不开事务，免得 SQLite 的 IMMEDIATE 事务挡住上传），无表结构变更。字节一律是 `images.charged_bytes`：清单里每个云端对象各计一次（原图、单独的 WebP、云端缩略图、响应式图片；WebP 源图或只存 WebP 时 `{path}.webp` 只算一次），本地缩略图缓存不计；`users.used_bytes` 是活动图片 `charged_bytes` 之和（游客不计，进回收站时扣减、恢复时加回）。返回：总量（用户、相册、活动图片与字节、回收站、正在写入、游客）；每个存储的图片数、字节及原图 / WebP / 缩略图 / 响应式（前三项取各版本 size 列，响应式为剩余部分）和回收站；每条规则的活动图片与字节；近 30 个 UTC 日的上传次数与字节（按 `created_at`，含已进回收站的，导入的蓝空图片按原日期，固定 30 项）；`used_bytes` 前十的账户（只有 id、用户名、用量、图片数）；响应式覆盖（启用响应式规则下的活动单帧图片里已有版本的数量）。不返回 EXIF、邮箱、Token、存储配置。前端：管理菜单第一项「站点概览」（`/admin/overview`，`/admin` 默认进入此页），图表用 CSS 柱条，不引入图表库。
 
 ### 7.10 公开图床首页与游客上传（2026-10-17）
 

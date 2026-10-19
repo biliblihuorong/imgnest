@@ -2336,6 +2336,39 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/admin/overview:
+    get:
+      operationId: adminGetOverview
+      tags: [Admin]
+      summary: Read the site-wide usage dashboard
+      description: |
+        Requires the administrator role. Every byte figure is a charged cloud
+        byte (`images.charged_bytes`): the original, the separate WebP, the
+        cloud thumbnail and responsive variants. A WebP source and its WebP
+        share one object and count once; the local preview cache never
+        counts. Active images make up `bytes`; images in the recycle bin are
+        reported separately. Per storage, `original_bytes`, `webp_bytes` and
+        `thumb_bytes` come from the per-version size columns and
+        `variant_bytes` is the remainder of the charged bytes.
+        `uploads` has one entry per UTC day for the last 30 days, oldest
+        first, ending today; it counts images by creation time, including
+        those already trashed (imported Lsky images keep their original
+        dates). `top_users` lists the ten accounts with the highest
+        `used_bytes`. No EXIF, credential, token or storage configuration is
+        returned.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Dashboard snapshot.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdminOverviewEnvelope'}
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/admin/system/version:
     get:
       operationId: adminGetSystemVersion
@@ -4632,6 +4665,105 @@ components:
         issues_url:
           type: string
           format: uri
+    AdminOverviewTotals:
+      type: object
+      additionalProperties: false
+      required: [users, albums, images, bytes, trash_images, trash_bytes, pending_images, guest_images, guest_bytes]
+      properties:
+        users: {type: integer, minimum: 0, description: Real accounts (the guest anchor is excluded).}
+        albums: {type: integer, minimum: 0}
+        images: {type: integer, minimum: 0, description: Active images.}
+        bytes: {type: integer, minimum: 0, description: Charged bytes of active images.}
+        trash_images: {type: integer, minimum: 0}
+        trash_bytes: {type: integer, minimum: 0}
+        pending_images: {type: integer, minimum: 0, description: Uploads or imports still being written.}
+        guest_images: {type: integer, minimum: 0}
+        guest_bytes: {type: integer, minimum: 0}
+    AdminStorageUsage:
+      type: object
+      additionalProperties: false
+      required: [id, name, driver, enabled, images, bytes, original_bytes, webp_bytes, thumb_bytes, variant_bytes, trash_images, trash_bytes]
+      properties:
+        id: {type: integer, minimum: 1}
+        name: {type: string}
+        driver: {type: string, enum: [local, s3]}
+        enabled: {type: boolean}
+        images: {type: integer, minimum: 0}
+        bytes: {type: integer, minimum: 0}
+        original_bytes: {type: integer, minimum: 0}
+        webp_bytes: {type: integer, minimum: 0}
+        thumb_bytes: {type: integer, minimum: 0, description: Cloud thumbnails.}
+        variant_bytes: {type: integer, minimum: 0, description: Responsive variants.}
+        trash_images: {type: integer, minimum: 0}
+        trash_bytes: {type: integer, minimum: 0}
+    AdminPolicyUsage:
+      type: object
+      additionalProperties: false
+      required: [id, name, storage_id, enabled, images, bytes]
+      properties:
+        id: {type: integer, minimum: 1}
+        name: {type: string}
+        storage_id: {type: integer, minimum: 1}
+        enabled: {type: boolean}
+        images: {type: integer, minimum: 0}
+        bytes: {type: integer, minimum: 0}
+    AdminUploadDay:
+      type: object
+      additionalProperties: false
+      required: [day, uploads, bytes]
+      properties:
+        day: {type: string, format: date}
+        uploads: {type: integer, minimum: 0}
+        bytes: {type: integer, minimum: 0}
+    AdminUserUsage:
+      type: object
+      additionalProperties: false
+      required: [id, username, used_bytes, images]
+      properties:
+        id: {type: integer, minimum: 1}
+        username: {type: string}
+        used_bytes: {type: integer, minimum: 0}
+        images: {type: integer, minimum: 0, description: Active images.}
+    AdminOverview:
+      type: object
+      additionalProperties: false
+      required: [generated_at, totals, storages, policies, uploads, top_users, variants]
+      properties:
+        generated_at:
+          $ref: '#/components/schemas/Timestamp'
+        totals:
+          $ref: '#/components/schemas/AdminOverviewTotals'
+        storages:
+          type: array
+          items: {$ref: '#/components/schemas/AdminStorageUsage'}
+        policies:
+          type: array
+          items: {$ref: '#/components/schemas/AdminPolicyUsage'}
+        uploads:
+          type: array
+          minItems: 30
+          maxItems: 30
+          items: {$ref: '#/components/schemas/AdminUploadDay'}
+        top_users:
+          type: array
+          maxItems: 10
+          items: {$ref: '#/components/schemas/AdminUserUsage'}
+        variants:
+          type: object
+          additionalProperties: false
+          required: [eligible, covered]
+          description: Active still images under rules with responsive variants, and how many already have them.
+          properties:
+            eligible: {type: integer, minimum: 0}
+            covered: {type: integer, minimum: 0}
+    AdminOverviewEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/AdminOverview'}
     SystemVersionEnvelope:
       type: object
       additionalProperties: false

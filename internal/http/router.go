@@ -68,7 +68,9 @@ type Dependencies struct {
 	// Activity serves account activity to owners and administrators.
 	Activity native.Activity
 	// System serves the console's version and update check.
-	System         native.SystemInfo
+	System native.SystemInfo
+	// Overview serves the console's site-wide dashboard.
+	Overview       native.AdminOverview
 	Variants       native.Variants
 	VariantOptions native.VariantOptions
 }
@@ -202,6 +204,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.System != nil {
 		if err := handler.RegisterSystemRoutes(ctx, router, deps.System); err != nil {
 			return nil, fmt.Errorf("register system routes: %w", err)
+		}
+	}
+	if deps.Overview != nil {
+		if err := handler.RegisterAdminOverviewRoutes(ctx, router, deps.Overview); err != nil {
+			return nil, fmt.Errorf("register admin overview routes: %w", err)
 		}
 	}
 	if deps.PluginSettings != nil {

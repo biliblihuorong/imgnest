@@ -51,3 +51,15 @@ func newActivityService(ctx context.Context, db *gorm.DB) (*service.ActivityServ
 	}
 	return activity, nil
 }
+
+func newOverviewService(ctx context.Context, db *gorm.DB) (*service.OverviewService, error) {
+	overviews, err := repo.NewOverviewRepository(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("create overview repository: %w", err)
+	}
+	overview, err := service.NewOverviewService(ctx, overviews, time.Now)
+	if err != nil {
+		return nil, fmt.Errorf("create overview service: %w", err)
+	}
+	return overview, nil
+}

@@ -520,5 +520,56 @@
     "scheduleSaved": "定时备份设置已保存",
     "restoreTitle": "如何还原",
     "restoreHint": "先停止服务，再在服务器上运行 imgnest backup restore --yes <归档路径>。目标数据库需要由同一版本迁移；归档 config/ 里的配置不会自动覆盖，需要时手工拷回。"
+  },
+  "overview": {
+    "title": "站点概览",
+    "description": "全站账户、图片与存储用量一览。字节数均为云端计费字节（原图、WebP、云端缩略图与响应式图片），不含本地缩略图缓存。",
+    "refresh": "刷新",
+    "loadError": "概览加载失败",
+    "retry": "重试",
+    "generatedAt": "统计时间 {time}",
+    "stats": {
+      "users": "用户",
+      "images": "图片",
+      "bytes": "已用存储",
+      "albums": "相册",
+      "trash": "回收站",
+      "variants": "响应式覆盖"
+    },
+    "hints": {
+      "guest": "其中游客 {count} 张 · {size}",
+      "pending": "{count} 张正在写入",
+      "trash": "{count} 张 · {size}",
+      "variants": "{covered} / {eligible} 张",
+      "variantsNone": "没有规则启用响应式图片",
+      "albums": "全站相册数",
+      "users": "不含游客"
+    },
+    "uploadsTitle": "近 {days} 天上传",
+    "uploadsTotal": "共 {count} 次 · {size}",
+    "uploadsNote": "按上传时间（UTC）统计，已移入回收站的图片也计入；导入的蓝空图片按原上传日期计。",
+    "barLabel": "{day}：{count} 次，{size}",
+    "today": "今天",
+    "storagesTitle": "存储用量",
+    "storage": "存储",
+    "driver": "驱动",
+    "imageCount": "图片",
+    "bytes": "用量",
+    "share": "占比",
+    "breakdown": "构成",
+    "trash": "回收站",
+    "parts": {
+      "original": "原图",
+      "webp": "WebP",
+      "thumb": "缩略图",
+      "variant": "响应式"
+    },
+    "policiesTitle": "规则用量",
+    "policy": "规则",
+    "topUsersTitle": "用量前 {count} 的用户",
+    "username": "用户名",
+    "usedBytes": "已用容量",
+    "disabled": "已停用",
+    "empty": "暂无数据"
   }
 }

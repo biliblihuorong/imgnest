@@ -59,7 +59,7 @@ describe("ImageNest → Vben UI 会话投影", () => {
   });
   it("真实角色决定菜单，同时不复制或额外持久化凭证", () => {
     const { access, user } = setup();
-    expect(access.accessMenus.find((menu) => menu.path === "/admin")?.children).toHaveLength(6);
+    expect(access.accessMenus.find((menu) => menu.path === "/admin")?.children).toHaveLength(7);
     expect(user.userInfo?.roles).toEqual(["admin"]);
     expect(access.accessToken).toBeNull();
     expect(access.refreshToken).toBeNull();

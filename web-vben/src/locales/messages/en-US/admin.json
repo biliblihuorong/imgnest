@@ -520,5 +520,56 @@
     "scheduleSaved": "Backup schedule saved",
     "restoreTitle": "How to restore",
     "restoreHint": "Stop the server, then run imgnest backup restore --yes <archive path> on it. The database must be migrated by the same release; files under the archive's config/ are not applied automatically, copy them back by hand if needed."
+  },
+  "overview": {
+    "title": "Site overview",
+    "description": "Accounts, images and storage across the site. Sizes are charged cloud bytes (original, WebP, cloud thumbnail and responsive variants); the local thumbnail cache is not counted.",
+    "refresh": "Refresh",
+    "loadError": "Could not load the overview",
+    "retry": "Retry",
+    "generatedAt": "As of {time}",
+    "stats": {
+      "users": "Users",
+      "images": "Images",
+      "bytes": "Storage used",
+      "albums": "Albums",
+      "trash": "Recycle bin",
+      "variants": "Responsive coverage"
+    },
+    "hints": {
+      "guest": "{count} from guests · {size}",
+      "pending": "{count} still being written",
+      "trash": "{count} images · {size}",
+      "variants": "{covered} of {eligible} images",
+      "variantsNone": "No rule has responsive variants on",
+      "albums": "Albums site-wide",
+      "users": "Guests excluded"
+    },
+    "uploadsTitle": "Uploads in the last {days} days",
+    "uploadsTotal": "{count} uploads · {size}",
+    "uploadsNote": "Counted by upload time (UTC), including images now in the recycle bin; imported Lsky images keep their original dates.",
+    "barLabel": "{day}: {count} uploads, {size}",
+    "today": "Today",
+    "storagesTitle": "Storage usage",
+    "storage": "Storage",
+    "driver": "Driver",
+    "imageCount": "Images",
+    "bytes": "Used",
+    "share": "Share",
+    "breakdown": "Breakdown",
+    "trash": "Recycle bin",
+    "parts": {
+      "original": "Original",
+      "webp": "WebP",
+      "thumb": "Thumbnails",
+      "variant": "Responsive"
+    },
+    "policiesTitle": "Usage by upload policy",
+    "policy": "Policy",
+    "topUsersTitle": "Top {count} users by usage",
+    "username": "Username",
+    "usedBytes": "Used",
+    "disabled": "Disabled",
+    "empty": "No data yet"
   }
 }
