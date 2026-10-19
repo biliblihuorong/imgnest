@@ -1,7 +1,14 @@
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { NDialogProvider, NDropdown, NMessageProvider, NPagination, NSelect } from "naive-ui";
-import { h, ref } from "vue";
+import {
+  NDialogProvider,
+  NDropdown,
+  NMessageProvider,
+  NPagination,
+  NSelect,
+  type MessageProviderInst,
+} from "naive-ui";
+import { defineComponent, h, onBeforeUnmount, ref } from "vue";
 import { i18n } from "@vben/locales";
 import { listAlbums } from "@/api/albums";
 import {
@@ -73,9 +80,18 @@ function params(overrides: Partial<ImageSearchParams> = {}): ImageSearchParams {
 }
 
 function mountLibrary(props: Record<string, unknown> = {}) {
-  return mount(() => h(NMessageProvider, () => h(NDialogProvider, () => h(ImageLibrary, props))), {
-    attachTo: document.body,
+  const host = defineComponent({
+    setup() {
+      const messages = ref<MessageProviderInst | null>(null);
+      // Naive UI 2.45.3 leaves message timers alive when the provider unmounts.
+      onBeforeUnmount(() => messages.value?.destroyAll());
+      return () =>
+        h(NMessageProvider, { ref: messages }, () =>
+          h(NDialogProvider, () => h(ImageLibrary, props)),
+        );
+    },
   });
+  return mount(host, { attachTo: document.body });
 }
 
 function findButton(wrapper: Awaited<ReturnType<typeof mountLibrary>>, text: string) {
@@ -584,10 +600,7 @@ describe("ImageLibrary", () => {
 
 it("drawer renders a large preview above the metadata", async () => {
   getImageExifMock.mockResolvedValue(makeExif({ image_id: 1 }));
-  const wrapper = mount(
-    () => h(NMessageProvider, () => h(NDialogProvider, () => h(ImageLibrary))),
-    { attachTo: document.body },
-  );
+  const wrapper = mountLibrary();
   await flushPromises();
   wrapper.findAllComponents(ImageCard)[0].vm.$emit("open");
   await flushPromises();
