@@ -31,7 +31,7 @@ usePreviewSwipe();
           class="gallery-empty rounded-lg border border-border bg-card"
           :description="t(site.galleryEnabled ? 'gallery.empty' : 'gallery.disabled')"
         />
-        <NImageGroup v-else-if="site.galleryEnabled">
+        <NImageGroup v-else-if="site.galleryEnabled" :key="page">
           <div class="gallery-masonry">
             <GalleryCard v-for="item in items" :key="item.id" :item="item" />
           </div>

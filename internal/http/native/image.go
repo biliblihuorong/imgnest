@@ -353,6 +353,7 @@ func (h *imageHandler) trashBatch(c *gin.Context, action string) {
 	}
 	h.batchActions(c, input.IDs, action, false, 0)
 }
+
 // batchConcurrency bounds how many image operations a single batch request
 // runs in parallel; four keeps the database and storage from being overwhelmed
 // while still finishing a 100-image batch in a fraction of the serial time.
