@@ -30,6 +30,7 @@ export function workspaceMenus(
       icon: "Settings",
       ...dot,
       children: [
+        { name: "common.nav.overview", path: "/admin/overview", icon: "InspectionPanel" },
         { name: "common.nav.users", path: "/admin/users", icon: "UserRoundPen" },
         { name: "common.nav.groups", path: "/admin/groups", icon: "InspectionPanel" },
         { name: "common.nav.storages", path: "/admin/storages", icon: "Inbox" },

@@ -13,7 +13,8 @@
     "policies": "规则管理",
     "settings": "站点设置",
     "allImages": "全站图片",
-    "lskyImport": "蓝空迁移"
+    "lskyImport": "蓝空迁移",
+    "overview": "站点概览"
   },
   "account": "账户",
   "administrator": "管理员",

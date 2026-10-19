@@ -34,6 +34,7 @@ export const ROUTER_NAMES = {
 /** admin 子树命名路由；独立于 ROUTER_NAMES，保持既有用户端五键不变。 */
 export const ADMIN_ROUTER_NAMES = {
   forbidden: "forbidden",
+  adminOverview: "admin-overview",
   adminUsers: "admin-users",
   adminGroups: "admin-groups",
   adminStorages: "admin-storages",
@@ -194,10 +195,16 @@ export function setupRouter(): Router {
       {
         path: "/admin",
         component: () => import("@/components/admin/AdminLayout.vue"),
-        redirect: { path: "/admin/users" },
+        redirect: { path: "/admin/overview" },
         meta: { admin: true, title: "common.nav.admin" },
         beforeEnter: adminGuard,
         children: [
+          {
+            path: "overview",
+            name: ADMIN_ROUTER_NAMES.adminOverview,
+            component: () => import("@/views/admin/OverviewView.vue"),
+            meta: { title: "common.nav.overview" },
+          },
           {
             path: "users",
             name: ADMIN_ROUTER_NAMES.adminUsers,

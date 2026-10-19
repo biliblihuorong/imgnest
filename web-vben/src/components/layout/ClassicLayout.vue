@@ -25,7 +25,7 @@ const accountMenus = computed(() => [
   { text: t("account.profileNav"), handler: () => router.push("/account/settings") },
   { text: t("common.nav.tokens"), handler: () => router.push("/tokens") },
   ...(auth.user?.role === "admin"
-    ? [{ text: t("common.nav.admin"), handler: () => router.push("/admin/users") }]
+    ? [{ text: t("common.nav.admin"), handler: () => router.push("/admin/overview") }]
     : []),
 ]);
 </script>

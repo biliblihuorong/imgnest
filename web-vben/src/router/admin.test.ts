@@ -26,6 +26,9 @@ vi.mock("@/components/admin/AdminLayout.vue", () => ({
 vi.mock("@/views/ForbiddenView.vue", () => ({
   default: { name: "ForbiddenViewStub", template: "<div />" },
 }));
+vi.mock("@/views/admin/OverviewView.vue", () => ({
+  default: { name: "AdminOverviewViewStub", template: "<div />" },
+}));
 vi.mock("@/views/admin/UsersView.vue", () => ({
   default: { name: "AdminUsersViewStub", template: "<div />" },
 }));
@@ -133,7 +136,7 @@ describe("admin 路由守卫", () => {
     expect(useAuthStore().token).toBeNull();
   });
 
-  it("/admin 重定向到 /admin/users", async () => {
+  it("/admin 重定向到 /admin/overview", async () => {
     localStorage.setItem(TOKEN_STORAGE_KEY, "7|admin-token");
     useAuthStore().user = adminUser;
 
@@ -141,6 +144,7 @@ describe("admin 路由守卫", () => {
     await router.push("/admin");
     await router.isReady();
 
-    expect(router.currentRoute.value.path).toBe("/admin/users");
+    expect(router.currentRoute.value.path).toBe("/admin/overview");
+    expect(router.currentRoute.value.name).toBe(ADMIN_ROUTER_NAMES.adminOverview);
   });
 });

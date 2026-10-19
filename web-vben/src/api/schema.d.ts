@@ -1533,6 +1533,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the site-wide usage dashboard
+         * @description Requires the administrator role. Every byte figure is a charged cloud
+         *     byte (`images.charged_bytes`): the original, the separate WebP, the
+         *     cloud thumbnail and responsive variants. A WebP source and its WebP
+         *     share one object and count once; the local preview cache never
+         *     counts. Active images make up `bytes`; images in the recycle bin are
+         *     reported separately. Per storage, `original_bytes`, `webp_bytes` and
+         *     `thumb_bytes` come from the per-version size columns and
+         *     `variant_bytes` is the remainder of the charged bytes.
+         *     `uploads` has one entry per UTC day for the last 30 days, oldest
+         *     first, ending today; it counts images by creation time, including
+         *     those already trashed (imported Lsky images keep their original
+         *     dates). `top_users` lists the ten accounts with the highest
+         *     `used_bytes`. No EXIF, credential, token or storage configuration is
+         *     returned.
+         */
+        get: operations["adminGetOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/system/version": {
         parameters: {
             query?: never;
@@ -3166,6 +3199,78 @@ export interface components {
             releases_url: string;
             /** Format: uri */
             issues_url: string;
+        };
+        AdminOverviewTotals: {
+            /** @description Real accounts (the guest anchor is excluded). */
+            users: number;
+            albums: number;
+            /** @description Active images. */
+            images: number;
+            /** @description Charged bytes of active images. */
+            bytes: number;
+            trash_images: number;
+            trash_bytes: number;
+            /** @description Uploads or imports still being written. */
+            pending_images: number;
+            guest_images: number;
+            guest_bytes: number;
+        };
+        AdminStorageUsage: {
+            id: number;
+            name: string;
+            /** @enum {string} */
+            driver: "local" | "s3";
+            enabled: boolean;
+            images: number;
+            bytes: number;
+            original_bytes: number;
+            webp_bytes: number;
+            /** @description Cloud thumbnails. */
+            thumb_bytes: number;
+            /** @description Responsive variants. */
+            variant_bytes: number;
+            trash_images: number;
+            trash_bytes: number;
+        };
+        AdminPolicyUsage: {
+            id: number;
+            name: string;
+            storage_id: number;
+            enabled: boolean;
+            images: number;
+            bytes: number;
+        };
+        AdminUploadDay: {
+            /** Format: date */
+            day: string;
+            uploads: number;
+            bytes: number;
+        };
+        AdminUserUsage: {
+            id: number;
+            username: string;
+            used_bytes: number;
+            /** @description Active images. */
+            images: number;
+        };
+        AdminOverview: {
+            generated_at: components["schemas"]["Timestamp"];
+            totals: components["schemas"]["AdminOverviewTotals"];
+            storages: components["schemas"]["AdminStorageUsage"][];
+            policies: components["schemas"]["AdminPolicyUsage"][];
+            uploads: components["schemas"]["AdminUploadDay"][];
+            top_users: components["schemas"]["AdminUserUsage"][];
+            /** @description Active still images under rules with responsive variants, and how many already have them. */
+            variants: {
+                eligible: number;
+                covered: number;
+            };
+        };
+        AdminOverviewEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["AdminOverview"];
         };
         SystemVersionEnvelope: {
             /** @enum {integer} */
@@ -6198,6 +6303,29 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["AdminForbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminGetOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dashboard snapshot. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOverviewEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
             500: components["responses"]["InternalError"];
         };
     };
