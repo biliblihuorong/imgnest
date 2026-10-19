@@ -17,6 +17,15 @@ body {
 .n-data-table {
   font-variant-numeric: tabular-nums;
 }
+/* Naive UI 灯箱预览：移动端允许单指滑动与双指缩放，禁止双击放大干扰手势识别。 */
+.n-image-preview-container {
+  touch-action: manipulation;
+}
+
+.n-image-preview-overlay {
+  touch-action: manipulation;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

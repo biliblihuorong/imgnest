@@ -97,9 +97,10 @@ func refreshAlbumCount(tx *gorm.DB, albumID uint64, delta int64) error {
 }
 
 // ListGallery pages public active images newest first together with their
-// uploader's username. Images of disabled accounts are hidden; the guest
-// anchor row (id 0) is disabled by design and stays visible. With
-// publicAlbumsOnly, only images inside albums marked public are listed.
+// uploader's display name (falling back to username when no nickname is set).
+// Images of disabled accounts are hidden; the guest anchor row (id 0) is
+// disabled by design and stays visible. With publicAlbumsOnly, only images
+// inside albums marked public are listed.
 func (r *ImageRepository) ListGallery(ctx context.Context, page, size int, publicAlbumsOnly bool) ([]model.GalleryImage, int64, error) {
 	if page < 1 || size < 1 || size > 200 {
 		return nil, 0, fmt.Errorf("list gallery: %w", model.ErrInvalidInput)
@@ -123,7 +124,7 @@ func (r *ImageRepository) ListGallery(ctx context.Context, page, size int, publi
 	}
 	rows := []model.GalleryImage{}
 	if err := base().
-		Select("images.*, users.username AS uploader").
+		Select("images.*, COALESCE(NULLIF(users.display_name, ''), users.username) AS uploader").
 		Order("images.created_at DESC, images.id DESC").
 		Limit(size).Offset((page - 1) * size).
 		Scan(&rows).Error; err != nil {

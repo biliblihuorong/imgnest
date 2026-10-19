@@ -225,4 +225,50 @@ describe("GalleryView", () => {
     expect(wrapper.find(".gallery-card__uploader").attributes("title")).toBe("Uploaded by alice");
     expect(listGalleryMock).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps gallery preview navigation within the current page after pagination", async () => {
+    const first = [1, 2].map((id) =>
+      makeItem({
+        id,
+        name: `page1-${id}.jpg`,
+        links: {
+          url: `/page1-${id}.jpg`,
+          original: `/page1-${id}.jpg`,
+          webp: "",
+          thumbnail_url: "",
+        },
+      }),
+    );
+    const second = [3, 4].map((id) =>
+      makeItem({
+        id,
+        name: `page2-${id}.jpg`,
+        links: {
+          url: `/page2-${id}.jpg`,
+          original: `/page2-${id}.jpg`,
+          webp: "",
+          thumbnail_url: "",
+        },
+      }),
+    );
+    listGalleryMock.mockResolvedValueOnce(makePage({ items: first, total: 60 }));
+    const wrapper = mountGallery();
+    await flushPromises();
+    await wrapper.findAll("img")[0]!.trigger("click");
+    await flushPromises();
+    expect(document.querySelector(".n-image-preview")?.getAttribute("src")).toBe("/page1-1.jpg");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await flushPromises();
+    listGalleryMock.mockResolvedValueOnce(makePage({ items: second, total: 60, page: 2 }));
+    wrapper.findComponent(NPagination).vm.$emit("update:page", 2);
+    await flushPromises();
+    expect(wrapper.text()).toContain("page2-3.jpg");
+    expect(wrapper.text()).not.toContain("page1-2.jpg");
+    await wrapper.findAll("img")[0]!.trigger("click");
+    await flushPromises();
+    expect(document.querySelector(".n-image-preview")?.getAttribute("src")).toBe("/page2-3.jpg");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    await flushPromises();
+    expect(document.querySelector(".n-image-preview")?.getAttribute("src")).toBe("/page2-4.jpg");
+  });
 });

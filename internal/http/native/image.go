@@ -2,15 +2,17 @@ package native
 
 import (
 	"context"
+	"math"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/biliblihuorong/imgnest/extension"
 	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/searchquery"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
-	"math"
-	"strconv"
-	"time"
 )
 
 // ImageOptions bounds multipart request memory, parallelism and execution time.
@@ -351,6 +353,12 @@ func (h *imageHandler) trashBatch(c *gin.Context, action string) {
 	}
 	h.batchActions(c, input.IDs, action, false, 0)
 }
+
+// batchConcurrency bounds how many image operations a single batch request
+// runs in parallel; four keeps the database and storage from being overwhelmed
+// while still finishing a 100-image batch in a fraction of the serial time.
+const batchConcurrency = 4
+
 func (h *imageHandler) batchActions(c *gin.Context, ids []uint64, action string, public bool, albumID uint64) {
 	if len(ids) == 0 || len(ids) > 100 {
 		fail(c, service.ErrInvalidInput)
@@ -364,15 +372,28 @@ func (h *imageHandler) batchActions(c *gin.Context, ids []uint64, action string,
 		}
 		seen[id] = true
 	}
-	results := make([]imageResult, 0, len(ids))
-	for _, id := range ids {
-		data, err := h.perform(c.Request.Context(), identity(c).Subject, id, action, public, albumID)
-		item := imageResult{ID: id, Status: 200, Response: Response{Code: 0, Message: "ok", Data: data}}
-		if err != nil {
-			item.Status, item.Response = errorResponse(err)
-		}
-		results = append(results, item)
+	results := make([]imageResult, len(ids))
+	for i, id := range ids {
+		results[i] = imageResult{ID: id, Status: 200, Response: Response{Code: 0, Message: "ok"}}
 	}
+	subject := identity(c).Subject
+	sem := make(chan struct{}, batchConcurrency)
+	var wg sync.WaitGroup
+	for i, id := range ids {
+		wg.Add(1)
+		go func(idx int, imageID uint64) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			data, err := h.perform(c.Request.Context(), subject, imageID, action, public, albumID)
+			if err != nil {
+				results[idx].Status, results[idx].Response = errorResponse(err)
+			} else {
+				results[idx].Data = data
+			}
+		}(i, id)
+	}
+	wg.Wait()
 	respond(c, 207, results)
 }
 func (h *imageHandler) perform(ctx context.Context, subject service.TokenSubject, id uint64, action string, public bool, albumID uint64) (any, error) {

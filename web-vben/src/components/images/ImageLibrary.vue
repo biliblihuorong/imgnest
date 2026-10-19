@@ -28,6 +28,7 @@ import { copyText } from "@/lib/clipboard";
 import { formatApiError } from "@/locales/errors";
 import { useViewportAtLeast } from "@/components/layout/marvis/useNarrowViewport";
 import { shell } from "@/integrations/shell/useShell";
+import { usePreviewSwipe } from "./usePreviewSwipe";
 
 /**
  * 「我的图片」与相册详情共用的图片库：筛选/搜索工具栏、多选批量、
@@ -39,6 +40,7 @@ const { t } = useI18n();
 const message = useMessage();
 const dialog = useDialog();
 const lib = useImageLibrary({ lockedAlbumId: props.lockedAlbumId });
+usePreviewSwipe();
 
 /* ---------------- 详情呈现：Marvis 宽屏用右侧面板，其余沿用抽屉 ---------------- */
 const wide = useViewportAtLeast(1040);

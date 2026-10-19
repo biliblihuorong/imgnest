@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
-import { NAlert, NButton, NEmpty, NPagination, NSpin } from "naive-ui";
+import { NAlert, NButton, NEmpty, NImageGroup, NPagination, NSpin } from "naive-ui";
 import GalleryCard from "@/components/gallery/GalleryCard.vue";
 import { GALLERY_PAGE_SIZE, useGallery } from "@/components/gallery/useGallery";
+import { usePreviewSwipe } from "@/components/images/usePreviewSwipe";
 
 const { t } = useI18n();
 const { site, items, total, page, loading, loadError, changePage, retry } = useGallery();
+usePreviewSwipe();
 </script>
 
 <template>
@@ -29,9 +31,11 @@ const { site, items, total, page, loading, loadError, changePage, retry } = useG
           class="gallery-empty rounded-lg border border-border bg-card"
           :description="t(site.galleryEnabled ? 'gallery.empty' : 'gallery.disabled')"
         />
-        <div v-else-if="site.galleryEnabled" class="gallery-masonry">
-          <GalleryCard v-for="item in items" :key="item.id" :item="item" />
-        </div>
+        <NImageGroup v-else-if="site.galleryEnabled" :key="page">
+          <div class="gallery-masonry">
+            <GalleryCard v-for="item in items" :key="item.id" :item="item" />
+          </div>
+        </NImageGroup>
       </NSpin>
       <div v-if="!loadError && site.galleryEnabled && total > 0" class="gallery-pagination">
         <NPagination
