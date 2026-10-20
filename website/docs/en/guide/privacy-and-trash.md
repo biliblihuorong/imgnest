@@ -68,7 +68,7 @@ GPS coordinates are never written to logs.
 Deleting an image does not erase it straight away:
 
 1. **Delete.** The original, the WebP copy and the thumbnail move to a trash area in the storage, and the old addresses return 404 immediately. The space is deducted from your quota right away.
-2. **Keep.** Images stay for 7 days by default. During that time they can be previewed and restored from the recycle bin.
+2. **Keep.** Images stay for 7 days by default. During that time they can be restored from the table in the Recycle bin tab.
 3. **Restore.** The files move back and the original links work again. An image in the recycle bin still holds its path, so a new upload cannot take it.
 4. **Expire.** An hourly job removes expired images: files, thumbnails and database records together.
 
