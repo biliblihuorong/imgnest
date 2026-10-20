@@ -77,6 +77,7 @@ try {
       .getByRole("link", { name: publicTitle, exact: true })
       .click();
     await page.waitForURL(`**${language}/guide/public-access`);
+    await page.locator(".vp-doc h1").filter({ hasText: publicTitle }).waitFor();
     check(
       (await page.locator(".vp-doc table").count()) >= 1,
       `navigation ${language}: visitor behavior table is missing`,
@@ -89,6 +90,7 @@ try {
       .getByRole("link", { name: backupTitle, exact: true })
       .click();
     await page.waitForURL(`**${language}/guide/backup`);
+    await page.locator(".vp-doc h1").filter({ hasText: backupTitle }).waitFor();
     check(
       (await page.locator(".vp-doc .warning").count()) >= 1,
       `navigation ${language}: backup exclusions notice is missing`,
@@ -115,6 +117,7 @@ try {
     const article = page.locator(".vp-doc");
     await article.getByRole("link", { name: randomTitle, exact: true }).click();
     await page.waitForURL(`**${language}/guide/random-links`);
+    await article.locator("h1").filter({ hasText: randomTitle }).waitFor();
     check(
       (await article.innerText()).includes(expectedEntry),
       `random ${language}: concrete album entry is missing`,
@@ -128,6 +131,10 @@ try {
     });
     await article.getByRole("link", { name: albumLink, exact: true }).click();
     await page.waitForURL(`**${language}/guide/albums-and-gallery#*`);
+    await article
+      .locator("h1")
+      .filter({ hasText: language ? "Managing albums" : "相册管理" })
+      .waitFor();
     check(
       (await article.locator("ol li").count()) >= 4,
       `albums ${language}: album creation procedure is missing`,

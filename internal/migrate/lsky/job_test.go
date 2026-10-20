@@ -127,7 +127,12 @@ func TestStorageFetcherRefusesOwnedAndUnversionedObjects(t *testing.T) {
 func TestRunnerPanicDoesNotExitProcess(t *testing.T) {
 	const marker = "private-import-panic-payload"
 	if os.Getenv("IMGNEST_TEST_IMPORT_PANIC") != "1" {
-		cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestRunnerPanicDoesNotExitProcess$", "-test.timeout=30s")
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		// #nosec G204 -- this test binary's resolved path and literal test flags; no shell or user input.
+		cmd := exec.CommandContext(t.Context(), executable, "-test.run=^TestRunnerPanicDoesNotExitProcess$", "-test.timeout=30s")
 		cmd.Env = append(os.Environ(), "IMGNEST_TEST_IMPORT_PANIC=1")
 		output, err := cmd.CombinedOutput()
 		if err != nil {
