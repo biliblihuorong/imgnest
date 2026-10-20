@@ -8,7 +8,7 @@ import { usePreviewSwipe } from "@/components/images/usePreviewSwipe";
 
 const { t } = useI18n();
 const { site, items, total, page, loading, loadError, changePage, retry } = useGallery();
-usePreviewSwipe();
+const renderPreviewToolbar = usePreviewSwipe();
 </script>
 
 <template>
@@ -31,7 +31,11 @@ usePreviewSwipe();
           class="gallery-empty rounded-lg border border-border bg-card"
           :description="t(site.galleryEnabled ? 'gallery.empty' : 'gallery.disabled')"
         />
-        <NImageGroup v-else-if="site.galleryEnabled" :key="page">
+        <NImageGroup
+          v-else-if="site.galleryEnabled"
+          :key="page"
+          :render-toolbar="renderPreviewToolbar"
+        >
           <div class="gallery-masonry">
             <GalleryCard v-for="item in items" :key="item.id" :item="item" />
           </div>

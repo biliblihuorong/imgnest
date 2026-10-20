@@ -40,7 +40,7 @@ const { t } = useI18n();
 const message = useMessage();
 const dialog = useDialog();
 const lib = useImageLibrary({ lockedAlbumId: props.lockedAlbumId });
-usePreviewSwipe();
+const renderPreviewToolbar = usePreviewSwipe();
 
 /* ---------------- 详情呈现：Marvis 宽屏用右侧面板，其余沿用抽屉 ---------------- */
 const wide = useViewportAtLeast(1040);
@@ -342,7 +342,7 @@ const emptyText = computed(() =>
           class="image-library__empty"
           :description="emptyText"
         />
-        <NImageGroup v-else>
+        <NImageGroup v-else :render-toolbar="renderPreviewToolbar">
           <div class="image-library__grid">
             <ImageCard
               v-for="image in lib.images.value"

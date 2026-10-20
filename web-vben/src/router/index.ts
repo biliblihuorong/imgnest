@@ -261,6 +261,12 @@ export function setupRouter(): Router {
     const token = getToken();
     const isPublic = PUBLIC_PATHS.has(to.path);
     if (!isPublic && !token) {
+      // 站点开放了公开画廊或游客上传时，未登录访客去首页而非登录页。
+      const site = useSiteStore();
+      await site.ensureLoaded();
+      if (site.guestUpload || site.galleryEnabled) {
+        return { path: "/home" };
+      }
       return { path: "/login", query: { redirect: to.fullPath } };
     }
     if (isPublic && token) {

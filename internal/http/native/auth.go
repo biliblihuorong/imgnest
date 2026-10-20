@@ -14,6 +14,7 @@ import (
 
 	"github.com/biliblihuorong/imgnest/extension"
 	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
+	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -378,6 +379,8 @@ func errorResponse(err error) (int, Response) {
 		status, code, message = 429, 30019, "wait a minute before requesting another code"
 	case errors.Is(err, service.ErrMailUnavailable):
 		status, code, message = 503, 50006, "email could not be sent; try again later"
+	case errors.Is(err, model.ErrRandomLinkExists):
+		status, code, message = 409, 30022, "random link already exists"
 	}
 	var delivery *service.MailDeliveryError
 	if errors.As(err, &delivery) {

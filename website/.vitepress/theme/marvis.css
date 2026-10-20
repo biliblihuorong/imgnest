@@ -48,9 +48,12 @@
 
 /* 2. 接到 VitePress 变量 ----------------------------------------------- */
 :root {
-  --vp-font-family-base: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Segoe UI",
+  --vp-font-family-base:
+    -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Segoe UI",
     "Microsoft YaHei UI", "Noto Sans CJK SC", sans-serif;
-  --vp-font-family-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas, monospace;
+  --vp-font-family-mono:
+    ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas,
+    monospace;
 
   --vp-c-bg: var(--mv-bg-deep);
   --vp-c-bg-alt: var(--mv-soft);
@@ -155,6 +158,13 @@ body {
 
 /* 5. 文档页：漂浮侧栏 + 白色正文卡片 ------------------------------------ */
 @media (min-width: 960px) {
+  .VPDoc {
+    --mv-doc-aside-top: calc(
+      var(--vp-nav-height) + var(--vp-layout-top-height, 0px) +
+        var(--vp-doc-top-height, 0px) + 48px
+    );
+  }
+
   .VPSidebar {
     top: calc(var(--vp-nav-height) + 4px) !important;
     bottom: 14px;
@@ -186,10 +196,41 @@ body {
   .VPDoc.has-aside .content-container {
     max-width: none !important;
   }
+
+  /* 右侧大纲卡片与正文卡片顶部对齐 */
+  .VPDoc .aside-container {
+    top: var(--mv-doc-aside-top);
+    height: auto;
+    padding-top: 0;
+    overflow: visible;
+  }
+
+  /* 默认主题用视口最小高度和 flex-grow 填满广告区；目录卡片应随内容收紧。 */
+  .VPDoc .aside-content {
+    min-height: 0;
+    padding-bottom: 0;
+  }
+
+  .VPDoc .aside-curtain {
+    display: none;
+  }
+
+  .VPDoc .VPDocAside {
+    flex: none;
+    max-height: calc(100dvh - var(--mv-doc-aside-top) - 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    border: 1px solid var(--mv-line);
+    border-radius: 22px;
+    background: var(--mv-card);
+    box-shadow: var(--mv-shadow-sm);
+    padding: 20px 18px;
+  }
 }
 
 @media (min-width: 1280px) {
-  .VPDoc.has-sidebar .content {
+  .VPDoc.has-sidebar > .container > .content {
     flex: 1 1 auto;
     min-width: 0 !important;
     padding-inline: 0 !important;

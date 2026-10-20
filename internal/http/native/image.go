@@ -385,6 +385,12 @@ func (h *imageHandler) batchActions(c *gin.Context, ids []uint64, action string,
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
+			defer func() {
+				if recover() != nil {
+					results[idx].Status = 500
+					results[idx].Response = Response{Code: 50001, Message: "internal error", Data: nil}
+				}
+			}()
 			data, err := h.perform(c.Request.Context(), subject, imageID, action, public, albumID)
 			if err != nil {
 				results[idx].Status, results[idx].Response = errorResponse(err)

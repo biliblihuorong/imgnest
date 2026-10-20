@@ -26,6 +26,20 @@ body {
   touch-action: manipulation;
 }
 
+/* 移动端认证页：站点名过长时截断，避免与右侧工具栏重叠；内容区下移给头部留空间。 */
+@media (max-width: 640px) {
+  .absolute.top-0.left-0.z-10 p.text-xl {
+    font-size: 14px !important;
+    max-width: 50vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .relative.flex-col-center {
+    padding-top: 72px !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

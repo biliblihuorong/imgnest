@@ -5,6 +5,7 @@ import {
   NButton,
   NCard,
   NEmpty,
+  NImageGroup,
   NRadioButton,
   NRadioGroup,
   NSpin,
@@ -18,6 +19,7 @@ import { getGuestUploadLimits, MAX_UPLOAD_FILES, type ImageView } from "@/api/up
 import logo from "@/assets/imgnest-mark.svg";
 import GalleryCard from "@/components/gallery/GalleryCard.vue";
 import ImageCopyDrawer from "@/components/images/ImageCopyDrawer.vue";
+import { usePreviewSwipe } from "@/components/images/usePreviewSwipe";
 import UploadDropzone from "@/components/upload/UploadDropzone.vue";
 import UploadQueueList from "@/components/upload/UploadQueueList.vue";
 import {
@@ -45,6 +47,7 @@ const site = useSiteStore();
 const auth = useAuthStore();
 const signedIn = computed(() => getToken() !== null);
 const consolePath = computed(() => landingPath(auth.user?.role));
+const renderPreviewToolbar = usePreviewSwipe();
 
 const maxFileBytes = ref<number | null>(null);
 const linkFormat = ref<LinkFormat>("url");
@@ -260,9 +263,11 @@ onMounted(async () => {
             class="public-home__empty"
             :description="t('gallery.empty')"
           />
-          <div v-else class="public-home__masonry">
-            <GalleryCard v-for="item in preview" :key="item.id" :item="item" />
-          </div>
+          <NImageGroup v-else :render-toolbar="renderPreviewToolbar">
+            <div class="public-home__masonry">
+              <GalleryCard v-for="item in preview" :key="item.id" :item="item" />
+            </div>
+          </NImageGroup>
         </NSpin>
       </section>
     </main>
