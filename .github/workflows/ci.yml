@@ -188,8 +188,6 @@ jobs:
     if: needs.changes.outputs.frontend != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      IMGNEST_E2E_PLAYWRIGHT_MODULE: ${{ runner.temp }}/imgnest-browser/node_modules/playwright/index.mjs
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -210,6 +208,7 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/imgnest-browser" --ignore-scripts --no-audit --no-fund playwright@1.62.1
           node "$RUNNER_TEMP/imgnest-browser/node_modules/playwright/cli.js" install --with-deps chromium
+          echo "IMGNEST_E2E_PLAYWRIGHT_MODULE=$RUNNER_TEMP/imgnest-browser/node_modules/playwright/index.mjs" >> "$GITHUB_ENV"
       - name: Public access, authentication and settings browser regressions
         run: |
           python3 .claude/skills/webapp-testing/scripts/with_server.py \

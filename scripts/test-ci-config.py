@@ -206,6 +206,15 @@ class CIScopeWiringTest(unittest.TestCase):
         self.assertIn(".previous_filename // empty", self.workflow)
         self.assertNotIn("paths-ignore", self.workflow)
 
+    def test_runner_context_is_not_used_in_job_environment(self):
+        # GitHub evaluates a job's env before a runner exists. A runner.*
+        # expression there rejects the entire workflow before checks appear.
+        jobs = self.workflow.split("\njobs:\n", 1)[1]
+        for name, body in re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)", jobs):
+            environment = re.search(r"(?m)^    env:\n((?:      .*\n)*)", body)
+            if environment:
+                self.assertNotRegex(environment.group(1), r"\$\{\{\s*runner\.", name)
+
 
 
 class ReleaseVersionTest(unittest.TestCase):
