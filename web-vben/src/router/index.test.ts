@@ -37,6 +37,7 @@ describe("router 守卫", () => {
   });
 
   it("未登录访问受保护路由时跳转 /login 并携带 redirect", async () => {
+    useSiteStore().$patch({ loaded: true, galleryEnabled: false, guestUpload: false });
     const router = setupRouter();
     await router.push("/images");
     await router.isReady();
@@ -46,6 +47,7 @@ describe("router 守卫", () => {
   });
 
   it("未登录访问 /upload 同样跳转登录并记录 redirect", async () => {
+    useSiteStore().$patch({ loaded: true, galleryEnabled: false, guestUpload: false });
     const router = setupRouter();
     await router.push("/upload");
     await router.isReady();
@@ -136,6 +138,7 @@ describe("router 守卫", () => {
 
   it("恢复身份失败时跳转登录", async () => {
     localStorage.setItem(TOKEN_STORAGE_KEY, "7|token");
+    useSiteStore().$patch({ loaded: true, galleryEnabled: false, guestUpload: false });
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -158,6 +161,7 @@ describe("router 守卫", () => {
   });
 
   it("未知路径重定向到 /upload 并受守卫约束", async () => {
+    useSiteStore().$patch({ loaded: true, galleryEnabled: false, guestUpload: false });
     const router = setupRouter();
     await router.push("/no-such-page");
     await router.isReady();
@@ -224,6 +228,24 @@ describe("router 守卫", () => {
     await router.push("/upload");
     await router.push("/gallery");
     expect(router.currentRoute.value.path).toBe("/gallery");
+  });
+
+  it("站点开放画廊时未登录访问受保护路由跳转 /home 而非 /login", async () => {
+    useSiteStore().$patch({ loaded: true, galleryEnabled: true });
+    const router = setupRouter();
+    await router.push("/images");
+    await router.isReady();
+
+    expect(router.currentRoute.value.path).toBe("/home");
+  });
+
+  it("站点开放游客上传时未登录访问受保护路由跳转 /home", async () => {
+    useSiteStore().$patch({ loaded: true, guestUpload: true });
+    const router = setupRouter();
+    await router.push("/upload");
+    await router.isReady();
+
+    expect(router.currentRoute.value.path).toBe("/home");
   });
 });
 

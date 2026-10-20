@@ -186,6 +186,20 @@ body {
   .VPDoc.has-aside .content-container {
     max-width: none !important;
   }
+
+  /* 右侧大纲卡片与正文卡片顶部对齐 */
+  .VPAside {
+    top: calc(var(--vp-nav-height) + 4px) !important;
+    padding-top: 36px !important;
+  }
+
+  .VPAside .content {
+    border: 1px solid var(--mv-line);
+    border-radius: 22px;
+    background: var(--mv-card);
+    box-shadow: var(--mv-shadow-sm);
+    padding: 20px 18px;
+  }
 }
 
 @media (min-width: 1280px) {
