@@ -84,7 +84,7 @@ curl http://localhost:8080/healthz
 | --- | --- |
 | 换端口 | 启动前设置 `IMGNEST_PORT`，默认 8080 |
 | 停止服务 | `docker compose -f deploy/compose.sqlite.yaml down` |
-| 改用 PostgreSQL | 用 `deploy/compose.postgres.yaml`，先设置 `POSTGRES_PASSWORD`，见[部署](./deployment) |
+| 改用 PostgreSQL | 用 `deploy/compose.postgres.yaml`，先设置 `POSTGRES_PASSWORD`，见[部署](./deployment.md) |
 | 自己构建镜像 | `docker build -f deploy/Dockerfile -t imgnest:local .` |
 
 ::: warning 只运行一个实例
@@ -93,7 +93,7 @@ curl http://localhost:8080/healthz
 
 ## 接下来
 
-- 正式部署（PostgreSQL、二进制 + systemd、反向代理），看[部署](./deployment)。
-- 调整上传大小上限或数据库连接，看[配置](./configuration)。
-- 把图片存到 S3 兼容存储，看[存储与规则](./storage-and-policies)。
+- 正式部署（PostgreSQL、二进制 + systemd、反向代理），看[部署](./deployment.md)。
+- 调整上传大小上限或数据库连接，看[配置](./configuration.md)。
+- 把图片存到 S3 兼容存储，看[存储与规则](./storage-and-policies.md)。
 - 想改代码，看仓库里的 [`docs/development.md`](https://github.com/biliblihuorong/imgnest/blob/main/docs/development.md)。

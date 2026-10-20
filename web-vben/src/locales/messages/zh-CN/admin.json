@@ -233,7 +233,7 @@
     "guestUpload": "游客上传",
     "guestUploadHint": "允许未登录用户在公开首页和蓝空 v1 兼容接口上传，走游客用户组的容量与限流配置。",
     "gallery": "公共画廊",
-    "galleryHint": "关闭后画廊页面不再对外展示公开图片。",
+    "galleryHint": "保存后，画廊展示全站符合条件的公开图片，包括历史公开图片。关闭只停止展示列表，已分享的图片直链和相册随机链接仍可访问。",
     "galleryPublicAlbumsOnly": "画廊仅展示公开相册",
     "galleryPublicAlbumsOnlyHint": "开启后，画廊只展示放在公开相册里的公开图片；未归入相册或在私密相册里的图片不会出现。",
     "api": "蓝空 v1 API",
@@ -356,7 +356,13 @@
         }
       }
     },
-    "updateDot": "有新版本可用"
+    "updateDot": "有新版本可用",
+    "galleryPreview": "访客视角预览",
+    "galleryPreviewHint": "预览按当前选择的相册范围计算，最多显示最新 12 张；不会保存设置或改变图片权限。公开画廊和游客上传是独立开关。",
+    "galleryPreviewFailed": "预览加载失败，请重试。",
+    "galleryCount": "开启后将展示 {count} 张图片（含历史公开图片）。",
+    "showGalleryPreview": "展开图片预览",
+    "hideGalleryPreview": "收起图片预览"
   },
   "images": {
     "title": "全站图片",
@@ -519,7 +525,8 @@
     "keepHint": "只清理多出的定时备份，手动备份不会被删除。",
     "scheduleSaved": "定时备份设置已保存",
     "restoreTitle": "如何还原",
-    "restoreHint": "先停止服务，再在服务器上运行 imgnest backup restore --yes <归档路径>。目标数据库需要由同一版本迁移；归档 config/ 里的配置不会自动覆盖，需要时手工拷回。"
+    "restoreHint": "先停止服务，再在服务器上运行 imgnest backup restore --yes <归档路径>。目标数据库需要由同一版本迁移；归档 config/ 里的配置不会自动覆盖，需要时手工拷回。",
+    "imagesExcluded": "备份归档只包含数据库和配置，不包含图片文件。请另外备份本机存储目录或对象存储桶；还原归档不会找回丢失的图片文件。"
   },
   "overview": {
     "title": "站点概览",

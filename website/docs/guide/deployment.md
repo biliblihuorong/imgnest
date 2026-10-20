@@ -112,7 +112,7 @@ IMGNEST_IMAGES_VARIANT_CORS_ORIGINS=
 docker compose up -d
 ```
 
-容器启动时会自动执行数据库迁移。之后按[快速开始](./getting-started)创建管理员和本机存储，快速开始里用的是 SQLite 的 compose 文件，这里把命令里的 `-f deploy/compose.sqlite.yaml` 去掉即可（当前目录的 `compose.yaml` 会被自动使用）：
+容器启动时会自动执行数据库迁移。之后按[快速开始](./getting-started.md)创建管理员和本机存储，快速开始里用的是 SQLite 的 compose 文件，这里把命令里的 `-f deploy/compose.sqlite.yaml` 去掉即可（当前目录的 `compose.yaml` 会被自动使用）：
 
 ```bash
 read -rsp '管理员密码: ' password; echo
@@ -173,7 +173,7 @@ go build -trimpath -o bin/imgnest ./cmd/imgnest
   并删掉配置里 SQLite 专用的 `max_open: 1`、`max_idle: 1`，让 PostgreSQL 使用默认连接池。
 - **SQLite**：不设置上面两个变量即可，示例配置直接可用，数据库在 `data/imgnest.db`。
 
-所有配置项见[配置](./configuration)。
+所有配置项见[配置](./configuration.md)。
 
 ### 3. 初始化并运行
 
@@ -228,7 +228,7 @@ sudo systemctl enable --now imgnest
 2. **补生成历史图片**：在规则管理页底部的「响应式图片补生成」卡片里点开始。可以随时暂停、继续，重启服务后会接着跑；还没补到的图片链接照常可用。
 3. **让博客能在浏览器里查询**（可选）：如果博客只知道图片链接，可以调用公开接口 `GET /api/variants?url=图片链接` 查出各个尺寸。这需要把博客域名填进 `IMGNEST_IMAGES_VARIANT_CORS_ORIGINS`（上面的 `.env` 里已经留好，二进制部署写进环境变量或配置里的 `images.variant_cors_origins`），改完重启服务。
 
-生成的文件名形如 `{path}_w800_v1.webp`，和原图放在同一个存储里，计入容量，删除和恢复时跟着原图走。完整规则见[存储与规则](./storage-and-policies#响应式图片版本)，博客接入示例见仓库里的 `docs/examples/responsive-images.html`。
+生成的文件名形如 `{path}_w800_v1.webp`，和原图放在同一个存储里，计入容量，删除和恢复时跟着原图走。完整规则见[存储与规则](./storage-and-policies.md#响应式图片版本)，博客接入示例见仓库里的 `docs/examples/responsive-images.html`。
 
 ## 反向代理
 

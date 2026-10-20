@@ -112,7 +112,7 @@ Start it:
 docker compose up -d
 ```
 
-The container migrates the database on start. Then create the administrator and local storage as in [Getting started](./getting-started), dropping the quick start's `-f deploy/compose.sqlite.yaml` (Compose picks up `compose.yaml` in the current directory):
+The container migrates the database on start. Then create the administrator and local storage as in [Getting started](./getting-started.md), dropping the quick start's `-f deploy/compose.sqlite.yaml` (Compose picks up `compose.yaml` in the current directory):
 
 ```bash
 read -rsp 'Admin password: ' password; echo
@@ -173,7 +173,7 @@ Copy `bin/imgnest` to the server, for example `/opt/imgnest/imgnest`, and copy `
   Remove the SQLite-only `max_open: 1` and `max_idle: 1` from the file so the PostgreSQL pool defaults apply.
 - **SQLite**: leave those two variables unset; the example configuration works as is and the database is `data/imgnest.db`.
 
-Every setting is listed in [Configuration](./configuration).
+Every setting is listed in [Configuration](./configuration.md).
 
 ### 3. Initialize and run
 
@@ -228,7 +228,7 @@ Responsive images arrived in 0.0.2. When enabled, each new still image also gets
 2. **Backfill existing images**: start "Responsive variant backfill" at the bottom of the policies page. It can be paused and resumed and continues after a restart; images not processed yet keep working as before.
 3. **Let your blog look them up from the browser** (optional): a blog that only knows image links can call the public `GET /api/variants?url=image-link` endpoint. Add the blog's origin to `IMGNEST_IMAGES_VARIANT_CORS_ORIGINS` (already in the `.env` above; for the binary, set the variable or `images.variant_cors_origins` in the config) and restart.
 
-Files are named like `{path}_w800_v1.webp`, live in the same storage as the original, count toward quota, and are deleted and restored with it. See [Storage and policies](./storage-and-policies) for the details and `docs/examples/responsive-images.html` in the repository for a blog example.
+Files are named like `{path}_w800_v1.webp`, live in the same storage as the original, count toward quota, and are deleted and restored with it. See [Storage and policies](./storage-and-policies.md) for the details and `docs/examples/responsive-images.html` in the repository for a blog example.
 
 ## Reverse proxy
 

@@ -1,6 +1,10 @@
 # Native API v2
 
-`/api/v2` is ImgNest's own versioned API for scripts and upload clients. It runs alongside the [Lsky-compatible `/api/v1`](./lsky-api): existing PicGo / Typora / uPic setups keep working while new clients move to v2.
+`/api/v2` is ImgNest's own versioned API for scripts and upload clients. It runs alongside the [Lsky-compatible `/api/v1`](./lsky-api.md): existing PicGo / Typora / uPic setups keep working while new clients move to v2.
+
+## Where to start
+
+This is a scripting API, with no separate v2 page or button. Sign in to your site, create and copy an API Token in Account & tokens (`/tokens`), then call `/api/v2` below. See [Getting a Token](./lsky-api.md#get-a-token) for console steps. Use Upload images for ordinary browser uploads.
 
 ## How it differs from v1
 
@@ -21,7 +25,7 @@
 | GET | `/api/v2/profile` | `GET /api/auth/me` | Current account and usage |
 | GET | `/api/v2/policies` | `GET /api/policies` | Upload rules this account may use |
 | POST | `/api/v2/upload` | `POST /api/upload` | multipart `file`, optional `policy_id`, `album_id`, `is_public` |
-| GET | `/api/v2/images` | `GET /api/images` | Paging, filters and [unified search](./search) (`qv=1&q=...`) |
+| GET | `/api/v2/images` | `GET /api/images` | Paging, filters and [unified search](./search.md) (`qv=1&q=...`) |
 | GET | `/api/v2/images/{id}` | `GET /api/images/{id}` | |
 | PATCH | `/api/v2/images/{id}` | `PATCH /api/images/{id}` | `is_public` and/or `name` (display name; links never change) |
 | DELETE | `/api/v2/images/{id}` | `DELETE /api/images/{id}` | Moves to the recycle bin |

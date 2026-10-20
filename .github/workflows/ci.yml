@@ -181,3 +181,48 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+
+  browser:
+    name: Browser regressions
+    needs: changes
+    if: needs.changes.outputs.frontend != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+      - run: npm install -g pnpm@12.9.1
+      - name: Build product frontend
+        working-directory: web-vben
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Build documentation and check links
+        working-directory: website
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Install pinned browser tooling outside the product workspace
+        run: |
+          npm install --prefix "$RUNNER_TEMP/imgnest-browser" --ignore-scripts --no-audit --no-fund playwright@1.62.1
+          node "$RUNNER_TEMP/imgnest-browser/node_modules/playwright/cli.js" install --with-deps chromium
+          echo "IMGNEST_E2E_PLAYWRIGHT_MODULE=$RUNNER_TEMP/imgnest-browser/node_modules/playwright/index.mjs" >> "$GITHUB_ENV"
+      - name: Public access, authentication and settings browser regressions
+        run: |
+          python3 .claude/skills/webapp-testing/scripts/with_server.py \
+            --server 'node web-vben/e2e/serve-build.mjs' --port 4173 \
+            -- node web-vben/e2e/check-access.mjs --output "$RUNNER_TEMP/imgnest-browser-results/app"
+      - name: Documentation navigation and layout browser regressions
+        run: |
+          python3 .claude/skills/webapp-testing/scripts/with_server.py \
+            --server 'python3 -m http.server 4174 --bind 127.0.0.1 --directory website/.vitepress/dist' --port 4174 \
+            -- node website/e2e/check-layout.mjs --output "$RUNNER_TEMP/imgnest-browser-results/docs"
+      - name: Save screenshots and browser results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: browser-regressions
+          path: ${{ runner.temp }}/imgnest-browser-results
+          if-no-files-found: warn

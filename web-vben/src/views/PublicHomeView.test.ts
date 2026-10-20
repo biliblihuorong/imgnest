@@ -130,4 +130,43 @@ describe("PublicHomeView", () => {
     expect(listGalleryMock).not.toHaveBeenCalled();
     expect(wrapper.find("[data-test='gallery-preview']").exists()).toBe(false);
   });
+
+  it("画廊加载失败时显示错误，重试成功后才显示空态", async () => {
+    setSite({ galleryEnabled: true });
+    listGalleryMock.mockRejectedValueOnce(new Error("offline"));
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("画廊加载失败");
+    expect(wrapper.text()).not.toContain("暂无公开图片");
+    const retry = wrapper.findAll("button").find((node) => node.text() === "重试")!;
+    await retry.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain("画廊加载失败");
+    expect(wrapper.text()).toContain("暂无公开图片");
+  });
+
+  it("关闭画廊后丢弃在途响应，重新开启时读取新内容", async () => {
+    setSite({ galleryEnabled: true });
+    let finish!: (page: Awaited<ReturnType<typeof listGallery>>) => void;
+    listGalleryMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const wrapper = mountView();
+    await flushPromises();
+    useSiteStore().galleryEnabled = false;
+    await flushPromises();
+    finish({ items: [{ ...makeImage(), uploader: "old" }], total: 1, page: 1, size: 12 });
+    await flushPromises();
+    useSiteStore().galleryEnabled = true;
+    await flushPromises();
+
+    expect(wrapper.find(".gallery-card").exists()).toBe(false);
+    expect(wrapper.text()).toContain("暂无公开图片");
+    expect(listGalleryMock).toHaveBeenCalledTimes(2);
+  });
 });

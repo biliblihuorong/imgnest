@@ -2,12 +2,14 @@
 
 ImgNest is a self-hosted image host with a Go backend and a Vue 3 interface. It aims to replace the community edition of Lsky Pro: your data stays on your own server and buckets, and your existing upload clients keep working.
 
+Use [Find your task](./index.md) for instructions, or [Getting started](./getting-started.md) for a new installation.
+
 ## What it does
 
 - **Multiple users, storages and policies.** Each user group can be bound to different storages and upload policies. Storage can be local disk or any S3-compatible service.
 - **Original plus WebP.** The WebP copy and the thumbnail are produced during the upload request, so every link in the response is already reachable.
 - **Lsky Pro v1 API compatibility.** PicGo, uPic, Typora and similar clients only need a new endpoint URL.
-- **Privacy by default.** Full EXIF is kept in the local database only. Originals stored in the cloud have GPS, serial numbers and author fields erased without re-encoding.
+- **Privacy by default.** Full EXIF is archived in the local database. Originals are scrubbed according to policy without re-encoding; see [Privacy and recycle bin](./privacy-and-trash.md) for scrub levels and the legacy adoption exception.
 - **Recoverable deletion.** Deleted images go to a recycle bin for 7 days by default, and the original URL stops working immediately.
 - **Two layouts.** A classic layout and a new one, switchable at runtime, both with dark mode and Chinese/English.
 
@@ -27,7 +29,7 @@ What is implemented:
 | Management | Recycle bin, albums, public gallery, admin panel |
 | Compatibility | Lsky Pro v1 API, plus the responsive versions field; migration from a Lsky Pro PostgreSQL database (`import-lsky`) |
 
-Not done yet: migrating directly from a MySQL Lsky Pro database (convert it to PostgreSQL first, see [Migrating from Lsky Pro](./lsky-migration)).
+Not done yet: migrating directly from a MySQL Lsky Pro database (convert it to PostgreSQL first, see [Migrating from Lsky Pro](./lsky-migration.md)).
 
 ## Built with
 
@@ -42,8 +44,8 @@ Not done yet: migrating directly from a MySQL Lsky Pro database (convert it to P
 
 ## Next
 
-- To run it, read [Getting started](./getting-started).
-- To connect PicGo, read [Lsky API and PicGo](./lsky-api); for your own scripts, read [Native API v2](./api-v2).
-- To learn where images are stored and how they are named, read [Storage and policies](./storage-and-policies).
-- To find images fast, read [Search syntax](./search); for a random blog background, read [Random image links](./random-links).
-- For scheduled backups and restores, read [Backup and restore](./backup).
+- To run it, read [Getting started](./getting-started.md).
+- To connect PicGo, read [Lsky API and PicGo](./lsky-api.md); for your own scripts, read [Native API v2](./api-v2.md).
+- To learn where images are stored and how they are named, read [Storage and policies](./storage-and-policies.md).
+- To find images fast, read [Search syntax](./search.md); for a random blog background, read [Random image links](./random-links.md).
+- For scheduled backups and restores, read [Backup and restore](./backup.md).

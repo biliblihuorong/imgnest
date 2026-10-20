@@ -136,6 +136,9 @@ onMounted(() => void load());
     <NCard :bordered="false">
       <template #header>{{ t("admin.backups.title") }}<DocHelp topic="backup" /></template>
       <p class="hint">{{ t("admin.backups.description") }}</p>
+      <NAlert type="info" class="notice" data-backup-exclusions>{{
+        t("admin.backups.imagesExcluded")
+      }}</NAlert>
       <NAlert type="warning" class="notice">{{ t("admin.backups.secretWarning") }}</NAlert>
       <NAlert v-if="loadError" type="error" class="notice" data-backups-error>
         {{ formatApiError(loadError, "admin.errors.backupsLoad") }}

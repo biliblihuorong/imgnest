@@ -224,6 +224,33 @@ func TestImageSetAlbumMovesOwnedActiveImage(t *testing.T) {
 	}
 }
 
+func TestPreviewGalleryRequiresAdminAndKeepsPublicGalleryClosed(t *testing.T) {
+	svc, images, _, subject := albumImageFixture(t)
+	svc.deps.Settings = gallerySettings{enabled: false}
+	images.gallery = []model.GalleryImage{{Image: activeImage(1), Uploader: "alice"}}
+	images.galleryAll = 3
+	if _, err := svc.PreviewGallery(t.Context(), subject, false); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("ordinary user preview: %v", err)
+	}
+	users := svc.deps.Users.(uploadUserRepo)
+	users.user.Role = model.UserRoleAdmin
+	svc.deps.Users = users
+	for _, albumsOnly := range []bool{false, true} {
+		page, err := svc.PreviewGallery(t.Context(), subject, albumsOnly)
+		if err != nil || page.Total != 3 || len(page.Items) != 1 || page.Size != 12 || page.Page != 1 || images.galleryAlbumsOnly != albumsOnly {
+			t.Fatalf("preview scope=%v page=%+v err=%v", albumsOnly, page, err)
+		}
+	}
+	page, err := svc.Gallery(t.Context(), 1, 12)
+	if err != nil || page.Total != 0 || len(page.Items) != 0 {
+		t.Fatalf("preview opened public gallery: %+v %v", page, err)
+	}
+	images.galleryErr = ErrStorage
+	if _, err := svc.PreviewGallery(t.Context(), subject, false); !errors.Is(err, ErrStorage) {
+		t.Fatalf("preview hid repository failure: %v", err)
+	}
+}
+
 func TestGallerySwitchControlsVisibility(t *testing.T) {
 	svc, images, _, _ := albumImageFixture(t)
 	switcher := gallerySettings{enabled: false}

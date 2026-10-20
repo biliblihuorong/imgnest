@@ -6,7 +6,8 @@ ImgNest's `/api/v1` matches the v1 API of Lsky Pro 2.x: the same routes, field n
 
 Either way works:
 
-- Sign in on the web and create one under **Account & tokens**. The plain text is shown once, at creation.
+- Console: sign in → Account & tokens (`/tokens`) → enter a name and optional expiry in Create API Token → Create Token → Copy Token in the success dialog and save it before closing. The plain text cannot be viewed again afterward.
+- The PicGo / Lsky setup card on the same page gives your site and upload endpoint. Revoke an unused token in the list and confirm; it stops working immediately.
 - Call the API with your email and password:
 
 ```bash
@@ -111,13 +112,14 @@ Every response has the same envelope:
 
 Business failures such as a wrong password, a full quota or an unacceptable file still return HTTP **200**. They are told apart by `status: false` and `message`. Lsky Pro clients only check `status`, so this stays unchanged.
 
-Only three cases use another status code:
+Other status codes include:
 
 | Status | Case |
 | --- | --- |
 | 401 | No token, or an invalid one |
 | 403 | An administrator has turned the API off |
 | 429 | Too many requests |
+| 500 | Internal error or request-processing panic |
 
 ## Guest uploads
 
@@ -127,11 +129,11 @@ After an administrator enables guest uploads in the site settings, an upload req
 A request that carries an `Authorization` header with an invalid token gets 401. It is not treated as a guest upload.
 :::
 
-Guests can also upload from the web on the public home page; see [Albums and gallery](./albums-and-gallery#public-home-page-and-guest-uploads). Both share one rate-limit counter.
+Guests can also upload from the web on the public home page; see [Albums and gallery](./albums-and-gallery.md#public-home-page-and-guest-uploads). Both share one rate-limit counter.
 
 ## Differences from Lsky Pro
 
-- Deleting an image moves it to the recycle bin instead of removing it at once. See [Privacy and recycle bin](./privacy-and-trash).
+- Deleting an image moves it to the recycle bin instead of removing it at once. See [Privacy and recycle bin](./privacy-and-trash.md).
 - The upload response adds `links.webp_url` and `links.origin_url`.
 - No v1 route returns EXIF or GPS data.
 

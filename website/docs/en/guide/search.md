@@ -2,6 +2,14 @@
 
 The personal images page and album detail page share one editable query language. Plain words are literal substrings of the displayed filename; multiple words and conditions combine with AND. Only `format:` and `album:` comma lists are OR inside the list. There are no boolean expressions, wildcards or regular expressions — `%`, `_`, `*`, `AND`, `OR` and `NOT` are ordinary text.
 
+## Where to enter a query
+
+1. Sign in and open My images (`/images`), or open an album from My albums.
+2. Enter a query such as `beach format:jpg,png` in the search box above the image list, then click Search or press Enter.
+3. Check the result count and applied conditions. Correct any reported syntax error and search again; clear the query to return to all images in the current scope.
+
+Album searches stay within that album. The public gallery does not use this personal-library search entry.
+
 ## Examples
 
 ```

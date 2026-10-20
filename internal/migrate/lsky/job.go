@@ -162,7 +162,7 @@ func (r *Runner) Start(ctx context.Context, opts service.LskyImportOptions) (ser
 	go func() {
 		defer close(done)
 		defer cancel()
-		err := r.run(runCtx, snap, policy, opts, fetch, open)
+		err := r.runSafely(runCtx, snap, policy, opts, fetch, open)
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		finished := r.deps.Now().UTC()
@@ -178,6 +178,19 @@ func (r *Runner) Start(ctx context.Context, opts service.LskyImportOptions) (ser
 		r.cancel, r.done = nil, nil
 	}()
 	return r.view(), nil
+}
+
+// runSafely contains panics from import dependencies (including upload plugins)
+// within this background job. HTTP recovery cannot protect another goroutine.
+// Return a fixed error so the normal finalizer clears the running state without
+// exposing panic payloads through the console or process output.
+func (r *Runner) runSafely(ctx context.Context, snap Snapshot, policy model.Policy, opts service.LskyImportOptions, fetch Fetcher, open service.ObjectOpener) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = fmt.Errorf("run background import: %w", service.ErrProcessing)
+		}
+	}()
+	return r.run(ctx, snap, policy, opts, fetch, open)
 }
 
 // Cancel stops a running import after the current image; a later start

@@ -233,7 +233,7 @@
     "guestUpload": "Guest uploads",
     "guestUploadHint": "Allow signed-out users to upload from the public home page and the Lsky v1-compatible API, using the guest group’s capacity and rate limits.",
     "gallery": "Public gallery",
-    "galleryHint": "Turning this off hides the public image gallery.",
+    "galleryHint": "After saving, the gallery lists eligible public images from all users, including existing images. Closing it stops the listing; shared image URLs and album random links remain accessible.",
     "galleryPublicAlbumsOnly": "Gallery shows public albums only",
     "galleryPublicAlbumsOnlyHint": "When on, the gallery only shows public images that are in a public album. Images outside albums or in private albums are hidden.",
     "api": "Lsky v1 API",
@@ -356,7 +356,13 @@
         }
       }
     },
-    "updateDot": "Update available"
+    "updateDot": "Update available",
+    "galleryPreview": "Visitor preview",
+    "galleryPreviewHint": "Uses the selected album scope and shows up to the latest 12 images. Previewing does not save settings or change visibility. The gallery and guest uploads have separate switches.",
+    "galleryPreviewFailed": "Could not load the preview. Please retry.",
+    "galleryCount": "Enabling this scope will list {count} images, including existing public images.",
+    "showGalleryPreview": "Show image preview",
+    "hideGalleryPreview": "Hide image preview"
   },
   "images": {
     "title": "All images",
@@ -519,7 +525,8 @@
     "keepHint": "Only extra scheduled backups are removed; manual backups are never deleted.",
     "scheduleSaved": "Backup schedule saved",
     "restoreTitle": "How to restore",
-    "restoreHint": "Stop the server, then run imgnest backup restore --yes <archive path> on it. The database must be migrated by the same release; files under the archive's config/ are not applied automatically, copy them back by hand if needed."
+    "restoreHint": "Stop the server, then run imgnest backup restore --yes <archive path> on it. The database must be migrated by the same release; files under the archive's config/ are not applied automatically, copy them back by hand if needed.",
+    "imagesExcluded": "Backup archives contain only the database and configuration, not image files. Back up local storage directories or object storage buckets separately. Restoring an archive cannot recover missing image files."
   },
   "overview": {
     "title": "Site overview",

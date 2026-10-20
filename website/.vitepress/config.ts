@@ -6,41 +6,54 @@ const REPO = "https://github.com/biliblihuorong/imgnest";
  * 文档目录：新增一篇文档 = 在 docs/guide/（英文在 docs/en/guide/）放一个 .md，
  * 再往这里加一行。两种语言共用同一份结构，只是标题不同。
  */
-const GUIDE: { title: [zh: string, en: string]; pages: [slug: string, zh: string, en: string][] }[] = [
+const GUIDE: {
+  title: [zh: string, en: string];
+  pages: [slug: string, zh: string, en: string][];
+}[] = [
   {
-    title: ["开始", "Start"],
+    title: ["开始使用", "Getting started"],
     pages: [
+      ["", "按任务查找", "Find your task"],
       ["introduction", "ImgNest 是什么", "What is ImgNest"],
-      ["getting-started", "快速开始", "Getting started"],
-      ["deployment", "部署", "Deployment"],
-      ["configuration", "配置", "Configuration"],
+      ["getting-started", "快速开始", "Quick start"],
     ],
   },
   {
-    title: ["图库功能", "Library"],
+    title: ["图片与分享", "Images and sharing"],
     pages: [
-      ["storage-and-policies", "存储与规则", "Storage and policies"],
-      ["albums-and-gallery", "相册与画廊", "Albums and gallery"],
-      ["random-links", "随机图片链接", "Random image links"],
+      ["upload-and-images", "上传与图片管理", "Uploading and managing images"],
+      ["albums-and-gallery", "相册管理", "Managing albums"],
       ["search", "搜索语法", "Search syntax"],
+      ["random-links", "随机图片链接", "Random image links"],
       ["privacy-and-trash", "隐私与回收站", "Privacy and recycle bin"],
+      ["frontends", "界面与主题", "Interface and themes"],
+      ["account-and-overview", "账户与用量", "Account and usage"],
     ],
   },
   {
-    title: ["API 与集成", "API and integrations"],
+    title: ["客户端与 API", "Clients and APIs"],
     pages: [
       ["lsky-api", "蓝空 API 与 PicGo", "Lsky API and PicGo"],
       ["api-v2", "原生 API v2", "Native API v2"],
       ["responsive-images", "响应式图片 API", "Responsive images API"],
-      ["lsky-migration", "从蓝空迁移", "Migrating from Lsky Pro"],
     ],
   },
   {
-    title: ["站点运维", "Operations"],
+    title: ["管理站点", "Site administration"],
     pages: [
+      ["users-and-groups", "用户与用户组", "Users and groups"],
+      ["storage-and-policies", "存储与规则", "Storage and policies"],
+      ["public-access", "访客与公开展示", "Visitors and public access"],
+      ["sign-in-protection", "登录保护与邮件", "Sign-in protection and email"],
+    ],
+  },
+  {
+    title: ["部署与维护", "Deployment and maintenance"],
+    pages: [
+      ["deployment", "部署与升级", "Deployment and upgrades"],
+      ["configuration", "启动配置", "Startup configuration"],
+      ["lsky-migration", "从蓝空迁移", "Migrating from Lsky Pro"],
       ["backup", "备份与还原", "Backup and restore"],
-      ["sign-in-protection", "登录保护", "Sign-in protection"],
-      ["frontends", "界面与主题", "Interface and themes"],
     ],
   },
 ];
@@ -49,7 +62,10 @@ function sidebar(lang: 0 | 1): DefaultTheme.SidebarItem[] {
   const base = lang === 0 ? "/guide/" : "/en/guide/";
   return GUIDE.map((group) => ({
     text: group.title[lang],
-    items: group.pages.map((page) => ({ text: page[1 + lang], link: base + page[0] })),
+    items: group.pages.map((page) => ({
+      text: page[1 + lang],
+      link: base + page[0],
+    })),
   }));
 }
 
@@ -63,7 +79,16 @@ export default defineConfig({
   ignoreDeadLinks: "localhostLinks",
   // 部署到子路径（例如 GitHub Pages 的 /imgnest/）时设置环境变量 SITE_BASE。
   base: process.env.SITE_BASE || "/",
-  head: [["link", { rel: "icon", type: "image/svg+xml", href: `${process.env.SITE_BASE || "/"}logo.svg` }]],
+  head: [
+    [
+      "link",
+      {
+        rel: "icon",
+        type: "image/svg+xml",
+        href: `${process.env.SITE_BASE || "/"}logo.svg`,
+      },
+    ],
+  ],
 
   markdown: {
     config(md) {
@@ -88,7 +113,11 @@ export default defineConfig({
                 resetButtonTitle: "清空",
                 backButtonTitle: "关闭",
                 noResultsText: "没有找到相关内容：",
-                footer: { selectText: "打开", navigateText: "切换", closeText: "关闭" },
+                footer: {
+                  selectText: "打开",
+                  navigateText: "切换",
+                  closeText: "关闭",
+                },
               },
             },
           },
@@ -101,14 +130,18 @@ export default defineConfig({
     root: {
       label: "简体中文",
       lang: "zh-CN",
-      description: "自托管图床：Go 单二进制，多用户、多存储，原图与 WebP 各存一份，兼容蓝空图床 v1 API。",
+      description:
+        "自托管图床：Go 单二进制，多用户、多存储，原图与 WebP 各存一份，兼容蓝空图床 v1 API。",
       themeConfig: {
         nav: [
           { text: "首页", link: "/" },
-          { text: "文档", link: "/guide/introduction", activeMatch: "^/guide/" },
+          { text: "文档", link: "/guide/", activeMatch: "^/guide/" },
         ],
         sidebar: { "/guide/": sidebar(0) },
-        editLink: { pattern: `${REPO}/edit/main/website/docs/:path`, text: "在 GitHub 上编辑此页" },
+        editLink: {
+          pattern: `${REPO}/edit/main/website/docs/:path`,
+          text: "在 GitHub 上编辑此页",
+        },
         docFooter: { prev: "上一篇", next: "下一篇" },
         outline: { label: "本页内容", level: [2, 3] },
         returnToTopLabel: "回到顶部",
@@ -127,10 +160,13 @@ export default defineConfig({
       themeConfig: {
         nav: [
           { text: "Home", link: "/en/" },
-          { text: "Docs", link: "/en/guide/introduction", activeMatch: "^/en/guide/" },
+          { text: "Docs", link: "/en/guide/", activeMatch: "^/en/guide/" },
         ],
         sidebar: { "/en/guide/": sidebar(1) },
-        editLink: { pattern: `${REPO}/edit/main/website/docs/:path`, text: "Edit this page on GitHub" },
+        editLink: {
+          pattern: `${REPO}/edit/main/website/docs/:path`,
+          text: "Edit this page on GitHub",
+        },
         outline: { level: [2, 3] },
       },
     },
