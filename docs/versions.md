@@ -224,7 +224,7 @@ CI 实测补充：相同源码两轮构建中，`golang:1.27.1-bookworm` tag 解
 工具链、依赖版本和质量门禁命令不变。热缓存下 CI 的耗时几乎全部来自 `go test -race`：race 检测器下一次 cost=12 的 bcrypt 约需 2 秒以上，而 `internal/service`、`internal/http`、`internal/http/lsky` 的测试会哈希数百次密码。
 
 - 生产 bcrypt cost 仍为 12（`productionPasswordCost`）。仅当 `testing.Testing()` 为真（即 `go test` 编译出的测试二进制）时，实际使用的 cost 降为 `bcrypt.MinCost`；正式二进制没有任何开关可以降低它。断言落库哈希强度的测试通过 `service.UseProductionPasswordCost(t)` 回到 cost=12 运行，`internal/cli` 的进程级测试构建的是正式二进制，同样使用 cost=12。
-- 新增 `changes` job：PR 上由 `scripts/ci-scope.py` 根据改动文件决定跑哪些 job。只改文档（根目录与 `docs/` 下的 `.md`、`.claude/`）时全部跳过；只改 `web-vben/` 源码时跳过 Go 测试与 lint；只改 `internal/`、`cmd/`、`go.mod`、`go.sum`、`.golangci.yml` 时跳过前端 job。`web/`（受 legacy 源码清单校验）、两个 `dist/`、`embed.go`、`docs/openapi.yaml`、`.github/`、`scripts/`、`deploy/` 以及任何未识别的路径都会运行全部 job。
+- 新增 `changes` job：PR 上由 `scripts/ci-scope.py` 根据改动文件决定跑哪些 job。只改文档（根目录与 `docs/` 下的 `.md`、`.claude/`）时全部跳过；只改 `web-vben/` 或 `website/` 源码时运行前端与浏览器 job、跳过 Go 测试与 lint；只改 `internal/`、`cmd/`、`go.mod`、`go.sum`、`.golangci.yml` 时跳过前端与浏览器 job。`web/`（受 legacy 源码清单校验）、两个 `dist/`、`embed.go`、`docs/openapi.yaml`、`.github/`、`scripts/`、`deploy/` 以及任何未识别的路径都会运行全部 job。
 - 推送到 `main` 始终运行全部 job，用于建立 PR 可恢复的缓存。改动列表读取失败、为空或达到 API 的 3000 条上限时同样运行全部 job。
 - 被跳过的 job 在 GitHub 上显示为 skipped。以后若为 `main` 配置必需状态检查，需注意矩阵 job 被跳过时不会产生 `Frontend (web)` 这类逐项检查名。
 
@@ -259,10 +259,16 @@ M5 时期的旧前端 `web/` 已删除，`web-vben/` 是唯一前端，默认 Go
 
 没有选 VitePress 2.0：它依赖 Vite 8，与前端锁定的主版本一致，但当时仍是 alpha（2.0.0-alpha.20）。网站工作区独立，Vite 主版本不同不影响前端。`website/pnpm-workspace.yaml` 仅放行 esbuild 的安装脚本。
 
-`scripts/ci-scope.py` 把 `website/` 归入文档类：只改网站时 PR 上的全部 job 跳过。网站由静态托管平台单独构建部署，不在本仓库的 CI 内。
+网站由静态托管平台单独部署；2026-10-20 起，网站源文件变更会运行前端与浏览器 CI，构建网站并检查实际页面，见下文「浏览器回归」。
 
 网站不随仓库固定 Node 版本：`website/package.json` 的 `engines` 为 `>=22.12.0`，不提供 `.nvmrc`，由托管平台选择预装的 Node 22 或 24。实测 Node 22.13.1 可构建。上表的 Node 24.21.0 仍是 `web-vben/` 与开发镜像的锁定版本。
 
 ## ImageMagick 策略（2026-10-08）
 
 版本不变。`deploy/imagemagick-policy.xml` 覆盖运行镜像与开发镜像中的 `/etc/ImageMagick-6/policy.xml`：只允许读取 `BMP`/`BMP2`/`BMP3`，禁用其他 coder、delegate、filter 与 `@` 间接读取，并限制内存 256MiB、宽高 32K、面积 100MP。libvips 的 Magick 只为 BMP 启用，其他上传格式都走原生 loader，因此不影响现有格式。基础镜像 `imgnest-vips` 不变，策略文件在 `deploy/Dockerfile` 与 `deploy/Dockerfile.dev` 中复制。
+
+## 浏览器回归（2026-10-20）
+
+CI 的浏览器工具沿用既有外部脚本所用的 **Playwright 1.62.1**，固定版本安装到 runner 临时目录，再安装对应 Chromium；不进入产品依赖或镜像。产品前端与 VitePress 仍使用各自现有锁文件、Node 24.21.0 和 pnpm 12.9.1。
+
+网站源文件（含主题与导航）和产品前端变更都会运行 Frontend 与 Browser regressions。后者构建两个站点，检查公开访问四种组合、移动登录页、管理员预览和备份提示，以及中英文、深浅色、滚动、矮屏和窄屏文档布局，上传截图与结果供复核。

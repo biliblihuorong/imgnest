@@ -28,6 +28,9 @@ const check = (condition, message) => {
 };
 
 async function inspect(page, name) {
+  // VitePress hydrates the generated outline after navigation; network idle
+  // alone can precede its visibility and yield zero-sized measurements.
+  await page.locator(".VPDocAsideOutline").waitFor({ state: "visible" });
   const measurements = await page.evaluate(() => {
     const rect = (selector) => {
       const { x, y, width, height, bottom, right } = document
@@ -54,6 +57,84 @@ async function inspect(page, name) {
 }
 
 try {
+  // Exercise the reader's route through the reorganized handbook in both languages.
+  for (const [language, publicTitle, backupTitle] of [
+    ["", "访客与公开展示", "备份与还原"],
+    ["/en", "Visitors and public access", "Backup and restore"],
+  ]) {
+    const page = await browser.newPage({
+      viewport: { width: 1440, height: 980 },
+    });
+    page.setDefaultTimeout(10000);
+    page.on("pageerror", (error) =>
+      failures.push(`navigation ${language}: ${error.message}`),
+    );
+    await page.goto(`${values.origin}${language}/guide/`, {
+      waitUntil: "networkidle",
+    });
+    await page
+      .locator(".vp-doc")
+      .getByRole("link", { name: publicTitle, exact: true })
+      .click();
+    await page.waitForURL(`**${language}/guide/public-access`);
+    check(
+      (await page.locator(".vp-doc table").count()) >= 1,
+      `navigation ${language}: visitor behavior table is missing`,
+    );
+    await page.screenshot({
+      path: `${output}/navigation-${language ? "en" : "zh"}.png`,
+    });
+    await page
+      .locator(".VPSidebar")
+      .getByRole("link", { name: backupTitle, exact: true })
+      .click();
+    await page.waitForURL(`**${language}/guide/backup`);
+    check(
+      (await page.locator(".vp-doc .warning").count()) >= 1,
+      `navigation ${language}: backup exclusions notice is missing`,
+    );
+    await page.close();
+  }
+
+  // A user must be able to find both the feature and its concrete UI procedure.
+  for (const [language, randomTitle, albumLink, expectedEntry] of [
+    ["", "随机图片链接", "相册管理", "我的相册"],
+    [
+      "/en",
+      "Random image links",
+      "Creating an album and adding images",
+      "My albums",
+    ],
+  ]) {
+    const page = await browser.newPage({
+      viewport: { width: 1440, height: 980 },
+    });
+    await page.goto(`${values.origin}${language}/guide/`, {
+      waitUntil: "networkidle",
+    });
+    const article = page.locator(".vp-doc");
+    await article.getByRole("link", { name: randomTitle, exact: true }).click();
+    await page.waitForURL(`**${language}/guide/random-links`);
+    check(
+      (await article.innerText()).includes(expectedEntry),
+      `random ${language}: concrete album entry is missing`,
+    );
+    check(
+      (await article.locator("ol li").count()) >= 5,
+      `random ${language}: create/copy instructions are missing`,
+    );
+    await page.screenshot({
+      path: `${output}/random-instructions-${language ? "en" : "zh"}.png`,
+    });
+    await article.getByRole("link", { name: albumLink, exact: true }).click();
+    await page.waitForURL(`**${language}/guide/albums-and-gallery#*`);
+    check(
+      (await article.locator("ol li").count()) >= 4,
+      `albums ${language}: album creation procedure is missing`,
+    );
+    await page.close();
+  }
+
   for (const [name, width, dark, language] of [
     ["desktop-light", 1440, false, ""],
     ["desktop-dark", 1440, true, ""],

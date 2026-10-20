@@ -12,12 +12,12 @@ import {
   NTag,
   useMessage,
 } from "naive-ui";
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { getToken } from "@/api/client";
-import { listGallery, type GalleryItem } from "@/api/gallery";
 import { getGuestUploadLimits, MAX_UPLOAD_FILES, type ImageView } from "@/api/upload";
 import logo from "@/assets/imgnest-mark.svg";
 import GalleryCard from "@/components/gallery/GalleryCard.vue";
+import { useGallery } from "@/components/gallery/useGallery";
 import ImageCopyDrawer from "@/components/images/ImageCopyDrawer.vue";
 import { usePreviewSwipe } from "@/components/images/usePreviewSwipe";
 import UploadDropzone from "@/components/upload/UploadDropzone.vue";
@@ -54,8 +54,12 @@ const linkFormat = ref<LinkFormat>("url");
 const linkVersion = ref<LinkVersion>("webp");
 const drawerShow = ref(false);
 const drawerImage = ref<ImageView | null>(null);
-const preview = shallowRef<GalleryItem[]>([]);
-const previewLoading = ref(false);
+const {
+  items: preview,
+  loading: previewLoading,
+  loadError: previewError,
+  retry: retryPreview,
+} = useGallery(PREVIEW_SIZE);
 let active = true;
 onBeforeUnmount(() => {
   active = false;
@@ -111,23 +115,10 @@ async function loadLimits(): Promise<void> {
   }
 }
 
-async function loadPreview(): Promise<void> {
-  previewLoading.value = true;
-  try {
-    const page = await listGallery({ page: 1, size: PREVIEW_SIZE });
-    if (active) preview.value = page.items;
-  } catch {
-    if (active) preview.value = [];
-  } finally {
-    if (active) previewLoading.value = false;
-  }
-}
-
 onMounted(async () => {
   await site.ensureLoaded();
   if (!active) return;
   if (canGuestUpload.value) void loadLimits();
-  if (site.galleryEnabled) void loadPreview();
 });
 </script>
 
@@ -257,7 +248,16 @@ onMounted(async () => {
             <NButton text type="primary">{{ t("home.moreGallery") }}</NButton>
           </RouterLink>
         </div>
-        <NSpin :show="previewLoading">
+        <NAlert
+          v-if="previewError"
+          type="error"
+          :title="t('gallery.loadFailed')"
+          data-test="gallery-error"
+        >
+          {{ t("gallery.errorDescription") }}
+          <NButton size="small" secondary @click="retryPreview">{{ t("gallery.retry") }}</NButton>
+        </NAlert>
+        <NSpin v-else :show="previewLoading">
           <NEmpty
             v-if="!previewLoading && preview.length === 0"
             class="public-home__empty"

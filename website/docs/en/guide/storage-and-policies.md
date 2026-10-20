@@ -2,6 +2,17 @@
 
 A **storage** decides where images are kept. A **policy** decides how they are named, whether a WebP copy is made and how private metadata is handled. Each policy points at one storage, and users upload under the policies bound to their group.
 
+## Create storage and policies in the console
+
+These entries require an administrator. Configure storage first, then a policy, then grant that policy to a group:
+
+1. Open Administration → Storage (`/admin/storages`), click Add storage, select a driver and enter its access URL and parameters. Click Create; the server tests the connection automatically before saving. After creation, use Test connection in the storage list to test again. Cloud credentials require a configured master key.
+2. Open Upload policies (`/admin/policies`), click New policy, select that storage and save the path, conversion, thumbnail and scrubbing options.
+3. Open User groups (`/admin/groups`), edit the target group, grant the policy and select its default policy, then save. Its users can now select those policies while uploading.
+4. Upload a test image as a member of that group and check that the returned URL opens.
+
+Use Edit in each list to change existing configuration. The CLI initialization below is an alternative; both use the same field and file rules.
+
 ## Storage
 
 ### Local storage
@@ -25,7 +36,7 @@ The `.jpg` and `.webp` files in a local storage directory use ImgNest's internal
 
 ### S3-compatible storage
 
-[Set a master key](./configuration#other-settings) first, then put the storage settings in a file you do not commit:
+[Set a master key](./configuration.md#other-settings) first, then put the storage settings in a file you do not commit:
 
 ```json
 {
@@ -137,7 +148,7 @@ Common combinations:
 | `max_width` / `max_height` | 0 (no limit) | Shrinks the WebP copy only; the original is untouched |
 | `thumb_enabled` / `thumb_size` | true / 400 | Longest edge of the thumbnail in pixels |
 | `link_prefer` | `webp` | Which version the API returns as the main link |
-| `scrub_mode` | `gps` | Privacy scrubbing level, see [Privacy and recycle bin](./privacy-and-trash) |
+| `scrub_mode` | `gps` | Privacy scrubbing level, see [Privacy and recycle bin](./privacy-and-trash.md) |
 
 How each format is handled:
 

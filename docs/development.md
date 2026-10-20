@@ -210,3 +210,9 @@ docker compose -f deploy/compose.dev.yaml run --rm dev go run ./cmd/imgnest init
 storage-id用实际输出ID；init-policy --stdin 可覆盖path_tpl/name_tpl/webp_mode/scrub_mode等默认字段。连接测试验证不覆盖写入、条件服务端复制和清理；不支持的兼容端明确拒绝。真实B2/COS/R2账户未在本轮配置，需单独联调。
 
 used_bytes 是唯一cloud Key实际字节，含云thumb，本地缓存不计费。删除扣费一次并保留7天；恢复重新预约容量/检查认证，激活后清除trash。彻底删除先确认全部版本归属，再逐VersionID清理；外部历史会阻止任务，避免误删。EXIF raw仅本人/admin可读，不透明classicTIFF的显式full-source-fallback可能含至多20MiB源文件；BigTIFF/不支持元数据布局拒绝，见规范8.2。
+
+## 浏览器与文档验收
+
+CI 的 Browser regressions 使用已构建的生产前端和隔离 API 夹具，验证公开访问四组合、登录页、管理预览和备份提示；随后构建 VitePress 并检查中英文导航、目录与移动布局。固定浏览器工具版本见 [versions.md](versions.md)，本机命令见 [浏览器回归说明](../web-vben/e2e/README.md) 与 [网站说明](../website/README.md)。
+
+源码变更后的单元、组件、真实 Go API 测试与浏览器回归均有各自边界。合入前应打开 CI 的 `browser-regressions` 截图复核；没有截图异常不等于接口或存储已经完成联调。

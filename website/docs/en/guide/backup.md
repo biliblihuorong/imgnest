@@ -2,6 +2,21 @@
 
 Admin → Settings → Backup/Export provides manual and scheduled backups; restore is command-line only, so the target database ends in a consistent state.
 
+::: warning Image files are not included
+Archives contain the database and configuration, not originals, WebP, cloud thumbnails, responsive images or local thumbnail caches. Back up local storage roots or object storage buckets separately. An archive without image objects cannot restore the full library.
+
+Local objects use ImgNest's internal envelope format: preserve the whole storage directory, not only the image bytes served to browsers. Restore database records, objects and configuration from a consistent recovery point; verify in isolation before switching production back.
+:::
+
+## Create and download a backup
+
+1. Sign in as an administrator → Administration → Site settings → Backup / export (`/admin/settings/backup`).
+2. Read the image-exclusion and sensitive-configuration notices, click Back up now and wait for the archive to appear.
+3. Click Download beside that archive and store the zip securely. Back up the image directory or bucket separately.
+4. For automatic backups, enable Scheduled backups below, set the interval and retention count, then click that form’s Save button.
+
+There is no browser archive-restore button. Run the restore command on the server as described below. The `.sql` upload at the bottom imports Lsky data; it does not restore a backup archive.
+
 ## What is in an archive
 
 Each backup is a zip named `imgnest-YYYYMMDD-HHMMSS[-auto].zip`:

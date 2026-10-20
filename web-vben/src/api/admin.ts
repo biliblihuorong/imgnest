@@ -13,6 +13,13 @@ import { request } from "./client";
 import type { ImagePage } from "./images";
 import type { components } from "./schema";
 
+/** Read-only administrator preview; does not enable the gallery or save settings. */
+export function previewGallery(
+  publicAlbumsOnly: boolean,
+): Promise<components["schemas"]["GalleryPage"]> {
+  return request(`/api/admin/gallery/preview?public_albums_only=${publicAlbumsOnly}`);
+}
+
 /** 用户角色（与 openapi UserView.role 枚举一致）。 */
 export type UserRole = "admin" | "user";
 /** 用户状态。 */

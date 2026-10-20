@@ -2,6 +2,28 @@
 
 Photos often carry the place they were taken and the serial number of the device. ImgNest keeps the full record in your own database and cleans the sensitive parts out of the files it puts in storage.
 
+## Where to perform these actions
+
+| Task | Entry |
+| --- | --- |
+| Inspect metadata and EXIF | My images → click the image filename → EXIF; wide screens in the new layout also open the right panel from the information area, while classic and narrow layouts use a drawer |
+| Change visibility in bulk | My images → select images → Make public / Make private |
+| Restore deleted images | My images → Recycle bin tab above the library → Restore, or select images for bulk restoration |
+| Delete permanently | The same Recycle bin tab → Delete permanently and confirm |
+| Change retention (admin) | Administration → Site settings → General → retention days → Save settings |
+
+Recycle bin is a tab inside My images, not a separate sidebar page.
+
+## Image visibility and direct links
+
+Public/private controls inclusion in public listings and the gallery. **Anyone holding a private image's original, WebP or cloud thumbnail URL can still access it anonymously.** Making an image private or closing the gallery does not revoke shared URLs. Local `/t/` thumbnails have separate permission checks; they do not protect the original URL.
+
+- Stop public listing: make the image private, or close the gallery site-wide.
+- Stop an album random link: disable or reset it; see [Random image links](./random-links.md).
+- Invalidate source image URLs: delete the image into the recycle bin. Existing browser and CDN caches require separate handling.
+
+See [Visitors and public access](./public-access.md) for public home and guest behavior.
+
 ## How EXIF is handled
 
 An upload is processed in this order:
@@ -21,7 +43,7 @@ Cleaning is **lossless**. The metadata section of the file is rewritten in place
 | `none` | Nothing | Everything |
 
 ::: warning Lsky Pro originals adopted in place
-Originals migrated from Lsky Pro with "Adopt in place" stay in the old bucket, and ImgNest never rewrites or scrubs them, so any GPS data they carry stays in the files (EXIF is still stored in the local database and is not returned by public APIs). To scrub them, migrate with "Download and store again" into a new bucket instead; see [Migrating from Lsky Pro](./lsky-migration).
+Originals migrated from Lsky Pro with "Adopt in place" stay in the old bucket, and ImgNest never rewrites or scrubs them, so any GPS data they carry stays in the files (EXIF is still stored in the local database and is not returned by public APIs). To scrub them, migrate with "Download and store again" into a new bucket instead; see [Migrating from Lsky Pro](./lsky-migration.md).
 :::
 
 ::: warning HEIC and AVIF

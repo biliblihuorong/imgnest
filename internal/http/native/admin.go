@@ -40,6 +40,7 @@ type AdminService interface {
 
 // AdminImages is the site-wide image portion of the console.
 type AdminImages interface {
+	PreviewGallery(context.Context, service.TokenSubject, bool) (service.GalleryPage, error)
 	AdminList(context.Context, service.TokenSubject, service.AdminImageQuery) (service.ImagePage, error)
 	AdminTrash(context.Context, service.TokenSubject, uint64) error
 	AdminPurgeAll(context.Context, service.TokenSubject) (int64, error)
@@ -77,6 +78,7 @@ func (h *Handler) RegisterAdminRoutes(ctx context.Context, router gin.IRouter, a
 	adminGroup.GET("/settings", handler.getSettings)
 	adminGroup.PUT("/settings", handler.putSettings)
 	adminGroup.GET("/images", handler.listImages)
+	adminGroup.GET("/gallery/preview", handler.previewGallery)
 	adminGroup.DELETE("/images/:id", handler.deleteImage)
 	adminGroup.POST("/trash/purge-all", handler.purgeAll)
 	return nil
@@ -86,6 +88,20 @@ type adminHandler struct {
 	auth   *Handler
 	admin  AdminService
 	images AdminImages
+}
+
+func (h *adminHandler) previewGallery(c *gin.Context) {
+	values := c.QueryArray("public_albums_only")
+	if len(values) != 1 || (values[0] != "true" && values[0] != "false") {
+		fail(c, service.ErrInvalidInput)
+		return
+	}
+	page, err := h.images.PreviewGallery(c.Request.Context(), identity(c).Subject, values[0] == "true")
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	respond(c, 200, page)
 }
 
 // requireAdmin rejects authenticated non-administrators; the native identity

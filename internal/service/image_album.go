@@ -70,6 +70,23 @@ func (s *ImageService) SetAlbum(ctx context.Context, subject TokenSubject, id, a
 	return s.view(ctx, image)
 }
 
+// PreviewGallery shows an administrator the first twelve images that the
+// selected gallery scope would expose, without changing the site's switches.
+func (s *ImageService) PreviewGallery(ctx context.Context, subject TokenSubject, publicAlbumsOnly bool) (GalleryPage, error) {
+	actor, err := s.actor(ctx, subject)
+	if err != nil {
+		return GalleryPage{}, err
+	}
+	if actor.Role != model.UserRoleAdmin {
+		return GalleryPage{}, ErrForbidden
+	}
+	source, ok := s.deps.Images.(GallerySource)
+	if !ok {
+		return GalleryPage{}, ErrInvalidInput
+	}
+	return s.galleryPage(ctx, source, 1, 12, publicAlbumsOnly)
+}
+
 // Gallery pages the public gallery. A closed switch, a missing capability, or
 // an unreadable setting all serve the same well-formed empty page so callers
 // cannot probe switch state; only a repository failure becomes an error.
@@ -105,6 +122,10 @@ func (s *ImageService) Gallery(ctx context.Context, page, size int) (GalleryPage
 			return empty, nil
 		}
 	}
+	return s.galleryPage(ctx, source, page, size, albumsOnly)
+}
+
+func (s *ImageService) galleryPage(ctx context.Context, source GallerySource, page, size int, albumsOnly bool) (GalleryPage, error) {
 	images, total, err := source.ListGallery(ctx, page, size, albumsOnly)
 	if err != nil {
 		return GalleryPage{}, fmt.Errorf("list gallery: %w", err)

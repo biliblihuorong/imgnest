@@ -31,10 +31,10 @@ export const DOC_TOPICS = {
   randomLinks: { page: "random-links" },
   search: { page: "search" },
   guestUpload: {
-    page: "albums-and-gallery",
+    page: "public-access",
     anchor: { zh: "公开首页与游客上传", en: "public-home-page-and-guest-uploads" },
   },
-  gallery: { page: "albums-and-gallery", anchor: { zh: "公开画廊", en: "the-public-gallery" } },
+  gallery: { page: "public-access", anchor: { zh: "公开画廊", en: "the-public-gallery" } },
   apiTokens: { page: "lsky-api", anchor: { zh: "获取-token", en: "get-a-token" } },
   backup: { page: "backup" },
   lskyMigration: { page: "lsky-migration" },

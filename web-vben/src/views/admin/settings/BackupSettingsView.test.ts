@@ -58,6 +58,15 @@ beforeEach(() => {
 });
 
 describe("BackupSettingsView", () => {
+  it("加载失败时仍明确提示归档不含图片文件", async () => {
+    api.getBackups.mockRejectedValueOnce(new Error("offline"));
+    const wrapper = mount(Host);
+    await flushPromises();
+    expect(wrapper.get("[data-backup-exclusions]").text()).toContain("不包含图片文件");
+    expect(wrapper.get("[data-backup-exclusions]").text()).toContain("本机存储目录或对象存储桶");
+    expect(wrapper.find("[data-backups-error]").exists()).toBe(true);
+  });
+
   it("lists archives with their type and the backup directory", async () => {
     const wrapper = mount(Host);
     await flushPromises();

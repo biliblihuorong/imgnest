@@ -1,6 +1,6 @@
 # Responsive images API
 
-When "Responsive variants" is on in a policy, still images get WebP versions 400, 800 and 1600 pixels wide (only the widths narrower than the original) besides the original, WebP and thumbnail. A blog references them with `srcset`, so phones load the small one and large screens the big one. See [Deployment](./deployment#enabling-responsive-images) to turn it on and [Storage and policies](./storage-and-policies#responsive-image-versions) for file names.
+When "Responsive variants" is on in a policy, still images get WebP versions 400, 800 and 1600 pixels wide (only the widths narrower than the original) besides the original, WebP and thumbnail. A blog references them with `srcset`, so phones load the small one and large screens the big one. See [Deployment](./deployment.md#enabling-responsive-images) to turn it on and [Storage and policies](./storage-and-policies.md#responsive-image-versions) for file names.
 
 There are two ways to get the sizes:
 
@@ -8,6 +8,12 @@ There are two ways to get the sizes:
 | --- | --- |
 | From the upload response | Every upload API (native, v2, Lsky v1) returns `variants`. Write the `srcset` when you publish, and the page makes no extra request |
 | Look up by link | The post only has original links (older posts, other uploaders). Call the public `/api/variants` endpoint |
+
+## Where to enable and use it
+
+- Administrator: Administration → Upload policies → Edit the policy → Conversion → enable Responsive variants and save. For existing images, use Start backfill in the Responsive image backfill card at the bottom of the Policies page.
+- Blog author: read `variants` from the upload response or query the API below, then write the sizes into your HTML `srcset`. The image library does not edit your blog automatically, and ordinary Markdown image syntax does not add `srcset`.
+- Upload a sufficiently wide still image after enabling and check that `variants` contains smaller widths. Small images and animations may correctly have no variants.
 
 ## Lookup endpoint
 
@@ -20,7 +26,7 @@ POST /api/variants        {"urls": ["<link>", …]}
 - Original, `.webp`, `_thumbs.webp` and variant links all resolve to the same image. Unknown links and images in the recycle bin return `found: false`.
 - ImgNest matches links against the storages' public base URLs in its own database and **never fetches the links you send**.
 - 60 requests per minute per client address (`images.variant_lookup_per_minute`); above that you get 429.
-- To call it from a browser on another site, add the blog's origin to `images.variant_cors_origins` (see [Configuration](./configuration)). Server-side rendering and build scripts are not affected.
+- To call it from a browser on another site, add the blog's origin to `images.variant_cors_origins` (see [Configuration](./configuration.md)). Server-side rendering and build scripts are not affected.
 
 Response:
 

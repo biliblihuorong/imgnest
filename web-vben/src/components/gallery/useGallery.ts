@@ -5,7 +5,7 @@ import { useSiteStore } from "@/stores/site";
 export const GALLERY_PAGE_SIZE = 30;
 
 /** Public-only gallery state, invalidated immediately when the site switch closes. */
-export function useGallery() {
+export function useGallery(pageSize = GALLERY_PAGE_SIZE) {
   const site = useSiteStore();
   const items = shallowRef<GalleryItem[]>([]);
   const total = shallowRef(0);
@@ -22,7 +22,7 @@ export function useGallery() {
     loadError.value = false;
     items.value = [];
     try {
-      const data = await listGallery({ page: page.value, size: GALLERY_PAGE_SIZE });
+      const data = await listGallery({ page: page.value, size: pageSize });
       if (disposed || current !== requestId || !site.galleryEnabled) return;
       items.value = data.items;
       total.value = data.total;

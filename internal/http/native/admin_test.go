@@ -144,10 +144,16 @@ func (s *adminServiceStub) PutSettings(context.Context, service.SettingsPatch) (
 
 type adminImagesStub struct {
 	native.AdminImages
-	purged   int64
-	purgeErr error
-	list     service.ImagePage
-	listErr  error
+	purged            int64
+	purgeErr          error
+	list              service.ImagePage
+	listErr           error
+	previewAlbumsOnly bool
+}
+
+func (s *adminImagesStub) PreviewGallery(_ context.Context, _ service.TokenSubject, albumsOnly bool) (service.GalleryPage, error) {
+	s.previewAlbumsOnly = albumsOnly
+	return service.GalleryPage{Items: []service.GalleryItem{}, Total: 2, Page: 1, Size: 12}, s.listErr
 }
 
 func (s *adminImagesStub) AdminList(context.Context, service.TokenSubject, service.AdminImageQuery) (service.ImagePage, error) {
@@ -212,8 +218,26 @@ func adminRoutes() []struct {
 		{"GET", "/api/admin/settings", "", false},
 		{"PUT", "/api/admin/settings", `{}`, false},
 		{"GET", "/api/admin/images", "", false},
+		{"GET", "/api/admin/gallery/preview?public_albums_only=false", "", false},
 		{"DELETE", "/api/admin/images/12", "", false},
 		{"POST", "/api/admin/trash/purge-all", "", false},
+	}
+}
+
+func TestAdminGalleryPreviewScopeAndInvalidInput(t *testing.T) {
+	images := &adminImagesStub{}
+	router := adminRouter(t, &adminServiceStub{}, images)
+	for _, value := range []string{"false", "true"} {
+		response := adminRequest(t, router, "GET", "/api/admin/gallery/preview?public_albums_only="+value, "", adminBearer)
+		if response.Code != 200 || images.previewAlbumsOnly != (value == "true") || !strings.Contains(response.Body.String(), `"total":2`) {
+			t.Fatalf("preview scope %s: %d %s", value, response.Code, response.Body.String())
+		}
+	}
+	for _, query := range []string{"", "?public_albums_only=1", "?public_albums_only=true&public_albums_only=false"} {
+		response := adminRequest(t, router, "GET", "/api/admin/gallery/preview"+query, "", adminBearer)
+		if response.Code != 400 {
+			t.Fatalf("invalid query %s: %d", query, response.Code)
+		}
 	}
 }
 

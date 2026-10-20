@@ -92,7 +92,7 @@ func TestActualProcessSmoke(t *testing.T) {
 				t.Fatal(err)
 			}
 			password := hex.EncodeToString(passwordBytes[:])
-			environ := append(os.Environ(), "IMGNEST_DATABASE_DRIVER="+driver, "IMGNEST_DATABASE_DSN="+dsn, "IMGNEST_SERVER_ADDR=127.0.0.1:0", "IMGNEST_IMAGES_THUMB_CACHE="+filepath.Join(t.TempDir(), "thumbs"))
+			environ := append(os.Environ(), "IMGNEST_DATABASE_DRIVER="+driver, "IMGNEST_DATABASE_DSN="+dsn, "IMGNEST_SERVER_ADDR=127.0.0.1:0", "IMGNEST_IMAGES_THUMB_CACHE="+filepath.Join(t.TempDir(), "thumbs"), "IMGNEST_BACKUP_DIR="+filepath.Join(t.TempDir(), "backup"))
 			run := func(input string, args ...string) {
 				t.Helper()
 				// #nosec G204 -- test-owned binary with fixed test call-site arguments; no shell execution.

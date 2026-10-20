@@ -1,8 +1,8 @@
 import { i18n } from "@vben/locales";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { NDialogProvider, NMessageProvider, NPagination } from "naive-ui";
-import { h } from "vue";
+import { NDialogProvider, NMessageProvider, NPagination, type MessageProviderInst } from "naive-ui";
+import { defineComponent, h, onBeforeUnmount, ref } from "vue";
 import { listTrash, purgeImages, restoreImages } from "@/api/images";
 import { makeImage } from "@/components/images/fixtures";
 import TrashView from "./TrashView.vue";
@@ -19,8 +19,18 @@ const purgeImagesMock = vi.mocked(purgeImages);
 
 enableAutoUnmount(afterEach);
 
+// The provider does not cancel its message timers on unmount in Naive UI 2.45.3.
+const TrashTestHost = defineComponent({
+  setup() {
+    const messages = ref<MessageProviderInst | null>(null);
+    onBeforeUnmount(() => messages.value?.destroyAll());
+    return () =>
+      h(NMessageProvider, { ref: messages }, () => h(NDialogProvider, () => h(TrashView)));
+  },
+});
+
 function mountTrash() {
-  return mount(() => h(NMessageProvider, () => h(NDialogProvider, () => h(TrashView))));
+  return mount(TrashTestHost);
 }
 
 function findButtonByText(host: Element | Document, text: string): HTMLButtonElement | undefined {

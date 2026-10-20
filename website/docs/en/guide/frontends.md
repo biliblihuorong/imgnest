@@ -8,7 +8,7 @@ The **new layout** is the default:
 
 - The sidebar floats over the page and can collapse to icons
 - `Ctrl K` (`⌘ K` on macOS) opens search, for images or for jumping between pages
-- On wide screens, **My images** shows a side panel with dimensions, size and links in every format
+- On wide screens, **My images** shows a side panel with dimensions, size and EXIF. Copy existing links from the image-card context menu; see [Uploading and managing images](./upload-and-images.md#manage-existing-images)
 
 The **classic layout** is an admin panel with a top bar and tabs.
 
@@ -32,7 +32,7 @@ The switch takes effect at once, with no rebuild and no page reload.
 | Compact sidebar | Icons only |
 | Language | Chinese, English |
 
-Visitors who are not signed in can also switch colour mode, language and layout.
+The sign-in page offers colour-mode and language controls. Signed-in users can change the layout and other appearance preferences in the console.
 
 Preferences are saved in the browser, so another device starts from the defaults. Accent colour and corner radius follow the current layout's defaults until you choose your own. After that, both layouts share your choice.
 

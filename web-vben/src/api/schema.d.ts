@@ -1846,6 +1846,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/gallery/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview the selected public gallery scope without publishing it
+         * @description Administrator only. Returns the total eligible image count and the
+         *     latest twelve images using the same visibility filters and safe DTO
+         *     as the public gallery. Works while the gallery is closed. The explicit
+         *     scope may represent unsaved form input; no settings or image permissions
+         *     are changed. Private images, trashed images and disabled users are excluded.
+         */
+        get: operations["previewGallery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/images": {
         parameters: {
             query?: never;
@@ -6846,6 +6870,32 @@ export interface operations {
             403: components["responses"]["AdminForbidden"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+        };
+    };
+    previewGallery: {
+        parameters: {
+            query: {
+                /** @description Exactly one literal true or false; limit to public images in public albums. */
+                public_albums_only: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Gallery preview, page 1 with size 12. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GalleryPageEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
         };
     };
     adminListImages: {

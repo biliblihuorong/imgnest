@@ -140,13 +140,12 @@ class CIScopeTest(unittest.TestCase):
                                      ".claude/skills/lsky-api-compat/SKILL.md"),
                          {"backend": False, "frontend": False})
 
-    def test_project_website_changes_skip_every_job(self):
-        # website/ is a standalone VitePress workspace that no CI job builds.
+    def test_project_website_changes_run_frontend_and_browser_validation(self):
         self.assertEqual(self.scopes("website/docs/index.md", "website/package.json",
-                                     "website/.vitepress/theme/home/HomePage.vue"),
-                         {"backend": False, "frontend": False})
+                                     "website/.vitepress/theme/home/HomePage.vue", "website/e2e/check-layout.mjs"),
+                         {"backend": False, "frontend": True})
         self.assertEqual(self.scopes("website/docs/index.md", "internal/service/user.go"),
-                         {"backend": True, "frontend": False})
+                         {"backend": True, "frontend": True})
 
     def test_help_pages_run_the_frontend_job(self):
         # web-vben/src/lib/docs.test.ts checks the "?" links against these pages.
@@ -194,9 +193,9 @@ class CIScopeWiringTest(unittest.TestCase):
         self.workflow = (ROOT / ".github/workflows/ci.yml").read_text()
 
     def test_go_and_frontend_jobs_follow_the_detected_scope(self):
-        self.assertEqual(self.workflow.count("needs: changes"), 3)
+        self.assertEqual(self.workflow.count("needs: changes"), 4)
         self.assertEqual(self.workflow.count("if: needs.changes.outputs.backend != 'false'"), 2)
-        self.assertEqual(self.workflow.count("if: needs.changes.outputs.frontend != 'false'"), 1)
+        self.assertEqual(self.workflow.count("if: needs.changes.outputs.frontend != 'false'"), 2)
 
     def test_only_pull_requests_may_skip_jobs(self):
         # Pushes to main seed the caches every pull request restores from.

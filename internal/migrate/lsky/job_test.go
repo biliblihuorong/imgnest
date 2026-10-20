@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -117,5 +119,72 @@ func TestStorageFetcherRefusesOwnedAndUnversionedObjects(t *testing.T) {
 		if _, err := fetch.Fetch(t.Context(), Image{Pathname: "a.png"}, Strategy{}); err == nil {
 			t.Fatalf("%s object was fetched for adoption", name)
 		}
+	}
+}
+
+// Exercise the actual background entry in a subprocess: an escaping panic must
+// fail this regression without taking the rest of the test suite down.
+func TestRunnerPanicDoesNotExitProcess(t *testing.T) {
+	const marker = "private-import-panic-payload"
+	if os.Getenv("IMGNEST_TEST_IMPORT_PANIC") != "1" {
+		cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestRunnerPanicDoesNotExitProcess$", "-test.timeout=30s")
+		cmd.Env = append(os.Environ(), "IMGNEST_TEST_IMPORT_PANIC=1")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("background import terminated subprocess: %v\n%s", err, output)
+		}
+		if bytes.Contains(output, []byte(marker)) {
+			t.Fatalf("panic payload escaped to process output: %s", output)
+		}
+		return
+	}
+	db, policyID := target(t)
+	content := []byte("png-bytes")
+	panicNext := true
+	runner, err := NewRunner(t.Context(), RunnerDeps{
+		DB: db,
+		Ingest: func(context.Context, uint64, Item) error {
+			if panicNext {
+				panicNext = false
+				panic(marker)
+			}
+			return nil
+		},
+		Adoption: func(context.Context, uint64) (service.ObjectOpener, error) {
+			return func(context.Context, string) (io.ReadCloser, storage.ObjectInfo, error) {
+				return io.NopCloser(bytes.NewReader(content)), storage.ObjectInfo{Size: int64(len(content)), VersionID: "v1"}, nil
+			}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.LoadDump(t.Context(), strings.NewReader(jobDump(content)), "Asia/Shanghai"); err != nil {
+		t.Fatal(err)
+	}
+	opts := service.LskyImportOptions{PolicyID: policyID, Mode: service.LskyModeAdopt, StrategyID: 9}
+	if _, err := runner.Start(t.Context(), opts); err != nil {
+		t.Fatal(err)
+	}
+	status := waitIdle(t, runner)
+	if status.Phase != service.LskyPhaseFailed || status.FinishedAt == nil || status.Error != "run background import: image processing failed" {
+		t.Fatalf("panic did not finish as failure: %+v", status)
+	}
+	if strings.Contains(fmt.Sprintf("%+v", status), marker) {
+		t.Fatal("panic payload escaped to status")
+	}
+	if _, err := runner.Cancel(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	runner.Wait()
+	if _, err := runner.Start(t.Context(), opts); err != nil {
+		t.Fatalf("restart after panic: %v", err)
+	}
+	status = waitIdle(t, runner)
+	if status.Phase != service.LskyPhaseDone || status.Error != "" {
+		t.Fatalf("retry did not finish: %+v", status)
+	}
+	if _, err := runner.Discard(t.Context()); err != nil {
+		t.Fatalf("discard after panic retry: %v", err)
 	}
 }

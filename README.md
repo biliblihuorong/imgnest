@@ -58,6 +58,10 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest \
 
 字段说明见 [蓝空 API 与 PicGo](website/docs/guide/lsky-api.md)，完整契约见 [OpenAPI](docs/openapi.yaml)。
 
+## 使用手册
+
+从[按任务查找](website/docs/guide/index.md)进入：上传与图片管理、公开展示、存储与用户组、API 接入和备份各有独立专题。开发规范与阶段记录见[开发文档导航](docs/README.md)。
+
 ## 当前状态
 
 当前预览版本 **v0.1.2**（镜像 `ghcr.io/biliblihuorong/imgnest:0.1.2`，`latest` 同步指向它；`edge` 跟随 `main`），尚未发布 v1.0.0。
@@ -130,7 +134,7 @@ imgnest/
 
 | 想看什么 | 去哪里 |
 | --- | --- |
-| 用户文档（快速开始、配置、存储与规则、隐私与回收站） | [website/docs/guide](website/docs/guide)，站点的运行方法见 [website/README.md](website/README.md) |
+| 用户文档（快速开始、配置、存储与规则、隐私与回收站） | [按任务查找](website/docs/guide/index.md)，站点的运行方法见 [website/README.md](website/README.md) |
 | 部署 | [docs/deployment.md](docs/deployment.md) |
 | 开发与配置项全表 | [docs/development.md](docs/development.md) |
 | 接口契约 | [docs/openapi.yaml](docs/openapi.yaml) |

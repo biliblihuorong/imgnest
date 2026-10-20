@@ -1,6 +1,10 @@
 # 原生 API v2
 
-`/api/v2` 是 ImgNest 自己的版本化接口,给脚本和上传客户端用。它与[蓝空兼容的 `/api/v1`](./lsky-api)并存:旧的 PicGo / Typora / uPic 配置不用动,新客户端可以逐步迁到 v2。
+`/api/v2` 是 ImgNest 自己的版本化接口,给脚本和上传客户端用。它与[蓝空兼容的 `/api/v1`](./lsky-api.md)并存:旧的 PicGo / Typora / uPic 配置不用动,新客户端可以逐步迁到 v2。
+
+## 从哪里开始
+
+这是脚本接口，没有单独的网页「v2」按钮。先登录自己的站点，在「账户与令牌」（`/tokens`）创建并复制 API Token，再按下文调用 `/api/v2`。完整的网页创建步骤见[获取 Token](./lsky-api.md#获取-token)。普通网页上传入口是「上传图片」，不需要手工调用这些接口。
 
 ## 与 v1 的区别
 
@@ -21,7 +25,7 @@
 | GET | `/api/v2/profile` | `GET /api/auth/me` | 当前账户与用量 |
 | GET | `/api/v2/policies` | `GET /api/policies` | 可用的上传规则 |
 | POST | `/api/v2/upload` | `POST /api/upload` | multipart `file`,可选 `policy_id`、`album_id`、`is_public` |
-| GET | `/api/v2/images` | `GET /api/images` | 分页、过滤与[统一搜索](./search)(`qv=1&q=...`) |
+| GET | `/api/v2/images` | `GET /api/images` | 分页、过滤与[统一搜索](./search.md)(`qv=1&q=...`) |
 | GET | `/api/v2/images/{id}` | `GET /api/images/{id}` | |
 | PATCH | `/api/v2/images/{id}` | `PATCH /api/images/{id}` | `is_public` 和/或 `name`(显示名;链接不变) |
 | DELETE | `/api/v2/images/{id}` | `DELETE /api/images/{id}` | 移入回收站 |

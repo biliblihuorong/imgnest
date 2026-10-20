@@ -205,6 +205,7 @@ defineExpose({ model });
           <NSwitch
             v-else-if="field.kind === 'switch'"
             v-model:value="model[field.key] as boolean"
+            :aria-label="t(`admin.settings.${field.label}`)"
             :disabled="controlsDisabled"
           />
           <NInputNumber
@@ -232,7 +233,7 @@ defineExpose({ model });
             :disabled="controlsDisabled"
           />
           <p class="field-hint">{{ t(`admin.settings.${field.hint}`) }}</p>
-          <slot :name="`after-${field.key}`" :value="model[field.key]" />
+          <slot :name="`after-${field.key}`" :value="model[field.key]" :loaded="loaded" />
         </div>
       </NFormItem>
     </NForm>

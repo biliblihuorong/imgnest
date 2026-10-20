@@ -2908,6 +2908,36 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/admin/gallery/preview:
+    get:
+      operationId: previewGallery
+      tags: [Admin]
+      security: [{bearerAuth: []}]
+      summary: Preview the selected public gallery scope without publishing it
+      description: |
+        Administrator only. Returns the total eligible image count and the
+        latest twelve images using the same visibility filters and safe DTO
+        as the public gallery. Works while the gallery is closed. The explicit
+        scope may represent unsaved form input; no settings or image permissions
+        are changed. Private images, trashed images and disabled users are excluded.
+      parameters:
+        - in: query
+          name: public_albums_only
+          required: true
+          schema: {type: boolean}
+          description: Exactly one literal true or false; limit to public images in public albums.
+      responses:
+        '200':
+          description: Gallery preview, page 1 with size 12.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GalleryPageEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
   /api/admin/images:
     get:
       operationId: adminListImages

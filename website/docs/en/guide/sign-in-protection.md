@@ -2,19 +2,32 @@
 
 Three features that work together: Cloudflare Turnstile verification, SMTP with email codes, and password reset.
 
+## Where to configure it
+
+Sign in as an administrator → Administration → Site settings:
+
+| Task | Page and action | Verify |
+| --- | --- | --- |
+| Open registration | Sign-up & sign-in (`/admin/settings/auth`) → choose a default group and enable registration → Save settings | Open `/register` signed out and check the form |
+| Turnstile | The CAPTCHA card below on that page → enter keys, enable and complete a challenge → the card’s Save button | Check the activation message and signed-out login page |
+| SMTP | Email (`/admin/settings/mail`) → configure and enable mail → Save email settings → Send test email | Confirm delivery in the actual inbox |
+| Registration email codes | With working SMTP, enable email verification on Sign-up & sign-in → Save settings | Check the send-code controls on the registration form |
+
+The general form, CAPTCHA card and mail form save separately; saving one does not save the others.
+
 ## Turnstile verification
 
 Off by default. When enabled it protects web login, registration and code sending:
 
-- Configure it in one step under Admin → Settings → Registration and sign-in: enter the Site Key and Secret (an empty Secret reuses the saved one), tick enable, pass one real challenge on the page, and the server activates immediately after verifying it. Disabling needs no challenge. Allowed hostnames default to the current host and sit under Advanced.
+- Configure it in one step under Admin → Settings → Sign-up & sign-in: enter the Site Key and Secret (an empty Secret reuses the saved one), tick enable, pass one real challenge on the page, and the server activates immediately after verifying it. Disabling needs no challenge. Allowed hostnames default to the current host and sit under Advanced.
 - Turnstile is the only provider. Hostnames must be exact lowercase fully qualified names, at most ten — no wildcards, ports or IPs.
-- The Secret is write-only and encrypted with `security.master_key` — **back up the master key before rotating it**, otherwise saved secrets become undecryptable (see [Configuration](./configuration)).
+- The Secret is write-only and encrypted with `security.master_key` — **back up the master key before rotating it**, otherwise saved secrets become undecryptable (see [Configuration](./configuration.md)).
 - The older draft / test / activation endpoints remain available for API users who want the stricter flow.
 - Clients that send no `captcha_token` simply fail while verification is on — there is no bypass. `/api/v1/tokens` (email + password for a token) is not covered by the challenge, so PicGo and other non-interactive uploads are unaffected.
 
 ## SMTP and email codes
 
-Configure SMTP under Admin → Settings → Mail; "send test" mails a test letter with the saved settings (to yourself by default, 3 per IP per minute).
+Configure SMTP under Admin → Settings → Email; "send test" mails a test letter with the saved settings (to yourself by default, 3 per IP per minute).
 
 | Setting | Notes |
 | --- | --- |
@@ -29,6 +42,8 @@ With "verify registrations by email" enabled (requires working SMTP):
 - A failed send voids the code, so no unreachable code is ever left behind.
 
 ## Password reset
+
+On the login page, click Forgot password, enter your registered email, complete CAPTCHA if required, send a code, then enter the six-digit code and a new password and submit. Return to sign in. If the link is absent, ask an administrator to check mail configuration.
 
 When SMTP works, the login page gains "forgot password": `POST /api/auth/email-code` (`purpose=reset_password`) sends a code, and `POST /api/auth/password-reset` resets with it (3 per IP per minute).
 

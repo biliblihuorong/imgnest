@@ -19,16 +19,14 @@ def is_help_page(path):
 
 
 def is_documentation(path):
-    # The rest of website/ is the standalone project site; it is deployed
-    # separately and no CI job builds or embeds it.
-    if path.startswith((".claude/", "website/")) and not is_help_page(path):
+    if path.startswith(".claude/"):
         return True
     return path.endswith(".md") and ("/" not in path or path.startswith("docs/"))
 
 
 def is_vben_source(path):
     # embed.go and the embedded dist tree are inputs of the Go build.
-    return (path.startswith("web-vben/") and not path.endswith(".go")
+    return (path.startswith(("web-vben/", "website/")) and not path.endswith(".go")
             and not path.startswith("web-vben/dist/"))
 
 
