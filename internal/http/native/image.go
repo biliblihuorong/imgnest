@@ -2,7 +2,6 @@ package native
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"strconv"
 	"sync"
@@ -387,9 +386,9 @@ func (h *imageHandler) batchActions(c *gin.Context, ids []uint64, action string,
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			defer func() {
-				if r := recover(); r != nil {
+				if recover() != nil {
 					results[idx].Status = 500
-					results[idx].Response = Response{Code: 50000, Message: fmt.Sprintf("internal error: %v", r)}
+					results[idx].Response = Response{Code: 50001, Message: "internal error", Data: nil}
 				}
 			}()
 			data, err := h.perform(c.Request.Context(), subject, imageID, action, public, albumID)

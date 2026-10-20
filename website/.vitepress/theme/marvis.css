@@ -188,12 +188,11 @@ body {
   }
 
   /* 右侧大纲卡片与正文卡片顶部对齐 */
-  .VPAside {
-    top: calc(var(--vp-nav-height) + 4px) !important;
-    padding-top: 36px !important;
+  .VPDoc .aside-container {
+    padding-top: calc(var(--vp-nav-height) + var(--vp-layout-top-height, 0px) + var(--vp-doc-top-height, 0px) + 48px) !important;
   }
 
-  .VPAside .content {
+  .VPDocAside {
     border: 1px solid var(--mv-line);
     border-radius: 22px;
     background: var(--mv-card);

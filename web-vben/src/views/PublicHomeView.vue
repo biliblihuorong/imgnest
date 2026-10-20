@@ -47,7 +47,7 @@ const site = useSiteStore();
 const auth = useAuthStore();
 const signedIn = computed(() => getToken() !== null);
 const consolePath = computed(() => landingPath(auth.user?.role));
-usePreviewSwipe();
+const renderPreviewToolbar = usePreviewSwipe();
 
 const maxFileBytes = ref<number | null>(null);
 const linkFormat = ref<LinkFormat>("url");
@@ -263,7 +263,7 @@ onMounted(async () => {
             class="public-home__empty"
             :description="t('gallery.empty')"
           />
-          <NImageGroup v-else>
+          <NImageGroup v-else :render-toolbar="renderPreviewToolbar">
             <div class="public-home__masonry">
               <GalleryCard v-for="item in preview" :key="item.id" :item="item" />
             </div>

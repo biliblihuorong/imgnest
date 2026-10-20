@@ -1,247 +1,265 @@
-import { onBeforeUnmount, onMounted } from "vue";
+import type { ImageRenderToolbar, ImageRenderToolbarProps } from "naive-ui";
+import { h, onBeforeUnmount, onMounted } from "vue";
 
-/**
- * 灯箱触屏/鼠标增强：在 Naive UI 预览遮罩上绑定
- * - 水平滑动翻页（>50px 位移 + 速度阈值 + 排除倾角 >35° 的斜滑）
- * - 单指拖动平移（放大后）
- * - 双指捏合缩放
- * - 双击/双触缩放
- * - 滚轮缩放（PC）
- * MutationObserver 监听预览容器出现后绑定；工具栏区域不触发翻页。
- */
-export function usePreviewSwipe(): void {
-  // 全局去重：同页多处调用只挂一套监听
-  if ((window as any).__imgnestPreviewSwipeAttached) return;
-  (window as any).__imgnestPreviewSwipeAttached = true;
+type Action = keyof ImageRenderToolbarProps["nodes"];
+type Point = { clientX: number; clientY: number };
+type Gesture = {
+  kind: "swipe" | "pan" | "pinch";
+  image: HTMLImageElement;
+  start: Point;
+  last: Point;
+  time: number;
+  moved: boolean;
+  distance: number;
+};
 
-  let observer: MutationObserver | undefined;
-  let cleanup: (() => void) | undefined;
+// Public toolbar nodes retain Naive UI's handlers and its single transform state.
+const renderToolbar: ImageRenderToolbar = ({ nodes }) =>
+  Object.entries(nodes).map(([action, node]) =>
+    h("span", { "data-preview-action": action, style: { display: "inline-flex" } }, [node]),
+  );
 
-  const swipeThreshold = 50;
-  const swipeVelocityThreshold = 0.3; // px/ms，约 300px/s
-  const pinchZoomSensitivity = 0.005;
-  const wheelZoomSensitivity = 0.001;
-  const maxScale = 5;
-  const minScale = 0.5;
+let consumers = 0;
+let stopObserving: (() => void) | undefined;
 
-  function attachEnhancements(container: HTMLElement): void {
-    // 工具栏选择器：Naive UI 预览的工具按钮区域
-    const toolbarSelector = ".n-image-preview-toolbar, [class*='toolbar']";
-
-    let startX = 0;
-    let startY = 0;
-    let startTime = 0;
-    let tracking = false;
-    let pinchStartDistance = 0;
-    let pinchStartScale = 1;
-    let currentScale = 1;
-    let offsetX = 0;
-    let offsetY = 0;
-    let isPanning = false;
-    let panStartX = 0;
-    let panStartY = 0;
-    let lastTapTime = 0;
-
-    function getTouchDistance(t1: Touch, t2: Touch): number {
-      const dx = t2.clientX - t1.clientX;
-      const dy = t2.clientY - t1.clientY;
-      return Math.sqrt(dx * dx + dy * dy);
+/** Bind the returned toolbar renderer to NImageGroup alongside its gesture support. */
+export function usePreviewSwipe(): ImageRenderToolbar {
+  let mounted = false;
+  onMounted(() => {
+    mounted = true;
+    if (consumers++ === 0) stopObserving = observePreviews();
+  });
+  onBeforeUnmount(() => {
+    if (!mounted) return;
+    mounted = false;
+    if (--consumers === 0) {
+      stopObserving?.();
+      stopObserving = undefined;
     }
+  });
+  return renderToolbar;
+}
 
-    function isToolbar(target: EventTarget): boolean {
-      const el = target as HTMLElement;
-      return !!el.closest(toolbarSelector);
-    }
-
-    function onTouchStart(e: TouchEvent): void {
-      if (isToolbar(e.target)) return;
-
-      if (e.touches.length === 2) {
-        // 双指捏合开始
-        tracking = false;
-        pinchStartDistance = getTouchDistance(e.touches[0]!, e.touches[1]!);
-        pinchStartScale = currentScale;
-        return;
-      }
-
-      if (e.touches.length !== 1) {
-        tracking = false;
-        return;
-      }
-
-      // 双击检测
-      const now = Date.now();
-      if (now - lastTapTime < 300) {
-        // 双击缩放
-        currentScale = currentScale > 1 ? 1 : 2;
-        applyTransform();
-        lastTapTime = 0;
-        tracking = false;
-        return;
-      }
-      lastTapTime = now;
-
-      startX = e.touches[0]!.clientX;
-      startY = e.touches[0]!.clientY;
-      startTime = now;
-      tracking = true;
-
-      // 如果已放大，进入平移模式
-      if (currentScale > 1) {
-        isPanning = true;
-        panStartX = offsetX;
-        panStartY = offsetY;
+function observePreviews(): () => void {
+  const attached = new Map<HTMLElement, { image: Element | null; dispose: () => void }>();
+  const sync = () => {
+    for (const [container, binding] of attached) {
+      if (!container.isConnected || binding.image !== container.querySelector(".n-image-preview")) {
+        binding.dispose();
+        attached.delete(container);
       }
     }
-
-    function onTouchMove(e: TouchEvent): void {
-      if (isToolbar(e.target)) return;
-
-      if (e.touches.length === 2 && pinchStartDistance > 0) {
-        // 双指捏合缩放
-        e.preventDefault();
-        const distance = getTouchDistance(e.touches[0]!, e.touches[1]!);
-        const scaleDelta = (distance - pinchStartDistance) * pinchZoomSensitivity;
-        currentScale = Math.min(maxScale, Math.max(minScale, pinchStartScale + scaleDelta));
-        applyTransform();
-        return;
-      }
-
-      if (!tracking || e.touches.length !== 1) return;
-
-      if (isPanning && currentScale > 1) {
-        // 单指平移
-        e.preventDefault();
-        const dx = e.touches[0]!.clientX - startX;
-        const dy = e.touches[0]!.clientY - startY;
-        offsetX = panStartX + dx;
-        offsetY = panStartY + dy;
-        applyTransform();
-        return;
-      }
-
-      // 否则继续跟踪滑动（用于翻页）
-      const dx = e.touches[0]!.clientX - startX;
-      const dy = e.touches[0]!.clientY - startY;
-      // 如果垂直位移过大，取消翻页跟踪
-      if (Math.abs(dy) > Math.abs(dx) * 0.7) {
-        tracking = false;
+    for (const container of document.querySelectorAll<HTMLElement>(".n-image-preview-container")) {
+      if (!attached.has(container)) {
+        attached.set(container, {
+          image: container.querySelector(".n-image-preview"),
+          dispose: attachGestures(container),
+        });
       }
     }
+  };
+  const observer = new MutationObserver(sync);
+  observer.observe(document.body, { childList: true, subtree: true });
+  sync();
+  return () => {
+    observer.disconnect();
+    for (const binding of attached.values()) binding.dispose();
+    attached.clear();
+  };
+}
 
-    function onTouchEnd(e: TouchEvent): void {
-      if (isToolbar(e.target)) return;
+function attachGestures(container: HTMLElement): () => void {
+  let gesture: Gesture | undefined;
+  let lastTap: { point: Point; time: number } | undefined;
+  let wheelDelta = 0;
+  const image = () => container.querySelector<HTMLImageElement>(".n-image-preview");
+  const scale = () => Number(image()?.style.transform.match(/scale\(([^)]+)\)/)?.[1] ?? 1);
+  const distance = (a: Point, b: Point) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  const isToolbar = (target: EventTarget | null) =>
+    target instanceof Element && target.closest(".n-image-preview-toolbar") !== null;
 
-      if (e.touches.length === 0) {
-        pinchStartDistance = 0;
+  function action(name: Action): boolean {
+    const icon = container.querySelector<HTMLElement>(
+      `[data-preview-action="${name}"] .n-base-icon`,
+    );
+    if (!icon) return false;
+    icon.click();
+    return true;
+  }
+
+  function key(name: string): void {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true }));
+  }
+
+  function zoom(inward: boolean): void {
+    // Unmarked standalone NImage previews can still use their native keyboard controls.
+    if (!action(inward ? "zoomIn" : "zoomOut")) key(inward ? "ArrowUp" : "ArrowDown");
+  }
+
+  function mouse(type: string, target: EventTarget, point: Point): void {
+    target.dispatchEvent(
+      new MouseEvent(type, {
+        clientX: point.clientX,
+        clientY: point.clientY,
+        bubbles: true,
+        button: 0,
+      }),
+    );
+  }
+
+  function finishPan(): void {
+    if (gesture?.kind === "pan") mouse("mouseup", document, gesture.last);
+  }
+
+  function cancel(): void {
+    finishPan();
+    gesture = undefined;
+    lastTap = undefined;
+  }
+
+  function navigate(forward: boolean): void {
+    cancel();
+    if (!action(forward ? "next" : "prev")) key(forward ? "ArrowRight" : "ArrowLeft");
+  }
+
+  function onKeydown(event: KeyboardEvent): void {
+    if (!container.querySelector(".n-image-preview-overlay")) return;
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    // The native toolbar also resets its transform before changing images.
+    const name = event.key === "ArrowRight" ? "next" : "prev";
+    if (!container.querySelector(`[data-preview-action="${name}"]`)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    navigate(event.key === "ArrowRight");
+  }
+
+  function onTouchStart(event: TouchEvent): void {
+    finishPan();
+    gesture = undefined;
+    const img = image();
+    const first = event.touches[0];
+    if (!img || !first || isToolbar(event.target)) {
+      lastTap = undefined;
+      return;
+    }
+    if (event.target !== img) lastTap = undefined;
+    if (event.touches.length > 2) {
+      lastTap = undefined;
+      return;
+    }
+    const pinching = event.touches.length === 2;
+    gesture = {
+      kind: pinching ? "pinch" : scale() > 1 ? "pan" : "swipe",
+      image: img,
+      start: first,
+      last: first,
+      time: Date.now(),
+      moved: pinching,
+      distance: pinching ? distance(first, event.touches[1]!) : 0,
+    };
+    if (pinching) lastTap = undefined;
+    if (gesture.kind === "pan") mouse("mousedown", img, first);
+    // A short backdrop tap must still produce Naive UI's click-to-close.
+    if (pinching || (gesture.kind === "pan" && event.target === img)) event.preventDefault();
+  }
+
+  function onTouchMove(event: TouchEvent): void {
+    if (!gesture) return;
+    const first = event.touches[0];
+    if (!first || event.touches.length > 2) {
+      cancel();
+      return;
+    }
+    event.preventDefault();
+    gesture.last = first;
+    gesture.moved ||= distance(first, gesture.start) > 10;
+    if (gesture.kind === "pinch" && event.touches.length === 2) {
+      const current = distance(first, event.touches[1]!);
+      const ratio = current / gesture.distance;
+      if (ratio >= 1.2 || ratio <= 1 / 1.2) {
+        zoom(ratio > 1);
+        gesture.distance = current;
       }
+    } else if (gesture.kind === "pan") {
+      mouse("mousemove", document, first);
+    }
+  }
 
-      if (!tracking || e.changedTouches.length !== 1) {
-        tracking = false;
-        isPanning = false;
-        return;
+  function onTouchEnd(event: TouchEvent): void {
+    if (!gesture) return;
+    if (event.touches.length > 0) {
+      if (gesture.kind === "pinch" && event.touches.length === 1 && scale() > 1) {
+        gesture.kind = "pan";
+        gesture.last = event.touches[0]!;
+        mouse("mousedown", gesture.image, gesture.last);
       }
-
-      const endX = e.changedTouches[0]!.clientX;
-      const endY = e.changedTouches[0]!.clientY;
-      const dx = endX - startX;
-      const dy = endY - startY;
-      const dt = Date.now() - startTime;
-      const velocity = Math.abs(dx) / dt;
-
-      tracking = false;
-      isPanning = false;
-
-      // 翻页判断：位移阈值 + 速度阈值 + 水平主导
+      return;
+    }
+    const completed = gesture;
+    finishPan();
+    gesture = undefined;
+    const end = event.changedTouches[0];
+    if (!end || completed.kind === "pinch") return;
+    const dx = end.clientX - completed.start.clientX;
+    const dy = end.clientY - completed.start.clientY;
+    const elapsed = Math.max(1, Date.now() - completed.time);
+    if (completed.moved || distance(end, completed.start) > 10) {
+      lastTap = undefined;
       if (
-        Math.abs(dx) >= swipeThreshold &&
-        velocity >= swipeVelocityThreshold &&
+        completed.kind === "swipe" &&
+        Math.abs(dx) >= 50 &&
+        Math.abs(dx) / elapsed >= 0.3 &&
         Math.abs(dy) <= Math.abs(dx) * 0.7
       ) {
-        document.dispatchEvent(
-          new KeyboardEvent("keydown", {
-            key: dx < 0 ? "ArrowRight" : "ArrowLeft",
-            bubbles: true,
-          }),
-        );
+        event.preventDefault();
+        navigate(dx < 0);
       }
+      return;
     }
-
-    function onWheel(e: WheelEvent): void {
-      if (isToolbar(e.target)) return;
-
-      e.preventDefault();
-      const delta = -e.deltaY * wheelZoomSensitivity;
-      currentScale = Math.min(maxScale, Math.max(minScale, currentScale + delta));
-      applyTransform();
+    if (elapsed > 250) {
+      lastTap = undefined;
+      return;
     }
-
-    function applyTransform(): void {
-      const img = container.querySelector("img");
-      if (img) {
-        img.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${currentScale})`;
-        img.style.transformOrigin = "center center";
-        img.style.transition = "transform 0.15s ease-out";
+    if (lastTap && Date.now() - lastTap.time < 300 && distance(lastTap.point, end) <= 24) {
+      event.preventDefault();
+      if (scale() > 1) {
+        for (let i = 0; i < 20 && scale() > 1; i++) zoom(false);
+      } else {
+        zoom(true);
+        zoom(true);
       }
+      lastTap = undefined;
+    } else {
+      lastTap = { point: end, time: Date.now() };
     }
-
-    function resetTransform(): void {
-      currentScale = 1;
-      offsetX = 0;
-      offsetY = 0;
-      const img = container.querySelector("img");
-      if (img) {
-        img.style.transform = "";
-        img.style.transformOrigin = "";
-      }
-    }
-
-    // 监听 Naive UI 的翻页事件，重置变换
-    const resetOnNavigate = () => resetTransform();
-    document.addEventListener("keydown", resetOnNavigate);
-
-    container.addEventListener("touchstart", onTouchStart, { passive: false });
-    container.addEventListener("touchmove", onTouchMove, { passive: false });
-    container.addEventListener("touchend", onTouchEnd, { passive: true });
-    container.addEventListener("wheel", onWheel, { passive: false });
-
-    cleanup = () => {
-      container.removeEventListener("touchstart", onTouchStart);
-      container.removeEventListener("touchmove", onTouchMove);
-      container.removeEventListener("touchend", onTouchEnd);
-      container.removeEventListener("wheel", onWheel);
-      document.removeEventListener("keydown", resetOnNavigate);
-    };
   }
 
-  function findPreviewContainer(root: Node): HTMLElement | null {
-    if (!(root instanceof HTMLElement)) return null;
-    if (root.classList?.contains("n-image-preview-container")) return root;
-    return root.querySelector(".n-image-preview-container");
+  function onWheel(event: WheelEvent): void {
+    if (isToolbar(event.target) || event.deltaY === 0) return;
+    event.preventDefault();
+    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1;
+    const delta = event.deltaY * unit;
+    if (Math.sign(delta) !== Math.sign(wheelDelta)) wheelDelta = 0;
+    wheelDelta += delta;
+    if (Math.abs(wheelDelta) >= 100) {
+      zoom(wheelDelta < 0);
+      wheelDelta %= 100;
+    }
   }
 
-  function startObserving(): void {
-    const existing = document.querySelector(".n-image-preview-container");
-    if (existing) attachEnhancements(existing as HTMLElement);
-
-    observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        for (const node of mutation.addedNodes) {
-          const container = findPreviewContainer(node);
-          if (container) {
-            cleanup?.();
-            attachEnhancements(container);
-          }
-        }
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
-
-  onMounted(startObserving);
-  onBeforeUnmount(() => {
-    cleanup?.();
-    observer?.disconnect();
-    (window as any).__imgnestPreviewSwipeAttached = false;
-  });
+  container.addEventListener("touchstart", onTouchStart, { passive: false });
+  container.addEventListener("touchmove", onTouchMove, { passive: false });
+  container.addEventListener("touchend", onTouchEnd, { passive: false });
+  container.addEventListener("touchcancel", cancel);
+  container.addEventListener("wheel", onWheel, { passive: false });
+  document.addEventListener("keydown", onKeydown, true);
+  return () => {
+    cancel();
+    container.removeEventListener("touchstart", onTouchStart);
+    container.removeEventListener("touchmove", onTouchMove);
+    container.removeEventListener("touchend", onTouchEnd);
+    container.removeEventListener("touchcancel", cancel);
+    container.removeEventListener("wheel", onWheel);
+    document.removeEventListener("keydown", onKeydown, true);
+  };
 }
