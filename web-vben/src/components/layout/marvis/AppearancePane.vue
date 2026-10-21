@@ -1,10 +1,10 @@
 <script lang="ts">
-import { SHELL_DEFAULTS } from "@/integrations/shell/useShell";
+import { APPEARANCE_DEFAULTS, LEGACY_CLASSIC_DEFAULTS } from "@/integrations/shell/useShell";
 
-/** 强调色预设：两套外壳各自的默认色在前，其后是三个备选。 */
+/** 强调色预设：共用默认色在前，其后是旧的经典蓝和三个备选。 */
 export const ACCENT_PRESETS = [
-  SHELL_DEFAULTS.marvis.colorPrimary,
-  SHELL_DEFAULTS.classic.colorPrimary,
+  APPEARANCE_DEFAULTS.colorPrimary,
+  LEGACY_CLASSIC_DEFAULTS.colorPrimary,
   "hsl(160 84% 34%)",
   "hsl(18 76% 53%)",
   "hsl(317 54% 49%)",

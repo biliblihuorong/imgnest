@@ -5,12 +5,16 @@ import { shallowReadonly, shallowRef } from "vue";
 export type Shell = "marvis" | "classic";
 
 export const SHELL_STORAGE_KEY = "imgnest-shell";
+const APPEARANCE_MIGRATION_KEY = "imgnest-appearance-v1";
 
-/** 每套外壳自己的默认强调色与圆角；用户没自选时跟随外壳。 */
-export const SHELL_DEFAULTS: Record<Shell, { colorPrimary: string; radius: string }> = {
-  classic: { colorPrimary: "hsl(212 100% 45%)", radius: "0.5" },
-  marvis: { colorPrimary: "hsl(230 100% 62%)", radius: "0.75" },
-};
+/** 两套外壳共用的默认强调色与圆角；切换布局不改变外观。 */
+export const APPEARANCE_DEFAULTS = { colorPrimary: "hsl(230 100% 62%)", radius: "0.75" } as const;
+
+/** Vben 自带、也是 0.1.x 经典布局的默认值；仍停在这里视为用户未自选。 */
+export const LEGACY_CLASSIC_DEFAULTS = {
+  colorPrimary: "hsl(212 100% 45%)",
+  radius: "0.5",
+} as const;
 
 const DEFAULT_SHELL: Shell = "marvis";
 const current = shallowRef<Shell>(DEFAULT_SHELL);
@@ -39,39 +43,45 @@ function apply(value: Shell): void {
   document.documentElement.dataset.shell = value;
 }
 
-/** 强调色、圆角各自独立：仍等于 from 的默认值才视为未自选，改写为 to 的默认值。 */
-function followShell(from: Shell, to: Shell): void {
+/** 只迁移一次旧默认值，之后允许用户主动选择旧经典蓝和中等圆角。 */
+function adoptDefaults(stored: Shell | null): void {
+  try {
+    if (localStorage.getItem(APPEARANCE_MIGRATION_KEY) === "1") return;
+    localStorage.setItem(APPEARANCE_MIGRATION_KEY, "1");
+  } catch {
+    // 无法记录迁移时保留当前外观，避免重复覆盖用户选择。
+    return;
+  }
+  if (stored === "marvis") return;
   const theme: { colorPrimary?: string; radius?: string } = {};
-  if (preferences.theme.colorPrimary === SHELL_DEFAULTS[from].colorPrimary)
-    theme.colorPrimary = SHELL_DEFAULTS[to].colorPrimary;
-  if (preferences.theme.radius === SHELL_DEFAULTS[from].radius)
-    theme.radius = SHELL_DEFAULTS[to].radius;
-  // 即使两项都是用户自选（theme 为空）也要写一次：Vben 每次更新都会替换 preferences.theme，
-  // Naive UI 的 token 同步靠它触发，才能重新读取新外壳的底色与边框色。
+  if (preferences.theme.colorPrimary === LEGACY_CLASSIC_DEFAULTS.colorPrimary)
+    theme.colorPrimary = APPEARANCE_DEFAULTS.colorPrimary;
+  if (preferences.theme.radius === LEGACY_CLASSIC_DEFAULTS.radius)
+    theme.radius = APPEARANCE_DEFAULTS.radius;
   updatePreferences({ theme });
 }
 
-/** 读存储 → 写 <html data-shell>；首次启动时把未自选的外观对齐到默认外壳。可重复调用。 */
+/**
+ * 读存储 → 写 <html data-shell>。首次启动，或经典布局用户仍停在旧默认值时，
+ * 一次性换成共用默认值；之后的自选值及新布局里的旧经典蓝保持不变。
+ */
 export function initShell(): void {
   const stored = readStored();
-  if (stored) {
-    apply(stored);
-    return;
-  }
-  apply(DEFAULT_SHELL);
-  followShell("classic", DEFAULT_SHELL);
-  persist(DEFAULT_SHELL);
+  apply(stored ?? DEFAULT_SHELL);
+  adoptDefaults(stored);
+  if (!stored) persist(DEFAULT_SHELL);
 }
 
 export function setShell(next: Shell): void {
-  const previous = current.value;
-  if (previous === next) return;
+  if (current.value === next) return;
   apply(next);
-  followShell(previous, next);
   persist(next);
+  // 外观不随布局变化，但仍要写一次：Vben 每次更新都会替换 preferences.theme，
+  // Naive UI 的 token 同步靠它触发，才能重新读取新外壳的底色与边框色。
+  updatePreferences({ theme: {} });
 }
 
-/** 把强调色与圆角写回当前外壳默认值，回到「跟随布局」状态。 */
+/** 把强调色与圆角写回共用默认值。 */
 export function resetAppearance(): void {
-  updatePreferences({ theme: { ...SHELL_DEFAULTS[current.value] } });
+  updatePreferences({ theme: { ...APPEARANCE_DEFAULTS } });
 }

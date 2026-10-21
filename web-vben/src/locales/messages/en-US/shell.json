@@ -23,12 +23,9 @@
   },
   "settings": {
     "title": "Settings",
-    "appearance": "Appearance",
-    "account": "Account",
-    "tokens": "API tokens",
     "close": "Close settings",
-    "tokensHint": "Tokens let tools such as PicGo and uPic upload for you. A token is shown in full only once, when it is created, so creating and revoking happen on their own page.",
-    "tokensLink": "Open token management"
+    "accountHint": "Profile, password and API tokens are on the Account page.",
+    "accountLink": "Open account"
   },
   "appearance": {
     "layout": "Layout",
@@ -49,7 +46,7 @@
     "compactSidebar": "Compact sidebar",
     "compactSidebarHint": "Show icons only",
     "reset": "Restore default appearance",
-    "resetHint": "Accent colour and radius return to this layout's defaults",
+    "resetHint": "Accent colour and radius return to the defaults shared by both layouts",
     "resetAction": "Restore",
     "language": "Language",
     "languageAuto": "Follow browser"

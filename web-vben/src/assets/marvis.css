@@ -1,9 +1,11 @@
 /*
- * Marvis 外壳的设计令牌。全部限定在 data-shell="marvis" 下，经典布局不受影响。
+ * 两套外壳共用的设计令牌：底色、文字、边框与阴影写在 :root[data-shell] 下，
+ * 经典布局与新布局看到同一套中性色（属性选择器保证压过 Vben 自带的 :root 值）。
  * 只覆盖 Vben 的语义变量（HSL 三元组），Naive UI 经 useNaiveDesignTokens 自动跟随。
  * 强调色与圆角不在这里写死：取用户偏好里的 --primary / --radius。
+ * 新布局专属的组件贴合仍限定在 data-shell="marvis" 下。
  */
-:root[data-shell="marvis"] {
+:root[data-shell] {
   --mv-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --mv-shadow-sm: 0 1px 2px rgb(0 0 0 / 4%);
   --mv-shadow-md: 0 1px 3px rgb(0 0 0 / 5%), 0 8px 24px rgb(0 0 0 / 5%);
@@ -11,7 +13,7 @@
   --mv-shadow-side: 0 1px 2px rgb(0 0 0 / 3%), 0 12px 32px rgb(0 0 0 / 5%);
 }
 
-:root[data-shell="marvis"]:not(.dark) {
+:root[data-shell]:not(.dark) {
   --background: 0 0% 100%;
   --background-deep: 240 6% 97%;
   --foreground: 240 3% 11%;
@@ -31,7 +33,7 @@
   --header: 0 0% 100%;
 }
 
-:root[data-shell="marvis"].dark {
+:root[data-shell].dark {
   --mv-shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
   --mv-shadow-md: 0 1px 3px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 30%);
   --mv-shadow-lg: 0 12px 40px rgb(0 0 0 / 50%);

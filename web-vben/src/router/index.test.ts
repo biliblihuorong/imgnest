@@ -249,6 +249,37 @@ describe("router 守卫", () => {
   });
 });
 
+describe("账户页", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setActivePinia(createPinia());
+    localStorage.setItem(TOKEN_STORAGE_KEY, "7|token");
+    useAuthStore().user = { id: 1, role: "user" } as never;
+  });
+
+  it.each([
+    ["/account", "/account/tokens"],
+    ["/tokens", "/account/tokens"],
+    ["/account/settings", "/account/settings"],
+  ])("%s 落到 %s", async (from, to) => {
+    const router = setupRouter();
+    await router.push(from);
+    await router.isReady();
+    expect(router.currentRoute.value.path).toBe(to);
+  });
+
+  it("两个标签共用 /account 父路由，侧栏的 /account 入口在两页都高亮", () => {
+    const router = setupRouter();
+    for (const path of ["/account/tokens", "/account/settings"]) {
+      const route = router.resolve(path);
+      expect(route.matched[0]?.path).toBe("/account");
+      expect(route.meta.activePath).toBe("/account");
+    }
+    expect(router.resolve("/account/tokens").name).toBe(ROUTER_NAMES.tokens);
+    expect(router.resolve("/account/settings").name).toBe(ROUTER_NAMES.accountSettings);
+  });
+});
+
 describe("经典布局标签页", () => {
   it("图片库路由按路径区分标签页，搜索条件变化不新开标签", () => {
     const router = setupRouter();

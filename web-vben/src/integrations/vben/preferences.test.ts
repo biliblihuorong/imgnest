@@ -21,3 +21,10 @@ it("overrides copyright values a browser cached from an older build", () => {
   enforceImgnestPreferences();
   expect(preferences.copyright).toMatchObject(IMGNEST_COPYRIGHT);
 });
+
+it("turns off Vben's own preferences drawer so both layouts share one settings dialog", () => {
+  expect(imgnestPreferences.app?.enablePreferences).toBe(false);
+  updatePreferences({ app: { enablePreferences: true } });
+  enforceImgnestPreferences();
+  expect(preferences.app.enablePreferences).toBe(false);
+});

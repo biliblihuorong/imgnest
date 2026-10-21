@@ -64,6 +64,7 @@ beforeEach(async () => {
     history: createMemoryHistory(),
     routes: [
       { path: "/account/settings", component: { render: () => null } },
+      { path: "/account/tokens", component: { render: () => null } },
       { path: "/login", component: { render: () => null } },
     ],
   });
@@ -77,7 +78,14 @@ beforeEach(async () => {
 describe("AccountSettingsView", () => {
   it("展示只读账户信息与头像说明，未修改时保存禁用", async () => {
     const wrapper = await mountView();
-    expect(wrapper.text()).toContain("个人设置");
+    expect(wrapper.find("h1").text()).toBe("账户");
+    // 账户页的两个标签：令牌与资料，同一套页头。
+    const tabs = wrapper.findAll("[data-testid='account-tabs'] a");
+    expect(tabs.map((tab) => [tab.text(), tab.attributes("href")])).toEqual([
+      ["API Token", "/account/tokens"],
+      ["资料与安全", "/account/settings"],
+    ]);
+    expect(tabs[1]!.attributes("aria-current")).toBe("page");
     expect(wrapper.text()).toContain("alice");
     expect(wrapper.text()).toContain("alice@example.com");
     expect(wrapper.text()).toContain("头像由站点统一配置的头像服务");

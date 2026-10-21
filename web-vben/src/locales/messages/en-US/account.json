@@ -1,8 +1,10 @@
 {
-  "title": "Tokens & security",
-  "description": "Manage API credentials and browser sessions; change your password and profile under Account settings.",
-  "settingsTitle": "Account settings",
-  "profileNav": "Account settings",
+  "title": "Account",
+  "description": "Manage API tokens for upload tools, your profile and your password.",
+  "tabs": {
+    "tokens": "API tokens",
+    "profile": "Profile & security"
+  },
   "profile": {
     "description": "Review account details, change your display name and password.",
     "displayName": "Display name",

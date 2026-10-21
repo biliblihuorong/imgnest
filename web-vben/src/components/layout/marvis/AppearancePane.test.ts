@@ -1,7 +1,13 @@
 import { mount } from "@vue/test-utils";
 import { preferences, updatePreferences } from "@vben/preferences";
 import { beforeEach, expect, it, vi } from "vitest";
-import { initShell, setShell, shell, SHELL_DEFAULTS } from "@/integrations/shell/useShell";
+import {
+  APPEARANCE_DEFAULTS,
+  initShell,
+  LEGACY_CLASSIC_DEFAULTS,
+  setShell,
+  shell,
+} from "@/integrations/shell/useShell";
 import { LOCALE_MODE_STORAGE_KEY, setLocaleMode } from "@/integrations/locale/useLocaleMode";
 import { loadLocaleMessages } from "@vben/locales";
 import AppearancePane, { ACCENT_PRESETS, RADIUS_PRESETS } from "./AppearancePane.vue";
@@ -20,7 +26,7 @@ vi.stubGlobal(
 beforeEach(() => {
   localStorage.clear();
   updatePreferences({
-    theme: { ...SHELL_DEFAULTS.classic, mode: "light" },
+    theme: { ...LEGACY_CLASSIC_DEFAULTS, mode: "light" },
     sidebar: { collapsed: false },
   });
   initShell();
@@ -34,10 +40,10 @@ function mountPane() {
   return { wrapper, click, pressed };
 }
 
-it("offers both shell defaults among the accent presets", () => {
+it("offers the shared default first and keeps the old classic blue as a preset", () => {
   expect(ACCENT_PRESETS).toHaveLength(5);
-  expect(ACCENT_PRESETS).toContain(SHELL_DEFAULTS.marvis.colorPrimary);
-  expect(ACCENT_PRESETS).toContain(SHELL_DEFAULTS.classic.colorPrimary);
+  expect(ACCENT_PRESETS[0]).toBe(APPEARANCE_DEFAULTS.colorPrimary);
+  expect(ACCENT_PRESETS).toContain(LEGACY_CLASSIC_DEFAULTS.colorPrimary);
   expect(RADIUS_PRESETS).toEqual(["0.25", "0.5", "0.75"]);
 });
 
@@ -85,11 +91,11 @@ it("toggles the compact sidebar", async () => {
   expect(toggle.attributes("aria-checked")).toBe("true");
 });
 
-it("reset restores the current shell defaults", async () => {
+it("reset restores the shared defaults", async () => {
   const { click } = mountPane();
   updatePreferences({ theme: { colorPrimary: ACCENT_PRESETS[3], radius: "0.25" } });
   await click("appearance-reset");
-  expect(preferences.theme).toMatchObject(SHELL_DEFAULTS.marvis);
+  expect(preferences.theme).toMatchObject(APPEARANCE_DEFAULTS);
 });
 
 it("keeps a picked accent when the layout is switched from the pane", async () => {

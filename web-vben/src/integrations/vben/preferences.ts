@@ -18,7 +18,7 @@ export const IMGNEST_COPYRIGHT = {
 
 /** 浏览器里已缓存的旧偏好会盖过默认覆盖项，启动时再强制写一次。 */
 export function enforceImgnestPreferences(): void {
-  updatePreferences({ copyright: { ...IMGNEST_COPYRIGHT } });
+  updatePreferences({ app: { enablePreferences: false }, copyright: { ...IMGNEST_COPYRIGHT } });
 }
 
 /** 真正的 Vben 偏好入口；只关闭没有 ImageNest 业务支持的演示能力。 */
@@ -33,6 +33,8 @@ export const imgnestPreferences = defineOverridesPreferences({
     enableRefreshToken: false,
     enableCheckUpdates: false,
     enableCopyPreferences: false,
+    // 两套布局共用 MarvisSettingsModal；不显示 Vben 自带的偏好抽屉。
+    enablePreferences: false,
     loginExpiredMode: "page",
   },
   copyright: { ...IMGNEST_COPYRIGHT },
