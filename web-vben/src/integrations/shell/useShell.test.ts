@@ -82,6 +82,37 @@ it("keeps the old classic blue when a marvis user picked it explicitly", () => {
   expect(preferences.theme.colorPrimary).toBe(LEGACY_CLASSIC_DEFAULTS.colorPrimary);
 });
 
+it("keeps classic choices matching the old defaults after the initial migration", () => {
+  localStorage.setItem(SHELL_STORAGE_KEY, "classic");
+  initShell();
+  expect(preferences.theme).toMatchObject(APPEARANCE_DEFAULTS);
+
+  updatePreferences({ theme: { colorPrimary: "hsl(212 100% 45%)", radius: "0.5" } });
+  initShell();
+  expect(preferences.theme).toMatchObject({ colorPrimary: "hsl(212 100% 45%)", radius: "0.5" });
+});
+
+it("keeps a marvis user's old-blue and medium-radius choices after switching to classic and reloading", () => {
+  localStorage.setItem(SHELL_STORAGE_KEY, "marvis");
+  initShell();
+  updatePreferences({ theme: { colorPrimary: "hsl(212 100% 45%)", radius: "0.5" } });
+  setShell("classic");
+
+  initShell();
+  expect(shell.value).toBe("classic");
+  expect(preferences.theme).toMatchObject({ colorPrimary: "hsl(212 100% 45%)", radius: "0.5" });
+});
+
+it("preserves the current appearance when a migration cannot be recorded", () => {
+  localStorage.setItem(SHELL_STORAGE_KEY, "classic");
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new DOMException("quota", "QuotaExceededError");
+  });
+
+  expect(() => initShell()).not.toThrow();
+  expect(preferences.theme).toMatchObject({ colorPrimary: "hsl(212 100% 45%)", radius: "0.5" });
+});
+
 it("resetAppearance returns to the shared defaults in either shell", () => {
   localStorage.setItem(SHELL_STORAGE_KEY, "classic");
   initShell();

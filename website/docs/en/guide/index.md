@@ -31,7 +31,7 @@ This guide follows `main`. A fixed release image does not gain later features au
 | Import from Lsky | Site settings → Backup / export → Lsky migration at the bottom | [Migrating from Lsky](./lsky-migration.md) |
 | Back up the database and configuration | Site settings → Backup / export → Back up now | [Backup and restore](./backup.md) |
 | Change your password or inspect account activity | Account → Profile & security `/account/settings`; Overview `/dashboard` | [Account and usage](./account-and-overview.md) |
-| Change layout, language or colors | New layout → sidebar gear → Settings → Appearance | [Interface and themes](./frontends.md) |
+| Change layout, language or colors | New layout: sidebar gear; classic layout: header gear → Settings | [Interface and themes](./frontends.md) |
 
 Expand collapsed navigation first; on a phone, open navigation. Paths such as `/albums` belong to your own ImgNest site, not this documentation site. Administration entries require an administrator. See [Responsive images API](./responsive-images.md) for blog integration and [Configuration](./configuration.md) for startup parameters.
 

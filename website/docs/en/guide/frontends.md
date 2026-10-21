@@ -14,14 +14,14 @@ The **classic layout** is an admin panel with a top bar and tabs.
 
 Where to switch:
 
-- In the new layout: the gear at the bottom of the sidebar → Settings → Appearance → Layout
-- In the classic layout: the user menu at the top right → Switch to the new layout
+- In the new layout: the gear at the bottom of the sidebar → Settings → Layout → choose New or Classic.
+- In the classic layout: the header gear, or the user menu at the top right → Settings → Layout → choose New or Classic. The user menu also offers Switch to the new layout as a shortcut.
 
 The switch takes effect at once, with no rebuild and no page reload.
 
 ## Appearance settings
 
-**Settings → Appearance** offers:
+Both layouts open the same **Settings** dialog, which directly shows these options:
 
 | Setting | Options |
 | --- | --- |
@@ -30,11 +30,15 @@ The switch takes effect at once, with no rebuild and no page reload.
 | Accent colour | A set of presets |
 | Corner radius | Small, medium, large |
 | Compact sidebar | Icons only |
-| Language | Chinese, English |
+| Language | Follow browser, 简体中文, English |
 
 The sign-in page offers colour-mode and language controls. Signed-in users can change the layout and other appearance preferences in the console.
 
-Preferences are saved in the browser, so another device starts from the defaults. Accent colour and corner radius follow the current layout's defaults until you choose your own. After that, both layouts share your choice.
+Profile, password and API tokens are managed on the Account page. When signed in, click Open account at the bottom of the settings dialog, then choose API tokens or Profile & security. See [Account and usage](./account-and-overview.md) for the steps.
+
+Preferences are saved in the browser, so another device starts from the defaults. Both layouts share the same default accent colour and corner radius, and switching layouts preserves your current choices. Reset appearance restores only the accent colour and corner radius to these shared defaults.
+
+After upgrading, classic-layout preferences still using the old default accent colour or corner radius move to the shared defaults once; other custom values are preserved. You can then choose the old classic blue or medium corner radius again, and those choices survive a page reload.
 
 ## Working on the interface
 

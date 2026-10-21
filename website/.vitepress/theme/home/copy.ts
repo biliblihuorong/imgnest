@@ -57,7 +57,7 @@ export const copy: Record<MockLang, HomeCopy> = {
         {
           title: "新版布局，把地方让给图片",
           body: "侧栏浮起来，Ctrl K 直接搜图，点一张图，右侧面板就给出尺寸、大小和各种格式的链接。",
-          note: "在「设置 → 外观」里随时切回经典布局，不用重新构建。",
+          note: "点侧栏底部的齿轮，在「设置 → 布局」里随时切回经典布局，不用重新构建。",
           state: { layout: "marvis", mode: "light", lang: "base" },
         },
         {
@@ -163,7 +163,7 @@ export const copy: Record<MockLang, HomeCopy> = {
         {
           title: "New layout, more room for images",
           body: "The sidebar floats, Ctrl K searches your images, and selecting an image opens a side panel with its dimensions, size and links in every format.",
-          note: "Switch back to the classic layout in Settings → Appearance. No rebuild needed.",
+          note: "Use the sidebar gear → Settings → Layout to switch back to the classic layout. No rebuild needed.",
           state: { layout: "marvis", mode: "light", lang: "base" },
         },
         {
@@ -274,7 +274,7 @@ export const mockLabels: Record<MockLang, Record<string, string>> = {
     albums: "我的相册",
     gallery: "公开画廊",
     dashboard: "数据概览",
-    tokens: "账户与令牌",
+    tokens: "账户",
     admin: "站点管理",
     users: "用户管理",
     storages: "存储管理",
@@ -295,7 +295,7 @@ export const mockLabels: Record<MockLang, Record<string, string>> = {
     albums: "My albums",
     gallery: "Public gallery",
     dashboard: "Overview",
-    tokens: "Account & tokens",
+    tokens: "Account",
     admin: "Administration",
     users: "Users",
     storages: "Storage",

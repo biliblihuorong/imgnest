@@ -5,6 +5,7 @@ import { shallowReadonly, shallowRef } from "vue";
 export type Shell = "marvis" | "classic";
 
 export const SHELL_STORAGE_KEY = "imgnest-shell";
+const APPEARANCE_MIGRATION_KEY = "imgnest-appearance-v1";
 
 /** 两套外壳共用的默认强调色与圆角；切换布局不改变外观。 */
 export const APPEARANCE_DEFAULTS = { colorPrimary: "hsl(230 100% 62%)", radius: "0.75" } as const;
@@ -42,8 +43,16 @@ function apply(value: Shell): void {
   document.documentElement.dataset.shell = value;
 }
 
-/** 强调色、圆角各自独立：仍是旧的经典默认值才视为未自选，改为共用默认值。 */
-function adoptDefaults(): void {
+/** 只迁移一次旧默认值，之后允许用户主动选择旧经典蓝和中等圆角。 */
+function adoptDefaults(stored: Shell | null): void {
+  try {
+    if (localStorage.getItem(APPEARANCE_MIGRATION_KEY) === "1") return;
+    localStorage.setItem(APPEARANCE_MIGRATION_KEY, "1");
+  } catch {
+    // 无法记录迁移时保留当前外观，避免重复覆盖用户选择。
+    return;
+  }
+  if (stored === "marvis") return;
   const theme: { colorPrimary?: string; radius?: string } = {};
   if (preferences.theme.colorPrimary === LEGACY_CLASSIC_DEFAULTS.colorPrimary)
     theme.colorPrimary = APPEARANCE_DEFAULTS.colorPrimary;
@@ -54,13 +63,12 @@ function adoptDefaults(): void {
 
 /**
  * 读存储 → 写 <html data-shell>。首次启动，或经典布局用户仍停在旧默认值时，
- * 换成共用默认值；新布局里主动选了旧经典蓝的用户保持不变。可重复调用。
+ * 一次性换成共用默认值；之后的自选值及新布局里的旧经典蓝保持不变。
  */
 export function initShell(): void {
   const stored = readStored();
   apply(stored ?? DEFAULT_SHELL);
-  if (stored === "marvis") return;
-  adoptDefaults();
+  adoptDefaults(stored);
   if (!stored) persist(DEFAULT_SHELL);
 }
 
