@@ -4,7 +4,7 @@
 
 ## 从哪里开始
 
-这是脚本接口，没有单独的网页「v2」按钮。先登录自己的站点，在「账户与令牌」（`/tokens`）创建并复制 API Token，再按下文调用 `/api/v2`。完整的网页创建步骤见[获取 Token](./lsky-api.md#获取-token)。普通网页上传入口是「上传图片」，不需要手工调用这些接口。
+这是脚本接口，没有单独的网页「v2」按钮。先登录自己的站点，在「账户 → API Token」（`/account/tokens`）创建并复制 API Token，再按下文调用 `/api/v2`。完整的网页创建步骤见[获取 Token](./lsky-api.md#获取-token)。普通网页上传入口是「上传图片」，不需要手工调用这些接口。
 
 ## 与 v1 的区别
 
@@ -16,7 +16,7 @@
 
 ## 认证
 
-`Authorization: Bearer <token>`,令牌在网页「账户与令牌」页创建,明文只在创建时显示一次。管理员的 API 开关(`api_enabled`)同时管 v1 与 v2:关闭时 v2 返回 `403`,`code: 20003`,`data.reason: "api_disabled"`。
+`Authorization: Bearer <token>`,令牌在网页「账户 → API Token」页创建,明文只在创建时显示一次。管理员的 API 开关(`api_enabled`)同时管 v1 与 v2:关闭时 v2 返回 `403`,`code: 20003`,`data.reason: "api_disabled"`。
 
 ## 路由一览
 

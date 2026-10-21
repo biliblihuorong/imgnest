@@ -44,7 +44,7 @@ async function mountSidebar(options: {
 
 it("renders the member menu from workspaceMenus", async () => {
   const { links } = await mountSidebar({ user: testUser("user") });
-  expect(links()).toEqual(["/upload", "/images", "/albums", "/dashboard", "/tokens"]);
+  expect(links()).toEqual(["/upload", "/images", "/albums", "/dashboard", "/account"]);
 });
 
 it("groups admin children under a labelled section", async () => {

@@ -1,5 +1,7 @@
+import { defineComponent, h } from "vue";
 import {
   createRouter,
+  RouterView,
   createWebHistory,
   type RouteLocationNormalized,
   type RouteLocationRaw,
@@ -43,6 +45,9 @@ export const ADMIN_ROUTER_NAMES = {
   adminImages: "admin-images",
   adminLskyImport: "admin-lsky-import",
 } as const;
+
+/** 只承载子路由的父路由组件。 */
+const RouterViewOnly = defineComponent({ name: "RouterViewOnly", render: () => h(RouterView) });
 
 const PUBLIC_PATHS = new Set<string>(["/login", "/register", "/reset-password"]);
 
@@ -150,18 +155,30 @@ export function setupRouter(): Router {
         // 搜索条件写在 query 里；经典布局的标签页按路径区分，否则每搜一次就多一个标签。
         meta: { title: "common.nav.images", fullPathKey: false },
       },
+      // 账户只有一个入口：/account 下分「API Token」与「资料与安全」两个标签。
+      // activePath 让经典布局的菜单在两个标签上都高亮 /account。
       {
-        path: "/tokens",
-        name: ROUTER_NAMES.tokens,
-        component: () => import("@/views/TokensView.vue"),
-        meta: { title: "common.nav.tokens" },
+        path: "/account",
+        component: RouterViewOnly,
+        redirect: { path: "/account/tokens" },
+        meta: { title: "account.title" },
+        children: [
+          {
+            path: "tokens",
+            name: ROUTER_NAMES.tokens,
+            component: () => import("@/views/TokensView.vue"),
+            meta: { title: "account.tabs.tokens", activePath: "/account" },
+          },
+          {
+            path: "settings",
+            name: ROUTER_NAMES.accountSettings,
+            component: () => import("@/views/AccountSettingsView.vue"),
+            meta: { title: "account.tabs.profile", activePath: "/account" },
+          },
+        ],
       },
-      {
-        path: "/account/settings",
-        name: ROUTER_NAMES.accountSettings,
-        component: () => import("@/views/AccountSettingsView.vue"),
-        meta: { title: "account.settingsTitle" },
-      },
+      // 旧链接（文档、书签、0.1.x 的菜单）。
+      { path: "/tokens", redirect: { path: "/account/tokens" } },
       {
         path: "/albums",
         name: "albums",

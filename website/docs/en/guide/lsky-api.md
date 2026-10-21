@@ -6,7 +6,7 @@ ImgNest's `/api/v1` matches the v1 API of Lsky Pro 2.x: the same routes, field n
 
 Either way works:
 
-- Console: sign in → Account & tokens (`/tokens`) → enter a name and optional expiry in Create API Token → Create Token → Copy Token in the success dialog and save it before closing. The plain text cannot be viewed again afterward.
+- Console: sign in → Account → API tokens (`/account/tokens`) → enter a name and optional expiry in Create API Token → Create Token → Copy Token in the success dialog and save it before closing. The plain text cannot be viewed again afterward.
 - The PicGo / Lsky setup card on the same page gives your site and upload endpoint. Revoke an unused token in the list and confirm; it stops working immediately.
 - Call the API with your email and password:
 

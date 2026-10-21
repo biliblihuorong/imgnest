@@ -4,7 +4,7 @@
 
 ## Where to start
 
-This is a scripting API, with no separate v2 page or button. Sign in to your site, create and copy an API Token in Account & tokens (`/tokens`), then call `/api/v2` below. See [Getting a Token](./lsky-api.md#get-a-token) for console steps. Use Upload images for ordinary browser uploads.
+This is a scripting API, with no separate v2 page or button. Sign in to your site, create and copy an API Token in Account → API tokens (`/account/tokens`), then call `/api/v2` below. See [Getting a Token](./lsky-api.md#get-a-token) for console steps. Use Upload images for ordinary browser uploads.
 
 ## How it differs from v1
 
@@ -16,7 +16,7 @@ This is a scripting API, with no separate v2 page or button. Sign in to your sit
 
 ## Authentication
 
-`Authorization: Bearer <token>`, created on the Account & tokens page; the plaintext is shown once at creation. The administrator's API switch (`api_enabled`) governs v1 and v2 together: while off, v2 answers `403` with `code: 20003` and `data.reason: "api_disabled"`.
+`Authorization: Bearer <token>`, created on the Account → API tokens page; the plaintext is shown once at creation. The administrator's API switch (`api_enabled`) governs v1 and v2 together: while off, v2 answers `403` with `code: 20003` and `data.reason: "api_disabled"`.
 
 ## Routes
 

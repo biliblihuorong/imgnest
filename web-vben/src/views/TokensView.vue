@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
 import { NButton } from "naive-ui";
 import { computed, onMounted, shallowRef } from "vue";
 import { listTokens, type TokenView } from "@/api/tokens";
+import AccountPage from "@/components/account/AccountPage.vue";
 import CreateTokenCard from "@/components/account/CreateTokenCard.vue";
 import TokenListCard from "@/components/account/TokenListCard.vue";
 import TokenIntegrationHelp from "@/components/account/TokenIntegrationHelp.vue";
@@ -54,10 +54,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <Page class="tokens-view" :description="t('account.description')" header-class="flex-wrap gap-4">
-    <template #title
-      ><h1 class="tokens-view__title">{{ t("account.title") }}</h1></template
-    >
+  <AccountPage class="tokens-view">
     <template #extra
       ><NButton :loading="loading" :disabled="!scope.available.value" @click="loadTokens">{{
         t("account.refresh")
@@ -68,14 +65,9 @@ onMounted(() => {
       <TokenListCard :tokens="tokens" :loading="loading" :error="errorText" @refresh="loadTokens" />
       <TokenIntegrationHelp />
     </div>
-  </Page>
+  </AccountPage>
 </template>
 <style scoped>
-.tokens-view__title {
-  margin: 0 0 8px;
-  font-size: 20px;
-  font-weight: 650;
-}
 .tokens-view__content {
   display: grid;
   gap: 16px;

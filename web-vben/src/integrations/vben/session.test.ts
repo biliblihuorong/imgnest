@@ -88,7 +88,7 @@ describe("ImageNest → Vben UI 会话投影", () => {
       "/images",
       "/albums",
       "/dashboard",
-      "/tokens",
+      "/account",
     ]);
     expect(access.accessRoutes.some((route) => route.meta?.admin)).toBe(false);
   });

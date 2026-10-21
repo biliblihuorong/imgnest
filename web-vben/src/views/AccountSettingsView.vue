@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
 import { NCard } from "naive-ui";
+import AccountPage from "@/components/account/AccountPage.vue";
 import ChangePasswordCard from "@/components/account/ChangePasswordCard.vue";
 import ProfileCard from "@/components/account/ProfileCard.vue";
 
@@ -9,13 +9,7 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <Page
-    :title="t('account.settingsTitle')"
-    :description="t('account.profile.description')"
-    class="account-settings min-w-0"
-    header-class="flex-wrap items-center gap-4"
-    content-class="min-w-0"
-  >
+  <AccountPage class="account-settings">
     <NCard :bordered="false">
       <ProfileCard />
     </NCard>
@@ -23,7 +17,7 @@ const { t } = useI18n();
       <p class="account-settings__security-hint">{{ t("account.securityHint") }}</p>
       <ChangePasswordCard />
     </NCard>
-  </Page>
+  </AccountPage>
 </template>
 
 <style scoped>

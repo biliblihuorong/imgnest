@@ -11,7 +11,7 @@ describe("Vben 工作区导航权限", () => {
       "/images",
       "/albums",
       "/dashboard",
-      "/tokens",
+      "/account",
     ]);
   });
   it("管理员看到六个管理页和真实 M5 相册", () => {

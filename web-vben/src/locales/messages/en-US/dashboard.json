@@ -50,8 +50,8 @@
       "description": "Organize your image collections"
     },
     "tokens": {
-      "title": "Tokens & security",
-      "description": "Manage client credentials and passwords"
+      "title": "Account",
+      "description": "API tokens, profile and password"
     }
   }
 }

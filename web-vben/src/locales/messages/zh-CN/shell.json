@@ -23,12 +23,9 @@
   },
   "settings": {
     "title": "设置",
-    "appearance": "外观",
-    "account": "账号",
-    "tokens": "API Token",
     "close": "关闭设置",
-    "tokensHint": "Token 用于 PicGo、uPic 等工具上传。明文只在创建时显示一次，所以创建和撤销都在专门的页面完成。",
-    "tokensLink": "打开 Token 管理"
+    "accountHint": "资料、密码与 API Token 在账户页管理。",
+    "accountLink": "打开账户"
   },
   "appearance": {
     "layout": "布局",
@@ -49,7 +46,7 @@
     "compactSidebar": "紧凑侧栏",
     "compactSidebarHint": "只显示图标",
     "reset": "恢复默认外观",
-    "resetHint": "强调色和圆角回到当前布局的默认值",
+    "resetHint": "强调色和圆角回到默认值，两种布局相同",
     "resetAction": "恢复",
     "language": "语言",
     "languageAuto": "跟随浏览器"

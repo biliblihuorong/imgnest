@@ -19,7 +19,7 @@ export function workspaceMenus(
     { name: "common.nav.images", path: "/images", icon: "LayoutGrid" },
     { name: "common.nav.albums", path: "/albums", icon: "Inbox" },
     { name: "common.nav.dashboard", path: "/dashboard", icon: "InspectionPanel" },
-    { name: "common.nav.tokens", path: "/tokens", icon: "LockKeyhole" },
+    { name: "common.nav.tokens", path: "/account", icon: "LockKeyhole" },
   ];
   if (galleryEnabled) menus.push(gallery);
   const dot = updateAvailable ? { dot: true } : {};

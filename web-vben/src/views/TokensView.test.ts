@@ -97,7 +97,7 @@ describe("TokensView", () => {
     tokensApiMock.listTokens.mockResolvedValue([webToken]);
     const { wrapper } = await mountView();
     expect(wrapper.findAll("h1")).toHaveLength(1);
-    expect(wrapper.find("h1").text()).toBe("Token 与安全");
+    expect(wrapper.find("h1").text()).toBe("账户");
     await wrapper.find("input[placeholder='例如：blog-client']").setValue("unfinished-client");
 
     const refresh = wrapper.findAll("button").find((button) => button.text() === "刷新列表");
@@ -283,7 +283,7 @@ describe("TokensView", () => {
     i18n.global.locale.value = "en-US";
     await nextTick();
     await flushPromises();
-    expect(wrapper.find("h1").text()).toBe("Tokens & security");
+    expect(wrapper.find("h1").text()).toBe("Account");
     expect(wrapper.text()).toContain("Enter a token name");
     expect(wrapper.text()).toContain("Last used");
     expect(wrapper.text()).toContain("Oct 4, 2027");

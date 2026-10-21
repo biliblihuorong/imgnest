@@ -50,8 +50,8 @@
       "description": "整理图片与相册"
     },
     "tokens": {
-      "title": "Token 与安全",
-      "description": "管理客户端凭证与密码"
+      "title": "账户",
+      "description": "API Token、个人资料与密码"
     }
   }
 }

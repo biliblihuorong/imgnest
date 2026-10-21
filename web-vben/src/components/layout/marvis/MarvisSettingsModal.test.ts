@@ -18,8 +18,6 @@ afterEach(() => {
 
 const stubs = {
   AppearancePane: { template: '<div data-testid="pane-appearance" />' },
-  ProfileCard: { template: '<div data-testid="pane-profile" />' },
-  ChangePasswordCard: { template: '<div data-testid="pane-password" />' },
 };
 const q = (id: string) => document.body.querySelector<HTMLElement>(`[data-testid="${id}"]`);
 
@@ -45,43 +43,29 @@ async function mountModal(options: { anonymous?: boolean } = {}) {
   return { router, show };
 }
 
-it("shows the appearance pane first and switches panes", async () => {
+it("only holds appearance; account and tokens live on the account page", async () => {
   await mountModal();
   expect(q("pane-appearance")).not.toBeNull();
-  expect(q("settings-tab-appearance")!.getAttribute("aria-selected")).toBe("true");
-  q("settings-tab-account")!.click();
-  await flushPromises();
-  expect(q("pane-appearance")).toBeNull();
-  expect(q("pane-profile")).not.toBeNull();
-  expect(q("pane-password")).not.toBeNull();
+  expect(document.body.querySelector('[role="tab"]')).toBeNull();
 });
 
-it("closes itself when following the tokens link", async () => {
+it("links signed-in users to the account page and closes itself", async () => {
   const { router, show } = await mountModal();
-  q("settings-tab-tokens")!.click();
+  q("settings-account-link")!.click();
   await flushPromises();
-  q("settings-tokens-link")!.click();
-  await flushPromises();
-  expect(router.currentRoute.value.path).toBe("/tokens");
+  expect(router.currentRoute.value.path).toBe("/account");
   expect(show.value).toBe(false);
-  expect(q("settings-tab-appearance")).toBeNull();
 });
 
-it("closes from the close button and reopens on the appearance pane", async () => {
+it("offers no account link to anonymous visitors", async () => {
+  await mountModal({ anonymous: true });
+  expect(q("pane-appearance")).not.toBeNull();
+  expect(q("settings-account-link")).toBeNull();
+});
+
+it("closes from the close button", async () => {
   const { show } = await mountModal();
-  q("settings-tab-account")!.click();
-  await flushPromises();
   q("settings-close")!.click();
   await flushPromises();
   expect(show.value).toBe(false);
-  show.value = true;
-  await flushPromises();
-  expect(q("pane-appearance")).not.toBeNull();
-});
-
-it("offers only appearance to anonymous visitors", async () => {
-  await mountModal({ anonymous: true });
-  expect(q("settings-tab-appearance")).not.toBeNull();
-  expect(q("settings-tab-account")).toBeNull();
-  expect(q("settings-tab-tokens")).toBeNull();
 });

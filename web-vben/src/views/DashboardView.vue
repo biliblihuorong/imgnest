@@ -25,7 +25,7 @@ const links = computed(() => [
   { to: "/upload", key: "upload" },
   { to: "/images", key: "images" },
   { to: "/albums", key: "albums" },
-  { to: "/tokens", key: "tokens" },
+  { to: "/account", key: "tokens" },
 ]);
 </script>
 <template>

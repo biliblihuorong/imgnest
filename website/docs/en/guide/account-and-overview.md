@@ -2,10 +2,10 @@
 
 ## Change your profile or password
 
-- New layout: sidebar gear → Settings → Account. Classic layout: top-right user menu → Account settings. You can also open `/account/settings` on your own site.
+- Both layouts: sidebar → Account → Profile & security (`/account/settings`). The classic layout also has Account in the top-right user menu.
 - Edit Display name and click Save profile. Leaving it empty uses your username. Email, username and avatar provider are not editable in this form.
 - Under Account security, enter the current password and confirm a new one, then click Change password. You must sign in again; all existing browser sessions and API Tokens are revoked, so clients such as PicGo need new tokens.
-- Create or revoke API Tokens on Account & tokens (`/tokens`); see [Lsky API and PicGo](./lsky-api.md#get-a-token).
+- Create or revoke API Tokens on Account → API tokens (`/account/tokens`); see [Lsky API and PicGo](./lsky-api.md#get-a-token).
 
 ## View your usage and activity
 

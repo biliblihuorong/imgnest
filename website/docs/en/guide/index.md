@@ -21,7 +21,7 @@ This guide follows `main`. A fixed release image does not gain later features au
 | Search by filename, format or date | My images `/images` → search box | [Search syntax](./search.md) |
 | Show a random album image at one URL | My albums → cover or name → Random image link | [Random image links](./random-links.md) |
 | Inspect EXIF, delete or restore images | My images → image details / Recycle bin tab | [Privacy and recycle bin](./privacy-and-trash.md) |
-| Connect PicGo, Typora or uPic | Account & tokens `/tokens` → Create Token | [Lsky API and PicGo](./lsky-api.md) |
+| Connect PicGo, Typora or uPic | Account `/account/tokens` → Create Token | [Lsky API and PicGo](./lsky-api.md) |
 | Write upload scripts or use responsive images | Call the API; an admin enables responsive variants in a policy | [Native API v2](./api-v2.md) |
 | Configure quotas and upload permissions | Administration → User groups / Users | [Users and groups](./users-and-groups.md) |
 | Set up storage, paths and conversion | Administration → Storage / Upload policies | [Storage and policies](./storage-and-policies.md) |
@@ -30,7 +30,7 @@ This guide follows `main`. A fixed release image does not gain later features au
 | Deploy, upgrade or configure startup | Server terminal, Compose or configuration file | [Deployment](./deployment.md) |
 | Import from Lsky | Site settings → Backup / export → Lsky migration at the bottom | [Migrating from Lsky](./lsky-migration.md) |
 | Back up the database and configuration | Site settings → Backup / export → Back up now | [Backup and restore](./backup.md) |
-| Change your password or inspect account activity | Account settings `/account/settings`; Overview `/dashboard` | [Account and usage](./account-and-overview.md) |
+| Change your password or inspect account activity | Account → Profile & security `/account/settings`; Overview `/dashboard` | [Account and usage](./account-and-overview.md) |
 | Change layout, language or colors | New layout → sidebar gear → Settings → Appearance | [Interface and themes](./frontends.md) |
 
 Expand collapsed navigation first; on a phone, open navigation. Paths such as `/albums` belong to your own ImgNest site, not this documentation site. Administration entries require an administrator. See [Responsive images API](./responsive-images.md) for blog integration and [Configuration](./configuration.md) for startup parameters.

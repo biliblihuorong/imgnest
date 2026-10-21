@@ -1,8 +1,10 @@
 {
-  "title": "Token 与安全",
-  "description": "管理 API 调用凭证和浏览器会话；密码与资料在「个人设置」中修改。",
-  "settingsTitle": "个人设置",
-  "profileNav": "个人设置",
+  "title": "账户",
+  "description": "管理上传工具使用的 API Token、个人资料与登录密码。",
+  "tabs": {
+    "tokens": "API Token",
+    "profile": "资料与安全"
+  },
   "profile": {
     "description": "查看账户信息、修改显示名称和登录密码。",
     "displayName": "显示名称",
