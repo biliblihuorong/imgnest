@@ -36,12 +36,24 @@ func (m *codeMemory) ReplaceEmailCode(_ context.Context, code model.EmailCode) (
 	m.codes[m.key(code.Purpose, code.Email)] = code
 	return code, nil
 }
-func (m *codeMemory) AddEmailCodeAttempt(_ context.Context, id uint64) error {
+func (m *codeMemory) ReserveEmailCodeAttempt(_ context.Context, id uint64, hash string, limit int, now time.Time) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for key, code := range m.codes {
-		if code.ID == id {
+		if code.ID == id && code.CodeHash == hash && code.Attempts < limit && now.Before(code.ExpiresAt) {
 			code.Attempts++
+			m.codes[key] = code
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (m *codeMemory) RefundEmailCodeAttempt(_ context.Context, id uint64, hash string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for key, code := range m.codes {
+		if code.ID == id && code.CodeHash == hash && code.Attempts > 0 {
+			code.Attempts--
 			m.codes[key] = code
 		}
 	}
@@ -236,6 +248,60 @@ func TestEmailCodeExpiresAndLocksAfterGuesses(t *testing.T) {
 	f.now = f.now.Add(emailCodeTTL)
 	if _, err := f.users.Register(t.Context(), input); !errors.Is(err, ErrEmailCodeInvalid) {
 		t.Fatalf("expired code: %v", err)
+	}
+}
+
+// staleCodes serves the snapshot taken before other requests spent the
+// budget, as a concurrent request that read early would see it.
+type staleCodes struct {
+	*codeMemory
+	snapshot model.EmailCode
+}
+
+func (s staleCodes) FindEmailCode(context.Context, string, string) (model.EmailCode, error) {
+	return s.snapshot, nil
+}
+
+func TestEmailCodeStaleSnapshotCannotBypassBudget(t *testing.T) {
+	f := newCodeFixture(t, true)
+	if err := f.users.SendEmailCode(t.Context(), model.EmailCodeRegister, "frank@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	code := f.mailer.lastCode(t)
+	snapshot, err := f.codes.FindEmailCode(t.Context(), model.EmailCodeRegister, "frank@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Every request below read Attempts=0 before any guess was counted.
+	f.users.codes.repo = staleCodes{codeMemory: f.codes, snapshot: snapshot}
+	for range emailCodeMaxAttempts + 3 {
+		if _, err := f.users.checkEmailCode(t.Context(), model.EmailCodeRegister, "frank@example.com", "000000"); !errors.Is(err, ErrEmailCodeInvalid) {
+			t.Fatalf("guess: %v", err)
+		}
+	}
+	current, _ := f.codes.FindEmailCode(t.Context(), model.EmailCodeRegister, "frank@example.com")
+	if current.Attempts != emailCodeMaxAttempts {
+		t.Fatalf("attempts = %d, want the budget %d", current.Attempts, emailCodeMaxAttempts)
+	}
+	if _, err := f.users.checkEmailCode(t.Context(), model.EmailCodeRegister, "frank@example.com", code); !errors.Is(err, ErrEmailCodeInvalid) {
+		t.Fatalf("correct code accepted after the budget was spent: %v", err)
+	}
+}
+
+func TestEmailCodeCorrectCheckDoesNotUseAnAttempt(t *testing.T) {
+	f := newCodeFixture(t, true)
+	if err := f.users.SendEmailCode(t.Context(), model.EmailCodeRegister, "gina@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	code := f.mailer.lastCode(t)
+	for range emailCodeMaxAttempts + 2 {
+		if _, err := f.users.checkEmailCode(t.Context(), model.EmailCodeRegister, "gina@example.com", code); err != nil {
+			t.Fatalf("correct code: %v", err)
+		}
+	}
+	current, _ := f.codes.FindEmailCode(t.Context(), model.EmailCodeRegister, "gina@example.com")
+	if current.Attempts != 0 {
+		t.Fatalf("attempts = %d after correct checks, want 0", current.Attempts)
 	}
 }
 

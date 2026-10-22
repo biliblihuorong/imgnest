@@ -32,7 +32,10 @@ const (
 type EmailCodeRepository interface {
 	FindEmailCode(ctx context.Context, purpose, email string) (model.EmailCode, error)
 	ReplaceEmailCode(ctx context.Context, code model.EmailCode) (model.EmailCode, error)
-	AddEmailCodeAttempt(ctx context.Context, id uint64) error
+	// ReserveEmailCodeAttempt spends one attempt atomically; false means the
+	// code is gone, replaced, expired or out of attempts.
+	ReserveEmailCodeAttempt(ctx context.Context, id uint64, codeHash string, limit int, now time.Time) (bool, error)
+	RefundEmailCodeAttempt(ctx context.Context, id uint64, codeHash string) error
 	DeleteEmailCode(ctx context.Context, id uint64, codeHash string) (bool, error)
 	PruneEmailCodes(ctx context.Context, cutoff time.Time) error
 }
@@ -166,7 +169,9 @@ func (s *UserService) SendEmailCode(ctx context.Context, purpose, email string) 
 }
 
 // checkEmailCode verifies code without using it up; each wrong guess counts
-// against the code, which stops working after a few.
+// against the code, which stops working after a few. Every guess reserves an
+// attempt before it is compared, so concurrent guesses cannot exceed the
+// budget; a correct guess gives its attempt back.
 func (s *UserService) checkEmailCode(ctx context.Context, purpose, email, code string) (model.EmailCode, error) {
 	stored, err := s.codes.repo.FindEmailCode(ctx, purpose, email)
 	if errors.Is(err, ErrNotFound) {
@@ -175,16 +180,20 @@ func (s *UserService) checkEmailCode(ctx context.Context, purpose, email, code s
 	if err != nil {
 		return model.EmailCode{}, fmt.Errorf("find email code: %w", err)
 	}
-	if !s.codes.now().Before(stored.ExpiresAt) || stored.Attempts >= emailCodeMaxAttempts {
+	reserved, err := s.codes.repo.ReserveEmailCodeAttempt(ctx, stored.ID, stored.CodeHash, emailCodeMaxAttempts, s.codes.now())
+	if err != nil {
+		return model.EmailCode{}, fmt.Errorf("count email code attempt: %w", err)
+	}
+	if !reserved {
 		return model.EmailCode{}, ErrEmailCodeInvalid
 	}
 	want := []byte(stored.CodeHash)
 	got := []byte(emailCodeHash(purpose, email, code))
 	if len(code) != 6 || subtle.ConstantTimeCompare(want, got) != 1 {
-		if err := s.codes.repo.AddEmailCodeAttempt(ctx, stored.ID); err != nil {
-			return model.EmailCode{}, fmt.Errorf("count email code attempt: %w", err)
-		}
 		return model.EmailCode{}, ErrEmailCodeInvalid
+	}
+	if err := s.codes.repo.RefundEmailCodeAttempt(ctx, stored.ID, stored.CodeHash); err != nil {
+		return model.EmailCode{}, fmt.Errorf("refund email code attempt: %w", err)
 	}
 	return stored, nil
 }
