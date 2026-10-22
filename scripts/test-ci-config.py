@@ -83,7 +83,7 @@ class CICacheConfigTest(unittest.TestCase):
     def test_go_builder_identity_is_immutable_and_shared(self):
         dev = (ROOT / "deploy/Dockerfile.dev").read_text().splitlines()[0]
         minio = (ROOT / "deploy/Dockerfile.minio-test").read_text()
-        self.assertRegex(dev, r"^FROM golang:1\.27\.1-bookworm@sha256:[0-9a-f]{64} AS go-toolchain$")
+        self.assertRegex(dev, r"^FROM golang:1\.27\.3-bookworm@sha256:[0-9a-f]{64} AS go-toolchain$")
         self.assertEqual(dev.split()[1], minio.splitlines()[0].split()[1])
         self.assertIn("rm -rf /go/pkg/mod /root/.cache/go-build", minio)
 

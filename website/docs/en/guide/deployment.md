@@ -96,7 +96,7 @@ volumes:
 Create `.env` in the same directory (PostgreSQL needs `POSTGRES_PASSWORD`; never commit this file):
 
 ```ini
-IMGNEST_TAG=0.1.3
+IMGNEST_TAG=0.1.4
 IMGNEST_PORT=8080
 # Required for PostgreSQL; generate with: openssl rand -base64 24
 POSTGRES_PASSWORD=use-a-long-random-password
@@ -148,11 +148,11 @@ You need Git and Docker. Check out the version to deploy and build it in the dev
 ```bash
 git clone https://github.com/biliblihuorong/imgnest
 cd imgnest
-git checkout v0.1.3
+git checkout v0.1.4
 make release   # builds the frontend, then writes bin/imgnest
 ```
 
-Without Docker, install Go 1.27.1, Node 24, pnpm 12.9.1 and libvips 8.18.x (with development headers) and run:
+Without Docker, install Go 1.27.3, Node 24, pnpm 12.9.1 and libvips 8.18.x (with development headers) and run:
 
 ```bash
 cd web-vben && pnpm install --frozen-lockfile && pnpm build && cd ..

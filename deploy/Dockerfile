@@ -9,7 +9,7 @@ WORKDIR /src
 COPY web-vben/ ./
 RUN pnpm install --frozen-lockfile && pnpm build
 
-FROM golang:1.27.1-bookworm@sha256:8d48e12ec56735e9358640898b9d9b9fcca110612ed8a5567438c0a1baa24e66 AS go-toolchain
+FROM golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5 AS go-toolchain
 
 # Magick-enabled libvips 8.18.6, built once by deploy/Dockerfile.vips. The dev
 # image and CI link this same build.

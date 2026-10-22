@@ -76,7 +76,7 @@ jobs:
           restore-keys: |
             imgnest-backend-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('go.mod', 'go.sum', 'deploy/Dockerfile.dev', 'deploy/compose.ci.yaml', '.golangci.yml') }}-
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
-      # The dev image pins Go 1.27.1, Node 24.21.0 and the libvips 8.18.6 build.
+      # The dev image pins Go 1.27.3, Node 24.21.0 and the libvips 8.18.6 build.
       - name: Build dev image (cached)
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:

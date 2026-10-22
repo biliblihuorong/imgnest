@@ -480,7 +480,7 @@ imgnest/
 
 用户审阅 M1 实施计划后确认开工并允许并行实现；本节补齐首阶段的精确契约。
 
-- Go module 为 `github.com/biliblihuorong/imgnest`；通过锁定 Go 1.27.1 Linux 开发环境构建与验收，宿主工具链不作为验收依据。
+- Go module 为 `github.com/biliblihuorong/imgnest`；通过锁定 Go 1.27.3 Linux 开发环境构建与验收，宿主工具链不作为验收依据。
 - 配置优先级：默认值 < 显式 YAML < `IMGNEST_` 环境变量；显式配置文件缺失、无效 YAML/数值/driver 拒绝启动。环境变量保留字段内部下划线，如 `IMGNEST_DATABASE_MAX_OPEN` 对应 `database.max_open`。
 - 默认监听 `:8080`，read_header_timeout=5s、shutdown_timeout=10s，trusted_proxies=[]。SQLite 默认 `data/imgnest.db`、WAL、foreign_keys=ON、busy_timeout=5000ms、max_open=max_idle=1、max_lifetime=0；PostgreSQL 默认 pool 为 25/10、max_lifetime=5min。
 - 0001 先迁移 `groups/users/tokens/settings` 与 `schema_migrations`；存储、图片等在 M2 新增迁移。迁移记录版本、校验和及执行时间；`migrate` 显式执行，`serve` 检查 schema 版本和校验和，不自动修改生产表结构。
