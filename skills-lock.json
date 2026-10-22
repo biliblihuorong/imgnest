@@ -20,7 +20,8 @@
       "source": "https://github.com/obra/superpowers",
       "path": "skills/executing-plans",
       "commit": "8ca22dba9a94f28898bbce59f2537ff4d87c747d",
-      "license": "MIT"
+      "license": "MIT",
+      "local_changes": "scripts/sdd-workspace, task-brief and review-package added and referenced instead of ../subagent-driven-development/scripts, which is not vendored; scripts are executable."
     },
     {
       "name": "test-driven-development",
@@ -195,7 +196,8 @@
       "source": "https://github.com/anthropics/skills",
       "path": "skills/skill-creator",
       "commit": "8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "local_changes": "eval-viewer/generate_review.py: embedded JSON escapes <, > and & so reviewed output containing </script> cannot leave the viewer's script element."
     },
     {
       "name": "multi-stage-dockerfile",
