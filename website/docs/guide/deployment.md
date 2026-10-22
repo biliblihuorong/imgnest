@@ -152,7 +152,7 @@ git checkout v0.1.3
 make release   # 先构建前端，再输出 bin/imgnest
 ```
 
-也可以不用 Docker，在本机装好 Go 1.27.1、Node 24、pnpm 12.9.1 和 libvips 8.18.x（含开发头文件）后编译：
+也可以不用 Docker，在本机装好 Go 1.27.3、Node 24、pnpm 12.9.1 和 libvips 8.18.x（含开发头文件）后编译：
 
 ```bash
 cd web-vben && pnpm install --frozen-lockfile && pnpm build && cd ..

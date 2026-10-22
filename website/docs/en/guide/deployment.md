@@ -152,7 +152,7 @@ git checkout v0.1.3
 make release   # builds the frontend, then writes bin/imgnest
 ```
 
-Without Docker, install Go 1.27.1, Node 24, pnpm 12.9.1 and libvips 8.18.x (with development headers) and run:
+Without Docker, install Go 1.27.3, Node 24, pnpm 12.9.1 and libvips 8.18.x (with development headers) and run:
 
 ```bash
 cd web-vben && pnpm install --frozen-lockfile && pnpm build && cd ..

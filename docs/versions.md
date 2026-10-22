@@ -15,7 +15,7 @@ M4 执行补充：无新增前后端依赖。`/api/v1` 与 `/api/admin` 契约�
 
 | 工具 | 版本 | 说明 |
 | --- | --- | --- |
-| Go | 1.27.1 | `go.mod` 写 `go 1.27.0` + `toolchain go1.27.1`；imagemeta 要求 Go ≥ 1.27 |
+| Go | 1.27.3 | `go.mod` 写 `go 1.27.0` + `toolchain go1.27.3`；imagemeta 要求 Go ≥ 1.27。2026-10-22 从 1.27.1 升级，修复 CVE-2026-111943（GO-2026-6809，crypto/x509） |
 | Node.js | 24.21.0（LTS） | vitest 5 要求 `^22.12 \|\| ^24 \|\| >=26`；`.nvmrc` 写 `24.21.0` |
 | pnpm | 12.9.1 | `package.json` 写 `"packageManager": "pnpm@12.9.1"` |
 | libvips | 8.18.6 | 与 `vipsgen/vips` 包对应，必须一致 |

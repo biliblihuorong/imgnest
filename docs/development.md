@@ -4,7 +4,7 @@
 
 ## 固定环境
 
-使用 Docker Desktop 的 Linux 引擎。开发镜像以 imagor-base:vips8.18.6-r14-dev 为基础，复制 Go1.27.1 工具链，重编同版本 libvips 启用 BMP/Magick，并使用 jemalloc。源码 tarball 有固定 SHA256。当前验收为 Linux amd64。测试数据库 postgres:18.6-bookworm 与固定源码 MinIO 都不向宿主公开端口，仅在隔离容器网络使用测试认证。
+使用 Docker Desktop 的 Linux 引擎。开发镜像以 imagor-base:vips8.18.6-r14-dev 为基础，复制 Go 1.27.3 工具链，重编同版本 libvips 启用 BMP/Magick，并使用 jemalloc。源码 tarball 有固定 SHA256。当前验收为 Linux amd64。测试数据库 postgres:18.6-bookworm 与固定源码 MinIO 都不向宿主公开端口，仅在隔离容器网络使用测试认证。
 
 源码挂载到 `/workspace`，Go 模块和构建缓存存命名卷。没有初始化时 `serve` 会拒绝启动，必须先执行 migrate。运行数据默认在 `data/imgnest.db`，不进 Git。
 
