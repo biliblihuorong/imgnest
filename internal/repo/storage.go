@@ -147,7 +147,7 @@ func validateUploadStorage(ctx context.Context, tx *gorm.DB, backend model.Stora
 	if !current.Enabled {
 		return model.ErrForbidden
 	}
-	if expected.ID != current.ID || expected.Driver != current.Driver || !sameStorageConfig(current.Config, expected.Config) {
+	if expected.ID != current.ID || expected.Driver != current.Driver || expected.PathPrefix != current.PathPrefix || !sameStorageConfig(current.Config, expected.Config) {
 		return model.ErrImageBusy
 	}
 	return nil
