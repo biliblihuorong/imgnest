@@ -49,6 +49,8 @@ const policyId = ref<number | null>(null);
 const strategyId = ref(0);
 const sourceUrl = ref("");
 let timer: ReturnType<typeof setInterval> | undefined;
+// 卸载后迟到的响应不得再写状态或重建轮询。
+let disposed = false;
 
 const PHASE_TAG: Record<LskyImportPhase, "default" | "info" | "success" | "error" | "warning"> = {
   idle: "default",
@@ -98,10 +100,11 @@ function schedule(): void {
     clearInterval(timer);
     timer = undefined;
   }
-  if (running.value) timer = setInterval(() => void refresh(), 2000);
+  if (running.value && !disposed) timer = setInterval(() => void refresh(), 2000);
 }
 
 function show(next: LskyImportStatus): void {
+  if (disposed) return;
   status.value = next;
   if (next.options) {
     mode.value = next.options.mode;
@@ -117,6 +120,7 @@ async function refresh(): Promise<void> {
     show(await getLskyImport());
     error.value = null;
   } catch (err) {
+    if (disposed) return;
     errorKey.value = "admin.lskyImport.loadFailed";
     error.value = err;
   }
@@ -125,14 +129,17 @@ async function refresh(): Promise<void> {
 async function load(): Promise<void> {
   try {
     const [nextPolicies, nextStorages] = await Promise.all([listPolicies(), listStorages()]);
+    if (disposed) return;
     policies.value = nextPolicies;
     storages.value = nextStorages;
     if (policyId.value === null && nextPolicies.length > 0) policyId.value = nextPolicies[0]!.id;
   } catch (err) {
+    if (disposed) return;
     errorKey.value = "admin.lskyImport.loadFailed";
     error.value = err;
   }
   await refresh();
+  if (disposed) return;
   if (!status.value?.options) guessStrategy();
 }
 
@@ -143,6 +150,7 @@ async function act(key: string, call: () => Promise<LskyImportStatus>): Promise<
     show(await call());
     error.value = null;
   } catch (err) {
+    if (disposed) return;
     errorKey.value = key;
     error.value = err;
   } finally {
@@ -176,7 +184,9 @@ function start(): Promise<void> {
 
 onMounted(() => void load());
 onBeforeUnmount(() => {
+  disposed = true;
   if (timer !== undefined) clearInterval(timer);
+  timer = undefined;
 });
 </script>
 

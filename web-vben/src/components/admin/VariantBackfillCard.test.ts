@@ -62,6 +62,26 @@ describe("VariantBackfillCard", () => {
     expect(wrapper.find('button[data-action="start"]').exists()).toBe(true);
   });
 
+  it("does not restart polling when a status response arrives after unmount", async () => {
+    vi.useFakeTimers();
+    let resolveLate: (value: VariantBackfill) => void = () => {};
+    apiMock.getVariantBackfill
+      .mockResolvedValueOnce(progress({ status: "running", active: true }))
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveLate = resolve)))
+      .mockRejectedValue(new Error("unauthenticated"));
+    const wrapper = mount(VariantBackfillCard);
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(apiMock.getVariantBackfill).toHaveBeenCalledTimes(2);
+
+    wrapper.unmount();
+    resolveLate(progress({ status: "running", active: true }));
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(apiMock.getVariantBackfill).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("polls only while running", async () => {
     vi.useFakeTimers();
     apiMock.getVariantBackfill

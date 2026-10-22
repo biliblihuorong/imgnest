@@ -16,6 +16,8 @@ const state = shallowRef<VariantBackfill | null>(null);
 const error = shallowRef<unknown>(null);
 const busy = shallowRef(false);
 let timer: ReturnType<typeof setInterval> | undefined;
+// 卸载后迟到的响应不得再写状态或重建轮询。
+let disposed = false;
 
 const STATUS_TAG: Record<VariantBackfillStatus, "default" | "info" | "warning" | "success"> = {
   idle: "default",
@@ -31,16 +33,19 @@ function schedule(): void {
     clearInterval(timer);
     timer = undefined;
   }
-  if (running.value) {
+  if (running.value && !disposed) {
     timer = setInterval(() => void load(), 3000);
   }
 }
 
 async function load(): Promise<void> {
   try {
-    state.value = await getVariantBackfill();
+    const next = await getVariantBackfill();
+    if (disposed) return;
+    state.value = next;
     error.value = null;
   } catch (err) {
+    if (disposed) return;
     error.value = err;
   }
   schedule();
@@ -52,9 +57,12 @@ async function control(action: "start" | "pause", restart = false): Promise<void
   }
   busy.value = true;
   try {
-    state.value = await controlVariantBackfill(action, restart);
+    const next = await controlVariantBackfill(action, restart);
+    if (disposed) return;
+    state.value = next;
     error.value = null;
   } catch (err) {
+    if (disposed) return;
     error.value = err;
   } finally {
     busy.value = false;
@@ -64,8 +72,10 @@ async function control(action: "start" | "pause", restart = false): Promise<void
 
 onMounted(() => void load());
 onBeforeUnmount(() => {
+  disposed = true;
   if (timer !== undefined) {
     clearInterval(timer);
+    timer = undefined;
   }
 });
 </script>
