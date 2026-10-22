@@ -3138,17 +3138,18 @@ paths:
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: '#/components/schemas/ErrorEnvelope'
-                  - type: object
+                type: object
+                additionalProperties: false
+                required: [code, message, data]
+                properties:
+                  code: {type: integer, enum: [50002]}
+                  message: {type: string}
+                  data:
+                    type: object
+                    additionalProperties: false
+                    required: [purged]
                     properties:
-                      code: {type: integer, enum: [50002]}
-                      data:
-                        type: object
-                        additionalProperties: false
-                        required: [purged]
-                        properties:
-                          purged: {type: integer, format: int64, minimum: 0}
+                      purged: {type: integer, format: int64, minimum: 0}
         '500':
           $ref: '#/components/responses/InternalError'
 components:
@@ -3853,7 +3854,7 @@ components:
       properties:
         id: {$ref: '#/components/schemas/ID'}
         key: {type: string, description: Stable opaque public image identity.}
-        user_id: {$ref: '#/components/schemas/ID'}
+        user_id: {type: integer, format: int64, minimum: 0, maximum: 9223372036854775807, description: Owner account; 0 for a guest upload.}
         album_id: {type: integer, format: int64, minimum: 0, description: Zero when no album is selected.}
         policy_id: {$ref: '#/components/schemas/ID'}
         storage_id: {$ref: '#/components/schemas/ID'}
@@ -5116,14 +5117,19 @@ components:
         links: {$ref: '#/components/schemas/LskyUploadLinks'}
         variants: {$ref: '#/components/schemas/ImageVariantList'}
     LskyUploadLinks:
-      allOf:
-        - $ref: '#/components/schemas/LskyImageLinks'
-        - type: object
-          additionalProperties: false
-          required: [origin_url, webp_url]
-          properties:
-            origin_url: {type: string, description: ImgNest extra; stored original URL, empty when only a WebP is stored.}
-            webp_url: {type: string, description: ImgNest extra; empty when no WebP is stored.}
+      type: object
+      additionalProperties: false
+      description: LskyImageLinks plus two ImgNest extras, declared as one closed object.
+      required: [url, html, bbcode, markdown, markdown_with_link, thumbnail_url, origin_url, webp_url]
+      properties:
+        url: {type: string, description: The link clients paste; follows the rule's link_prefer.}
+        html: {type: string, description: 'Exactly `&lt;img src="URL" alt="NAME" title="NAME" /&gt;` with only &, < and > escaped.'}
+        bbcode: {type: string}
+        markdown: {type: string}
+        markdown_with_link: {type: string}
+        thumbnail_url: {type: string, description: The cloud _thumbs.webp URL, or the image URL when no thumbnail is stored.}
+        origin_url: {type: string, description: ImgNest extra; stored original URL, empty when only a WebP is stored.}
+        webp_url: {type: string, description: ImgNest extra; empty when no WebP is stored.}
     LskyImageLinks:
       type: object
       additionalProperties: false
@@ -5256,7 +5262,7 @@ components:
       properties:
         code:
           type: integer
-          enum: [10001, 10002, 10004, 10005, 10006, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 30010, 30011, 30012, 30013, 30014, 30015, 30016, 30017, 30018, 30019, 30020, 30021, 50001, 50002, 50003, 50004, 50005, 50006]
+          enum: [10001, 10002, 10004, 10005, 10006, 20001, 20002, 20003, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 30008, 30009, 30010, 30011, 30012, 30013, 30014, 30015, 30016, 30017, 30018, 30019, 30020, 30021, 30022, 50001, 50002, 50003, 50004, 50005, 50006]
         message:
           type: string
           description: Human-readable error message without technical or credential details.

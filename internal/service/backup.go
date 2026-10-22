@@ -198,9 +198,13 @@ func (s *BackupService) create(ctx context.Context, auto bool) (model.BackupFile
 	if err := writer.Commit(); err != nil {
 		return model.BackupFile{}, fmt.Errorf("create backup: %w", err)
 	}
-	_, file, err := s.open(ctx, name)
+	// Only the metadata is needed; the archive handle is released here.
+	archive, file, err := s.open(ctx, name)
 	if err != nil {
 		return model.BackupFile{}, err
+	}
+	if err := archive.Close(); err != nil {
+		return model.BackupFile{}, fmt.Errorf("close backup: %w", err)
 	}
 	return file, nil
 }

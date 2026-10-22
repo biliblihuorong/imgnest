@@ -27,7 +27,9 @@ type AdminGroupRepository interface {
 	GroupMemberCounts(context.Context) (map[uint64]int64, error)
 	GroupPolicyIDs(context.Context) (map[uint64][]uint64, error)
 	CreateGroup(context.Context, model.Group, []uint64) (model.Group, error)
-	UpdateGroup(context.Context, model.Group, []uint64, bool) (model.Group, error)
+	// UpdateGroup merges the update into the locked row; the default rule
+	// must remain among the resulting bindings (ErrInvalidInput).
+	UpdateGroup(context.Context, uint64, model.GroupUpdate) (model.Group, error)
 	DeleteGroup(context.Context, uint64) error
 }
 

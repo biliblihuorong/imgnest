@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Write the commits, stat and diff of BASE..HEAD to the plan's workspace for
+# the final review.
+#
+# Usage: review-package PLAN_FILE BASE HEAD
+# Prints: wrote <path>: <n> commit(s), <bytes> bytes
+set -euo pipefail
+
+if [ $# -ne 3 ]; then
+  echo "usage: review-package PLAN_FILE BASE HEAD" >&2
+  exit 2
+fi
+
+plan=$1
+base=$2
+head=$3
+git rev-parse --verify --quiet "$base" >/dev/null || { echo "bad BASE: $base" >&2; exit 2; }
+git rev-parse --verify --quiet "$head" >/dev/null || { echo "bad HEAD: $head" >&2; exit 2; }
+git merge-base --is-ancestor "$base" "$head" || { echo "HEAD is not a descendant of BASE: ${base}..${head}" >&2; exit 3; }
+commits=$(git rev-list --count "${base}..${head}")
+[ "$commits" -gt 0 ] || { echo "empty commit range: ${base}..${head}" >&2; exit 3; }
+
+dir=$("${BASH:-bash}" "$(cd "$(dirname "$0")" && pwd)/sdd-workspace" "$plan")
+out="$dir/review-$(git rev-parse --short "$base")..$(git rev-parse --short "$head").diff"
+{
+  echo "# Review package: ${base}..${head}"
+  echo
+  echo "## Commits"
+  git log --oneline "${base}..${head}"
+  echo
+  echo "## Files changed"
+  git diff --stat "${base}..${head}"
+  echo
+  echo "## Diff"
+  git diff -U10 "${base}..${head}"
+} > "$out"
+echo "wrote ${out}: ${commits} commit(s), $(wc -c < "$out" | tr -d ' ') bytes"

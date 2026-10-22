@@ -82,6 +82,30 @@ describe("password reset", () => {
     wrapper.unmount();
   });
 
+  it("checks the new password length in UTF-8 bytes like the server", async () => {
+    vi.mocked(resetPassword).mockResolvedValue(null);
+    const { wrapper } = await renderView();
+    const submit = () => wrapper.get('button[data-action="reset-password"]');
+    await wrapper.get('input[aria-label="邮箱"]').setValue("alice@example.test");
+    await wrapper.get('input[aria-label="邮箱验证码"]').setValue("654321");
+    for (const [value, enabled] of [
+      ["你好世", false],
+      ["你好世界", true],
+      ["abc你好世", true],
+      ["你".repeat(24) + "a", false],
+    ] as const) {
+      await wrapper.get('input[aria-label="新密码"]').setValue(value);
+      await wrapper.get('input[aria-label="确认密码"]').setValue(value);
+      expect(submit().attributes("disabled") === undefined, value).toBe(enabled);
+    }
+    await wrapper.get('input[aria-label="新密码"]').setValue("你好世界");
+    await wrapper.get('input[aria-label="确认密码"]').setValue("你好世界");
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(resetPassword).toHaveBeenCalledWith("alice@example.test", "654321", "你好世界");
+    wrapper.unmount();
+  });
+
   it("shows a wrong code and stays on the page", async () => {
     vi.mocked(resetPassword).mockRejectedValue(new ApiError(30018, "invalid", 422));
     const { wrapper, router } = await renderView();

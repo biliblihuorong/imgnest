@@ -96,7 +96,7 @@ volumes:
 Create `.env` in the same directory (PostgreSQL needs `POSTGRES_PASSWORD`; never commit this file):
 
 ```ini
-IMGNEST_TAG=0.1.5
+IMGNEST_TAG=0.1.6
 IMGNEST_PORT=8080
 # Required for PostgreSQL; generate with: openssl rand -base64 24
 POSTGRES_PASSWORD=use-a-long-random-password
@@ -148,7 +148,7 @@ You need Git and Docker. Check out the version to deploy and build it in the dev
 ```bash
 git clone https://github.com/biliblihuorong/imgnest
 cd imgnest
-git checkout v0.1.5
+git checkout v0.1.6
 make release   # builds the frontend, then writes bin/imgnest
 ```
 

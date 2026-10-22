@@ -126,6 +126,34 @@ describe("direct registration and CAPTCHA", () => {
     expect(router.currentRoute.value.path).toBe("/login");
     wrapper.unmount();
   });
+  it("checks the password length in UTF-8 bytes like the server", async () => {
+    registerApi.mockResolvedValue({ id: 2 } as UserView);
+    const { wrapper } = await renderView();
+    await fill(wrapper);
+    const submit = () => wrapper.get('button[type="submit"]');
+    // 3 个汉字 = 9 字节，低于 12 字节下限。
+    for (const [value, enabled] of [
+      ["你好世", false],
+      ["你好世界", true],
+      ["ab你好世", false],
+      ["abc你好世", true],
+      ["你".repeat(24), true],
+      ["你".repeat(24) + "a", false],
+    ] as const) {
+      await wrapper.find('input[aria-label="密码"]').setValue(value);
+      await wrapper.find('input[aria-label="确认密码"]').setValue(value);
+      expect(submit().attributes("disabled") === undefined, value).toBe(enabled);
+    }
+    await wrapper.find('input[aria-label="密码"]').setValue("你好世界");
+    await wrapper.find('input[aria-label="确认密码"]').setValue("你好世界");
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+    expect(registerApi).toHaveBeenCalledWith(
+      { username: "alice", email: "alice@example.test", password: "你好世界" },
+      expect.any(AbortSignal),
+    );
+    wrapper.unmount();
+  });
   it("does not show the form or request challenges when registration is closed", async () => {
     const { wrapper } = await renderView(false);
     expect(wrapper.find("form").exists()).toBe(false);

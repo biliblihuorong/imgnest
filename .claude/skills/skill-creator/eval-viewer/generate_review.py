@@ -276,9 +276,24 @@ def generate_html(
     if benchmark:
         embedded["benchmark"] = benchmark
 
-    data_json = json.dumps(embedded)
+    data_json = embed_json(embedded)
 
     return template.replace("/*__EMBEDDED_DATA__*/", f"const EMBEDDED_DATA = {data_json};")
+
+
+def embed_json(value) -> str:
+    """Serialize value for a <script> element.
+
+    json.dumps leaves "</script>" and "<!--" intact, so reviewed text could end
+    the script early and inject markup. Escaping <, > and & as \\u escapes keeps
+    the same JavaScript value while making the HTML parser see no tags.
+    """
+    return (
+        json.dumps(value)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
 
 
 # ---------------------------------------------------------------------------

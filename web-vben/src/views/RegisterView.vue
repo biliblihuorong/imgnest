@@ -64,7 +64,7 @@ const canSubmit = computed(
     (site.emailVerification ? /^\d{6}$/.test(emailCode.value.trim()) : captchaReady.value) &&
     username.value.trim().length >= 3 &&
     email.value.trim().length > 0 &&
-    password.value.length >= 12 &&
+    passwordBytes.value >= 12 &&
     passwordBytes.value <= 72 &&
     password.value === confirmPassword.value,
 );

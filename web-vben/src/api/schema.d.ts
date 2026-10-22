@@ -2592,7 +2592,11 @@ export interface components {
             id: components["schemas"]["ID"];
             /** @description Stable opaque public image identity. */
             key: string;
-            user_id: components["schemas"]["ID"];
+            /**
+             * Format: int64
+             * @description Owner account; 0 for a guest upload.
+             */
+            user_id: number;
             /**
              * Format: int64
              * @description Zero when no album is selected.
@@ -3531,7 +3535,17 @@ export interface components {
             links: components["schemas"]["LskyUploadLinks"];
             variants: components["schemas"]["ImageVariantList"];
         };
-        LskyUploadLinks: components["schemas"]["LskyImageLinks"] & {
+        /** @description LskyImageLinks plus two ImgNest extras, declared as one closed object. */
+        LskyUploadLinks: {
+            /** @description The link clients paste; follows the rule's link_prefer. */
+            url: string;
+            /** @description Exactly `&lt;img src="URL" alt="NAME" title="NAME" /&gt;` with only &, < and > escaped. */
+            html: string;
+            bbcode: string;
+            markdown: string;
+            markdown_with_link: string;
+            /** @description The cloud _thumbs.webp URL */
+            thumbnail_url: string;
             /** @description ImgNest extra; stored original URL */
             origin_url: string;
             /** @description ImgNest extra; empty when no WebP is stored. */
@@ -3661,7 +3675,7 @@ export interface components {
         };
         ErrorEnvelope: {
             /** @enum {integer} */
-            code: 10001 | 10002 | 10004 | 10005 | 10006 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30010 | 30011 | 30012 | 30013 | 30014 | 30015 | 30016 | 30017 | 30018 | 30019 | 30020 | 30021 | 50001 | 50002 | 50003 | 50004 | 50005 | 50006;
+            code: 10001 | 10002 | 10004 | 10005 | 10006 | 20001 | 20002 | 20003 | 30001 | 30002 | 30003 | 30004 | 30005 | 30006 | 30007 | 30008 | 30009 | 30010 | 30011 | 30012 | 30013 | 30014 | 30015 | 30016 | 30017 | 30018 | 30019 | 30020 | 30021 | 30022 | 50001 | 50002 | 50003 | 50004 | 50005 | 50006;
             /** @description Human-readable error message without technical or credential details. */
             message: string;
             data: components["schemas"]["ErrorData"];
@@ -7168,10 +7182,11 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"] & {
+                    "application/json": {
                         /** @enum {integer} */
-                        code?: 50002;
-                        data?: {
+                        code: 50002;
+                        message: string;
+                        data: {
                             /** Format: int64 */
                             purged: number;
                         };

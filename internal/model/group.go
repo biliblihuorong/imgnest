@@ -16,3 +16,17 @@ type Group struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
+
+// GroupUpdate lists the fields one group PATCH sets; nil keeps the stored
+// value. The repository merges it into the row it holds locked, so two
+// patches of different fields never undo each other.
+type GroupUpdate struct {
+	Name            *string
+	CapacityBytes   *int64
+	MaxFileBytes    *int64
+	AllowedExts     *[]string
+	UploadPerMin    *int
+	DefaultPolicyID *uint64
+	// PolicyIDs replaces the rule bindings when set.
+	PolicyIDs *[]uint64
+}

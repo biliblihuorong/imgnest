@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Print (and create) the git-ignored workspace of one plan:
+# <repo-root>/.superpowers/sdd/<plan-basename>/. Same location and layout as
+# superpowers:subagent-driven-development, so either executor can resume the
+# other's ledger. ImgNest does not vendor that skill; this copy keeps
+# executing-plans self-contained.
+#
+# Usage: sdd-workspace PLAN_FILE
+set -euo pipefail
+
+if [ $# -ne 1 ]; then
+  echo "usage: sdd-workspace PLAN_FILE" >&2
+  exit 2
+fi
+
+plan=$1
+[ -f "$plan" ] || { echo "no such plan file: $plan" >&2; exit 2; }
+slug=$(basename "$plan" .md)
+[ -n "$slug" ] && [ "$slug" != "." ] && [ "$slug" != ".." ] \
+  || { echo "cannot derive a workspace name from: $plan" >&2; exit 2; }
+
+base="$(git rev-parse --show-toplevel)/.superpowers/sdd"
+mkdir -p "$base/$slug"
+printf '*\n' > "$base/.gitignore"
+CDPATH= cd -- "$base/$slug" && pwd

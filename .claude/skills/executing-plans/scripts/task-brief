@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Write the text of one plan task (its "Task N" heading up to the next task
+# heading, ignoring headings inside code fences) to the plan's workspace.
+#
+# Usage: task-brief PLAN_FILE TASK_NUMBER
+# Prints: wrote <path>: <lines> lines
+set -euo pipefail
+
+if [ $# -ne 2 ]; then
+  echo "usage: task-brief PLAN_FILE TASK_NUMBER" >&2
+  exit 2
+fi
+
+plan=$1
+n=$2
+case "$n" in
+  '' | *[!0-9]*) echo "task number must be a positive integer: $n" >&2; exit 2 ;;
+esac
+dir=$("${BASH:-bash}" "$(cd "$(dirname "$0")" && pwd)/sdd-workspace" "$plan")
+out="$dir/task-${n}-brief.md"
+
+awk -v n="$n" '
+  /^```/ { infence = !infence }
+  !infence && /^#+[ \t]+Task[ \t]+[0-9]+/ {
+    intask = ($0 ~ ("^#+[ \t]+Task[ \t]+" n "([^0-9]|$)"))
+  }
+  intask { print }
+' "$plan" > "$out"
+
+if [ ! -s "$out" ]; then
+  echo "task ${n} not found in ${plan} (no heading matching 'Task ${n}')" >&2
+  exit 3
+fi
+echo "wrote ${out}: $(wc -l < "$out" | tr -d ' ') lines"

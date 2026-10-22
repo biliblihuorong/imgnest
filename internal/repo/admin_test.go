@@ -259,14 +259,44 @@ func TestGroupCrudWithBindingsAndCounts(t *testing.T) {
 			t.Fatalf("policy bindings=%+v", bindings[team.ID])
 		}
 
-		team.Name = "Renamed"
-		team.CapacityBytes = 2048
-		updated, err := admin.UpdateGroup(t.Context(), team, []uint64{beta.ID}, true)
+		renamed, capacity := "Renamed", int64(2048)
+		updated, err := admin.UpdateGroup(t.Context(), team.ID, model.GroupUpdate{Name: &renamed, CapacityBytes: &capacity, DefaultPolicyID: &beta.ID, PolicyIDs: &[]uint64{beta.ID}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if updated.Name != "Renamed" || updated.CapacityBytes != 2048 {
 			t.Fatalf("updated group=%+v", updated)
+		}
+		// Patches of different fields merge into the current row instead of
+		// writing back the snapshot each request started from.
+		limit := int64(4096)
+		if _, err := admin.UpdateGroup(t.Context(), team.ID, model.GroupUpdate{MaxFileBytes: &limit}); err != nil {
+			t.Fatal(err)
+		}
+		again := "Renamed again"
+		merged, err := admin.UpdateGroup(t.Context(), team.ID, model.GroupUpdate{Name: &again})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if merged.Name != again || merged.CapacityBytes != 2048 || merged.MaxFileBytes != 4096 {
+			t.Fatalf("merged group=%+v", merged)
+		}
+		// The default rule is checked against the bindings in the transaction.
+		if _, err := admin.UpdateGroup(t.Context(), team.ID, model.GroupUpdate{DefaultPolicyID: &alpha.ID}); !errors.Is(err, model.ErrInvalidInput) {
+			t.Fatalf("default outside the current bindings: %v", err)
+		}
+		if bound, err := admin.UpdateGroup(t.Context(), team.ID, model.GroupUpdate{DefaultPolicyID: &beta.ID}); err != nil || bound.DefaultPolicyID != beta.ID {
+			t.Fatalf("default inside the bindings: %+v, %v", bound, err)
+		}
+		if _, err := admin.UpdateGroup(t.Context(), team.ID, model.GroupUpdate{PolicyIDs: &[]uint64{alpha.ID}}); !errors.Is(err, model.ErrInvalidInput) {
+			t.Fatalf("bindings dropped the default rule: %v", err)
+		}
+		cleared := uint64(0)
+		if _, err := admin.UpdateGroup(t.Context(), team.ID, model.GroupUpdate{DefaultPolicyID: &cleared}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.UpdateGroup(t.Context(), 1<<40, model.GroupUpdate{Name: &again}); !errors.Is(err, model.ErrNotFound) {
+			t.Fatalf("missing group: %v", err)
 		}
 		bindings, _ = admin.GroupPolicyIDs(t.Context())
 		if len(bindings[team.ID]) != 1 || bindings[team.ID][0] != beta.ID {

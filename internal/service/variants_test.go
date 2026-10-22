@@ -275,3 +275,130 @@ func TestLookupVariantsCachesAndTrashInvalidates(t *testing.T) {
 		t.Fatalf("recycled image still resolves from the cache: %+v, %v", items, err)
 	}
 }
+
+// lostCommitVariants journals generation in memory and applies FinishVariants
+// to the image before reporting finishErr, like a COMMIT whose
+// acknowledgement was lost. hasErr and findErr fail the confirmation reads.
+type lostCommitVariants struct {
+	*uploadRepo
+	finishErr, hasErr, findErr error
+	pending, finished          bool
+	job                        model.VariantJob
+}
+
+func (r *lostCommitVariants) FindByKey(ctx context.Context, key string) (model.Image, error) {
+	if r.finished && r.findErr != nil {
+		return model.Image{}, r.findErr
+	}
+	return r.uploadRepo.FindByKey(ctx, key)
+}
+func (r *lostCommitVariants) VariantCandidates(context.Context, uint64, int) ([]model.Image, error) {
+	return nil, nil
+}
+func (r *lostCommitVariants) BeginVariants(_ context.Context, job model.VariantJob) (model.Image, error) {
+	r.job, r.pending = job, true
+	return r.rows[job.ImageKey], nil
+}
+func (r *lostCommitVariants) RecordVariantReceipt(context.Context, uint64, string, model.ObjectReceipt) error {
+	return nil
+}
+func (r *lostCommitVariants) FinishVariants(_ context.Context, _ uint64, _ string) (model.Image, error) {
+	r.mu.Lock()
+	row := r.rows[r.job.ImageKey]
+	row.Variants = r.job.Variants
+	row.ObjectManifest = append(row.ObjectManifest, r.job.Objects...)
+	r.rows[r.job.ImageKey] = row
+	r.mu.Unlock()
+	r.pending, r.finished = false, true
+	return model.Image{}, r.finishErr
+}
+func (r *lostCommitVariants) CancelVariants(context.Context, uint64, string) error {
+	r.pending = false
+	return nil
+}
+func (r *lostCommitVariants) PendingVariantJobs(context.Context) ([]model.VariantJob, error) {
+	return nil, nil
+}
+func (r *lostCommitVariants) HasVariantJob(context.Context, uint64) (bool, error) {
+	return r.pending, r.hasErr
+}
+func (r *lostCommitVariants) VariantBackfill(context.Context) (model.VariantBackfill, error) {
+	return model.VariantBackfill{}, nil
+}
+func (r *lostCommitVariants) SaveVariantBackfill(context.Context, model.VariantBackfill) error {
+	return nil
+}
+
+// A FinishVariants whose COMMIT landed but whose acknowledgement was lost
+// must never purge the published variants, even when the confirmation reads
+// fail too.
+func TestGenerateVariantsKeepsObjectsWhenCommitIsUncertain(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		hasErr, findErr error
+		wantAdded       bool
+	}{
+		{name: "journal read fails", hasErr: errors.New("connection reset")},
+		{name: "image read fails", findErr: errors.New("connection reset")},
+		{name: "confirmed", wantAdded: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, rows, policy, local, subject := variantFixture(t)
+			policy.policy.ResponsiveVariants = false
+			view, err := svc.Upload(t.Context(), subject, UploadInput{Data: []byte("source"), Filename: "a.png"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			policy.policy.ResponsiveVariants = true
+			repo := &lostCommitVariants{uploadRepo: rows, finishErr: errors.New("commit acknowledgement lost"), hasErr: tc.hasErr, findErr: tc.findErr}
+			svc.deps.Images = repo
+			added, err := svc.generateVariants(t.Context(), rows.rows[view.Key])
+			if added != tc.wantAdded || (err == nil) != tc.wantAdded {
+				t.Fatalf("generateVariants = %v, %v", added, err)
+			}
+			if !tc.wantAdded && !strings.Contains(err.Error(), "recovery pending") {
+				t.Fatalf("uncertain commit not reported as pending recovery: %v", err)
+			}
+			if len(rows.rows[view.Key].Variants) == 0 {
+				t.Fatal("test setup: the commit did not publish variants")
+			}
+			for _, key := range []string{"2026/10/a_w400_v1.webp", "2026/10/a_w800_v1.webp"} {
+				if _, err := local.Stat(t.Context(), key); err != nil {
+					t.Fatalf("published variant %s was purged: %v", key, err)
+				}
+			}
+		})
+	}
+}
+
+// When the journal is still there the commit did not happen, and every
+// written variant is compensated.
+func TestGenerateVariantsCompensatesWhenJournalRemains(t *testing.T) {
+	svc, rows, policy, local, subject := variantFixture(t)
+	policy.policy.ResponsiveVariants = false
+	view, err := svc.Upload(t.Context(), subject, UploadInput{Data: []byte("source"), Filename: "a.png"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy.policy.ResponsiveVariants = true
+	repo := &stuckVariants{lostCommitVariants{uploadRepo: rows}}
+	svc.deps.Images = repo
+	if added, err := svc.generateVariants(t.Context(), rows.rows[view.Key]); added || err == nil {
+		t.Fatalf("generateVariants = %v, %v", added, err)
+	}
+	for _, key := range []string{"2026/10/a_w400_v1.webp", "2026/10/a_w800_v1.webp"} {
+		if _, err := local.Stat(t.Context(), key); !errors.Is(err, storage.ErrNotFound) {
+			t.Fatalf("uncommitted variant %s kept: %v", key, err)
+		}
+	}
+	if repo.pending {
+		t.Fatal("journal not cancelled")
+	}
+}
+
+// stuckVariants fails FinishVariants before anything is committed.
+type stuckVariants struct{ lostCommitVariants }
+
+func (r *stuckVariants) FinishVariants(context.Context, uint64, string) (model.Image, error) {
+	return model.Image{}, errors.New("database unavailable")
+}

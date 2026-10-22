@@ -62,10 +62,25 @@ func (r *EmailCodeRepository) ReplaceEmailCode(ctx context.Context, code model.E
 	return model.EmailCode(row), nil
 }
 
-// AddEmailCodeAttempt counts one wrong guess against the code with id.
-func (r *EmailCodeRepository) AddEmailCodeAttempt(ctx context.Context, id uint64) error {
-	if err := r.db.WithContext(ctx).Exec("UPDATE email_codes SET attempts = attempts + 1 WHERE id = ?", id).Error; err != nil {
-		return databaseError("count email code attempt", err)
+// ReserveEmailCodeAttempt atomically spends one attempt of the code with id
+// and codeHash while it is unexpired at now and below limit attempts. False
+// means the code is gone, replaced, expired or out of attempts. Checking and
+// counting in one statement keeps concurrent guesses within the budget.
+func (r *EmailCodeRepository) ReserveEmailCodeAttempt(ctx context.Context, id uint64, codeHash string, limit int, now time.Time) (bool, error) {
+	result := r.db.WithContext(ctx).Exec(`UPDATE email_codes SET attempts = attempts + 1
+		WHERE id = ? AND code_hash = ? AND attempts < ? AND expires_at > ?`, id, codeHash, limit, now.UTC())
+	if result.Error != nil {
+		return false, databaseError("count email code attempt", result.Error)
+	}
+	return result.RowsAffected == 1, nil
+}
+
+// RefundEmailCodeAttempt returns the attempt a correct guess reserved, so
+// only wrong guesses use up the code.
+func (r *EmailCodeRepository) RefundEmailCodeAttempt(ctx context.Context, id uint64, codeHash string) error {
+	err := r.db.WithContext(ctx).Exec("UPDATE email_codes SET attempts = attempts - 1 WHERE id = ? AND code_hash = ? AND attempts > 0", id, codeHash).Error
+	if err != nil {
+		return databaseError("refund email code attempt", err)
 	}
 	return nil
 }

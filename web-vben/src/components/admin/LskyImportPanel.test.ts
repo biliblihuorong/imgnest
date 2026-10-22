@@ -129,4 +129,25 @@ describe("LskyImportView", () => {
     await vi.advanceTimersByTimeAsync(6000);
     expect(apiMock.getLskyImport).toHaveBeenCalledTimes(2);
   });
+
+  it("does not restart polling when a status response arrives after unmount", async () => {
+    vi.useFakeTimers();
+    const running = status({ ...loaded, running: true, phase: "images", total: 2 });
+    let resolveLate: (value: LskyImportStatus) => void = () => {};
+    apiMock.getLskyImport
+      .mockResolvedValueOnce(running)
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveLate = resolve)))
+      .mockRejectedValue(new Error("unauthenticated"));
+    const wrapper = mount(LskyImportView);
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(apiMock.getLskyImport).toHaveBeenCalledTimes(2);
+
+    wrapper.unmount();
+    resolveLate(running);
+    await flushPromises();
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(apiMock.getLskyImport).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

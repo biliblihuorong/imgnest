@@ -42,7 +42,7 @@ const canSubmit = computed(
   () =>
     email.value.trim().length > 0 &&
     /^\d{6}$/.test(code.value.trim()) &&
-    password.value.length >= 12 &&
+    passwordBytes.value >= 12 &&
     passwordBytes.value <= 72 &&
     password.value === confirmPassword.value,
 );

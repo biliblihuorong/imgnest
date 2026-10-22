@@ -282,7 +282,8 @@ func (s *AdminService) CreateGroup(ctx context.Context, input GroupInput) (Group
 	return s.getGroupView(ctx, created.ID)
 }
 
-// PatchGroup merges the supplied fields; the default/guest flags have no
+// PatchGroup validates the supplied fields and has the repository merge them
+// into the current row under its lock; the default/guest flags have no
 // request shape and stay untouched.
 func (s *AdminService) PatchGroup(ctx context.Context, id uint64, patch GroupPatch) (GroupView, error) {
 	if err := ctx.Err(); err != nil {
@@ -291,54 +292,40 @@ func (s *AdminService) PatchGroup(ctx context.Context, id uint64, patch GroupPat
 	if id == 0 {
 		return GroupView{}, ErrInvalidInput
 	}
-	group, err := s.deps.Groups.FindGroup(ctx, id)
-	if err != nil {
+	if _, err := s.deps.Groups.FindGroup(ctx, id); err != nil {
 		return GroupView{}, fmt.Errorf("find group: %w", err)
 	}
+	var update model.GroupUpdate
 	if patch.Name != nil {
 		name := strings.TrimSpace(*patch.Name)
 		if name == "" || !utf8Valid(name, 64) {
 			return GroupView{}, ErrInvalidInput
 		}
-		group.Name = name
+		update.Name = &name
 	}
-	if patch.CapacityBytes != nil {
-		if *patch.CapacityBytes < 0 {
+	for _, value := range []*int64{patch.CapacityBytes, patch.MaxFileBytes} {
+		if value != nil && *value < 0 {
 			return GroupView{}, ErrInvalidInput
 		}
-		group.CapacityBytes = *patch.CapacityBytes
 	}
-	if patch.MaxFileBytes != nil {
-		if *patch.MaxFileBytes < 0 {
-			return GroupView{}, ErrInvalidInput
-		}
-		group.MaxFileBytes = *patch.MaxFileBytes
+	update.CapacityBytes, update.MaxFileBytes = patch.CapacityBytes, patch.MaxFileBytes
+	if patch.UploadPerMin != nil && *patch.UploadPerMin < 0 {
+		return GroupView{}, ErrInvalidInput
 	}
-	if patch.UploadPerMin != nil {
-		if *patch.UploadPerMin < 0 {
-			return GroupView{}, ErrInvalidInput
-		}
-		group.UploadPerMin = *patch.UploadPerMin
-	}
+	update.UploadPerMin = patch.UploadPerMin
 	if patch.AllowedExts != nil {
 		exts, err := normalizeExts(*patch.AllowedExts)
 		if err != nil {
 			return GroupView{}, err
 		}
-		group.AllowedExts = exts
+		update.AllowedExts = &exts
 	}
-	bindings, err := s.deps.Groups.GroupPolicyIDs(ctx)
-	if err != nil {
-		return GroupView{}, fmt.Errorf("list group policies: %w", err)
-	}
-	current := bindings[group.ID]
-	replace := false
 	if patch.PolicyIDs != nil {
-		current, err = s.resolvePolicies(ctx, *patch.PolicyIDs)
+		policies, err := s.resolvePolicies(ctx, *patch.PolicyIDs)
 		if err != nil {
 			return GroupView{}, err
 		}
-		replace = true
+		update.PolicyIDs = &policies
 	}
 	if patch.DefaultPolicyID != nil {
 		if *patch.DefaultPolicyID != 0 {
@@ -346,20 +333,12 @@ func (s *AdminService) PatchGroup(ctx context.Context, id uint64, patch GroupPat
 				return GroupView{}, fmt.Errorf("find default policy: %w", err)
 			}
 		}
-		group.DefaultPolicyID = *patch.DefaultPolicyID
+		update.DefaultPolicyID = patch.DefaultPolicyID
 	}
-	if group.DefaultPolicyID != 0 && !containsID(current, group.DefaultPolicyID) {
-		return GroupView{}, ErrInvalidInput
-	}
-	updated, err := s.deps.Groups.UpdateGroup(ctx, group, current, replace)
-	if err != nil {
+	if _, err := s.deps.Groups.UpdateGroup(ctx, id, update); err != nil {
 		return GroupView{}, fmt.Errorf("update group: %w", err)
 	}
-	counts, err := s.deps.Groups.GroupMemberCounts(ctx)
-	if err != nil {
-		return GroupView{}, fmt.Errorf("count group members: %w", err)
-	}
-	return s.groupView(updated, counts, map[uint64][]uint64{updated.ID: current}), nil
+	return s.getGroupView(ctx, id)
 }
 
 // DeleteGroup refuses structural groups, groups with members, and groups a
