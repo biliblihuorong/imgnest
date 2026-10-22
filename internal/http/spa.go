@@ -15,15 +15,17 @@ import (
 )
 
 // spaHandler serves the embedded single-page app with history-mode fallback.
-// Reserved native prefixes (/api, /i, /t, /healthz) and non-GET/HEAD verbs
-// never fall back to HTML, so unknown API endpoints keep their JSON 404.
+// Reserved native prefixes (/api, /i, /t, /healthz, the crawler files) and
+// non-GET/HEAD verbs never fall back to HTML, so unknown API endpoints keep
+// their JSON 404.
 type spaHandler struct {
 	files fs.FS
 	cache sync.Map // map[string][]byte — embedded FS is immutable, so cache forever
 }
 
 func (s *spaHandler) reserved(requestPath string) bool {
-	if requestPath == "/healthz" {
+	switch requestPath {
+	case "/healthz", "/robots.txt", "/sitemap.xml":
 		return true
 	}
 	for _, prefix := range []string{"/api", "/i", "/t"} {
@@ -91,9 +93,25 @@ func (s *spaHandler) serveIndex(c *gin.Context) {
 	// hashed assets that no longer exist after a redeploy.
 	c.Writer.Header().Set("Cache-Control", "no-store")
 	c.Writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// Only the public home page and gallery may appear in search results;
+	// the console, login and every other app route stay out of indexes even
+	// when robots.txt lets crawlers in.
+	if !indexablePage(c.Request.URL.Path) {
+		c.Writer.Header().Set("X-Robots-Tag", "noindex, nofollow")
+	}
 	// gin presets the writer status to 404 before NoRoute handlers run;
 	// unlike http.ServeContent (used in serveFile), a manual write would
 	// otherwise keep that status.
 	c.Status(http.StatusOK)
 	_, _ = c.Writer.Write(data)
+}
+
+// indexablePage reports whether an app route is one of the public pages a
+// search engine may index.
+func indexablePage(requestPath string) bool {
+	switch strings.TrimSuffix(requestPath, "/") {
+	case "", "/home", "/gallery":
+		return true
+	}
+	return false
 }

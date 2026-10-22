@@ -987,6 +987,7 @@ func TestAdminSettingsDefaultsAndRoundTrip(t *testing.T) {
 	}
 	expected := AdminSettingsView{
 		SiteName: DefaultSiteName, TrashDays: 7, APIEnabled: true, AvatarProvider: model.DefaultAvatarProvider,
+		RobotsMode: RobotsBlockAll,
 	}
 	if view != expected {
 		t.Fatalf("defaults view=%+v want %+v", view, expected)

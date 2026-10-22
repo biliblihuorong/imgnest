@@ -45,6 +45,9 @@ const saving = ref(false);
 const controlsDisabled = computed(() => loading.value || saving.value || !loaded.value);
 const groups = ref<GroupView[]>([]);
 const keys = computed(() => props.fields.map((field) => field.key));
+const shownFields = computed(() =>
+  props.fields.filter((field) => !field.visible || field.visible(model)),
+);
 
 const model = reactive<AdminSettings>({
   site_name: "",
@@ -58,12 +61,22 @@ const model = reactive<AdminSettings>({
   default_group_id: 0,
   avatar_provider: "weavatar",
   email_verification_enabled: false,
+  robots_mode: "block_all",
+  robots_custom: "",
+  sitemap_enabled: false,
 });
 
 /** 头像服务商固定两项；不提供自由 URL 或更多供应商。 */
 const avatarProviderOptions = computed(() => [
   { label: t("admin.settings.avatarWeavatar"), value: "weavatar" },
   { label: t("admin.settings.avatarGravatar"), value: "gravatar" },
+]);
+
+/** robots.txt 三种模式，默认全部禁止。 */
+const robotsModeOptions = computed(() => [
+  { label: t("admin.settings.robotsBlockAll"), value: "block_all" },
+  { label: t("admin.settings.robotsPublic"), value: "public" },
+  { label: t("admin.settings.robotsCustomMode"), value: "custom" },
 ]);
 
 /** 用户组选项 + 「未设置（0）」哨兵项（0 = 后端未配置该组）。 */
@@ -190,7 +203,7 @@ defineExpose({ model });
       :label-placement="isMobile ? 'top' : 'left'"
       :label-width="isMobile ? undefined : 150"
     >
-      <NFormItem v-for="field in fields" :key="field.key" :path="field.key">
+      <NFormItem v-for="field in shownFields" :key="field.key" :path="field.key">
         <template #label
           >{{ t(`admin.settings.${field.label}`) }}<DocHelp v-if="field.doc" :topic="field.doc"
         /></template>
@@ -200,6 +213,16 @@ defineExpose({ model });
             v-model:value="model[field.key] as string"
             class="field-control"
             :placeholder="t(`admin.settings.${field.label}`)"
+            :disabled="controlsDisabled"
+          />
+          <NInput
+            v-else-if="field.kind === 'textarea'"
+            v-model:value="model[field.key] as string"
+            type="textarea"
+            class="field-control field-mono"
+            :autosize="{ minRows: 4, maxRows: 16 }"
+            :maxlength="8192"
+            :placeholder="field.placeholder ? t(`admin.settings.${field.placeholder}`) : undefined"
             :disabled="controlsDisabled"
           />
           <NSwitch
@@ -229,6 +252,14 @@ defineExpose({ model });
             v-model:value="model[field.key] as string"
             class="field-control"
             :options="avatarProviderOptions"
+            :placeholder="t(`admin.settings.${field.label}`)"
+            :disabled="controlsDisabled"
+          />
+          <NSelect
+            v-else-if="field.kind === 'robots'"
+            v-model:value="model[field.key] as string"
+            class="field-control"
+            :options="robotsModeOptions"
             :placeholder="t(`admin.settings.${field.label}`)"
             :disabled="controlsDisabled"
           />
@@ -266,6 +297,10 @@ defineExpose({ model });
 
 .field-control {
   width: 100%;
+}
+
+.field-mono :deep(textarea) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .field-hint {

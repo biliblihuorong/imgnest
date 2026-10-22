@@ -426,6 +426,13 @@ CDN 缓存不在本程序处理范围内。
 - 账户统一入口为 `/account`，默认跳转 `/account/tokens`（API Token）；另一个标签是 `/account/settings`（资料与安全）。旧 `/tokens` 跳转到 `/account/tokens`。侧栏、快捷搜索、经典布局用户菜单和概览快捷入口统一称「账户」。资料、改密和 Token 的接口及权限保持现有契约。
 - 两种布局共用明暗模式下的背景、文字、边框与阴影，以及默认强调色和圆角；切换布局保留当前强调色和圆角。「恢复默认外观」只还原这两项。首次启动或经典布局仍停在旧默认值的选项一次性迁移到共用默认值，其他自选值保留；新版布局用户主动选择的旧经典蓝保持不变。迁移记录保存在浏览器，后续主动选择旧蓝或中等圆角刷新不再覆盖；无法读写迁移记录时保留当前外观。
 
+### 7.14 robots.txt 与图片站点地图（2026-10-22）
+
+- `GET /robots.txt` 由服务端按 `settings.robots_mode` 生成：`block_all`（默认；设置读不出或值非法时也按它处理）整站 `Disallow: /`；`public` 只 Allow `/$`、`/home`、`/gallery`、`/assets/`、`/i/`、`/t/`，其余 Disallow，站点地图可用时追加 `Sitemap:` 行；`custom` 原样输出 `settings.robots_custom`（≤ 8 KiB UTF-8，除换行与 Tab 外不含控制字符，空白时按 `block_all`）。`Cache-Control: public, max-age=3600`。只约束本站域名，S3/B2 等外部存储域名不在范围内。
+- `GET /sitemap.xml` 只在 `sitemap_enabled`、`gallery_enabled` 都开且 `robots_mode` 不是 `block_all` 时提供，否则 404（读取失败也是 404，不暴露原因）。内容为 `/home` 和 `/gallery` 两个 URL，后者用 Google 图片扩展附最新 1000 张画廊图片的首选直链（复用 `Gallery` 的开关与相册范围），不含 EXIF、上传者或任何用户信息；图片列表进程内缓存 10 分钟。本机存储的站内相对链接补上请求的 scheme + Host；`X-Forwarded-Proto` 只信任 `server.trusted_proxies`。
+- `X-Robots-Tag: noindex, nofollow`：`/api/*`、`/random/*` 全部响应，以及 SPA 除 `/`、`/home`、`/gallery` 以外的所有页面。`/robots.txt`、`/sitemap.xml` 不再落入 SPA 回退。
+- 设置在「访客与画廊」页，三个键 `robots_mode`、`robots_custom`、`sitemap_enabled` 走 `GET/PUT /api/admin/settings`。按用户的 RSS 不做：没有用户公开主页，且会新增一个可枚举用户全部公开图的接口。
+
 ### 后台迁移的异常边界
 
 网页蓝空迁移在独立 goroutine 中运行，不能依赖 HTTP recovery。迁移处理链的 panic 必须转换为固定的处理失败信息，执行正常任务收尾（失败状态、结束时间、释放运行标记和等待通道），不得回显或记录 panic 原文；可以重新开始幂等迁移。回归通过真实 Start 入口在子进程注入异常，验证进程存活、状态失败、脱敏与再次启动。

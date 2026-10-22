@@ -73,6 +73,8 @@ type Dependencies struct {
 	Overview       native.AdminOverview
 	Variants       native.Variants
 	VariantOptions native.VariantOptions
+	// Crawler serves /robots.txt and /sitemap.xml; nil leaves both 404.
+	Crawler native.Crawler
 }
 
 var pluginName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
@@ -102,6 +104,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 		started := time.Now()
 		c.Header("Cache-Control", "no-store")
 		c.Header("X-Content-Type-Options", "nosniff")
+		// API answers and random-image redirects are never search results,
+		// whatever robots.txt allows.
+		if p := c.Request.URL.Path; strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/random/") {
+			c.Header("X-Robots-Tag", "noindex, nofollow")
+		}
 		c.Next()
 		path := c.FullPath()
 		if path == "" {
@@ -229,6 +236,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	}
 	if err := handler.RegisterV2Routes(ctx, router, apiSwitch); err != nil {
 		return nil, fmt.Errorf("register v2 routes: %w", err)
+	}
+	if deps.Crawler != nil {
+		if err := handler.RegisterCrawlerRoutes(ctx, router, deps.Crawler, native.CrawlerOptions{TrustedProxies: deps.Server.TrustedProxies}); err != nil {
+			return nil, fmt.Errorf("register crawler routes: %w", err)
+		}
 	}
 	router.GET("/healthz", func(c *gin.Context) {
 		if err := deps.Health(c.Request.Context()); err != nil {

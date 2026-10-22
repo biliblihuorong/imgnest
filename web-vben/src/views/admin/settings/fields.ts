@@ -1,7 +1,8 @@
 import type { AdminSettings } from "@/api/admin";
 import type { DocTopicName } from "@/lib/docs";
 
-export type SettingsFieldKind = "text" | "switch" | "number" | "group" | "avatar";
+export type SettingsFieldKind =
+  "text" | "textarea" | "switch" | "number" | "group" | "avatar" | "robots";
 
 /** 一个站点设置项：key 对应 AdminSettings 字段，label/hint 为 admin.settings 下的文案键。 */
 export interface SettingsField {
@@ -12,6 +13,8 @@ export interface SettingsField {
   placeholder?: string;
   /** 标签旁「?」打开的文档，见 @/lib/docs。 */
   doc?: DocTopicName;
+  /** 只在条件成立时显示；隐藏时字段仍随本页一起保存。 */
+  visible?: (settings: AdminSettings) => boolean;
 }
 
 export const SITE_NAME: SettingsField = {
@@ -83,4 +86,24 @@ export const GALLERY_PUBLIC_ALBUMS_ONLY: SettingsField = {
   kind: "switch",
   label: "galleryPublicAlbumsOnly",
   hint: "galleryPublicAlbumsOnlyHint",
+};
+export const ROBOTS_MODE: SettingsField = {
+  key: "robots_mode",
+  kind: "robots",
+  label: "robotsMode",
+  hint: "robotsModeHint",
+};
+export const ROBOTS_CUSTOM: SettingsField = {
+  key: "robots_custom",
+  kind: "textarea",
+  label: "robotsCustom",
+  hint: "robotsCustomHint",
+  placeholder: "robotsCustomPlaceholder",
+  visible: (settings) => settings.robots_mode === "custom",
+};
+export const SITEMAP: SettingsField = {
+  key: "sitemap_enabled",
+  kind: "switch",
+  label: "sitemap",
+  hint: "sitemapHint",
 };
