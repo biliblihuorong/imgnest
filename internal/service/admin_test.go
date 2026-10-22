@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -147,12 +148,39 @@ func (f *adminGroupsFake) CreateGroup(_ context.Context, group model.Group, poli
 	f.created = append(f.created, group)
 	return group, nil
 }
-func (f *adminGroupsFake) UpdateGroup(_ context.Context, group model.Group, policyIDs []uint64, replace bool) (model.Group, error) {
-	f.groups[group.ID] = group
-	f.updates = append(f.updates, group)
-	if replace {
-		f.bindings[group.ID] = policyIDs
+func (f *adminGroupsFake) UpdateGroup(_ context.Context, id uint64, update model.GroupUpdate) (model.Group, error) {
+	group, ok := f.groups[id]
+	if !ok {
+		return model.Group{}, ErrNotFound
 	}
+	if update.Name != nil {
+		group.Name = *update.Name
+	}
+	if update.CapacityBytes != nil {
+		group.CapacityBytes = *update.CapacityBytes
+	}
+	if update.MaxFileBytes != nil {
+		group.MaxFileBytes = *update.MaxFileBytes
+	}
+	if update.AllowedExts != nil {
+		group.AllowedExts = *update.AllowedExts
+	}
+	if update.UploadPerMin != nil {
+		group.UploadPerMin = *update.UploadPerMin
+	}
+	if update.DefaultPolicyID != nil {
+		group.DefaultPolicyID = *update.DefaultPolicyID
+	}
+	bindings := f.bindings[id]
+	if update.PolicyIDs != nil {
+		bindings = *update.PolicyIDs
+	}
+	if group.DefaultPolicyID != 0 && !slices.Contains(bindings, group.DefaultPolicyID) {
+		return model.Group{}, ErrInvalidInput
+	}
+	f.groups[id] = group
+	f.bindings[id] = bindings
+	f.updates = append(f.updates, group)
 	return group, nil
 }
 func (f *adminGroupsFake) DeleteGroup(_ context.Context, id uint64) error {

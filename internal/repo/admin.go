@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
@@ -364,46 +365,68 @@ func (r *AdminRepository) CreateGroup(ctx context.Context, group model.Group, po
 	return group, nil
 }
 
-// UpdateGroup stores scalar changes and optionally replaces the rule
-// bindings under a row lock.
-func (r *AdminRepository) UpdateGroup(ctx context.Context, group model.Group, policyIDs []uint64, replace bool) (model.Group, error) {
+// UpdateGroup merges update into the group row under a row lock and
+// optionally replaces its rule bindings. The default rule must stay among the
+// bindings as they are inside the transaction.
+func (r *AdminRepository) UpdateGroup(ctx context.Context, id uint64, update model.GroupUpdate) (model.Group, error) {
+	var existing model.Group
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		query := tx
 		if tx.Name() == "postgres" {
 			query = query.Clauses(clause.Locking{Strength: "UPDATE"})
 		}
-		var existing model.Group
-		if err := query.First(&existing, "id = ?", group.ID).Error; err != nil {
+		if err := query.First(&existing, "id = ?", id).Error; err != nil {
 			return err
 		}
-		existing.Name = group.Name
-		existing.CapacityBytes = group.CapacityBytes
-		existing.MaxFileBytes = group.MaxFileBytes
-		existing.AllowedExts = group.AllowedExts
+		if update.Name != nil {
+			existing.Name = *update.Name
+		}
+		if update.CapacityBytes != nil {
+			existing.CapacityBytes = *update.CapacityBytes
+		}
+		if update.MaxFileBytes != nil {
+			existing.MaxFileBytes = *update.MaxFileBytes
+		}
+		if update.AllowedExts != nil {
+			existing.AllowedExts = *update.AllowedExts
+		}
 		if existing.AllowedExts == nil {
 			existing.AllowedExts = []string{}
 		}
-		existing.UploadPerMin = group.UploadPerMin
+		if update.UploadPerMin != nil {
+			existing.UploadPerMin = *update.UploadPerMin
+		}
+		if update.DefaultPolicyID != nil {
+			existing.DefaultPolicyID = *update.DefaultPolicyID
+		}
+		var bindings []uint64
+		if update.PolicyIDs != nil {
+			bindings = *update.PolicyIDs
+		} else if err := tx.Table("group_policies").Where("group_id = ?", id).Pluck("policy_id", &bindings).Error; err != nil {
+			return err
+		}
+		if existing.DefaultPolicyID != 0 && !slices.Contains(bindings, existing.DefaultPolicyID) {
+			return model.ErrInvalidInput
+		}
 		save := tx
-		if group.DefaultPolicyID == 0 {
-			if err := tx.Model(&model.Group{}).Where("id = ?", group.ID).Update("default_policy_id", nil).Error; err != nil {
+		if existing.DefaultPolicyID == 0 {
+			if err := tx.Model(&model.Group{}).Where("id = ?", id).Update("default_policy_id", nil).Error; err != nil {
 				return err
 			}
 			save = save.Omit("DefaultPolicyID")
 		}
-		existing.DefaultPolicyID = group.DefaultPolicyID
 		if err := save.Save(&existing).Error; err != nil {
 			return err
 		}
-		if !replace {
+		if update.PolicyIDs == nil {
 			return nil
 		}
-		return replaceGroupPolicies(tx, group.ID, policyIDs)
+		return replaceGroupPolicies(tx, id, *update.PolicyIDs)
 	})
 	if err != nil {
 		return model.Group{}, repositoryError("update group", err)
 	}
-	return group, nil
+	return existing, nil
 }
 
 // DeleteGroup removes a group and its rule bindings. It shares a row lock
