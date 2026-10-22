@@ -375,10 +375,20 @@ func (s *ImageService) generateVariants(ctx context.Context, image model.Image) 
 		}
 	}
 	if _, err := repo.FinishVariants(ctx, current.ID, op); err != nil {
+		// A lost COMMIT acknowledgement may already have published the
+		// variants; only a journal still present proves they were not.
 		checkCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
-		if pending, checkErr := repo.HasVariantJob(checkCtx, current.ID); checkErr == nil && !pending {
-			if done, findErr := s.deps.Images.FindByKey(checkCtx, current.Key); findErr == nil && len(done.Variants) > 0 {
+		pending, checkErr := repo.HasVariantJob(checkCtx, current.ID)
+		if checkErr != nil {
+			return false, fmt.Errorf("confirm variants commit; recovery pending: %w", err)
+		}
+		if !pending {
+			done, findErr := s.deps.Images.FindByKey(checkCtx, current.Key)
+			if findErr != nil {
+				return false, fmt.Errorf("confirm variants commit; recovery pending: %w", err)
+			}
+			if done.ID == current.ID && len(done.Variants) > 0 {
 				s.invalidateLookup(checkCtx, current)
 				return true, nil
 			}
