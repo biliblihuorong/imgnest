@@ -30,18 +30,24 @@ export function useUploadQueue(
   const ignoredWhileUploading = ref(false);
   let nextId = 1;
   let active = true;
+  /** 每次会话变化 +1；旧批次的迟到回调按代号丢弃。 */
+  let generation = 0;
   let controller: AbortController | undefined;
   function endSession() {
-    active = false;
+    generation++;
     controller?.abort();
     items.value = [];
     rejectedFiles.value = null;
     ignoredWhileUploading.value = false;
     uploading.value = false;
+    // 游客队列不属于任何账号：清空后继续可用（公开首页不随会话重挂载）。
+    // 账号队列随布局按会话重建，旧实例从此不再接收文件。
+    if (!options().guest) active = false;
   }
   window.addEventListener("imgnest:session-cleared", endSession);
   onBeforeUnmount(() => {
     active = false;
+    generation++;
     controller?.abort();
     window.removeEventListener("imgnest:session-cleared", endSession);
   });
@@ -101,8 +107,8 @@ export function useUploadQueue(
       })),
     );
   }
-  function apply(item: UploadQueueItem | undefined, result: UploadItemResult) {
-    if (!active || !item) return;
+  function apply(item: UploadQueueItem | undefined, result: UploadItemResult, run: number) {
+    if (!active || run !== generation || !item) return;
     if (result.ok) {
       item.state = "success";
       item.image = result.image;
@@ -130,7 +136,10 @@ export function useUploadQueue(
       return;
     }
     uploading.value = true;
-    controller = new AbortController();
+    const run = generation;
+    const live = () => active && run === generation;
+    const runController = new AbortController();
+    controller = runController;
     targets.forEach((item) => {
       item.state = "uploading";
       item.error = null;
@@ -139,9 +148,9 @@ export function useUploadQueue(
       const results = await uploadImages({
         ...settings,
         files: targets.map((item) => item.file),
-        signal: controller.signal,
+        signal: runController.signal,
         onFileStart: (index, file) => {
-          if (!active) return;
+          if (!live()) return;
           const item = targets[index];
           if (item) {
             item.state = "uploading";
@@ -150,38 +159,42 @@ export function useUploadQueue(
           }
         },
         onFileProgress: (index, _file, loaded, total) => {
-          if (!active) return;
+          if (!live()) return;
           const item = targets[index];
           if (item) {
             item.loaded = loaded;
             item.total = total;
           }
         },
-        onFileSettled: (index, _file, result) => apply(targets[index], result),
+        onFileSettled: (index, _file, result) => apply(targets[index], result, run),
       });
-      results.forEach((result, index) => apply(targets[index], result));
+      results.forEach((result, index) => apply(targets[index], result, run));
       // A missing result must never leave a file permanently stuck in flight.
       targets
         .filter((item) => item.state === "uploading")
         .forEach((item) =>
-          apply(item, { ok: false, filename: item.name, code: -1, status: 0, message: "" }),
+          apply(item, { ok: false, filename: item.name, code: -1, status: 0, message: "" }, run),
         );
     } catch (error) {
       const failure = error instanceof ApiError ? error : new ApiError(-1, "", 0);
       targets
         .filter((item) => item.state !== "success")
         .forEach((item) =>
-          apply(item, {
-            ok: false,
-            filename: item.name,
-            code: failure.code,
-            status: failure.status,
-            message: failure.message,
-          }),
+          apply(
+            item,
+            {
+              ok: false,
+              filename: item.name,
+              code: failure.code,
+              status: failure.status,
+              message: failure.message,
+            },
+            run,
+          ),
         );
     } finally {
-      controller = undefined;
-      if (active) uploading.value = false;
+      if (controller === runController) controller = undefined;
+      if (live()) uploading.value = false;
     }
   }
   function startUpload() {

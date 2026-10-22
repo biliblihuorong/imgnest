@@ -18,6 +18,10 @@ import { useSiteStore } from "@/stores/site";
 import PublicHomeView from "./PublicHomeView.vue";
 
 vi.mock("@/api/gallery", () => ({ listGallery: vi.fn() }));
+vi.mock("@/api/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/auth")>()),
+  me: vi.fn(() => new Promise(() => {})),
+}));
 vi.mock("@/api/upload", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/upload")>()),
   uploadImages: vi.fn(),
@@ -111,6 +115,41 @@ describe("PublicHomeView", () => {
 
     expect(wrapper.find("[data-test='guest-upload']").exists()).toBe(false);
     expect(wrapper.text()).toContain("进入控制台");
+  });
+
+  it("跨标签登录、退出后入口随之切换，游客上传区仍可入队上传", async () => {
+    setSite({ guestUpload: true });
+    const image = makeImage({ id: 9, name: "a.png" });
+    uploadImagesMock.mockResolvedValue([{ ok: true, filename: "a.png", status: 201, image }]);
+    const wrapper = mountView();
+    await flushPromises();
+    const otherTab = async (token: string | null) => {
+      if (token === null) localStorage.removeItem(TOKEN_STORAGE_KEY);
+      else localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: TOKEN_STORAGE_KEY,
+          newValue: token,
+          storageArea: localStorage,
+        }),
+      );
+      await flushPromises();
+    };
+
+    await otherTab("7|token");
+    expect(wrapper.find("[data-test='guest-upload']").exists()).toBe(false);
+    expect(wrapper.text()).toContain("进入控制台");
+
+    await otherTab(null);
+    expect(wrapper.find("[data-test='guest-upload']").exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("进入控制台");
+    await chooseFile(wrapper, new File(["x"], "a.png", { type: "image/png" }));
+    const start = wrapper.findAll("button").find((node) => node.text() === "开始上传")!;
+    expect(start.attributes("disabled")).toBeUndefined();
+    await start.trigger("click");
+    await flushPromises();
+    expect(uploadImagesMock).toHaveBeenCalledOnce();
+    expect(uploadImagesMock.mock.calls[0]![0].guest).toBe(true);
   });
 
   it("开放画廊时预览最新 12 张公开图片", async () => {

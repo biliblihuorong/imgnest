@@ -12,8 +12,7 @@ import {
   NTag,
   useMessage,
 } from "naive-ui";
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { getToken } from "@/api/client";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { getGuestUploadLimits, MAX_UPLOAD_FILES, type ImageView } from "@/api/upload";
 import logo from "@/assets/imgnest-mark.svg";
 import GalleryCard from "@/components/gallery/GalleryCard.vue";
@@ -45,7 +44,8 @@ const { t } = useI18n();
 const message = useMessage();
 const site = useSiteStore();
 const auth = useAuthStore();
-const signedIn = computed(() => getToken() !== null);
+// auth.token 是会话的响应式投影，跨标签登录/退出后入口随之更新。
+const signedIn = computed(() => auth.token !== null);
 const consolePath = computed(() => landingPath(auth.user?.role));
 const renderPreviewToolbar = usePreviewSwipe();
 
@@ -119,6 +119,10 @@ onMounted(async () => {
   await site.ensureLoaded();
   if (!active) return;
   if (canGuestUpload.value) void loadLimits();
+});
+// 另一个标签退出后游客上传区才出现时，补读游客限额。
+watch(canGuestUpload, (open) => {
+  if (open && active && site.loaded && maxFileBytes.value === null) void loadLimits();
 });
 </script>
 
