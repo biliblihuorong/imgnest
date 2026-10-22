@@ -82,6 +82,56 @@ func newBackupFixture(t *testing.T) backupFixture {
 	return fixture
 }
 
+// countingStore records archives opened through the real store and whether
+// each was closed.
+type countingStore struct {
+	service.BackupStore
+	open []*trackedArchive
+}
+
+type trackedArchive struct {
+	model.BackupArchive
+	closed bool
+}
+
+func (a *trackedArchive) Close() error {
+	a.closed = true
+	return a.BackupArchive.Close()
+}
+
+func (s *countingStore) Open(ctx context.Context, name string) (model.BackupArchive, model.BackupFile, error) {
+	archive, file, err := s.BackupStore.Open(ctx, name)
+	if err != nil {
+		return nil, file, err
+	}
+	tracked := &trackedArchive{BackupArchive: archive}
+	s.open = append(s.open, tracked)
+	return tracked, file, nil
+}
+
+func TestBackupCreateClosesTheArchiveItReadsMetadataFrom(t *testing.T) {
+	store, err := backupdir.New(t.Context(), filepath.Join(t.TempDir(), "backup"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	counting := &countingStore{BackupStore: store}
+	backups, err := service.NewBackupService(t.Context(), service.BackupDependencies{
+		Dumper: &backupDumperFake{}, Store: counting, Settings: &backupSettingsFake{values: map[string]json.RawMessage{}},
+		Config: func(context.Context) ([]service.BackupConfigFile, error) { return nil, nil },
+		Now:    func() time.Time { return time.Date(2026, 10, 16, 8, 0, 0, 0, time.UTC) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := backups.Create(t.Context())
+	if err != nil || file.Size == 0 {
+		t.Fatalf("create: %+v, %v", file, err)
+	}
+	if len(counting.open) != 1 || !counting.open[0].closed {
+		t.Fatalf("archives opened=%d, first closed=%v; want the metadata handle closed", len(counting.open), len(counting.open) > 0 && counting.open[0].closed)
+	}
+}
+
 func TestBackupCreateWritesDatabaseConfigAndManifest(t *testing.T) {
 	fixture := newBackupFixture(t)
 	file, err := fixture.service.Create(t.Context())
