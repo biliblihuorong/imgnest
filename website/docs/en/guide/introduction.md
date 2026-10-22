@@ -16,7 +16,7 @@ Use [Find your task](./index.md) for instructions, or [Getting started](./gettin
 ## Current status
 
 ::: warning Preview release
-ImgNest is under active development. The current preview release is **v0.1.3** (image tag `0.1.3`, also `latest`); version 1.0.0 has not been released. The `edge` tag follows the latest commit on `main` and may be unstable.
+ImgNest is under active development. The current preview release is **v0.1.4** (image tag `0.1.4`, also `latest`); version 1.0.0 has not been released. The `edge` tag follows the latest commit on `main` and may be unstable.
 :::
 
 What is implemented:
