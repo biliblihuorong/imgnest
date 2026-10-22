@@ -54,6 +54,22 @@ Enable guest uploads and select a guest group in Guests & gallery. Visitors can 
 - Guests cannot manage or delete their uploads later; an administrator can. People who need ongoing management should register and sign in.
 - Signed-in users upload from their console instead of uploading as guests.
 
+## Search engines and the sitemap
+
+The bottom of the same page has **Search engine crawling** and **Image sitemap**. They control `/robots.txt` and `/sitemap.xml` on this site's own domain; the server generates both from the settings.
+
+| Crawling mode | robots.txt |
+| --- | --- |
+| Block everything (default) | `Disallow: /` for the whole site |
+| Home and gallery only | Allows only `/`, `/home`, `/gallery`, the app's `/assets/` and local-storage images under `/i/` and `/t/`; the console, login, API and random-image links stay blocked |
+| Custom | Serves your text as written (up to 8 KB); empty text blocks everything |
+
+- robots.txt only covers this domain. Images on external storage such as S3 or B2 live on another domain; protect them there (hotlink protection or bucket policy).
+- "Home and gallery only" allows `/i/`. Direct links to private images already open without signing in, so once posted elsewhere they can be crawled too. Keep "Block everything" if that matters.
+- In every mode the console, login page, `/api/` and random-image responses carry `X-Robots-Tag: noindex`, so they never show up in search results.
+
+With **Image sitemap** on, `/sitemap.xml` lists the home page and the gallery, with the newest 1,000 public images attached to the gallery entry (Google image sitemap format). The scope matches the gallery, including "public albums only". It is served only while the gallery is on and crawling is not "Block everything"; otherwise it returns 404. The image list refreshes at most every 10 minutes and contains no EXIF or uploader details. "Home and gallery only" adds the `Sitemap:` line to robots.txt automatically; in custom mode add `Sitemap: https://your-domain/sitemap.xml` yourself.
+
 ## Troubleshooting
 
 | Symptom | Check |

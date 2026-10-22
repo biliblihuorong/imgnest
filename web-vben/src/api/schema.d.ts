@@ -21,6 +21,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/robots.txt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the generated robots.txt
+         * @description Built from the `robots_mode` setting. `block_all` (the default, and
+         *     the answer whenever settings cannot be read) disallows the whole site.
+         *     `public` allows only `/`, `/home`, `/gallery`, `/assets/`, `/i/` and
+         *     `/t/`, and adds a `Sitemap:` line while the sitemap is served.
+         *     `custom` serves `robots_custom` verbatim (an empty text blocks
+         *     everything). Cached for an hour.
+         */
+        get: operations["getRobots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sitemap.xml": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the public image sitemap
+         * @description Served only while `sitemap_enabled` and `gallery_enabled` are on and
+         *     `robots_mode` is not `block_all`. Lists `/home` and `/gallery`, the
+         *     latter with up to 1000 of the newest gallery images as Google image
+         *     sitemap entries (the gallery's own album scope applies). No EXIF or
+         *     uploader data. The image list refreshes at most every 10 minutes.
+         */
+        get: operations["getSitemap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/site": {
         parameters: {
             query?: never;
@@ -2371,7 +2420,17 @@ export interface components {
             avatar_provider: "weavatar" | "gravatar";
             /** @description Registration needs an emailed code while SMTP works; defaults to false. */
             email_verification_enabled: boolean;
+            robots_mode: components["schemas"]["RobotsMode"];
+            /** @description Served verbatim as robots.txt while robots_mode is custom; empty by default. */
+            robots_custom: string;
+            /** @description Serves /sitemap.xml with the public gallery's images; defaults to false. */
+            sitemap_enabled: boolean;
         };
+        /**
+         * @description robots.txt mode; defaults to block_all.
+         * @enum {string}
+         */
+        RobotsMode: "block_all" | "public" | "custom";
         AdminSettingsPatch: {
             site_name?: string;
             registration_enabled?: boolean;
@@ -2390,6 +2449,10 @@ export interface components {
             /** @enum {string} */
             avatar_provider?: "weavatar" | "gravatar";
             email_verification_enabled?: boolean;
+            robots_mode?: components["schemas"]["RobotsMode"];
+            /** @description UTF-8 without control characters other than tab and line breaks, otherwise 400/10001. */
+            robots_custom?: string;
+            sitemap_enabled?: boolean;
         };
         AdminUserPageEnvelope: {
             /** @enum {integer} */
@@ -4010,6 +4073,53 @@ export interface operations {
                 };
             };
             503: components["responses"]["InternalError"];
+        };
+    };
+    getRobots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description robots.txt body. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    getSitemap: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sitemap XML with the image extension. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/xml": string;
+                };
+            };
+            /** @description The sitemap is switched off. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     getSite: {

@@ -75,6 +75,8 @@ func (s *AdminService) GetSettings(ctx context.Context) (AdminSettingsView, erro
 			view.AvatarProvider = provider
 		}
 	}
+	crawler := crawlerConfig(values)
+	view.RobotsMode, view.RobotsCustom, view.SitemapEnabled = crawler.RobotsMode, crawler.RobotsCustom, crawler.SitemapEnabled
 	return view, nil
 }
 
@@ -103,6 +105,7 @@ func (s *AdminService) PutSettings(ctx context.Context, patch SettingsPatch) (Ad
 		"api_enabled":                patch.APIEnabled,
 		"gallery_public_albums_only": patch.GalleryPublicAlbumsOnly,
 		"email_verification_enabled": patch.EmailVerificationEnabled,
+		"sitemap_enabled":            patch.SitemapEnabled,
 	} {
 		if value == nil {
 			continue
@@ -132,6 +135,22 @@ func (s *AdminService) PutSettings(ctx context.Context, patch SettingsPatch) (Ad
 			return AdminSettingsView{}, ErrInvalidInput
 		}
 		writes["avatar_provider"] = encoded
+	}
+	for key, value := range map[string]*string{
+		"robots_mode":   patch.RobotsMode,
+		"robots_custom": patch.RobotsCustom,
+	} {
+		if value == nil {
+			continue
+		}
+		if key == "robots_mode" && !validRobotsMode(*value) || key == "robots_custom" && !validRobotsCustom(*value) {
+			return AdminSettingsView{}, ErrInvalidInput
+		}
+		encoded, err := json.Marshal(*value)
+		if err != nil {
+			return AdminSettingsView{}, ErrInvalidInput
+		}
+		writes[key] = encoded
 	}
 	// The guest setting must name a guest group and the default setting an
 	// ordinary one; otherwise signups would land in the guest group or guest

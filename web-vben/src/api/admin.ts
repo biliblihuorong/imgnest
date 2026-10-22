@@ -209,6 +209,9 @@ export interface PolicyPreviewResult {
 /** 站点头像服务商（与 openapi AdminSettings.avatar_provider 枚举一致）。 */
 export type AvatarProvider = "weavatar" | "gravatar";
 
+/** robots.txt 模式（与 openapi AdminSettings.robots_mode 枚举一致）。 */
+export type RobotsMode = "block_all" | "public" | "custom";
+
 /** 管理端站点设置：契约 settings 十字段。 */
 export interface AdminSettings {
   site_name: string;
@@ -227,6 +230,12 @@ export interface AdminSettings {
   avatar_provider: AvatarProvider;
   /** 注册需填写邮件验证码；SMTP 可用时才生效。 */
   email_verification_enabled: boolean;
+  /** robots.txt 模式：全部禁止 / 只开放首页与画廊 / 自定义。 */
+  robots_mode: RobotsMode;
+  /** 自定义 robots.txt 原文，robots_mode 为 custom 时生效，最多 8 KB。 */
+  robots_custom: string;
+  /** 开启后 /sitemap.xml 列出画廊里最新的 1000 张公开图片。 */
+  sitemap_enabled: boolean;
 }
 
 /** listAdminImages 的过滤参数。 */

@@ -52,6 +52,45 @@ paths:
                 $ref: '#/components/schemas/HealthEnvelope'
         '503':
           $ref: '#/components/responses/InternalError'
+  /robots.txt:
+    get:
+      operationId: getRobots
+      tags: [Site]
+      summary: Read the generated robots.txt
+      description: |
+        Built from the `robots_mode` setting. `block_all` (the default, and
+        the answer whenever settings cannot be read) disallows the whole site.
+        `public` allows only `/`, `/home`, `/gallery`, `/assets/`, `/i/` and
+        `/t/`, and adds a `Sitemap:` line while the sitemap is served.
+        `custom` serves `robots_custom` verbatim (an empty text blocks
+        everything). Cached for an hour.
+      security: []
+      responses:
+        '200':
+          description: robots.txt body.
+          content:
+            text/plain:
+              schema: {type: string}
+  /sitemap.xml:
+    get:
+      operationId: getSitemap
+      tags: [Site]
+      summary: Read the public image sitemap
+      description: |
+        Served only while `sitemap_enabled` and `gallery_enabled` are on and
+        `robots_mode` is not `block_all`. Lists `/home` and `/gallery`, the
+        latter with up to 1000 of the newest gallery images as Google image
+        sitemap entries (the gallery's own album scope applies). No EXIF or
+        uploader data. The image list refreshes at most every 10 minutes.
+      security: []
+      responses:
+        '200':
+          description: Sitemap XML with the image extension.
+          content:
+            application/xml:
+              schema: {type: string}
+        '404':
+          description: The sitemap is switched off.
   /api/site:
     get:
       operationId: getSite
@@ -3578,7 +3617,7 @@ components:
     AdminSettings:
       type: object
       additionalProperties: false
-      required: [site_name, registration_enabled, guest_upload_enabled, gallery_enabled, gallery_public_albums_only, trash_days, api_enabled, guest_group_id, default_group_id, avatar_provider, email_verification_enabled]
+      required: [site_name, registration_enabled, guest_upload_enabled, gallery_enabled, gallery_public_albums_only, trash_days, api_enabled, guest_group_id, default_group_id, avatar_provider, email_verification_enabled, robots_mode, robots_custom, sitemap_enabled]
       properties:
         site_name: {type: string, minLength: 1, maxLength: 100}
         registration_enabled: {type: boolean}
@@ -3594,6 +3633,13 @@ components:
           enum: [weavatar, gravatar]
           description: Site-wide external avatar source; defaults to weavatar.
         email_verification_enabled: {type: boolean, description: Registration needs an emailed code while SMTP works; defaults to false.}
+        robots_mode: {$ref: '#/components/schemas/RobotsMode'}
+        robots_custom: {type: string, maxLength: 8192, description: Served verbatim as robots.txt while robots_mode is custom; empty by default.}
+        sitemap_enabled: {type: boolean, description: Serves /sitemap.xml with the public gallery's images; defaults to false.}
+    RobotsMode:
+      type: string
+      enum: [block_all, public, custom]
+      description: robots.txt mode; defaults to block_all.
     AdminSettingsPatch:
       type: object
       additionalProperties: false
@@ -3610,6 +3656,9 @@ components:
         default_group_id: {allOf: [{$ref: '#/components/schemas/ID'}], description: Must name an ordinary (non-guest) group, otherwise 400/10001.}
         avatar_provider: {type: string, enum: [weavatar, gravatar]}
         email_verification_enabled: {type: boolean}
+        robots_mode: {$ref: '#/components/schemas/RobotsMode'}
+        robots_custom: {type: string, maxLength: 8192, description: 'UTF-8 without control characters other than tab and line breaks, otherwise 400/10001.'}
+        sitemap_enabled: {type: boolean}
     AdminUserPageEnvelope:
       type: object
       additionalProperties: false

@@ -50,6 +50,9 @@ const settings: AdminSettings = {
   default_group_id: 0,
   avatar_provider: "weavatar",
   email_verification_enabled: true,
+  robots_mode: "block_all",
+  robots_custom: "",
+  sitemap_enabled: false,
 };
 
 const version: SystemVersion = {

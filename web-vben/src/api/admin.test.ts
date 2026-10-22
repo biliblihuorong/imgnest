@@ -109,6 +109,9 @@ const settingsFixture: AdminSettings = {
   default_group_id: 1,
   avatar_provider: "weavatar" as const,
   email_verification_enabled: false,
+  robots_mode: "block_all",
+  robots_custom: "",
+  sitemap_enabled: false,
 };
 
 const JSON_HEADERS = { "Content-Type": "application/json" };

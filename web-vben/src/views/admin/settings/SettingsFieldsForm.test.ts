@@ -25,7 +25,10 @@ import {
   GUEST_GROUP,
   GUEST_UPLOAD,
   REGISTRATION,
+  ROBOTS_CUSTOM,
+  ROBOTS_MODE,
   SITE_NAME,
+  SITEMAP,
   TRASH_DAYS,
 } from "./fields";
 
@@ -77,6 +80,9 @@ const settingsFixture: AdminSettings = {
   default_group_id: 1,
   avatar_provider: "weavatar",
   email_verification_enabled: false,
+  robots_mode: "block_all",
+  robots_custom: "",
+  sitemap_enabled: false,
 };
 
 function makeGroup(overrides: Partial<GroupView> = {}): GroupView {
@@ -142,6 +148,36 @@ beforeEach(() => {
 });
 
 describe("SettingsFieldsForm", () => {
+  it("shows the custom robots.txt only in custom mode and saves the crawler fields", async () => {
+    const wrapper = mount(() =>
+      h(NMessageProvider, () =>
+        h(SettingsFieldsForm, { fields: [ROBOTS_MODE, ROBOTS_CUSTOM, SITEMAP] }),
+      ),
+    );
+    await flushPromises();
+    expect(wrapper.find("textarea").exists()).toBe(false);
+    expect(wrapper.findComponent(NSelect).props("value")).toBe("block_all");
+
+    wrapper.findComponent(NSelect).vm.$emit("update:value", "custom");
+    await nextTick();
+    const textarea = wrapper.find("textarea");
+    expect(textarea.exists()).toBe(true);
+    await textarea.setValue("User-agent: *\nDisallow: /api/");
+    await wrapper.findComponent(NSwitch).vm.$emit("update:value", true);
+
+    adminApiMock.putSettings.mockResolvedValue({ ...settingsFixture, robots_mode: "custom" });
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "保存设置")!
+      .trigger("click");
+    await flushPromises();
+    expect(adminApiMock.putSettings).toHaveBeenCalledWith({
+      robots_mode: "custom",
+      robots_custom: "User-agent: *\nDisallow: /api/",
+      sitemap_enabled: true,
+    });
+  });
+
   it("publishes saved settings to the existing brand, menu and gallery consumers", async () => {
     const wrapper = await mountSiteConsumers();
     expect(wrapper.find(".mv-brand__name").text()).toBe("Old site");

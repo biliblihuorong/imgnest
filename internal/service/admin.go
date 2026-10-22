@@ -247,6 +247,12 @@ type AdminSettingsView struct {
 	// EmailVerificationEnabled makes registration require a mailed code; it
 	// takes effect only while SMTP is configured.
 	EmailVerificationEnabled bool `json:"email_verification_enabled"`
+	// RobotsMode selects the generated robots.txt: block_all, public or custom.
+	RobotsMode string `json:"robots_mode"`
+	// RobotsCustom is served verbatim while RobotsMode is custom.
+	RobotsCustom string `json:"robots_custom"`
+	// SitemapEnabled serves /sitemap.xml with the public gallery's images.
+	SitemapEnabled bool `json:"sitemap_enabled"`
 }
 
 // SettingsPatch changes only the settings keys present in the request.
@@ -263,7 +269,10 @@ type SettingsPatch struct {
 	DefaultGroupID          *uint64 `json:"default_group_id,omitempty"`
 	AvatarProvider          *string `json:"avatar_provider,omitempty"`
 	// EmailVerificationEnabled makes registration require a mailed code.
-	EmailVerificationEnabled *bool `json:"email_verification_enabled,omitempty"`
+	EmailVerificationEnabled *bool   `json:"email_verification_enabled,omitempty"`
+	RobotsMode               *string `json:"robots_mode,omitempty"`
+	RobotsCustom             *string `json:"robots_custom,omitempty"`
+	SitemapEnabled           *bool   `json:"sitemap_enabled,omitempty"`
 }
 
 func containsID(values []uint64, id uint64) bool {
