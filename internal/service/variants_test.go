@@ -297,7 +297,7 @@ func (r *lostCommitVariants) VariantCandidates(context.Context, uint64, int) ([]
 }
 func (r *lostCommitVariants) BeginVariants(_ context.Context, job model.VariantJob) (model.Image, error) {
 	r.job, r.pending = job, true
-	return r.uploadRepo.rows[job.ImageKey], nil
+	return r.rows[job.ImageKey], nil
 }
 func (r *lostCommitVariants) RecordVariantReceipt(context.Context, uint64, string, model.ObjectReceipt) error {
 	return nil
