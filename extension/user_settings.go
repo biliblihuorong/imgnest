@@ -37,6 +37,7 @@ type UserSettingsUser interface {
 
 // UserSettingsSchema describes a card in the account settings page. ReadOnly
 // denies every user mutation, including asset replacement and removal.
+// Fields are flat and cannot contain secrets or administrator option sources.
 type UserSettingsSchema struct {
 	SettingsSchema
 	ReadOnly   bool

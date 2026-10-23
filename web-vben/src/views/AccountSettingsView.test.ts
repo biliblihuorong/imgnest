@@ -18,6 +18,10 @@ vi.mock("@/api/auth", () => ({
   changePassword: vi.fn(),
   updateDisplayName: vi.fn(),
 }));
+vi.mock("@/api/plugins", async (original) => ({
+  ...(await original<typeof import("@/api/plugins")>()),
+  listUserPluginSettings: vi.fn(async () => []),
+}));
 
 const authApiMock = vi.mocked(authApi);
 

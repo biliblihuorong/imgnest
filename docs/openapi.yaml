@@ -3036,6 +3036,116 @@ paths:
           $ref: '#/components/responses/StorageFailed'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/user/plugins:
+    get:
+      operationId: listUserPluginSettings
+      tags: [Account]
+      summary: List account extension settings
+      description: Web sessions only. Owner comes from authentication. Group policy may make a card read-only. The ordinary edition returns an empty list.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Visible account cards.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserPluginSettingsListEnvelope'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/AdminForbidden'}
+  /api/user/plugins/{name}/settings:
+    put:
+      operationId: saveUserPluginSettings
+      tags: [Account]
+      summary: Save the signed-in account's extension settings
+      description: Web sessions only. Replaces values after schema and plugin validation. Group-controlled cards reject mutations with 403 and reason plugin_user_read_only. No user ID is accepted.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: name, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [values]
+              properties:
+                values: {type: object, additionalProperties: true}
+      responses:
+        '200':
+          description: Saved account card.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserPluginSettingsEnvelope'}
+        '400': {$ref: '#/components/responses/InvalidInput'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/AdminForbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/user/plugins/{name}/asset:
+    parameters:
+      - {name: name, in: path, required: true, schema: {type: string}}
+    get:
+      operationId: getUserPluginAsset
+      tags: [Account]
+      summary: Read the signed-in account's private extension asset
+      description: Web sessions only. Binary response has private, no-store caching. Assets have no public URL.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Private normalized image.
+          content:
+            image/png:
+              schema: {type: string, format: binary}
+            image/jpeg:
+              schema: {type: string, format: binary}
+            image/webp:
+              schema: {type: string, format: binary}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/AdminForbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      operationId: putUserPluginAsset
+      tags: [Account]
+      summary: Replace the signed-in account's private asset
+      description: Web sessions only. One file, at most 4 MiB. Plugin validates and normalizes before atomic replacement; failures preserve the old asset. Group-controlled cards reject writes. Limited to 10 requests/minute/account and two concurrent asset processors per process.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '200':
+          description: Updated account card.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserPluginSettingsEnvelope'}
+        '400': {$ref: '#/components/responses/InvalidInput'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/AdminForbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '413':
+          description: Asset exceeds 4 MiB (10002).
+        '429':
+          description: Too many asset uploads (30003).
+    delete:
+      operationId: deleteUserPluginAsset
+      tags: [Account]
+      summary: Remove the signed-in account's private asset
+      description: Web sessions only. Preserves text settings. Group-controlled cards reject writes.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Updated account card.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserPluginSettingsEnvelope'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/AdminForbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
   /api/admin/plugins:
     get:
       operationId: adminListPluginSettings
@@ -3758,6 +3868,38 @@ components:
         label: {type: string}
         value: {type: string}
         level: {type: string, enum: [info, success, warning, error]}
+    UserPluginSettings:
+      type: object
+      additionalProperties: false
+      required: [name, title, fields, values, read_only, has_asset]
+      properties:
+        name: {type: string}
+        title: {type: string}
+        description: {type: string}
+        fields:
+          type: array
+          items: {$ref: '#/components/schemas/PluginSettingField'}
+        values: {type: object, additionalProperties: true}
+        read_only: {type: boolean}
+        notice: {type: string}
+        asset_label: {type: string}
+        has_asset: {type: boolean}
+    UserPluginSettingsEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/UserPluginSettings'}
+    UserPluginSettingsListEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data:
+          type: array
+          items: {$ref: '#/components/schemas/UserPluginSettings'}
     PluginSettings:
       type: object
       additionalProperties: false

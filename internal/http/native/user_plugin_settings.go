@@ -3,8 +3,10 @@ package native
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -88,7 +90,12 @@ func (h *Handler) RegisterUserPluginSettingsRoutes(ctx context.Context, router g
 		release := reqbody.Bound(ctx, c.Writer, c.Request, model.MaxPluginUserAssetBytes+(1<<20))
 		defer release()
 		if err := c.Request.ParseMultipartForm(model.MaxPluginUserAssetBytes); err != nil {
-			fail(c, service.ErrInvalidInput)
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) {
+				fail(c, errUploadTooLarge)
+			} else {
+				fail(c, service.ErrInvalidInput)
+			}
 			return
 		}
 		defer func() {

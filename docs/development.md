@@ -137,6 +137,10 @@ Remove-Variable taskPlainPassword, taskPassword
 
 插件额外实现下面的接口，就会被接入对应位置；都不实现时，插件只影响自己的路由。原版构建没有插件，这些位置全部为空操作。
 
+- `UserSettingsUser`：启动时收到按插件隔离的只读 `UserSettingsStore`，读取账户当前用户组、个人设置和修订号，以及一个最多 4 MiB 的私有资产；数据存数据库，包含在备份中，多实例共享。
+- `UserConfigurable`：在账户「资料与安全」显示个人卡片，复用扁平字段 schema（禁止 secret、list 和管理员 OptionsFrom）。`UserSettingsSchema(ctx,user)` 可隐藏卡片或设 `ReadOnly`，后者拒绝所有设置、资产上传和删除；`ValidateUserSettings` 只校验，不修改全局状态。`GET /api/user/plugins`、`PUT /api/user/plugins/{name}/settings` 和 `GET/PUT/DELETE /api/user/plugins/{name}/asset` 只允许网页登录会话，用户 ID 来自鉴权。普通版返回空列表。写入时复核当前用户组，组改变会拒绝旧请求。
+- `UserAssetProcessor`：个人卡片设 `AssetLabel` 后，上传的 `file` 先交 `PrepareUserAsset` 验证、规范化，再原子替换；失败保留旧文件。插件必须按真实格式探测、限制像素与帧数、清理元数据。用户上传上限 4 MiB，每用户每分钟 10 次、每进程最多两个处理器；GET 只返回当前账户私有内容，`private, no-store`，没有公开 URL。
+
 - `EventSubscriber`：`HandleEvent(ctx, event)` 接收已提交的变化：`image.uploaded`、`image.trashed`、`image.restored`、`image.purged`、`user.registered`。每个订阅者有自己的队列（256）和 goroutine，慢的只拖慢自己；队列满时丢弃并记日志，`serve` 退出时最多等 10 秒把队列发完。事件里不带 EXIF、凭据和邮箱；图片事件带当时的原图、WebP、缩略图公开 URL。
 - `DisplayTransformer`：`TransformDisplay(ctx, image, webp)` 可以改写上传时**单独编码出来的展示 WebP**（例如加水印）。原图、缩略图、本身就是 WebP 的上传和 `webp_mode=none` 的规则都不会经过它，所以原图永远不会被重新编码。返回值必须是尺寸和帧数不变的 WebP，且不超过单文件上限（上传文件比它大时以上传文件大小为准）；出错或不合规都会拒绝这次上传（走正常的补偿流程，不会留下对象）。多个插件按注册顺序依次执行。
 - `AccessGuard`：`GuardAccess(c, kind)` 在服务端自己出的公开图片路由之前运行：`object`（`/i/...`，只有本机存储）、`thumbnail`（`/t/...`）、`random`（`/random/...`，对所有存储有效，因为跳转前会经过服务端）。返回 `false` 表示插件已经写好响应（例如 403）。S3 直链不经过服务端，这里管不到；前面有 CDN 缓存时，命中缓存的请求也不会到这里。

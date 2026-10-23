@@ -93,7 +93,7 @@ func TestUserPluginRoutesUseWebSessionOwner(t *testing.T) {
 	if out.Code != 200 || out.Header().Get("Cache-Control") != "private, no-store" || out.Header().Get("Content-Type") != "image/png" || out.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatalf("asset response: %d %v", out.Code, out.Header())
 	}
-	for _, size := range []int{16, (4 << 20) + 1} {
+	for _, size := range []int{16, (4 << 20) + 1, (5 << 20) + 1} {
 		var body bytes.Buffer
 		form := multipart.NewWriter(&body)
 		file, _ := form.CreateFormFile("file", "logo.png")

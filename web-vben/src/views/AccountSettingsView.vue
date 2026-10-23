@@ -4,6 +4,7 @@ import { NCard } from "naive-ui";
 import AccountPage from "@/components/account/AccountPage.vue";
 import ChangePasswordCard from "@/components/account/ChangePasswordCard.vue";
 import ProfileCard from "@/components/account/ProfileCard.vue";
+import UserPluginSettings from "@/components/account/UserPluginSettings.vue";
 
 const { t } = useI18n();
 </script>
@@ -17,6 +18,7 @@ const { t } = useI18n();
       <p class="account-settings__security-hint">{{ t("account.securityHint") }}</p>
       <ChangePasswordCard />
     </NCard>
+    <UserPluginSettings />
   </AccountPage>
 </template>
 

@@ -111,3 +111,31 @@ export function notifyUnauthorized(
   }
   unauthorizedHandler?.();
 }
+
+/** Read a private binary asset using the same session and cancellation rules. */
+export async function requestBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+  const token = getToken();
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal,
+    });
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    throw new ApiError(-1, "网络错误", 0);
+  }
+  if (!response.ok) {
+    const envelope = (await response.json().catch(() => ({}))) as Envelope;
+    const code =
+      typeof envelope.code === "number" ? envelope.code : response.status === 401 ? 20001 : -1;
+    notifyUnauthorized(code, token, signal);
+    throw new ApiError(
+      code,
+      typeof envelope.message === "string" ? envelope.message : "网络错误",
+      response.status,
+      envelope.data,
+    );
+  }
+  return response.blob();
+}

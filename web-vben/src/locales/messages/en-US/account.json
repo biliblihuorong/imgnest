@@ -89,5 +89,16 @@
     "instructions": "Use this site as the server address. Upload with POST and the multipart/form-data file field. If your client asks for an authorization header, replace YOUR_API_TOKEN in the example below with your saved API token.",
     "privacy": "Enter tokens only in clients you trust. Keep them out of URLs, screenshots, and public configuration.",
     "availability": "An administrator must enable the Lsky compatibility API. Native token management remains available when it is disabled."
+  },
+  "plugins": {
+    "save": "Save settings",
+    "saved": "Settings saved",
+    "saveError": "Could not save settings",
+    "loadError": "Could not load account extensions",
+    "assetError": "Logo operation failed",
+    "tooLarge": "Logo must be at most 4 MiB",
+    "assetSaved": "Logo updated",
+    "assetHint": "PNG, JPEG or WebP, up to 4 MiB. Metadata is removed automatically.",
+    "removeAsset": "Remove Logo"
   }
 }

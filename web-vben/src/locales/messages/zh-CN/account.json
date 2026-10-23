@@ -89,5 +89,16 @@
     "instructions": "服务器地址填写当前站点；上传方式为 POST，文件使用 multipart/form-data 的 file 字段。需要填写请求头时使用以下占位示例，将 YOUR_API_TOKEN 替换为你保存的 API Token。",
     "privacy": "请只在你信任的客户端中填写 Token，不要放入 URL、截图或公开配置中。",
     "availability": "蓝空兼容 API 需由管理员开启；关闭时原生 Token 管理仍可使用。"
+  },
+  "plugins": {
+    "save": "保存设置",
+    "saved": "设置已保存",
+    "saveError": "保存设置失败",
+    "loadError": "加载账户扩展失败",
+    "assetError": "Logo 操作失败",
+    "tooLarge": "Logo 不能超过 4 MiB",
+    "assetSaved": "Logo 已更新",
+    "assetHint": "PNG、JPEG 或 WebP，最大 4 MiB；上传后自动清理元数据。",
+    "removeAsset": "移除 Logo"
   }
 }
