@@ -31,11 +31,12 @@ var backupTables = []string{
 	"user_identities", "albums", "images", "image_exif", "image_variant_jobs",
 	"variant_backfill", "random_links", "email_codes", "plugin_counters",
 	"plugin_user_settings",
+ "billing_wallets", "billing_plans", "billing_orders", "billing_entries", "billing_memberships", "billing_requests",
 }
 
 // backupDeferred names the forward reference written as NULL first and
 // filled in once its target rows exist.
-var backupDeferred = map[string]string{"albums": "cover_image_id"}
+var backupDeferred = map[string]string{"albums": "cover_image_id", "billing_entries": "reverses_id"}
 
 // BackupRepository dumps and restores the whole database as SQL INSERT
 // statements in the dialect of the database it reads.
