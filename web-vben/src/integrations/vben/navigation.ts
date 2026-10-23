@@ -11,6 +11,7 @@ export function workspaceMenus(
   role: UserView["role"] | undefined,
   galleryEnabled = false,
   updateAvailable = false,
+  billingEnabled = false,
 ): WorkspaceMenu[] {
   const gallery = { name: "common.nav.gallery", path: "/gallery", icon: "LayoutGrid" };
   if (!role) return galleryEnabled ? [gallery] : [];
@@ -35,6 +36,9 @@ export function workspaceMenus(
         { name: "common.nav.groups", path: "/admin/groups", icon: "InspectionPanel" },
         { name: "common.nav.storages", path: "/admin/storages", icon: "Inbox" },
         { name: "common.nav.policies", path: "/admin/policies", icon: "List" },
+        ...(billingEnabled
+          ? [{ name: "common.nav.billing", path: "/admin/billing", icon: "InspectionPanel" }]
+          : []),
         { name: "common.nav.settings", path: "/admin/settings", icon: "Settings", ...dot },
         { name: "common.nav.allImages", path: "/admin/images", icon: "LayoutGrid" },
       ],

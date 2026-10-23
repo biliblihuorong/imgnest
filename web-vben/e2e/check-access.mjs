@@ -116,6 +116,7 @@ async function fixture(context, s) {
         email_verification: false,
         password_reset: false,
         login_providers: [],
+        billing_enabled: Boolean(s.billingEnabled),
       });
     if (path === "/api/auth/captcha")
       return send({ enabled: false, provider: "", site_key: "", version: 0 });
@@ -134,9 +135,38 @@ async function fixture(context, s) {
     if (path === "/api/guest/upload/limits")
       return send({ max_file_bytes: 20971520, max_files: 20, upload_per_min: 10 });
     if (path === "/api/auth/login")
-      return send({ token: "fixture-session", user, expires_at: "2027-01-01T00:00:00Z" });
+      return send({ token: "fixture-session", user: s.user || user, expires_at: "2027-01-01T00:00:00Z" });
     if (req.headers().authorization !== "Bearer fixture-session") return send(null, 401, 20001);
-    if (path === "/api/auth/me") return send(user);
+    if (path === "/api/auth/me") return send(s.user || user);
+    if (path.startsWith("/api/user/billing") || path.startsWith("/api/admin/billing")) {
+      if (!s.billingEnabled) return send(null,404,10001);
+      s.billingBalance ??= 10000;
+      s.billingReceipts ??= new Map();
+      s.billingEntries ??= [];
+      const owner = s.billingOwner || (s.user || user).id;
+      const wallet = {user_id:owner,username:"Fixture buyer",balance_cents:s.billingBalance,version:s.billingEntries.length,updated_at:date};
+      const plan = {id:1,name:"标准套餐",description:"网站图片上传与外链使用",price_cents:3000,duration_days:30,group_id:1,published:true,archived:false,version:1,created_at:date,updated_at:date,group:{name:"Fixture group",capacity_bytes:1073741824,max_file_bytes:20971520,upload_per_min:30}};
+      const page = items => ({items,total:items.length,page:1,size:20});
+      if(path.endsWith("/plans")) return send([plan]);
+      if(path === "/api/user/billing") return send({currency:"CNY",wallet,membership:s.billingMembership||null});
+      if(path.endsWith("/ledger")) return send(page(s.billingEntries));
+      if(path.endsWith("/wallets")) return send(page([wallet]));
+      if(path.endsWith("/memberships")) return send(page(s.billingMembership?[s.billingMembership]:[]));
+      if(path.endsWith("/orders")) return send(page([...s.billingReceipts.values()].filter(order=>!url.searchParams.get("request_id")||order.request_id===url.searchParams.get("request_id"))));
+      if(path.endsWith("/purchases")) {
+        const input=req.postDataJSON();s.billingAttempts=(s.billingAttempts||0)+1;
+        const previous=s.billingReceipts.get(input.request_id);if(previous)return send(previous);
+        const order={currency:"CNY",id:s.billingReceipts.size+1,user_id:owner,username:"Fixture buyer",plan_id:1,plan_name:plan.name,plan_version:1,price_cents:3000,duration_days:30,group_id:1,previous_expires_at:null,expires_at:"2026-11-22T00:00:00Z",requires_login:false,request_id:input.request_id,created_at:date};
+        s.billingReceipts.set(input.request_id,order);s.billingBalance-=3000;s.billingWrites=(s.billingWrites||0)+1;
+        s.billingMembership={user_id:owner,plan_id:1,group_id:1,base_group_id:1,starts_at:date,expires_at:order.expires_at,status:"active",updated_at:date};
+        if(s.failFirstPurchase){s.failFirstPurchase=false;return route.abort("failed")}
+        return send(order);
+      }
+      if(path.endsWith("/adjustments")) {
+        const input=req.postDataJSON();const before=s.billingBalance;s.billingBalance+=input.amount_cents;s.billingWrites=(s.billingWrites||0)+1;
+        const entry={id:s.billingEntries.length+1,user_id:input.user_id,username:"Fixture buyer",sequence:s.billingEntries.length+1,amount_cents:input.amount_cents,before_cents:before,after_cents:s.billingBalance,kind:input.amount_cents>0?"admin_credit":"admin_debit",reason:input.reason,actor_id:1,actor_name:"Fixture admin",order_id:null,reverses_id:null,created_at:date};s.billingEntries.unshift(entry);return send(entry);
+      }
+    }
     if (path === "/api/user/plugins") return send(s.userPlugin ? [s.userPlugin] : []);
     if (path === "/api/user/plugins/example/settings") {
       s.userPlugin.values = req.postDataJSON().values;
@@ -175,7 +205,7 @@ async function fixture(context, s) {
           id: 1,
           name: "Fixture group",
           is_default: true,
-          is_guest: true,
+          is_guest: !s.billingEnabled,
           capacity_bytes: 0,
           max_file_bytes: 20971520,
           allowed_exts: ["png", "jpg"],
@@ -301,6 +331,36 @@ async function run(name, s, options, check) {
 }
 
 try {
+  for(const mobile of [false,true]) {
+    const account=state();account.billingEnabled=true;account.user={...user,role:"user"};account.failFirstPurchase=true;
+    await run(`billing-purchase-${mobile?"mobile":"desktop"}`,account,mobile?{viewport:{width:390,height:844},isMobile:true,hasTouch:true}:{},async page=>{
+      await page.addInitScript(()=>localStorage.setItem("imgnest.token","fixture-session"));
+      await page.goto(new URL("/account/billing",origin).href,{waitUntil:"networkidle"});
+      await page.getByRole("link",{name:"余额与套餐",exact:true}).waitFor();
+      await page.locator('[data-buy-plan="1"]').click();await page.locator('[data-confirm-purchase]').click();
+      await page.getByText("上次请求结果尚未确认",{exact:false}).waitFor();
+      await page.locator('[data-confirm-purchase]').click();await page.getByText("购买成功，订单 #1。",{exact:true}).waitFor();
+      assert.equal(account.billingAttempts,2);assert.equal(account.billingWrites,1);assert.equal(account.billingBalance,7000);
+      assert(await page.locator('.account-billing > .n-card').evaluate(el=>el.getBoundingClientRect().right<=innerWidth),"wallet card must fit the viewport without clipped content");
+    });
+  }
+  const recovery=state();recovery.billingEnabled=true;recovery.user={...user,role:"user"};recovery.failFirstPurchase=true;
+  await run("billing-purchase-refresh-recovery",recovery,{},async page=>{
+    await page.addInitScript(()=>localStorage.setItem("imgnest.token","fixture-session"));
+    await page.goto(new URL("/account/billing",origin).href,{waitUntil:"networkidle"});await page.locator('[data-buy-plan="1"]').click();await page.locator('[data-confirm-purchase]').click();await page.getByText("上次请求结果尚未确认",{exact:false}).waitFor();
+    await page.reload({waitUntil:"networkidle"});await page.getByText("购买成功，订单 #1。",{exact:true}).waitFor();
+    assert.equal(recovery.billingAttempts,1);assert.equal(recovery.billingBalance,7000);
+  });
+  const billingAdmin=state();billingAdmin.billingEnabled=true;billingAdmin.billingOwner=2;
+  await run("billing-administrator-credit",billingAdmin,{},async page=>{
+    await page.addInitScript(()=>localStorage.setItem("imgnest.token","fixture-session"));await page.goto(new URL("/admin/billing",origin).href,{waitUntil:"networkidle"});
+    await page.getByRole("heading",{name:"套餐与余额管理",exact:true}).waitFor();await page.locator('[data-adjust-user]').fill("2");await page.locator('[data-adjust-amount]').fill("5.25");await page.locator('[data-adjust-reason]').fill("人工确认入账");await page.locator('[data-review-adjustment]').click();
+    assert.equal(billingAdmin.billingWrites||0,0);await page.locator('[data-confirm-adjustment]').click();await page.getByText("记账成功，流水 #1。",{exact:true}).waitFor();assert.equal(billingAdmin.billingWrites,1);assert.equal(billingAdmin.billingBalance,10525);
+  });
+  await run("billing-ordinary-edition",state(),{},async page=>{
+    await page.addInitScript(()=>localStorage.setItem("imgnest.token","fixture-session"));await page.goto(new URL("/account/settings",origin).href,{waitUntil:"networkidle"});assert.equal(await page.locator('a[href="/account/billing"]').count(),0);assert.equal(await page.locator('a[href="/admin/billing"]').count(),0);
+    await page.goto(new URL("/account/billing",origin).href,{waitUntil:"networkidle"});await page.getByText("余额与套餐当前不可用",{exact:true}).waitFor();assert.equal(await page.locator('[data-buy-plan]').count(),0);
+  });
   const accountExtension = () => ({
     name: "example",
     title: "我的水印",

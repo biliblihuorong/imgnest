@@ -2,6 +2,8 @@
 // 扩展插件的设置卡片。社区版没有插件，列表为空时本组件不渲染任何内容。
 import { useI18n } from "@vben/locales";
 import { NAlert, NButton, type SelectOption } from "naive-ui";
+import { getActivePinia } from "pinia";
+import { useSiteStore } from "@/stores/site";
 import { onMounted, ref, shallowRef } from "vue";
 import PluginSettingsCard from "@/components/admin/PluginSettingsCard.vue";
 import { listGroups, listPolicies, listStorages } from "@/api/admin";
@@ -65,6 +67,8 @@ async function load(): Promise<void> {
 }
 
 function replace(saved: PluginSettings): void {
+  const pinia = getActivePinia();
+  if (pinia) void useSiteStore(pinia).refresh({ force: true });
   plugins.value = plugins.value.map((plugin) => (plugin.name === saved.name ? saved : plugin));
 }
 

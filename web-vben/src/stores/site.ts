@@ -14,6 +14,7 @@ interface SiteState {
   guestUpload: boolean;
   /** 服务端扩展提供的额外登录方式（如 SSO），原版为空。 */
   loginProviders: LoginProvider[];
+  billingEnabled: boolean;
   loaded: boolean;
 }
 
@@ -29,6 +30,7 @@ export const useSiteStore = defineStore("site", {
     passwordReset: false,
     guestUpload: false,
     loginProviders: [],
+    billingEnabled: false,
     loaded: false,
   }),
   actions: {
@@ -55,6 +57,7 @@ export const useSiteStore = defineStore("site", {
           this.passwordReset = site.password_reset ?? false;
           this.guestUpload = site.guest_upload ?? false;
           this.loginProviders = site.login_providers ?? [];
+          this.billingEnabled = site.billing_enabled ?? false;
           this.loaded = true;
         } catch {
           // 拉取失败不抛错，保持当前值，下次刷新重试。

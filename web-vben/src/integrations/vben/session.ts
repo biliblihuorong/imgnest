@@ -47,8 +47,9 @@ export function connectVbenSession(pinia: Pinia, router: Router): () => void {
         i18n.global.locale.value,
         avatarUrl.value,
         system.updateAvailable,
+        site.billingEnabled,
       ] as const,
-    ([user, hasToken, galleryEnabled, , avatar, updateAvailable]) => {
+    ([user, hasToken, galleryEnabled, , avatar, updateAvailable, billingEnabled]) => {
       const current = hasToken ? user : null;
       const identity = current ? `${current.id}:${current.role}` : "anonymous";
       if (previousIdentity !== undefined && previousIdentity !== identity) {
@@ -81,7 +82,9 @@ export function connectVbenSession(pinia: Pinia, router: Router): () => void {
       access.setRefreshToken(null);
       access.setAccessCodes([]);
       access.setAccessMenus(
-        workspaceMenus(current?.role, galleryEnabled, updateAvailable).map(menuWithIcons),
+        workspaceMenus(current?.role, galleryEnabled, updateAvailable, billingEnabled).map(
+          menuWithIcons,
+        ),
       );
       access.setAccessRoutes(
         current

@@ -71,6 +71,8 @@ function formatBaseError(error: ApiError, fallbackKey: string): string {
         30019: "emailCodeCooldown",
         30020: "backupBusy",
         30021: "backupMismatch",
+        30024: "billingInsufficient",
+        30025: "billingConflict",
         50001: "server",
         50002: "storage",
         50003: "processing",

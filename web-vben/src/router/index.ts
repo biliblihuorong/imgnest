@@ -177,6 +177,12 @@ export function setupRouter(): Router {
             meta: { title: "account.tabs.profile", activePath: "/account" },
           },
           {
+            path: "billing",
+            name: "account-billing",
+            component: () => import("@/views/AccountBillingView.vue"),
+            meta: { title: "billing.title", activePath: "/account" },
+          },
+          {
             path: "plugins/:plugin",
             name: ROUTER_NAMES.accountPluginSettings,
             component: () => import("@/views/AccountPluginSettingsView.vue"),
@@ -234,6 +240,12 @@ export function setupRouter(): Router {
             name: ADMIN_ROUTER_NAMES.adminUsers,
             component: () => import("@/views/admin/UsersView.vue"),
             meta: { title: "common.nav.users" },
+          },
+          {
+            path: "billing",
+            name: "admin-billing",
+            component: () => import("@/views/admin/BillingView.vue"),
+            meta: { title: "billing.adminTitle" },
           },
           {
             path: "groups",

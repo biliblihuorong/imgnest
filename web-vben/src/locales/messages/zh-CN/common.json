@@ -14,7 +14,8 @@
     "settings": "站点设置",
     "allImages": "全站图片",
     "lskyImport": "蓝空迁移",
-    "overview": "站点概览"
+    "overview": "站点概览",
+    "billing": "套餐与余额"
   },
   "account": "账户",
   "administrator": "管理员",
@@ -132,9 +133,13 @@
       "storage_read_only": "存储目录是只读的",
       "storage_permission": "程序没有存储目录的读写权限",
       "api_disabled": "管理员没有开启 API",
-      "api_token_forbidden": "这个操作需要在网页登录，API Token 不能使用"
+      "api_token_forbidden": "这个操作需要在网页登录，API Token 不能使用",
+      "billing_insufficient": "请联系管理员入账后再购买。",
+      "billing_conflict": "套餐、权益或请求已变化，请刷新并重新确认。"
     },
     "backupBusy": "已有一个备份正在进行，请稍后再试",
-    "backupMismatch": "这个备份与当前安装不匹配（数据库类型或版本不同）"
+    "backupMismatch": "这个备份与当前安装不匹配（数据库类型或版本不同）",
+    "billingInsufficient": "账户余额不足",
+    "billingConflict": "账务状态已变化"
   }
 }

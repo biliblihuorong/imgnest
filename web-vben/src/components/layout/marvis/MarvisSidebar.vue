@@ -48,7 +48,12 @@ interface Section {
 
 /** 顶层菜单为一组；带子项的菜单（站点管理）展开成带标题的分组，自身不可点。 */
 const sections = computed<Section[]>(() => {
-  const menus = workspaceMenus(user.value?.role, site.galleryEnabled, system.updateAvailable);
+  const menus = workspaceMenus(
+    user.value?.role,
+    site.galleryEnabled,
+    system.updateAvailable,
+    site.billingEnabled,
+  );
   const result: Section[] = [{ key: "main", items: menus.filter((menu) => !menu.children) }];
   for (const menu of menus)
     if (menu.children) result.push({ key: menu.path, label: menu.name, items: menu.children });

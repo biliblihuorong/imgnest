@@ -14,7 +14,8 @@
     "settings": "Site settings",
     "allImages": "All images",
     "lskyImport": "Lsky migration",
-    "overview": "Site overview"
+    "overview": "Site overview",
+    "billing": "Packages & balances"
   },
   "account": "Account",
   "administrator": "Administrator",
@@ -132,9 +133,13 @@
       "storage_read_only": "The storage directory is read-only.",
       "storage_permission": "The program can't read or write the storage directory.",
       "api_disabled": "The administrator has turned the API off.",
-      "api_token_forbidden": "This needs a signed-in web session; API tokens cannot do it."
+      "api_token_forbidden": "This needs a signed-in web session; API tokens cannot do it.",
+      "billing_insufficient": "Contact the administrator to credit your balance.",
+      "billing_conflict": "The offer, membership or request changed. Refresh and confirm again."
     },
     "backupBusy": "A backup is already running; try again shortly",
-    "backupMismatch": "This backup does not match this installation (different database or version)"
+    "backupMismatch": "This backup does not match this installation (different database or version)",
+    "billingInsufficient": "Insufficient account balance",
+    "billingConflict": "Billing state changed"
   }
 }

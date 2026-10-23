@@ -47,9 +47,12 @@ const suggestions = useSearchSuggestions({
 
 const signedIn = computed(() => Boolean(auth.token && auth.user));
 const pages = computed<WorkspaceMenu[]>(() => {
-  const leaves = workspaceMenus(auth.user?.role, site.galleryEnabled).flatMap(
-    (menu) => menu.children ?? [menu],
-  );
+  const leaves = workspaceMenus(
+    auth.user?.role,
+    site.galleryEnabled,
+    false,
+    site.billingEnabled,
+  ).flatMap((menu) => menu.children ?? [menu]);
   const needle = raw.value.trim().toLowerCase();
   return needle ? leaves.filter((menu) => t(menu.name).toLowerCase().includes(needle)) : leaves;
 });

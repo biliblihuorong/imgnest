@@ -2,10 +2,12 @@
 import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
 import { NAlert, NButton, NSpin } from "naive-ui";
+import { useSiteStore } from "@/stores/site";
 import { provideUserPlugins } from "./useUserPlugins";
 
 /** 账户页外壳：通用标签与当前账户可用的个人设置入口。 */
 const { t } = useI18n();
+const site = useSiteStore();
 const { plugins, loading, error, load } = provideUserPlugins();
 
 const tabs = [
@@ -32,6 +34,13 @@ const tabs = [
         class="account-page__tab"
         exact-active-class="is-active"
         >{{ t(tab.label) }}</RouterLink
+      >
+      <RouterLink
+        v-if="site.billingEnabled"
+        to="/account/billing"
+        class="account-page__tab"
+        exact-active-class="is-active"
+        >{{ t("billing.title") }}</RouterLink
       >
       <RouterLink
         v-for="plugin in plugins"

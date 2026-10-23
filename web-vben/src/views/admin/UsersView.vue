@@ -29,6 +29,7 @@ import {
 } from "naive-ui";
 import { computed, h, onMounted, onUnmounted, reactive, ref, shallowRef } from "vue";
 import { useRouter } from "vue-router";
+import { useSiteStore } from "@/stores/site";
 import { useAuthStore } from "@/stores/auth";
 import {
   createUser,
@@ -51,6 +52,7 @@ import { fetchUserActivity } from "@/api/activity";
 const { t, locale } = useI18n();
 const message = useMessage();
 const auth = useAuthStore();
+const site = useSiteStore();
 const router = useRouter();
 let disposed = false;
 const isMobile = useMediaQuery("(max-width: 640px)");
@@ -624,6 +626,9 @@ const columns = computed<DataTableColumns<AdminUserView>>(() => [
         t("admin.users.create")
       }}</NButton>
     </template>
+    <NAlert v-if="site.billingEnabled" type="warning" class="users-alert">{{
+      t("billing.adminGroupOverride")
+    }}</NAlert>
     <NCard :bordered="false" class="min-w-0">
       <div class="users-toolbar">
         <span class="users-total">{{ t("admin.users.total", { count: total }) }}</span>
