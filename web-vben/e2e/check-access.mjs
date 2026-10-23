@@ -137,6 +137,23 @@ async function fixture(context, s) {
       return send({ token: "fixture-session", user, expires_at: "2027-01-01T00:00:00Z" });
     if (req.headers().authorization !== "Bearer fixture-session") return send(null, 401, 20001);
     if (path === "/api/auth/me") return send(user);
+    if (path === "/api/user/plugins") return send(s.userPlugin ? [s.userPlugin] : []);
+    if (path === "/api/user/plugins/example/settings") {
+      s.userPlugin.values = req.postDataJSON().values;
+      return send(s.userPlugin);
+    }
+    if (path === "/api/user/plugins/example/asset") {
+      if (req.method() === "GET")
+        return route.fulfill({
+          contentType: "image/png",
+          body: Buffer.from(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aCHsAAAAASUVORK5CYII=",
+            "base64",
+          ),
+        });
+      s.userPlugin.has_asset = req.method() !== "DELETE";
+      return send(s.userPlugin);
+    }
     if (path === "/api/admin/settings") {
       if (req.method() === "PUT") {
         s.writes++;
@@ -284,6 +301,72 @@ async function run(name, s, options, check) {
 }
 
 try {
+  const accountExtension = () => ({
+    name: "example",
+    title: "账户扩展",
+    description: "自定义文字与私有 Logo。",
+    fields: [{ key: "text", type: "text", label: "自定义文字", default: "" }],
+    values: { text: "Alice" },
+    read_only: false,
+    has_asset: false,
+    asset_label: "Logo",
+  });
+  for (const mobile of [false, true]) {
+    const personal = state();
+    personal.userPlugin = accountExtension();
+    await run(
+      `account-extension-${mobile ? "mobile" : "desktop"}`,
+      personal,
+      mobile ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : {},
+      async (page) => {
+        await page.addInitScript(() => localStorage.setItem("imgnest.token", "fixture-session"));
+        await page.goto(new URL("/account/settings", origin).href, { waitUntil: "networkidle" });
+        const card = page.locator('[data-user-plugin="example"]');
+        await card.waitFor();
+        await card.getByLabel("自定义文字", { exact: true }).fill("我的文字");
+        await Promise.all([
+          page.waitForResponse(
+            (response) => response.url().endsWith("/example/settings") && response.status() === 200,
+          ),
+          card.locator('[data-action="save-user-plugin"]').click(),
+        ]);
+        assert.equal(personal.userPlugin.values.text, "我的文字");
+        await card
+          .locator('input[type="file"]')
+          .setInputFiles({
+            name: "logo.png",
+            mimeType: "image/png",
+            buffer: Buffer.from("fixture-logo"),
+          });
+        await card.locator("img").waitFor();
+        assert((await card.locator("img").getAttribute("src")).startsWith("blob:"));
+        await card.getByRole("button", { name: "移除 Logo", exact: true }).click();
+        await card.locator("img").waitFor({ state: "detached" });
+        await card.scrollIntoViewIfNeeded();
+      },
+    );
+  }
+  const controlled = state();
+  controlled.userPlugin = {
+    ...accountExtension(),
+    read_only: true,
+    notice: "当前组由管理员统一控制",
+  };
+  await run("account-extension-group-controlled", controlled, {}, async (page) => {
+    await page.addInitScript(() => localStorage.setItem("imgnest.token", "fixture-session"));
+    await page.goto(new URL("/account/settings", origin).href, { waitUntil: "networkidle" });
+    const card = page.locator('[data-user-plugin="example"]');
+    await card.waitFor();
+    assert(await card.getByLabel("自定义文字", { exact: true }).isDisabled());
+    assert.equal(await card.locator('input[type="file"]').count(), 0);
+    assert.equal(await card.locator('[data-action="save-user-plugin"]').count(), 0);
+    await card.scrollIntoViewIfNeeded();
+  });
+  await run("account-extension-ordinary-edition", state(), {}, async (page) => {
+    await page.addInitScript(() => localStorage.setItem("imgnest.token", "fixture-session"));
+    await page.goto(new URL("/account/settings", origin).href, { waitUntil: "networkidle" });
+    assert.equal(await page.locator("[data-user-plugin]").count(), 0);
+  });
   for (const gallery of [false, true])
     for (const guest of [false, true]) {
       const s = state({ gallery_enabled: gallery, guest_upload_enabled: guest });
