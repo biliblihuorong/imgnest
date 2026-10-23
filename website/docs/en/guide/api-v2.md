@@ -16,7 +16,7 @@ This is a scripting API, with no separate v2 page or button. Sign in to your sit
 
 ## Authentication
 
-`Authorization: Bearer <token>`, created on the Account → API tokens page; the plaintext is shown once at creation. The administrator's API switch (`api_enabled`) governs v1 and v2 together: while off, v2 answers `403` with `code: 20003` and `data.reason: "api_disabled"`.
+`Authorization: Bearer <token>`, created on the Account → API tokens page; the plaintext is shown once at creation. The administrator's API switch (`api_enabled`) governs v1 and v2 together: while off, v2 answers `403` with `code: 20003` and `data.reason: "api_disabled"`. API tokens obey the switch on the console's `/api` routes too; the admin console (`/api/admin/*`), token management (`/api/tokens`) and password change need a signed-in web session, and an API token gets `403` with `data.reason: "api_token_forbidden"`.
 
 ## Routes
 

@@ -63,6 +63,8 @@ type Handler struct {
 	// email and mail serve email codes and SMTP settings; nil omits them.
 	email EmailAuth
 	mail  MailSettings
+	// api is the administrator's API switch; API tokens on /api obey it too.
+	api APISwitch
 	// v2Images and v2Albums are the native handlers /api/v2 reuses, set
 	// when their routes are registered.
 	v2Images *imageHandler
@@ -159,7 +161,41 @@ func (h *Handler) authenticate(c *gin.Context) {
 		c.Abort()
 		return
 	}
+	if id.Kind == service.TokenKindAPI {
+		if err := h.apiTokenAllowed(c.Request.Context(), c.Request.URL.Path); err != nil {
+			fail(c, err)
+			c.Abort()
+			return
+		}
+	}
 	c.Set(identityKey, id)
+}
+
+// errAPITokenForbidden refuses an API token on a route only a signed-in
+// browser session may use.
+var errAPITokenForbidden = &service.ReasonError{Reason: "api_token_forbidden", Err: service.ErrForbidden}
+
+// apiTokenAllowed keeps API tokens, which live in third-party upload
+// clients, to the image and album API: the management console, credential
+// management and password change need a web session, and the
+// administrator's API switch covers API tokens on /api as it does on v1/v2.
+func (h *Handler) apiTokenAllowed(ctx context.Context, requestPath string) error {
+	for _, prefix := range []string{"/api/admin", "/api/tokens", "/api/auth/password"} {
+		if requestPath == prefix || strings.HasPrefix(requestPath, prefix+"/") {
+			return errAPITokenForbidden
+		}
+	}
+	if h.api == nil || !strings.HasPrefix(requestPath, "/api/") {
+		return nil
+	}
+	enabled, err := h.api.APIEnabled(ctx)
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		return errAPIDisabled
+	}
+	return nil
 }
 func identity(c *gin.Context) service.Identity { return c.MustGet(identityKey).(service.Identity) }
 func (h *Handler) register(c *gin.Context) {

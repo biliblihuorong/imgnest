@@ -141,3 +141,55 @@ func TestBackupRestoreRejectsMismatchAndForeignStatements(t *testing.T) {
 		}
 	})
 }
+
+// A tampered dump must not smuggle a second statement past the allowlist by
+// hiding the splitter's semicolon in syntax the database reads differently.
+func TestBackupRestoreRejectsSmuggledStatements(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		backups, err := NewBackupRepository(t.Context(), db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var dump bytes.Buffer
+		stats, err := backups.Dump(t.Context(), &dump)
+		if err != nil {
+			t.Fatal(err)
+		}
+		payloads := map[string]string{
+			"block comment": `INSERT INTO "settings" ("key", "value") VALUES ('poc', '{}') /*'*/; CREATE TABLE pwned (x INTEGER); /*'*/;`,
+			"escape string": `INSERT INTO "settings" ("key", "value") VALUES (E'\'', '{}'); CREATE TABLE pwned (x INTEGER); --';`,
+			"quoted alias":  `INSERT INTO "settings" ("key", "value") SELECT 'a' AS "x'y", '{}'; CREATE TABLE pwned (x INTEGER); --';`,
+			"trailing":      `INSERT INTO "settings" ("key", "value") VALUES ('poc', '{}') RETURNING 1;`,
+			"cover update":  `UPDATE "albums" SET "cover_image_id" = 1 WHERE "id" = 1 OR 1=1;`,
+		}
+		for name, payload := range payloads {
+			err := backups.Restore(t.Context(), stats.Driver, stats.SchemaVersion, strings.NewReader(payload+"\n"))
+			if !errors.Is(err, model.ErrBackupMismatch) {
+				t.Errorf("%s: err = %v, want ErrBackupMismatch", name, err)
+			}
+		}
+		var tables int64
+		query := "SELECT COUNT(*) FROM sqlite_master WHERE name = 'pwned'"
+		if db.Name() == "postgres" {
+			query = "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'pwned'"
+		}
+		if err := db.Raw(query).Scan(&tables).Error; err != nil {
+			t.Fatal(err)
+		}
+		if tables != 0 {
+			t.Fatal("smuggled statement created a table")
+		}
+	})
+}
+
+func TestAllowedRestoreStatementAcceptsDumpLiterals(t *testing.T) {
+	for _, statement := range []string{
+		`INSERT INTO "settings" ("key", "value") VALUES ('it''s; fine', '{"a":"b\\c"}')`,
+		`INSERT INTO "images" ("id", "size", "ratio", "public", "album_id") VALUES (7, -12, 1.5e+21, TRUE, NULL)`,
+		`UPDATE "albums" SET "cover_image_id" = 3 WHERE "id" = 9`,
+	} {
+		if !allowedRestoreStatement(statement) {
+			t.Errorf("rejected dump statement %q", statement)
+		}
+	}
+}

@@ -218,7 +218,8 @@ func currentIdentity(c *gin.Context) *service.Identity {
 	return id
 }
 
-// Failed v1 password exchanges per account before the account is paused.
+// Failed v1 password exchanges per account before the account is paused for
+// the networks that failed.
 const (
 	loginFailureLimit  = 10
 	loginFailureWindow = 15 * time.Minute

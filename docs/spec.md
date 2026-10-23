@@ -299,7 +299,7 @@ CDN 缓存不在本程序处理范围内。
 
 ### 7.1.1 ImgNest v2 接口
 
-`/api/v2` 与蓝空 v1 并存：社区客户端暂时继续用 v1，等生态跟上后逐步切到 v2。v2 直接复用 `/api` 原生接口的同一批 handler 和 Service，外壳是原生的 `{"code","message","data"}`，单位是原生的（`size` 为字节）。v2 是对外契约，只加字段不改不删；`/api` 仍可随前端演进。与 v1 共用后台「API 开关」（`api_enabled`），关闭时返回 403、`code=20003`、`data.reason=api_disabled`；控制台自己的 `/api` 不受开关影响。v2 不提供 EXIF。路由清单见 `docs/api-v2.md`。
+`/api/v2` 与蓝空 v1 并存：社区客户端暂时继续用 v1，等生态跟上后逐步切到 v2。v2 直接复用 `/api` 原生接口的同一批 handler 和 Service，外壳是原生的 `{"code","message","data"}`，单位是原生的（`size` 为字节）。v2 是对外契约，只加字段不改不删；`/api` 仍可随前端演进。与 v1 共用后台「API 开关」（`api_enabled`），关闭时返回 403、`code=20003`、`data.reason=api_disabled`；控制台自己的 `/api` 对网页会话不受开关影响；API Token（kind=api）调用 `/api` 时同样受开关约束（关闭时同一 403/`api_disabled`）。v2 不提供 EXIF。路由清单见 `docs/api-v2.md`。
 
 ### 7.2 原生接口
 
@@ -387,7 +387,7 @@ CDN 缓存不在本程序处理范围内。
 - 归档内容：`database.sql`（全部数据表的 INSERT，按外键顺序；`albums.cover_image_id` 先写 NULL，末尾用 UPDATE 补回；不含 `schema_migrations`）、`config/imgnest.yaml`（启动时 `--config` 指定的文件）、`config/imgnest.env`（所有 `IMGNEST_*` 环境变量）、`manifest.json`（`format`、`driver`、`schema_version`、各表行数）。归档含密码哈希、DSN 与 `security.master_key`，只供管理员下载；新增数据表必须同时加入 `internal/repo/backup.go` 的 `backupTables`，有测试守着。
 - 接口（管理员）：`GET /api/admin/backups`（列表 + 定时设置 + 目录）、`POST /api/admin/backups`（立即备份，201）、`GET /api/admin/backups/{name}`（下载）、`DELETE /api/admin/backups/{name}`、`PUT /api/admin/backups/schedule`。文件名只接受 `imgnest-YYYYMMDD-HHMMSS[-auto].zip`。
 - 定时备份存在 `settings` 的 `backup_schedule` 键：`enabled`（默认关）、`interval_hours` 1–720（默认 24）、`keep` 1–365（默认 7）。服务每 5 分钟检查一次，到期写 `-auto` 归档，之后只清理多出的自动归档，手动备份不会被删。
-- 还原只走命令行，先停服务：`imgnest backup restore --yes <归档>`。目标库必须已由同一版本迁移（驱动与 `schema_version` 不一致返回 30021），在一个事务里清空全部数据表再导入，只执行备份格式里的 INSERT/UPDATE；Postgres 自增序列随后对齐。配置文件不会自动覆盖，需要时手工拷回。`imgnest backup create` 可用于 cron。
+- 还原只走命令行，先停服务：`imgnest backup restore --yes <归档>`。目标库必须已由同一版本迁移（驱动与 `schema_version` 不一致返回 30021），在一个事务里清空全部数据表再导入，只执行备份格式里的 INSERT/UPDATE：每条语句按备份写出的固定语法整句校验（双引号小写标识符、单引号字符串、数字、NULL/TRUE/FALSE），注释、`E''` 转义串或第二条语句一律返回 30021，Postgres 在事务内固定 `standard_conforming_strings = on`；Postgres 自增序列随后对齐。配置文件不会自动覆盖，需要时手工拷回。`imgnest backup create` 可用于 cron。
 - 新码：30020=已有备份在进行(409)、30021=备份与当前安装不匹配(409)。
 
 ### 7.9 账户活动与版本信息（2026-10-17）
@@ -494,11 +494,11 @@ imgnest/
 - 默认组与游客组各至多一个，均由部分唯一索引保证（游客组为迁移 0008）。已有图片的存储不能修改存放位置（本机 `root`；S3 `endpoint`/`region`/`bucket`），返回 409/30009；凭据与 path style 仍可修改，迁移数据需另行提供显式功能。
 - 初始化注册、游客上传、画廊均关闭，trash_days=7；默认用户组容量 0 表示不限。管理员通过 `init-admin` 显式创建，密码从 stdin 输入；普通注册只创建 user 并使用默认组。
 - username 3–64 个 Unicode 字符；email 去首尾空白、转小写并校验纯邮箱地址；新建和替换的密码为 12–72 字节，bcrypt cost=12；登录/当前密码校验允许非空、至多 72 字节的旧密码以保留旧 bcrypt 兼容。用户 status 为 enabled/disabled。
-- Token 格式 `<id>|<40 random chars>`；随机串用 crypto/rand 产生，库中 SHA-256 仅计算分隔符后的 secret；验证常量时间比较。web Token 默认 24 小时，api Token 可无过期时间，否则必须在未来；M1 abilities 只支持 `["*"]`。每次鉴权检查用户仍 enabled。
+- Token 格式 `<id>|<40 random chars>`；随机串用 crypto/rand 产生，库中 SHA-256 仅计算分隔符后的 secret；验证常量时间比较。web Token 默认 24 小时，api Token 可无过期时间，否则必须在未来；M1 abilities 只支持 `["*"]`。每次鉴权检查用户仍 enabled。API Token 只用于图片、相册、上传等客户端接口：`/api/admin/*`、`/api/tokens`（列表、创建、吊销）和 `PATCH /api/auth/password` 只接受网页会话，API Token 调用返回 403、`code=20003`、`data.reason=api_token_forbidden`。
 - logout 仅吊销当前 Token；改密与 reset-password 原子更新密码并吊销该用户全部 Token。用户不能查看或吊销其他用户 Token。
 - Token 签发绑定服务层产生的不透明认证证明，事务内锁定用户并重新检查密码哈希、enabled 状态及来源 Token 的存在/所有权/过期时间（过期时间用取得锁之后的当前时间判断，而不是请求开始时间）；签发与吊销共用用户锁。不能仅凭 middleware 早先读出的 userID 签发新凭证，撤销完成后的在途旧请求必须被拒绝。
 - 改密/重置以读取并验证的旧哈希为 CAS 条件，原子更新与全 Token 删除同事务；旧改密请求不能覆盖已完成的重置。
-- 新增 `PATCH /api/auth/password`，输入 current_password/new_password，成功需重新登录。原生登录和注册分别按可信客户端 IP 限流，每分钟 3 次；原生登录成功后清空该 IP 的登录尝试窗口，失败不清空。蓝空 v1 换 Token 的 3 次/分钟窗口不因成功重置；默认不信任代理头。
+- 新增 `PATCH /api/auth/password`，输入 current_password/new_password，成功需重新登录。原生登录和注册分别按可信客户端 IP 限流，每分钟 3 次；原生登录成功后清空该 IP 的登录尝试窗口，失败不清空。蓝空 v1 换 Token 的 3 次/分钟窗口不因成功重置；同一邮箱 15 分钟内失败满 10 次后暂停，但只拒绝已为该邮箱失败过的客户端网络（IPv4 地址或 IPv6 /64），没失败过的网络仍可尝试（失败即一并暂停），他人无法借此锁住账号本人；默认不信任代理头。
 - 原生错误码：10001 参数、20001 未鉴权、20002 凭证错误、20003 权限不足、30001 注册关闭、30002 用户重复、30003 请求限流、50001 内部失败。成功 code=0；失败 data=null，空列表 data=[]。普通注册成功 HTTP 201、重复 409、注册关闭 403、无效凭证 401、限流 429。
 - 时间存 UTC，对外 RFC3339；native DTO 不含 password_hash/token_hash；API Token 只在创建响应返回明文。业务哨兵在共享 model 声明、service 别名引用，避免 repo 反向引用 service。
 - 对外 Go 函数 context 置首；main、Gin handler、http.Handler、SQL driver 等固定接口签名遵守框架契约，业务内部继续传 context。

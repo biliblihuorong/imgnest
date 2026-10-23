@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -20,8 +21,12 @@ func (h *Handler) createToken(c *gin.Context) {
 		c.JSON(200, failure("The email address or password is incorrect."))
 		return
 	}
+	// A paused account only refuses networks that already failed for it, so a
+	// stranger who knows the address cannot lock its owner out; spreading
+	// guesses still costs a fresh network per guess once the account pauses.
 	account := "v1login:" + strings.ToLower(strings.TrimSpace(email))
-	if h.logins.Exceeded(account, loginFailureLimit) {
+	network := account + ":" + ratelimit.ClientKey(c.ClientIP())
+	if h.logins.Exceeded(account, loginFailureLimit) && h.logins.Exceeded(network, 1) {
 		c.JSON(429, failure("Too Many Attempts."))
 		return
 	}
@@ -32,10 +37,12 @@ func (h *Handler) createToken(c *gin.Context) {
 	}
 	if err != nil || verified.User.ID == 0 {
 		h.logins.Allow(account, loginFailureLimit)
+		h.logins.Allow(network, loginFailureLimit)
 		c.JSON(200, failure("The email address or password is incorrect."))
 		return
 	}
 	h.logins.Reset(account)
+	h.logins.Reset(network)
 	issued, err := h.tokens.Issue(c.Request.Context(), verified.Subject, service.TokenInput{Name: "api", Kind: service.TokenKindAPI, Abilities: []string{"*"}})
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
