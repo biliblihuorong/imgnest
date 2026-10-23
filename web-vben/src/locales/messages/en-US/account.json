@@ -3,7 +3,8 @@
   "description": "Manage API tokens for upload tools, your profile and your password.",
   "tabs": {
     "tokens": "API tokens",
-    "profile": "Profile & security"
+    "profile": "Profile & security",
+    "preferences": "Preferences"
   },
   "profile": {
     "description": "Review account details, change your display name and password.",
@@ -94,11 +95,12 @@
     "save": "Save settings",
     "saved": "Settings saved",
     "saveError": "Could not save settings",
-    "loadError": "Could not load account extensions",
+    "loadError": "Could not load your preferences",
     "assetError": "Logo operation failed",
     "tooLarge": "Logo must be at most 4 MiB",
     "assetSaved": "Logo updated",
     "assetHint": "PNG, JPEG or WebP, up to 4 MiB. Metadata is removed automatically.",
-    "removeAsset": "Remove Logo"
+    "removeAsset": "Remove Logo",
+    "unavailable": "This setting is currently unavailable"
   }
 }

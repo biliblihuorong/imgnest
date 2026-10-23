@@ -31,6 +31,7 @@ export const ROUTER_NAMES = {
   images: "images",
   tokens: "tokens",
   accountSettings: "account-settings",
+  accountPluginSettings: "account-plugin-settings",
 } as const;
 
 /** admin 子树命名路由；独立于 ROUTER_NAMES，保持既有用户端五键不变。 */
@@ -155,8 +156,8 @@ export function setupRouter(): Router {
         // 搜索条件写在 query 里；经典布局的标签页按路径区分，否则每搜一次就多一个标签。
         meta: { title: "common.nav.images", fullPathKey: false },
       },
-      // 账户只有一个入口：/account 下分「API Token」与「资料与安全」两个标签。
-      // activePath 让经典布局的菜单在两个标签上都高亮 /account。
+      // 账户统一入口；个人设置按服务端卡片标题增加独立标签。
+      // activePath 让经典布局的菜单在所有账户页都高亮 /account。
       {
         path: "/account",
         component: RouterViewOnly,
@@ -174,6 +175,12 @@ export function setupRouter(): Router {
             name: ROUTER_NAMES.accountSettings,
             component: () => import("@/views/AccountSettingsView.vue"),
             meta: { title: "account.tabs.profile", activePath: "/account" },
+          },
+          {
+            path: "plugins/:plugin",
+            name: ROUTER_NAMES.accountPluginSettings,
+            component: () => import("@/views/AccountPluginSettingsView.vue"),
+            meta: { title: "account.tabs.preferences", activePath: "/account" },
           },
         ],
       },

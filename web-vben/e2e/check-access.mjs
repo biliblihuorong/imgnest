@@ -303,7 +303,7 @@ async function run(name, s, options, check) {
 try {
   const accountExtension = () => ({
     name: "example",
-    title: "账户扩展",
+    title: "我的水印",
     description: "自定义文字与私有 Logo。",
     fields: [{ key: "text", type: "text", label: "自定义文字", default: "" }],
     values: { text: "Alice" },
@@ -322,6 +322,9 @@ try {
         await page.addInitScript(() => localStorage.setItem("imgnest.token", "fixture-session"));
         await page.goto(new URL("/account/settings", origin).href, { waitUntil: "networkidle" });
         const card = page.locator('[data-user-plugin="example"]');
+        assert.equal(await card.count(), 0, "Profile page should not contain personal forms");
+        await page.getByRole("link", { name: "我的水印", exact: true }).click();
+        await page.waitForURL((url) => url.pathname === "/account/plugins/example");
         await card.waitFor();
         await card.getByLabel("自定义文字", { exact: true }).fill("我的文字");
         await Promise.all([
@@ -331,13 +334,13 @@ try {
           card.locator('[data-action="save-user-plugin"]').click(),
         ]);
         assert.equal(personal.userPlugin.values.text, "我的文字");
-        await card
-          .locator('input[type="file"]')
-          .setInputFiles({
-            name: "logo.png",
-            mimeType: "image/png",
-            buffer: Buffer.from("fixture-logo"),
-          });
+        await page.reload({ waitUntil: "networkidle" });
+        assert.equal(await card.getByLabel("自定义文字", { exact: true }).inputValue(), "我的文字");
+        await card.locator('input[type="file"]').setInputFiles({
+          name: "logo.png",
+          mimeType: "image/png",
+          buffer: Buffer.from("fixture-logo"),
+        });
         await card.locator("img").waitFor();
         assert((await card.locator("img").getAttribute("src")).startsWith("blob:"));
         await card.getByRole("button", { name: "移除 Logo", exact: true }).click();
@@ -354,7 +357,7 @@ try {
   };
   await run("account-extension-group-controlled", controlled, {}, async (page) => {
     await page.addInitScript(() => localStorage.setItem("imgnest.token", "fixture-session"));
-    await page.goto(new URL("/account/settings", origin).href, { waitUntil: "networkidle" });
+    await page.goto(new URL("/account/plugins/example", origin).href, { waitUntil: "networkidle" });
     const card = page.locator('[data-user-plugin="example"]');
     await card.waitFor();
     assert(await card.getByLabel("自定义文字", { exact: true }).isDisabled());
@@ -366,6 +369,10 @@ try {
     await page.addInitScript(() => localStorage.setItem("imgnest.token", "fixture-session"));
     await page.goto(new URL("/account/settings", origin).href, { waitUntil: "networkidle" });
     assert.equal(await page.locator("[data-user-plugin]").count(), 0);
+    assert.equal(await page.getByRole("link", { name: "我的水印", exact: true }).count(), 0);
+    await page.goto(new URL("/account/plugins/example", origin).href, { waitUntil: "networkidle" });
+    assert.equal(await page.locator("[data-user-plugin]").count(), 0);
+    assert.match(await page.locator(".n-empty").innerText(), /此设置当前不可用/);
   });
   for (const gallery of [false, true])
     for (const guest of [false, true]) {

@@ -170,8 +170,9 @@ describe("router 守卫", () => {
     expect(router.currentRoute.value.query.redirect).toBe("/upload");
   });
 
-  it("ROUTER_NAMES 暴露八个命名路由", () => {
+  it("ROUTER_NAMES 暴露账户个性设置与现有命名路由", () => {
     expect(Object.keys(ROUTER_NAMES).sort()).toEqual([
+      "accountPluginSettings",
       "accountSettings",
       "home",
       "images",
@@ -277,6 +278,10 @@ describe("账户页", () => {
     }
     expect(router.resolve("/account/tokens").name).toBe(ROUTER_NAMES.tokens);
     expect(router.resolve("/account/settings").name).toBe(ROUTER_NAMES.accountSettings);
+    const plugin = router.resolve("/account/plugins/watermark");
+    expect(plugin.name).toBe("account-plugin-settings");
+    expect(plugin.params.plugin).toBe("watermark");
+    expect(plugin.meta.activePath).toBe("/account");
   });
 });
 
