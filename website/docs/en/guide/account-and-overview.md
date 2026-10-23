@@ -26,3 +26,13 @@ Administration → Site overview (`/admin/overview`) shows site-wide totals. Use
 ## Extension settings
 
 Administrators can open Administration → Site settings → Plugins (`/admin/settings/plugins`). Only plugins compiled into the running program and exposing configuration appear. An empty page means there are no configurable plugins; it is not an installer. Building extensions is a developer workflow described in the repository.
+
+## Balance and packages (Pro)
+
+When a licensed Pro administrator enables packages and balance, **Account → Balance and packages** (`/account/billing`) shows your balance, membership expiry, ledger and orders. Amounts use CNY. Administrators fund accounts manually in this first release; online top-ups are not available.
+
+Choose a published package, review its price, duration and remaining balance, then confirm. Only the same active package can be renewed; renewal extends its expiry. After an interrupted request, retry or refresh to recover the original order without a second charge. Changed prices require confirmation again.
+
+A purchase that changes your group requires signing in again and replacing API tokens used by upload clients. Expiry restores your original group. Existing images and links remain available; the original group's quota applies to future uploads.
+
+Administrators use **Site administration → Packages and balance** (`/admin/billing`) to publish packages bound to existing groups, adjust balances with a required reason, and query records. Review adjustments before submitting. Ledger entries cannot be edited; an administrator adjustment can be fully reversed once, provided the wallet stays non-negative. Sold packages keep their group and duration. Archiving is permanent. Disabling the feature hides its pages while retaining balances and settling existing memberships on expiry.

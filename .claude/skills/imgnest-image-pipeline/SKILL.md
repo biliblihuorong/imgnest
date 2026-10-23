@@ -292,3 +292,9 @@ is still raw WebP. See internal/storage/README.md and docs/spec.md§8.2.
 - Variants: landscape, portrait, small (no upscale), alpha, orientation 6,
   animation skipped, failure on a variant write compensates every object,
   local + MinIO lifecycle (trash/restore/purge) in `internal/cli/variants_test.go`.
+
+## 临时套餐用户组与上传边界
+
+可选 Pro 套餐使用核心持久化组租约（spec §12）。不能仅相信开始上传时的组：鉴权同步结算到期，Reserve 与 Commit 都必须在锁内检查当前租约及重新读取的时钟。请求等锁或图像处理期间到期，应拒绝旧 grant 并补偿本次已写对象；不得以本次上传延长组权限。购买变组、到期和管理员实际覆盖组/角色会撤销旧会话与 API Token。同组续费不撤销会话。
+
+到期处理属于核心，普通版也运行；它只恢复基础组，不删除历史图片、不改变 URL。上传回归需覆盖最近使用过的 Token、Reserve 到期以及对象写入后 Commit 跨期。

@@ -220,3 +220,11 @@ used_bytes 是唯一cloud Key实际字节，含云thumb，本地缓存不计费�
 CI 的 Browser regressions 使用已构建的生产前端和隔离 API 夹具，验证公开访问四组合、登录页、管理预览和备份提示；随后构建 VitePress 并检查中英文导航、目录与移动布局。固定浏览器工具版本见 [versions.md](versions.md)，本机命令见 [浏览器回归说明](../web-vben/e2e/README.md) 与 [网站说明](../website/README.md)。
 
 源码变更后的单元、组件、真实 Go API 测试与浏览器回归均有各自边界。合入前应打开 CI 的 `browser-regressions` 截图复核；没有截图异常不等于接口或存储已经完成联调。
+
+## 可选余额与套餐扩展
+
+`extension.BillingStoreUser` 在启动时接收核心事务仓储，`BillingProvider` 决定能力是否可用；只允许一个提供者。Pro 必须在每次方法调用重新校验授权与站点开关，不能仅在取得服务时校验。核心服务只转发类型化接口，不反向依赖 Pro 或新增生产数据库连接。
+
+前端以 `/api/site` 可选的 `billing_enabled` 驱动导航，普通版不返回该字段。账户 `/account/billing` 与后台 `/admin/billing` 使用生成的 OpenAPI 类型；账务状态限于页面，换账号及 KeepAlive 退出时取消请求、清除私有结果。购买和人工调整先显式确认；响应不确定时保留原 request_id，恢复时查询原订单或重放同一请求。
+
+资金数据与核心共用迁移 0016 和备份表清单；流水不可修改，购买必须在同一事务内更新所有账务和组状态。到期 worker 和同步鉴权结算属于核心，停用 Pro 后仍运行。验证上传变组边界时同时覆盖 Reserve 和 Commit，失败须继续遵循对象补偿规则。Pro 的真实进程测试覆盖授权、重启恢复及普通版到期；浏览器夹具只验证界面交互。
