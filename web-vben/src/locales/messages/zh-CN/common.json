@@ -131,7 +131,8 @@
       "storage_disk_full": "本机磁盘空间已满",
       "storage_read_only": "存储目录是只读的",
       "storage_permission": "程序没有存储目录的读写权限",
-      "api_disabled": "管理员没有开启 API"
+      "api_disabled": "管理员没有开启 API",
+      "api_token_forbidden": "这个操作需要在网页登录，API Token 不能使用"
     },
     "backupBusy": "已有一个备份正在进行，请稍后再试",
     "backupMismatch": "这个备份与当前安装不匹配（数据库类型或版本不同）"

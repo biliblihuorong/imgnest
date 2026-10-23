@@ -131,7 +131,8 @@
       "storage_disk_full": "The local disk is full.",
       "storage_read_only": "The storage directory is read-only.",
       "storage_permission": "The program can't read or write the storage directory.",
-      "api_disabled": "The administrator has turned the API off."
+      "api_disabled": "The administrator has turned the API off.",
+      "api_token_forbidden": "This needs a signed-in web session; API tokens cannot do it."
     },
     "backupBusy": "A backup is already running; try again shortly",
     "backupMismatch": "This backup does not match this installation (different database or version)"

@@ -16,7 +16,9 @@ PicGo / Typora / uPic setups keep working while clients move to v2 over time.
   Account → Tokens.
 - **API switch.** The administrator's API switch (`api_enabled`) governs v1 and
   v2 together. While it is off, v2 answers `403` with `code: 20003` and
-  `data.reason: "api_disabled"`.
+  `data.reason: "api_disabled"`. API tokens obey the switch on the console's
+  `/api` routes too, and never reach `/api/admin/*`, `/api/tokens` or
+  `PATCH /api/auth/password` (`403`, `data.reason: "api_token_forbidden"`).
 - **No EXIF.** Like v1, v2 never returns EXIF or GPS data.
 
 | Method | v2 path | Same as | Notes |

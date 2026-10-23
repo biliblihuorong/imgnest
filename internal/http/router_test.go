@@ -59,6 +59,8 @@ func testUser() service.UserView {
 type tokensStub struct {
 	revoked   bool
 	revokeErr error
+	// kind and role override the web session of an ordinary user.
+	kind, role string
 }
 
 func (s *tokensStub) Issue(_ context.Context, _ service.TokenSubject, in service.TokenInput) (service.IssuedToken, error) {
@@ -68,7 +70,14 @@ func (s *tokensStub) Authenticate(_ context.Context, raw string) (service.Identi
 	if raw != testBearer || s.revoked {
 		return service.Identity{}, service.ErrUnauthenticated
 	}
-	return service.Identity{User: testUser(), TokenID: 7, Kind: "web"}, nil
+	kind, user := "web", testUser()
+	if s.kind != "" {
+		kind = s.kind
+	}
+	if s.role != "" {
+		user.Role = s.role
+	}
+	return service.Identity{User: user, TokenID: 7, Kind: kind}, nil
 }
 func (s *tokensStub) List(_ context.Context, _ uint64) ([]service.TokenView, error) {
 	return []service.TokenView{}, nil

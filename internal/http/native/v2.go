@@ -27,6 +27,7 @@ func (h *Handler) RegisterV2Routes(ctx context.Context, router gin.IRouter, api 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("register v2 routes: %w", err)
 	}
+	h.api = api
 	v2 := router.Group("/api/v2", func(c *gin.Context) {
 		if api == nil {
 			return

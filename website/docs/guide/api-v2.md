@@ -16,7 +16,7 @@
 
 ## 认证
 
-`Authorization: Bearer <token>`,令牌在网页「账户 → API Token」页创建,明文只在创建时显示一次。管理员的 API 开关(`api_enabled`)同时管 v1 与 v2:关闭时 v2 返回 `403`,`code: 20003`,`data.reason: "api_disabled"`。
+`Authorization: Bearer <token>`,令牌在网页「账户 → API Token」页创建,明文只在创建时显示一次。管理员的 API 开关(`api_enabled`)同时管 v1 与 v2:关闭时 v2 返回 `403`,`code: 20003`,`data.reason: "api_disabled"`。API Token 调用控制台的 `/api` 接口同样受开关约束;管理后台(`/api/admin/*`)、Token 管理(`/api/tokens`)和修改密码只能在网页登录后使用,API Token 调用返回 `403`,`data.reason: "api_token_forbidden"`。
 
 ## 路由一览
 

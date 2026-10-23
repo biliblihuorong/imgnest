@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -219,6 +220,13 @@ func (r *BackupRepository) Restore(ctx context.Context, driver string, schemaVer
 		if current != schemaVersion {
 			return model.ErrBackupMismatch
 		}
+		if driver == "postgres" {
+			// Dumped strings never escape backslashes; pin the setting that
+			// makes them literal so the parse below matches the server's.
+			if err := tx.Exec("SET LOCAL standard_conforming_strings = on").Error; err != nil {
+				return err
+			}
+		}
 		if err := tx.Exec(`UPDATE "albums" SET "cover_image_id" = NULL`).Error; err != nil {
 			return err
 		}
@@ -270,15 +278,125 @@ func (r *BackupRepository) Restore(ctx context.Context, driver string, schemaVer
 	return nil
 }
 
-// allowedRestoreStatement only lets the INSERTs and cover UPDATEs a Dump
-// writes reach the database, so a tampered file cannot run DDL.
+// allowedRestoreStatement only lets the exact INSERTs and cover UPDATEs a
+// Dump writes reach the database, so a tampered file cannot run anything
+// else. The whole statement is parsed, not just its prefix: comments,
+// escape-string syntax and any second statement fail the grammar, so the
+// splitter and the database always agree on where a statement ends.
 func allowedRestoreStatement(statement string) bool {
-	for _, table := range backupTables {
-		if strings.HasPrefix(statement, "INSERT INTO "+quoteIdent(table)+" (") {
-			return true
+	p := &restoreParser{rest: statement}
+	if p.take("INSERT INTO ") {
+		table, ok := p.ident()
+		if !ok || !slices.Contains(backupTables, table) || !p.take(" (") {
+			return false
+		}
+		columns := 0
+		for {
+			if _, ok := p.ident(); !ok {
+				return false
+			}
+			columns++
+			if p.take(") VALUES (") {
+				break
+			}
+			if !p.take(", ") {
+				return false
+			}
+		}
+		for i := range columns {
+			if i > 0 && !p.take(", ") {
+				return false
+			}
+			if !p.literal() {
+				return false
+			}
+		}
+		return p.take(")") && p.rest == ""
+	}
+	return p.take(`UPDATE "albums" SET "cover_image_id" = `) && p.integer() &&
+		p.take(` WHERE "id" = `) && p.integer() && p.rest == ""
+}
+
+// restoreParser consumes the fixed dump grammar from the front of rest.
+type restoreParser struct{ rest string }
+
+func (p *restoreParser) take(token string) bool {
+	if !strings.HasPrefix(p.rest, token) {
+		return false
+	}
+	p.rest = p.rest[len(token):]
+	return true
+}
+
+// ident reads a double-quoted lower-case identifier, the only kind the
+// schema uses.
+func (p *restoreParser) ident() (string, bool) {
+	if !p.take(`"`) {
+		return "", false
+	}
+	end := strings.IndexByte(p.rest, '"')
+	if end <= 0 {
+		return "", false
+	}
+	name := p.rest[:end]
+	for _, char := range name {
+		if (char < 'a' || char > 'z') && (char < '0' || char > '9') && char != '_' {
+			return "", false
 		}
 	}
-	return strings.HasPrefix(statement, `UPDATE "albums" SET "cover_image_id" = `)
+	p.rest = p.rest[end+1:]
+	return name, true
+}
+
+// literal reads one value sqlLiteral writes: NULL, a boolean, a number or a
+// standard single-quoted string with doubled quotes.
+func (p *restoreParser) literal() bool {
+	if p.take("NULL") || p.take("TRUE") || p.take("FALSE") {
+		return true
+	}
+	if p.take("'") {
+		for {
+			end := strings.IndexByte(p.rest, '\'')
+			if end < 0 {
+				return false
+			}
+			p.rest = p.rest[end+1:]
+			if !p.take("'") {
+				return true
+			}
+		}
+	}
+	return p.number()
+}
+
+func (p *restoreParser) integer() bool {
+	p.take("-")
+	return p.digits()
+}
+
+func (p *restoreParser) number() bool {
+	if !p.integer() {
+		return false
+	}
+	if p.take(".") && !p.digits() {
+		return false
+	}
+	if p.take("e") || p.take("E") {
+		if !p.take("+") {
+			p.take("-")
+		}
+		return p.digits()
+	}
+	return true
+}
+
+func (p *restoreParser) digits() bool {
+	n := 0
+	for n < len(p.rest) && p.rest[n] >= '0' && p.rest[n] <= '9' {
+		n++
+	}
+	p.rest = p.rest[n:]
+	return n > 0
 }
 
 // statementReader splits a dump on semicolons outside single-quoted strings
