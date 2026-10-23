@@ -47,7 +47,7 @@ CREATE TABLE billing_entries (
  actor_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
  actor_name TEXT NOT NULL,
  order_id BIGINT UNIQUE REFERENCES billing_orders(id) ON DELETE RESTRICT,
- reverses_id BIGINT UNIQUE REFERENCES billing_entries(id) ON DELETE RESTRICT,
+ reverses_id BIGINT UNIQUE REFERENCES billing_entries(id) ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED,
  created_at TIMESTAMPTZ NOT NULL,
  UNIQUE(user_id,sequence),
  CHECK(after_cents = before_cents + amount_cents),

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"gorm.io/gorm"
@@ -35,6 +36,12 @@ func (r *UserRepository) FindUserByEmail(ctx context.Context, email string) (mod
 	if err := r.db.WithContext(ctx).First(&user, "email = ?", email).Error; err != nil {
 		return model.User{}, repositoryError("find user by email", err)
 	}
+	if err := settleBillingUser(ctx, r.db, user.ID, time.Now); err != nil {
+		return model.User{}, err
+	}
+	if err := r.db.WithContext(ctx).First(&user, "id = ?", user.ID).Error; err != nil {
+		return model.User{}, repositoryError("read settled user", err)
+	}
 	return user, nil
 }
 
@@ -42,6 +49,9 @@ func (r *UserRepository) FindUserByEmail(ctx context.Context, email string) (mod
 func (r *UserRepository) FindUserByID(ctx context.Context, id uint64) (model.User, error) {
 	if err := checkRecordID(ctx, id); err != nil {
 		return model.User{}, fmt.Errorf("find user by ID: %w", err)
+	}
+	if err := settleBillingUser(ctx, r.db, id, time.Now); err != nil {
+		return model.User{}, err
 	}
 	var user model.User
 	if err := r.db.WithContext(ctx).First(&user, "id = ?", id).Error; err != nil {

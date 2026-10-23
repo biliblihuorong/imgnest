@@ -73,6 +73,12 @@ func (r *TokenRepository) FindToken(ctx context.Context, id uint64) (model.Token
 	if err := r.db.WithContext(ctx).First(&token, "id = ?", id).Error; err != nil {
 		return model.Token{}, repositoryError("find token", err)
 	}
+	if err := settleBillingUser(ctx, r.db, token.UserID, time.Now); err != nil {
+		return model.Token{}, err
+	}
+	if err := r.db.WithContext(ctx).First(&token, "id = ?", id).Error; err != nil {
+		return model.Token{}, repositoryError("find settled token", err)
+	}
 	return token, nil
 }
 

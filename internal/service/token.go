@@ -192,6 +192,12 @@ func (s *TokenService) Authenticate(ctx context.Context, raw string) (Identity, 
 	if err != nil {
 		return Identity{}, fmt.Errorf("find bearer owner: %w", err)
 	}
+	if _, err := s.tokens.FindToken(ctx, token.ID); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Identity{}, ErrUnauthenticated
+		}
+		return Identity{}, fmt.Errorf("revalidate bearer token: %w", err)
+	}
 	// Usage is advisory; requests are counted in memory and written at most
 	// once per minute so a page of previews is not one write per image.
 	s.usage.add(token.ID)

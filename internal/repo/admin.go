@@ -214,6 +214,11 @@ func (r *AdminRepository) updateAdminUser(ctx context.Context, callerID, userID 
 			}
 			updates["auth_version"] = gorm.Expr("auth_version + 1")
 		}
+		if next.GroupID != user.GroupID || next.Role != user.Role {
+			if err := tx.Model(&billingMembership{}).Where("user_id = ? AND status = ?", userID, "active").Updates(map[string]any{"status": "overridden", "updated_at": tx.NowFunc().UTC()}).Error; err != nil {
+				return err
+			}
+		}
 		if err := tx.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
 			return err
 		}
@@ -436,6 +441,19 @@ func (r *AdminRepository) DeleteGroup(ctx context.Context, id uint64) error {
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := lockGroup(ctx, tx, id); err != nil {
 			return err
+		}
+		var billingReferences int64
+		if err := tx.Model(&billingPlan{}).Where("group_id = ?", id).Count(&billingReferences).Error; err != nil {
+			return err
+		}
+		if billingReferences != 0 {
+			return model.ErrStillReferenced
+		}
+		if err := tx.Model(&billingMembership{}).Where("group_id = ? OR base_group_id = ?", id, id).Count(&billingReferences).Error; err != nil {
+			return err
+		}
+		if billingReferences != 0 {
+			return model.ErrStillReferenced
 		}
 		references, err := settingGroupReferences(ctx, tx, id)
 		if err != nil {

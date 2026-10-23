@@ -36,7 +36,7 @@ var backupTables = []string{
 
 // backupDeferred names the forward reference written as NULL first and
 // filled in once its target rows exist.
-var backupDeferred = map[string]string{"albums": "cover_image_id", "billing_entries": "reverses_id"}
+var backupDeferred = map[string]string{"albums": "cover_image_id"}
 
 // BackupRepository dumps and restores the whole database as SQL INSERT
 // statements in the dialect of the database it reads.

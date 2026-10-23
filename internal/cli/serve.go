@@ -151,6 +151,8 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			workerCtx, stopWorker := context.WithCancel(cmd.Context())
 			workerDone := make(chan struct{})
 			go func() { defer close(workerDone); runImageWorker(workerCtx, images, logger) }()
+			billingDone := make(chan struct{})
+			go func() { defer close(billingDone); runBillingExpiry(workerCtx, db, logger) }()
 			backupDone := make(chan struct{})
 			go func() { defer close(backupDone); backups.RunSchedule(workerCtx, backupScheduleCheck) }()
 			// A variant backfill that was running before a restart resumes.
@@ -162,6 +164,7 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			images.WaitBackground()
 			<-workerDone
 			<-backupDone
+			<-billingDone
 			return result
 		})
 	}}

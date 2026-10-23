@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"math"
+	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"gorm.io/gorm"
@@ -27,6 +28,18 @@ func validateGrant(ctx context.Context, tx *gorm.DB, user model.User, grant mode
 			return model.ErrUnauthenticated
 		}
 	}
+	checked := grant.At
+	if checked.IsZero() {
+		checked = time.Now().UTC()
+	}
+	if grant.Clock != nil {
+		if now := grant.Clock().UTC(); now.After(checked) {
+			checked = now
+		}
+	}
+	if err := billingGrantCurrent(tx, user.ID, checked); err != nil {
+		return err
+	}
 	if grant.SourceTokenID == 0 {
 		return nil
 	}
@@ -43,7 +56,6 @@ func validateGrant(ctx context.Context, tx *gorm.DB, user model.User, grant mode
 	if source.UserID != user.ID {
 		return model.ErrUnauthenticated
 	}
-	checked := grant.At
 	if grant.Clock != nil {
 		if now := grant.Clock().UTC(); now.After(checked) {
 			checked = now
@@ -52,5 +64,5 @@ func validateGrant(ctx context.Context, tx *gorm.DB, user model.User, grant mode
 	if source.ExpiresAt != nil && !checked.Before(*source.ExpiresAt) {
 		return model.ErrUnauthenticated
 	}
-	return nil
+	return billingGrantCurrent(tx, user.ID, checked)
 }
