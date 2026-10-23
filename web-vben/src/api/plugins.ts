@@ -2,10 +2,11 @@
  * 扩展插件设置（/api/admin/plugins）。社区版没有插件，列表为空。
  * 类型派生自 docs/openapi.yaml。
  */
-import { request } from "./client";
+import { request, requestBlob } from "./client";
 import type { components } from "./schema";
 
 export type PluginSettings = components["schemas"]["PluginSettings"];
+export type UserPluginSettings = components["schemas"]["UserPluginSettings"];
 export type PluginSettingField = components["schemas"]["PluginSettingField"];
 export type PluginSettingOption = components["schemas"]["PluginSettingOption"];
 export type PluginSettingStatus = components["schemas"]["PluginSettingStatus"];
@@ -29,4 +30,39 @@ export function savePluginSettings(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ values }),
   });
+}
+
+const userPluginPath = (name: string) => `/api/user/plugins/${encodeURIComponent(name)}`;
+export function listUserPluginSettings(signal?: AbortSignal): Promise<UserPluginSettings[]> {
+  return request("/api/user/plugins", { signal });
+}
+export function saveUserPluginSettings(
+  name: string,
+  values: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<UserPluginSettings> {
+  return request(`${userPluginPath(name)}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ values }),
+    signal,
+  });
+}
+export function getUserPluginAsset(name: string, signal?: AbortSignal): Promise<Blob> {
+  return requestBlob(`${userPluginPath(name)}/asset`, signal);
+}
+export function putUserPluginAsset(
+  name: string,
+  file: File,
+  signal?: AbortSignal,
+): Promise<UserPluginSettings> {
+  const body = new FormData();
+  body.set("file", file);
+  return request(`${userPluginPath(name)}/asset`, { method: "PUT", body, signal });
+}
+export function deleteUserPluginAsset(
+  name: string,
+  signal?: AbortSignal,
+): Promise<UserPluginSettings> {
+  return request(`${userPluginPath(name)}/asset`, { method: "DELETE", signal });
 }

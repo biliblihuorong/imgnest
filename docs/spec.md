@@ -146,6 +146,7 @@ v1 用方案 A 快速跑通，M6 再评估是否换 B。运行参数参照 imago
 | `settings` | key, value(JSON) | 站点名、开放注册、游客上传、画廊开关、默认组、回收站保留天数等 |
 | `user_identities` | id, user\_id, provider, subject, created\_at | 外部登录（SSO 扩展）身份；`(provider, subject)` 唯一，`provider` 形如 `sso:github`；不复制外部资料，只存稳定的 subject。见 `docs/development.md` 的「扩展插件」 |
 | `plugin_counters` | plugin, name, subject, value, updated\_at | 扩展插件的持久计数器（例如每用户每月上传数），主键 `(plugin, name, subject)`，多实例共享；400 天未更新的行启动时清理 |
+| `plugin_user_settings` | plugin, user_id, value, asset, asset_mime, version, updated_at | 私有账户扩展设置；`(plugin,user_id)` 主键，用户删除时级联删除；JSON ≤64 KiB、单个规范化资产 ≤4 MiB，独立更新互不覆盖，包含在备份恢复内 |
 
 访问 URL 不存库，实时拼接：`storage.base_url + "/" + image.path + "." + ext`，换域名只改存储配置即可。表结构变更用版本化迁移脚本，不依赖 `AutoMigrate` 上生产。
 

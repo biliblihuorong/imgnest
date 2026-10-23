@@ -1963,6 +1963,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user/plugins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List account extension settings
+         * @description Web sessions only. Owner comes from authentication. Group policy may make a card read-only. The ordinary edition returns an empty list.
+         */
+        get: operations["listUserPluginSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/plugins/{name}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save the signed-in account's extension settings
+         * @description Web sessions only. Replaces values after schema and plugin validation. Group-controlled cards reject mutations with 403 and reason plugin_user_read_only. No user ID is accepted.
+         */
+        put: operations["saveUserPluginSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/plugins/{name}/asset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read the signed-in account's private extension asset
+         * @description Web sessions only. Binary response has private, no-store caching. Assets have no public URL.
+         */
+        get: operations["getUserPluginAsset"];
+        /**
+         * Replace the signed-in account's private asset
+         * @description Web sessions only. One file, at most 4 MiB. Plugin validates and normalizes before atomic replacement; failures preserve the old asset. Group-controlled cards reject writes. Limited to 10 requests/minute/account and two concurrent asset processors per process.
+         */
+        put: operations["putUserPluginAsset"];
+        post?: never;
+        /**
+         * Remove the signed-in account's private asset
+         * @description Web sessions only. Preserves text settings. Group-controlled cards reject writes.
+         */
+        delete: operations["deleteUserPluginAsset"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/plugins": {
         parameters: {
             query?: never;
@@ -2524,6 +2594,31 @@ export interface components {
             value: string;
             /** @enum {string} */
             level: "info" | "success" | "warning" | "error";
+        };
+        UserPluginSettings: {
+            name: string;
+            title: string;
+            description?: string;
+            fields: components["schemas"]["PluginSettingField"][];
+            values: {
+                [key: string]: unknown;
+            };
+            read_only: boolean;
+            notice?: string;
+            asset_label?: string;
+            has_asset: boolean;
+        };
+        UserPluginSettingsEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["UserPluginSettings"];
+        };
+        UserPluginSettingsListEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["UserPluginSettings"][];
         };
         PluginSettings: {
             name: string;
@@ -7078,6 +7173,161 @@ export interface operations {
             409: components["responses"]["ImageBusy"];
             500: components["responses"]["InternalError"];
             502: components["responses"]["StorageFailed"];
+        };
+    };
+    listUserPluginSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Visible account cards. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPluginSettingsListEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+        };
+    };
+    saveUserPluginSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    values: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Saved account card. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPluginSettingsEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getUserPluginAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Private normalized image. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                    "image/jpeg": string;
+                    "image/webp": string;
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putUserPluginAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated account card. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPluginSettingsEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Asset exceeds 4 MiB (10002). */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many asset uploads (30003). */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteUserPluginAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Updated account card. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPluginSettingsEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     adminListPluginSettings: {

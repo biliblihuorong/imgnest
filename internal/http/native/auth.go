@@ -180,7 +180,7 @@ var errAPITokenForbidden = &service.ReasonError{Reason: "api_token_forbidden", E
 // management and password change need a web session, and the
 // administrator's API switch covers API tokens on /api as it does on v1/v2.
 func (h *Handler) apiTokenAllowed(ctx context.Context, requestPath string) error {
-	for _, prefix := range []string{"/api/admin", "/api/tokens", "/api/auth/password"} {
+	for _, prefix := range []string{"/api/admin", "/api/tokens", "/api/auth/password", "/api/user/plugins"} {
 		if requestPath == prefix || strings.HasPrefix(requestPath, prefix+"/") {
 			return errAPITokenForbidden
 		}
@@ -357,7 +357,7 @@ func errorResponse(err error) (int, Response) {
 		status, code, message = 503, 50004, "captcha temporarily unavailable; try again later"
 	case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
 		status, code, message = 408, 10004, "request timed out or canceled"
-	case errors.Is(err, errUploadTooLarge):
+	case errors.Is(err, errUploadTooLarge), errors.Is(err, service.ErrFileTooLarge):
 		status, code, message = 413, 10002, "upload exceeds size limit"
 	case errors.Is(err, errUploadRateLimited):
 		status, code, message = 429, 30003, "too many uploads"

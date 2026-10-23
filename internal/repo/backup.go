@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,6 +30,7 @@ var backupTables = []string{
 	"login_events", "api_usage_daily",
 	"user_identities", "albums", "images", "image_exif", "image_variant_jobs",
 	"variant_backfill", "random_links", "email_codes", "plugin_counters",
+	"plugin_user_settings",
 }
 
 // backupDeferred names the forward reference written as NULL first and
@@ -129,6 +131,18 @@ func dumpTable(ctx context.Context, tx *sql.Tx, out *bufio.Writer, driver, table
 		}
 		literals := make([]string, len(values))
 		for i, value := range values {
+			if table == "plugin_user_settings" && columns[i] == "asset" && value != nil {
+				data, ok := value.([]byte)
+				if !ok {
+					return 0, nil, model.ErrInvalidInput
+				}
+				encoded := hex.EncodeToString(data)
+				literals[i] = "X'" + encoded + "'"
+				if driver == "postgres" {
+					literals[i] = "'\\x" + encoded + "'::bytea"
+				}
+				continue
+			}
 			literal, err := sqlLiteral(driver, value)
 			if err != nil {
 				return 0, nil, fmt.Errorf("encode %s.%s: %w", table, columns[i], err)
@@ -178,8 +192,8 @@ func sqlLiteral(driver string, value any) (string, error) {
 		}
 		return quoteString(v.Format(time.RFC3339Nano)), nil
 	case []byte:
-		// No column stores binary data; text and JSON arrive as bytes from
-		// some drivers.
+		// Binary asset columns are handled separately by dumpTable; other
+		// bytes are text or JSON returned by the driver.
 		if !utf8.Valid(v) {
 			return "", model.ErrInvalidInput
 		}
@@ -354,6 +368,17 @@ func (p *restoreParser) literal() bool {
 	if p.take("NULL") || p.take("TRUE") || p.take("FALSE") {
 		return true
 	}
+	if p.take("X'") {
+		return p.hexBytes() && p.take("'")
+	}
+	if strings.HasPrefix(p.rest, "'\\x") {
+		copy := *p
+		copy.take("'\\x")
+		if copy.hexBytes() && copy.take("'::bytea") {
+			*p = copy
+			return true
+		}
+	}
 	if p.take("'") {
 		for {
 			end := strings.IndexByte(p.rest, '\'')
@@ -367,6 +392,18 @@ func (p *restoreParser) literal() bool {
 		}
 	}
 	return p.number()
+}
+
+func (p *restoreParser) hexBytes() bool {
+	end := strings.IndexByte(p.rest, '\'')
+	if end < 0 {
+		return false
+	}
+	if _, err := hex.DecodeString(p.rest[:end]); err != nil {
+		return false
+	}
+	p.rest = p.rest[end:]
+	return true
 }
 
 func (p *restoreParser) integer() bool {
