@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"gorm.io/gorm"
@@ -64,6 +65,14 @@ func TestBackupDumpRestoreRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		personal, err := NewPluginUserSettingsRepository(t.Context(), db, time.Now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		logo := []byte{0x89, 0, 0xff, '\'', ';', '\\'}
+		if err := personal.SaveAsset(t.Context(), "watermark", fixture.user.ID, fixture.user.GroupID, logo, "image/png"); err != nil {
+			t.Fatal(err)
+		}
 		var first bytes.Buffer
 		stats, err := backups.Dump(t.Context(), &first)
 		if err != nil {
@@ -89,6 +98,10 @@ func TestBackupDumpRestoreRoundTrip(t *testing.T) {
 		}
 		if first.String() != second.String() {
 			t.Fatalf("restored database differs from the backup\nfirst:\n%s\nsecond:\n%s", first.String(), second.String())
+		}
+		restored, mime, err := personal.Asset(t.Context(), "watermark", fixture.user.ID)
+		if err != nil || mime != "image/png" || !bytes.Equal(restored, logo) {
+			t.Fatalf("restored private logo = %x, %s, %v", restored, mime, err)
 		}
 		// Identity sequences moved past the restored ids.
 		created, err := albums.Create(t.Context(), model.Album{UserID: fixture.user.ID, Name: "new after restore"})
