@@ -132,7 +132,9 @@ function webhookCard(overrides: Partial<PluginSettings> = {}): PluginSettings {
 }
 
 async function mountSection(): Promise<VueWrapper> {
-  const wrapper = mount(() => h(NMessageProvider, () => h(PluginSettingsSection)));
+  // Message lifetime is unrelated to these settings assertions. Avoid leaving
+  // the library's auto-hide timer running after the test DOM is torn down.
+  const wrapper = mount(() => h(NMessageProvider, { duration: 0 }, () => h(PluginSettingsSection)));
   await flushPromises();
   return wrapper;
 }
