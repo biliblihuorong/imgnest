@@ -171,7 +171,7 @@ func TestBillingPlanVersionAndSoldTerms(t *testing.T) {
 		}
 		p = next
 		f.topup(t, 10000)
-		order := billingOrder{UserID: f.buyer.UserID, Username: "billing-buyer", PlanID: p.ID, PlanName: p.Name, PlanVersion: p.Version, PriceCents: p.PriceCents, DurationDays: p.DurationDays, GroupID: p.GroupID, ExpiresAt: f.now.AddDate(0, 0, 30), RequestID: "fixture-order", CreatedAt: f.now}
+		order := billingOrder{Currency: "CNY", UserID: f.buyer.UserID, Username: "billing-buyer", PlanID: p.ID, PlanName: p.Name, PlanVersion: p.Version, PriceCents: p.PriceCents, DurationDays: p.DurationDays, GroupID: p.GroupID, ExpiresAt: f.now.AddDate(0, 0, 30), RequestID: "fixture-order", CreatedAt: f.now}
 		if err = db.Create(&order).Error; err != nil {
 			t.Fatal(err)
 		}

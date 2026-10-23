@@ -75,7 +75,7 @@ func (r *BillingRepository) Purchase(ctx context.Context, a extension.BillingAct
 		if wallet.BalanceCents < plan.PriceCents {
 			return extension.ErrBillingInsufficient
 		}
-		order := billingOrder{UserID: user.ID, Username: user.Username, PlanID: plan.ID, PlanName: plan.Name, PlanVersion: plan.Version, PriceCents: plan.PriceCents, DurationDays: plan.DurationDays, GroupID: plan.GroupID, PreviousExpiresAt: previous, ExpiresAt: expiry, RequiresLogin: user.GroupID != plan.GroupID, RequestID: in.RequestID, CreatedAt: now}
+		order := billingOrder{Currency: "CNY", UserID: user.ID, Username: user.Username, PlanID: plan.ID, PlanName: plan.Name, PlanVersion: plan.Version, PriceCents: plan.PriceCents, DurationDays: plan.DurationDays, GroupID: plan.GroupID, PreviousExpiresAt: previous, ExpiresAt: expiry, RequiresLogin: user.GroupID != plan.GroupID, RequestID: in.RequestID, CreatedAt: now}
 		if e = tx.Create(&order).Error; e != nil {
 			return e
 		}

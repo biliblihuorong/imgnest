@@ -101,6 +101,10 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			billingService, err := newBillingService(cmd.Context(), db, plugins)
+			if err != nil {
+				return err
+			}
 			// Console imports of a Lsky Pro export run in the background and
 			// stop with the server; a rerun resumes with what is missing.
 			importCtx, stopImports := context.WithCancel(cmd.Context())
@@ -138,7 +142,7 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("open embedded web app: %w", err)
 			}
-			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Email: users, Mail: mailService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads, Slots: uploadSlots}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Guest: guestState, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, PluginSettings: pluginSettings, UserPluginSettings: userPluginSettings, ExternalSignIn: users, LskyImport: lskyImport, Backups: backups, Activity: activity, System: system, Overview: overview, Variants: images, VariantOptions: httpapi.VariantOptions{CORSOrigins: cfg.Images.VariantCORSOrigins, PerMinute: cfg.Images.VariantLookupPerMinute, CDNMaxAge: cfg.Images.VariantCDNMaxAge}, Crawler: crawler})
+			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Email: users, Mail: mailService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads, Slots: uploadSlots}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Guest: guestState, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, PluginSettings: pluginSettings, UserPluginSettings: userPluginSettings, Billing: billingService, ExternalSignIn: users, LskyImport: lskyImport, Backups: backups, Activity: activity, System: system, Overview: overview, Variants: images, VariantOptions: httpapi.VariantOptions{CORSOrigins: cfg.Images.VariantCORSOrigins, PerMinute: cfg.Images.VariantLookupPerMinute, CDNMaxAge: cfg.Images.VariantCDNMaxAge}, Crawler: crawler})
 			if err != nil {
 				return err
 			}

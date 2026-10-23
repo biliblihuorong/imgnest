@@ -72,6 +72,7 @@ type BillingPlanInput struct {
 	Archived     bool   `json:"archived"`
 }
 type BillingOrder struct {
+	Currency          string     `json:"currency"`
 	ID                uint64     `json:"id"`
 	UserID            uint64     `json:"user_id"`
 	Username          string     `json:"username"`
@@ -109,6 +110,7 @@ type BillingPage[T any] struct {
 	Size  int   `json:"size"`
 }
 type BillingFilter struct {
+	RequestID  string
 	UserID     uint64
 	All        bool
 	Page, Size int

@@ -180,7 +180,7 @@ var errAPITokenForbidden = &service.ReasonError{Reason: "api_token_forbidden", E
 // management and password change need a web session, and the
 // administrator's API switch covers API tokens on /api as it does on v1/v2.
 func (h *Handler) apiTokenAllowed(ctx context.Context, requestPath string) error {
-	for _, prefix := range []string{"/api/admin", "/api/tokens", "/api/auth/password", "/api/user/plugins"} {
+	for _, prefix := range []string{"/api/admin", "/api/tokens", "/api/auth/password", "/api/user/plugins", "/api/user/billing"} {
 		if requestPath == prefix || strings.HasPrefix(requestPath, prefix+"/") {
 			return errAPITokenForbidden
 		}
@@ -347,6 +347,12 @@ func fail(c *gin.Context, err error) {
 func errorResponse(err error) (int, Response) {
 	status, code, message := 500, 50001, "internal error"
 	switch {
+	case errors.Is(err, extension.ErrBillingUnavailable):
+		status, code, message = 404, 10001, "billing unavailable"
+	case errors.Is(err, extension.ErrBillingInsufficient):
+		return 409, Response{Code: 30024, Message: "insufficient balance", Data: map[string]string{"reason": "billing_insufficient"}}
+	case errors.Is(err, extension.ErrBillingConflict):
+		return 409, Response{Code: 30025, Message: "billing state changed; refresh and confirm again", Data: map[string]string{"reason": "billing_conflict"}}
 	case errors.Is(err, service.ErrCaptchaFailed):
 		status, code, message = 422, 30010, "complete a new captcha challenge and try again"
 	case errors.Is(err, service.ErrCaptchaConflict):

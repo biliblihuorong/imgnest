@@ -176,6 +176,15 @@ func billingPage[T any](tx *gorm.DB, table any, f extension.BillingFilter) (exte
 		dateColumn = "updated_at"
 	}
 	query := tx.Model(table)
+	if f.RequestID != "" {
+		if !billingRequestID(f.RequestID) {
+			return page, model.ErrInvalidInput
+		}
+		if _, ok := table.(billingOrder); !ok {
+			return page, model.ErrInvalidInput
+		}
+		query = query.Where("request_id = ?", f.RequestID)
+	}
 	if f.UserID != 0 {
 		query = query.Where("user_id = ?", f.UserID)
 	}

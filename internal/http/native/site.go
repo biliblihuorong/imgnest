@@ -10,6 +10,7 @@ import (
 // login_providers is always an array so the login page can range over it.
 type siteResponse struct {
 	service.SiteView
+	BillingEnabled bool                      `json:"billing_enabled,omitempty"`
 	LoginProviders []extension.LoginProvider `json:"login_providers"`
 }
 
@@ -21,8 +22,13 @@ func (h *Handler) site(c *gin.Context) {
 		return
 	}
 	providers := []extension.LoginProvider{}
+	billingEnabled := false
 	for _, plugin := range h.plugins {
 		providers = append(providers, plugin.LoginProviders(c.Request.Context())...)
+		if p, ok := plugin.(extension.BillingProvider); ok {
+			store, enabled := p.BillingService(c.Request.Context())
+			billingEnabled = billingEnabled || enabled && store != nil
+		}
 	}
-	respond(c, 200, siteResponse{SiteView: view, LoginProviders: providers})
+	respond(c, 200, siteResponse{SiteView: view, LoginProviders: providers, BillingEnabled: billingEnabled})
 }

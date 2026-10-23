@@ -28,6 +28,7 @@ tags:
   - name: Health
   - name: Site
   - name: Authentication
+  - name: Billing
   - name: Tokens
   - name: Images
   - name: Albums
@@ -3262,6 +3263,847 @@ paths:
                       purged: {type: integer, format: int64, minimum: 0}
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/user/billing:
+    {
+      "get":
+        {
+          "operationId": "billingOverview",
+          "tags": ["Billing"],
+          "summary": "billingOverview",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingOverviewEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+        },
+    }
+  /api/user/billing/plans:
+    {
+      "get":
+        {
+          "operationId": "billingAvailablePlans",
+          "tags": ["Billing"],
+          "summary": "billingAvailablePlans",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingPlanListEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+        },
+    }
+  /api/user/billing/ledger:
+    {
+      "get":
+        {
+          "operationId": "billingUserEntryHistory",
+          "tags": ["Billing"],
+          "summary": "billingUserEntryHistory",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingEntryPageEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+          "parameters":
+            [
+              {
+                "in": "query",
+                "name": "page",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000,
+                    "default": 1,
+                  },
+              },
+              {
+                "in": "query",
+                "name": "size",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 20,
+                  },
+              },
+              {
+                "in": "query",
+                "name": "from",
+                "schema": { "type": "string", "format": "date-time" },
+              },
+              {
+                "in": "query",
+                "name": "to",
+                "schema": { "type": "string", "format": "date-time" },
+              },
+            ],
+        },
+    }
+  /api/user/billing/orders:
+    {
+      "get":
+        {
+          "operationId": "billingUserOrderHistory",
+          "tags": ["Billing"],
+          "summary": "billingUserOrderHistory",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingOrderPageEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+          "parameters":
+            [
+              {
+                "in": "query",
+                "name": "page",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000,
+                    "default": 1,
+                  },
+              },
+              {
+                "in": "query",
+                "name": "size",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 20,
+                  },
+              },
+              {
+                "in": "query",
+                "name": "from",
+                "schema": { "type": "string", "format": "date-time" },
+              },
+              {
+                "in": "query",
+                "name": "to",
+                "schema": { "type": "string", "format": "date-time" },
+              },
+              {
+                "in": "query",
+                "name": "request_id",
+                "schema": { "type": "string", "maxLength": 100 },
+                "description": "Recover a particular committed purchase after a lost response.",
+              },
+            ],
+        },
+    }
+  /api/user/billing/purchases:
+    {
+      "post":
+        {
+          "operationId": "billingPurchasePackage",
+          "tags": ["Billing"],
+          "summary": "billingPurchasePackage",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingOrderEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+          "requestBody":
+            {
+              "required": true,
+              "content":
+                {
+                  "application/json":
+                    {
+                      "schema":
+                        { "$ref": "#/components/schemas/BillingPurchase" },
+                    },
+                },
+            },
+        },
+    }
+  /api/admin/billing/plans:
+    {
+      "get":
+        {
+          "operationId": "billingManagePlans",
+          "tags": ["Billing"],
+          "summary": "billingManagePlans",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingPlanListEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+        },
+      "post":
+        {
+          "operationId": "billingCreatePlan",
+          "tags": ["Billing"],
+          "summary": "billingCreatePlan",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingPlanEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+          "requestBody":
+            {
+              "required": true,
+              "content":
+                {
+                  "application/json":
+                    {
+                      "schema":
+                        { "$ref": "#/components/schemas/BillingPlanInput" },
+                    },
+                },
+            },
+        },
+    }
+  /api/admin/billing/plans/{id}:
+    {
+      "patch":
+        {
+          "operationId": "billingUpdatePlan",
+          "tags": ["Billing"],
+          "summary": "billingUpdatePlan",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingPlanEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+          "parameters":
+            [
+              {
+                "in": "path",
+                "name": "id",
+                "required": true,
+                "schema": { "type": "integer", "minimum": 1 },
+              },
+            ],
+          "requestBody":
+            {
+              "required": true,
+              "content":
+                {
+                  "application/json":
+                    {
+                      "schema":
+                        { "$ref": "#/components/schemas/BillingPlanInput" },
+                    },
+                },
+            },
+        },
+    }
+  /api/admin/billing/wallets:
+    {
+      "get":
+        {
+          "operationId": "billingAdminWalletHistory",
+          "tags": ["Billing"],
+          "summary": "billingAdminWalletHistory",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingWalletPageEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+          "parameters":
+            [
+              {
+                "in": "query",
+                "name": "page",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000,
+                    "default": 1,
+                  },
+              },
+              {
+                "in": "query",
+                "name": "size",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 20,
+                  },
+              },
+              {
+                "in": "query",
+                "name": "user_id",
+                "schema": { "type": "integer", "minimum": 1 },
+              },
+              {
+                "in": "query",
+                "name": "from",
+                "schema": { "type": "string", "format": "date-time" },
+              },
+              {
+                "in": "query",
+                "name": "to",
+                "schema": { "type": "string", "format": "date-time" },
+              },
+            ],
+        },
+    }
+  /api/admin/billing/ledger:
+    {
+      "get":
+        {
+          "operationId": "billingAdminEntryHistory",
+          "tags": ["Billing"],
+          "summary": "billingAdminEntryHistory",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingEntryPageEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+          "parameters":
+            [
+              {
+                "in": "query",
+                "name": "page",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000,
+                    "default": 1,
+                  },
+              },
+              {
+                "in": "query",
+                "name": "size",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 20,
+                  },
+              },
+              {
+                "in": "query",
+                "name": "user_id",
+                "schema": { "type": "integer", "minimum": 1 },
+              },
+              {
+                "in": "query",
+                "name": "from",
+                "schema": { "type": "string", "format": "date-time" },
+              },
+              {
+                "in": "query",
+                "name": "to",
+                "schema": { "type": "string", "format": "date-time" },
+              },
+            ],
+        },
+    }
+  /api/admin/billing/orders:
+    {
+      "get":
+        {
+          "operationId": "billingAdminOrderHistory",
+          "tags": ["Billing"],
+          "summary": "billingAdminOrderHistory",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingOrderPageEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+          "parameters":
+            [
+              {
+                "in": "query",
+                "name": "page",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000,
+                    "default": 1,
+                  },
+              },
+              {
+                "in": "query",
+                "name": "size",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 20,
+                  },
+              },
+              {
+                "in": "query",
+                "name": "user_id",
+                "schema": { "type": "integer", "minimum": 1 },
+              },
+              {
+                "in": "query",
+                "name": "from",
+                "schema": { "type": "string", "format": "date-time" },
+              },
+              {
+                "in": "query",
+                "name": "to",
+                "schema": { "type": "string", "format": "date-time" },
+              },
+              {
+                "in": "query",
+                "name": "request_id",
+                "schema": { "type": "string", "maxLength": 100 },
+                "description": "Recover a particular committed purchase after a lost response.",
+              },
+            ],
+        },
+    }
+  /api/admin/billing/memberships:
+    {
+      "get":
+        {
+          "operationId": "billingAdminMembershipHistory",
+          "tags": ["Billing"],
+          "summary": "billingAdminMembershipHistory",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingMembershipPageEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+          "parameters":
+            [
+              {
+                "in": "query",
+                "name": "page",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000,
+                    "default": 1,
+                  },
+              },
+              {
+                "in": "query",
+                "name": "size",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 20,
+                  },
+              },
+              {
+                "in": "query",
+                "name": "user_id",
+                "schema": { "type": "integer", "minimum": 1 },
+              },
+              {
+                "in": "query",
+                "name": "from",
+                "schema": { "type": "string", "format": "date-time" },
+              },
+              {
+                "in": "query",
+                "name": "to",
+                "schema": { "type": "string", "format": "date-time" },
+              },
+            ],
+        },
+    }
+  /api/admin/billing/adjustments:
+    {
+      "post":
+        {
+          "operationId": "billingBillingAdjustment",
+          "tags": ["Billing"],
+          "summary": "billingBillingAdjustment",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingEntryEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+          "requestBody":
+            {
+              "required": true,
+              "content":
+                {
+                  "application/json":
+                    {
+                      "schema":
+                        { "$ref": "#/components/schemas/BillingAdjustment" },
+                    },
+                },
+            },
+        },
+    }
+  /api/admin/billing/reversals:
+    {
+      "post":
+        {
+          "operationId": "billingBillingReversal",
+          "tags": ["Billing"],
+          "summary": "billingBillingReversal",
+          "description": "Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.",
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Committed result or an identical idempotent replay.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "$ref": "#/components/schemas/BillingEntryEnvelope",
+                            },
+                        },
+                    },
+                },
+              "400": { "description": "Invalid input." },
+              "401":
+                { "description": "Web session missing, revoked or expired." },
+              "403": { "description": "API token or wrong account role." },
+              "404":
+                { "description": "Billing unavailable or record not found." },
+              "409":
+                {
+                  "description": "Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict).",
+                },
+              "429": { "description": "Mutation rate exceeded." },
+            },
+          "requestBody":
+            {
+              "required": true,
+              "content":
+                {
+                  "application/json":
+                    {
+                      "schema":
+                        { "$ref": "#/components/schemas/BillingReversal" },
+                    },
+                },
+            },
+        },
+    }
+
 components:
   parameters:
     ImageID:
@@ -3868,6 +4710,519 @@ components:
         label: {type: string}
         value: {type: string}
         level: {type: string, enum: [info, success, warning, error]}
+    BillingWallet:
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required":
+          ["user_id", "username", "balance_cents", "version", "updated_at"],
+        "properties":
+          {
+            "user_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "username": { "type": "string" },
+            "balance_cents":
+              { "type": "integer", "minimum": 0, "maximum": 1000000000000 },
+            "version":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "updated_at": { "type": "string", "format": "date-time" },
+          },
+      }
+    BillingEntry:
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required":
+          [
+            "id",
+            "user_id",
+            "username",
+            "sequence",
+            "amount_cents",
+            "before_cents",
+            "after_cents",
+            "kind",
+            "reason",
+            "actor_id",
+            "actor_name",
+            "order_id",
+            "reverses_id",
+            "created_at",
+          ],
+        "properties":
+          {
+            "id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "user_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "username": { "type": "string" },
+            "sequence":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "amount_cents":
+              {
+                "type": "integer",
+                "minimum": -1000000000000,
+                "maximum": 1000000000000,
+              },
+            "before_cents":
+              { "type": "integer", "minimum": 0, "maximum": 1000000000000 },
+            "after_cents":
+              { "type": "integer", "minimum": 0, "maximum": 1000000000000 },
+            "kind": { "type": "string" },
+            "reason": { "type": "string" },
+            "actor_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "actor_name": { "type": "string" },
+            "order_id":
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "nullable": true,
+              },
+            "reverses_id":
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "nullable": true,
+              },
+            "created_at": { "type": "string", "format": "date-time" },
+          },
+      }
+    BillingGroup:
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required":
+          ["name", "capacity_bytes", "max_file_bytes", "upload_per_min"],
+        "properties":
+          {
+            "name": { "type": "string" },
+            "capacity_bytes":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "max_file_bytes":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "upload_per_min":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          },
+      }
+    BillingPlan:
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required":
+          [
+            "id",
+            "name",
+            "description",
+            "price_cents",
+            "duration_days",
+            "group_id",
+            "published",
+            "archived",
+            "version",
+            "created_at",
+            "updated_at",
+          ],
+        "properties":
+          {
+            "id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "name": { "type": "string" },
+            "description": { "type": "string" },
+            "price_cents":
+              { "type": "integer", "minimum": 0, "maximum": 1000000000000 },
+            "duration_days":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "group_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "published": { "type": "boolean" },
+            "archived": { "type": "boolean" },
+            "version":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "created_at": { "type": "string", "format": "date-time" },
+            "updated_at": { "type": "string", "format": "date-time" },
+            "group":
+              {
+                "allOf": [{ "$ref": "#/components/schemas/BillingGroup" }],
+                "nullable": true,
+              },
+          },
+      }
+    BillingPlanInput:
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required":
+          [
+            "version",
+            "name",
+            "description",
+            "price_cents",
+            "duration_days",
+            "group_id",
+            "published",
+            "archived",
+          ],
+        "properties":
+          {
+            "version":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "name": { "type": "string" },
+            "description": { "type": "string" },
+            "price_cents":
+              { "type": "integer", "minimum": 0, "maximum": 1000000000000 },
+            "duration_days":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "group_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "published": { "type": "boolean" },
+            "archived": { "type": "boolean" },
+          },
+      }
+    BillingOrder:
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required":
+          [
+            "currency",
+            "id",
+            "user_id",
+            "username",
+            "plan_id",
+            "plan_name",
+            "plan_version",
+            "price_cents",
+            "duration_days",
+            "group_id",
+            "previous_expires_at",
+            "expires_at",
+            "requires_login",
+            "request_id",
+            "created_at",
+          ],
+        "properties":
+          {
+            "currency": { "type": "string", "enum": ["CNY"] },
+            "id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "user_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "username": { "type": "string" },
+            "plan_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "plan_name": { "type": "string" },
+            "plan_version":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "price_cents":
+              { "type": "integer", "minimum": 0, "maximum": 1000000000000 },
+            "duration_days":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "group_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "previous_expires_at":
+              { "type": "string", "format": "date-time", "nullable": true },
+            "expires_at": { "type": "string", "format": "date-time" },
+            "requires_login": { "type": "boolean" },
+            "request_id": { "type": "string" },
+            "created_at": { "type": "string", "format": "date-time" },
+          },
+      }
+    BillingMembership:
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required":
+          [
+            "user_id",
+            "plan_id",
+            "group_id",
+            "base_group_id",
+            "starts_at",
+            "expires_at",
+            "status",
+            "updated_at",
+          ],
+        "properties":
+          {
+            "user_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "plan_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "group_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "base_group_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "starts_at": { "type": "string", "format": "date-time" },
+            "expires_at": { "type": "string", "format": "date-time" },
+            "status": { "type": "string" },
+            "updated_at": { "type": "string", "format": "date-time" },
+          },
+      }
+    BillingOverview:
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["currency", "wallet", "membership"],
+        "properties":
+          {
+            "currency": { "type": "string", "enum": ["CNY"] },
+            "wallet": { "$ref": "#/components/schemas/BillingWallet" },
+            "membership":
+              {
+                "allOf": [{ "$ref": "#/components/schemas/BillingMembership" }],
+                "nullable": true,
+              },
+          },
+      }
+    BillingAdjustment:
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["user_id", "amount_cents", "reason", "request_id"],
+        "properties":
+          {
+            "user_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "amount_cents":
+              {
+                "type": "integer",
+                "minimum": -1000000000000,
+                "maximum": 1000000000000,
+              },
+            "reason": { "type": "string" },
+            "request_id": { "type": "string" },
+          },
+      }
+    BillingReversal:
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["entry_id", "reason", "request_id"],
+        "properties":
+          {
+            "entry_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "reason": { "type": "string" },
+            "request_id": { "type": "string" },
+          },
+      }
+    BillingPurchase:
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["plan_id", "plan_version", "request_id"],
+        "properties":
+          {
+            "plan_id":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "plan_version":
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            "request_id": { "type": "string" },
+          },
+      }
+    BillingWalletPage:
+      {
+        "type": "object",
+        "required": ["items", "total", "page", "size"],
+        "properties":
+          {
+            "items":
+              {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/BillingWallet" },
+              },
+            "total": { "type": "integer" },
+            "page": { "type": "integer" },
+            "size": { "type": "integer" },
+          },
+      }
+    BillingEntryPage:
+      {
+        "type": "object",
+        "required": ["items", "total", "page", "size"],
+        "properties":
+          {
+            "items":
+              {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/BillingEntry" },
+              },
+            "total": { "type": "integer" },
+            "page": { "type": "integer" },
+            "size": { "type": "integer" },
+          },
+      }
+    BillingOrderPage:
+      {
+        "type": "object",
+        "required": ["items", "total", "page", "size"],
+        "properties":
+          {
+            "items":
+              {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/BillingOrder" },
+              },
+            "total": { "type": "integer" },
+            "page": { "type": "integer" },
+            "size": { "type": "integer" },
+          },
+      }
+    BillingMembershipPage:
+      {
+        "type": "object",
+        "required": ["items", "total", "page", "size"],
+        "properties":
+          {
+            "items":
+              {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/BillingMembership" },
+              },
+            "total": { "type": "integer" },
+            "page": { "type": "integer" },
+            "size": { "type": "integer" },
+          },
+      }
+    BillingWalletEnvelope:
+      {
+        "type": "object",
+        "required": ["code", "message", "data"],
+        "properties":
+          {
+            "code": { "type": "integer", "enum": [0] },
+            "message": { "type": "string" },
+            "data": { "$ref": "#/components/schemas/BillingWallet" },
+          },
+      }
+    BillingEntryEnvelope:
+      {
+        "type": "object",
+        "required": ["code", "message", "data"],
+        "properties":
+          {
+            "code": { "type": "integer", "enum": [0] },
+            "message": { "type": "string" },
+            "data": { "$ref": "#/components/schemas/BillingEntry" },
+          },
+      }
+    BillingGroupEnvelope:
+      {
+        "type": "object",
+        "required": ["code", "message", "data"],
+        "properties":
+          {
+            "code": { "type": "integer", "enum": [0] },
+            "message": { "type": "string" },
+            "data": { "$ref": "#/components/schemas/BillingGroup" },
+          },
+      }
+    BillingPlanEnvelope:
+      {
+        "type": "object",
+        "required": ["code", "message", "data"],
+        "properties":
+          {
+            "code": { "type": "integer", "enum": [0] },
+            "message": { "type": "string" },
+            "data": { "$ref": "#/components/schemas/BillingPlan" },
+          },
+      }
+    BillingOrderEnvelope:
+      {
+        "type": "object",
+        "required": ["code", "message", "data"],
+        "properties":
+          {
+            "code": { "type": "integer", "enum": [0] },
+            "message": { "type": "string" },
+            "data": { "$ref": "#/components/schemas/BillingOrder" },
+          },
+      }
+    BillingMembershipEnvelope:
+      {
+        "type": "object",
+        "required": ["code", "message", "data"],
+        "properties":
+          {
+            "code": { "type": "integer", "enum": [0] },
+            "message": { "type": "string" },
+            "data": { "$ref": "#/components/schemas/BillingMembership" },
+          },
+      }
+    BillingOverviewEnvelope:
+      {
+        "type": "object",
+        "required": ["code", "message", "data"],
+        "properties":
+          {
+            "code": { "type": "integer", "enum": [0] },
+            "message": { "type": "string" },
+            "data": { "$ref": "#/components/schemas/BillingOverview" },
+          },
+      }
+    BillingWalletPageEnvelope:
+      {
+        "type": "object",
+        "required": ["code", "message", "data"],
+        "properties":
+          {
+            "code": { "type": "integer", "enum": [0] },
+            "message": { "type": "string" },
+            "data": { "$ref": "#/components/schemas/BillingWalletPage" },
+          },
+      }
+    BillingEntryPageEnvelope:
+      {
+        "type": "object",
+        "required": ["code", "message", "data"],
+        "properties":
+          {
+            "code": { "type": "integer", "enum": [0] },
+            "message": { "type": "string" },
+            "data": { "$ref": "#/components/schemas/BillingEntryPage" },
+          },
+      }
+    BillingOrderPageEnvelope:
+      {
+        "type": "object",
+        "required": ["code", "message", "data"],
+        "properties":
+          {
+            "code": { "type": "integer", "enum": [0] },
+            "message": { "type": "string" },
+            "data": { "$ref": "#/components/schemas/BillingOrderPage" },
+          },
+      }
+    BillingMembershipPageEnvelope:
+      {
+        "type": "object",
+        "required": ["code", "message", "data"],
+        "properties":
+          {
+            "code": { "type": "integer", "enum": [0] },
+            "message": { "type": "string" },
+            "data": { "$ref": "#/components/schemas/BillingMembershipPage" },
+          },
+      }
+    BillingPlanListEnvelope:
+      {
+        "type": "object",
+        "required": ["code", "message", "data"],
+        "properties":
+          {
+            "code": { "type": "integer", "enum": [0] },
+            "message": { "type": "string" },
+            "data":
+              {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/BillingPlan" },
+              },
+          },
+      }
     UserPluginSettings:
       type: object
       additionalProperties: false
@@ -4526,7 +5881,7 @@ components:
         which form field broke a rule, or why a storage call failed (rejected credentials,
         missing bucket, unreachable endpoint, full disk...). Never carries input values,
         credentials or provider messages. Clients must tolerate codes they do not know.
-      enum: [api_disabled, api_token_forbidden, password_length, username_length, email_invalid, display_name_invalid, image_name_invalid, storage_denied, storage_bucket, storage_busy, storage_clock, storage_quota, storage_unsupported, storage_tls, storage_unreachable, storage_timeout, storage_disk_full, storage_read_only, storage_permission, scrub_too_large]
+      enum: [api_disabled, api_token_forbidden, password_length, username_length, email_invalid, display_name_invalid, image_name_invalid, storage_denied, storage_bucket, storage_busy, storage_clock, storage_quota, storage_unsupported, storage_tls, storage_unreachable, storage_timeout, storage_disk_full, storage_read_only, storage_permission, scrub_too_large, billing_insufficient, billing_conflict]
     ErrorData:
       type: object
       nullable: true
@@ -5010,6 +6365,7 @@ components:
       additionalProperties: false
       required: [site_name, register_enabled, gallery_enabled, email_verification, password_reset, guest_upload, login_providers]
       properties:
+        billing_enabled: {type: boolean, description: Licensed site-enabled balance and package functionality.}
         site_name:
           type: string
           minLength: 1

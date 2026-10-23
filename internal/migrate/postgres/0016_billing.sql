@@ -18,6 +18,7 @@ CREATE TABLE billing_plans (
  CHECK(NOT (published AND archived))
 );
 CREATE TABLE billing_orders (
+ currency TEXT NOT NULL DEFAULT 'CNY' CHECK(currency = 'CNY'),
  id BIGSERIAL PRIMARY KEY,
  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
  username TEXT NOT NULL,

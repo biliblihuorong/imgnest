@@ -56,6 +56,7 @@ type Dependencies struct {
 	PluginSettings native.PluginSettings
 	// UserPluginSettings serves session-only extension preferences.
 	UserPluginSettings native.UserPluginSettings
+	Billing            native.Billing
 	// Plugins are out-of-tree extensions, each mounted under /api/ext/{name}.
 	Plugins []extension.Plugin
 	// ExternalSignIn signs in identities that plugins verified; without it
@@ -218,6 +219,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.Overview != nil {
 		if err := handler.RegisterAdminOverviewRoutes(ctx, router, deps.Overview); err != nil {
 			return nil, fmt.Errorf("register admin overview routes: %w", err)
+		}
+	}
+	if deps.Billing != nil {
+		if err := handler.RegisterBillingRoutes(ctx, router, deps.Billing); err != nil {
+			return nil, err
 		}
 	}
 	if deps.UserPluginSettings != nil {

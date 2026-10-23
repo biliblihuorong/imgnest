@@ -2108,6 +2108,270 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user/billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * billingOverview
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        get: operations["billingOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/billing/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * billingAvailablePlans
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        get: operations["billingAvailablePlans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/billing/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * billingUserEntryHistory
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        get: operations["billingUserEntryHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/billing/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * billingUserOrderHistory
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        get: operations["billingUserOrderHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/billing/purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * billingPurchasePackage
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        post: operations["billingPurchasePackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * billingManagePlans
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        get: operations["billingManagePlans"];
+        put?: never;
+        /**
+         * billingCreatePlan
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        post: operations["billingCreatePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * billingUpdatePlan
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        patch: operations["billingUpdatePlan"];
+        trace?: never;
+    };
+    "/api/admin/billing/wallets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * billingAdminWalletHistory
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        get: operations["billingAdminWalletHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * billingAdminEntryHistory
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        get: operations["billingAdminEntryHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * billingAdminOrderHistory
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        get: operations["billingAdminOrderHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * billingAdminMembershipHistory
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        get: operations["billingAdminMembershipHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * billingBillingAdjustment
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        post: operations["billingBillingAdjustment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/billing/reversals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * billingBillingReversal
+         * @description Web sessions only. Private no-store response. Disabled providers return 404. Amounts are integer CNY cents. Mutations revalidate the current session and role inside the transaction.
+         */
+        post: operations["billingBillingReversal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2594,6 +2858,215 @@ export interface components {
             value: string;
             /** @enum {string} */
             level: "info" | "success" | "warning" | "error";
+        };
+        BillingWallet: {
+            user_id: number;
+            username: string;
+            balance_cents: number;
+            version: number;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        BillingEntry: {
+            id: number;
+            user_id: number;
+            username: string;
+            sequence: number;
+            amount_cents: number;
+            before_cents: number;
+            after_cents: number;
+            kind: string;
+            reason: string;
+            actor_id: number;
+            actor_name: string;
+            order_id: number | null;
+            reverses_id: number | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        BillingGroup: {
+            name: string;
+            capacity_bytes: number;
+            max_file_bytes: number;
+            upload_per_min: number;
+        };
+        BillingPlan: {
+            id: number;
+            name: string;
+            description: string;
+            price_cents: number;
+            duration_days: number;
+            group_id: number;
+            published: boolean;
+            archived: boolean;
+            version: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            group?: components["schemas"]["BillingGroup"] | null;
+        };
+        BillingPlanInput: {
+            version: number;
+            name: string;
+            description: string;
+            price_cents: number;
+            duration_days: number;
+            group_id: number;
+            published: boolean;
+            archived: boolean;
+        };
+        BillingOrder: {
+            /** @enum {string} */
+            currency: "CNY";
+            id: number;
+            user_id: number;
+            username: string;
+            plan_id: number;
+            plan_name: string;
+            plan_version: number;
+            price_cents: number;
+            duration_days: number;
+            group_id: number;
+            /** Format: date-time */
+            previous_expires_at: string | null;
+            /** Format: date-time */
+            expires_at: string;
+            requires_login: boolean;
+            request_id: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        BillingMembership: {
+            user_id: number;
+            plan_id: number;
+            group_id: number;
+            base_group_id: number;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            status: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        BillingOverview: {
+            /** @enum {string} */
+            currency: "CNY";
+            wallet: components["schemas"]["BillingWallet"];
+            membership: components["schemas"]["BillingMembership"] | null;
+        };
+        BillingAdjustment: {
+            user_id: number;
+            amount_cents: number;
+            reason: string;
+            request_id: string;
+        };
+        BillingReversal: {
+            entry_id: number;
+            reason: string;
+            request_id: string;
+        };
+        BillingPurchase: {
+            plan_id: number;
+            plan_version: number;
+            request_id: string;
+        };
+        BillingWalletPage: {
+            items: components["schemas"]["BillingWallet"][];
+            total: number;
+            page: number;
+            size: number;
+        };
+        BillingEntryPage: {
+            items: components["schemas"]["BillingEntry"][];
+            total: number;
+            page: number;
+            size: number;
+        };
+        BillingOrderPage: {
+            items: components["schemas"]["BillingOrder"][];
+            total: number;
+            page: number;
+            size: number;
+        };
+        BillingMembershipPage: {
+            items: components["schemas"]["BillingMembership"][];
+            total: number;
+            page: number;
+            size: number;
+        };
+        BillingWalletEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BillingWallet"];
+        };
+        BillingEntryEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BillingEntry"];
+        };
+        BillingGroupEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BillingGroup"];
+        };
+        BillingPlanEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BillingPlan"];
+        };
+        BillingOrderEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BillingOrder"];
+        };
+        BillingMembershipEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BillingMembership"];
+        };
+        BillingOverviewEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BillingOverview"];
+        };
+        BillingWalletPageEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BillingWalletPage"];
+        };
+        BillingEntryPageEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BillingEntryPage"];
+        };
+        BillingOrderPageEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BillingOrderPage"];
+        };
+        BillingMembershipPageEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BillingMembershipPage"];
+        };
+        BillingPlanListEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["BillingPlan"][];
         };
         UserPluginSettings: {
             name: string;
@@ -3148,7 +3621,7 @@ export interface components {
          * @description Fixed hint code that narrows a generic error, so a client can say what to fix: which form field broke a rule, or why a storage call failed (rejected credentials, missing bucket, unreachable endpoint, full disk...). Never carries input values, credentials or provider messages. Clients must tolerate codes they do not know.
          * @enum {string}
          */
-        ErrorReason: "api_disabled" | "api_token_forbidden" | "password_length" | "username_length" | "email_invalid" | "display_name_invalid" | "image_name_invalid" | "storage_denied" | "storage_bucket" | "storage_busy" | "storage_clock" | "storage_quota" | "storage_unsupported" | "storage_tls" | "storage_unreachable" | "storage_timeout" | "storage_disk_full" | "storage_read_only" | "storage_permission" | "scrub_too_large";
+        ErrorReason: "api_disabled" | "api_token_forbidden" | "password_length" | "username_length" | "email_invalid" | "display_name_invalid" | "image_name_invalid" | "storage_denied" | "storage_bucket" | "storage_busy" | "storage_clock" | "storage_quota" | "storage_unsupported" | "storage_tls" | "storage_unreachable" | "storage_timeout" | "storage_disk_full" | "storage_read_only" | "storage_permission" | "scrub_too_large" | "billing_insufficient" | "billing_conflict";
         /** @description null, or a reason hint for the error. */
         ErrorData: {
             reason?: components["schemas"]["ErrorReason"];
@@ -3470,6 +3943,8 @@ export interface components {
             expires_at: components["schemas"]["Timestamp"];
         };
         SiteView: {
+            /** @description Licensed site-enabled balance and package functionality. */
+            billing_enabled?: boolean;
             /**
              * @description Public site title; defaults to ImgNest until a configured name exists.
              * @example ImgNest
@@ -7442,6 +7917,934 @@ export interface operations {
                         };
                     };
                 };
+            };
+        };
+    };
+    billingOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingOverviewEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingAvailablePlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingPlanListEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingUserEntryHistory: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingEntryPageEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingUserOrderHistory: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                from?: string;
+                to?: string;
+                /** @description Recover a particular committed purchase after a lost response. */
+                request_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingOrderPageEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingPurchasePackage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingPurchase"];
+            };
+        };
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingOrderEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingManagePlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingPlanListEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingCreatePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingPlanInput"];
+            };
+        };
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingPlanEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingUpdatePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingPlanInput"];
+            };
+        };
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingPlanEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingAdminWalletHistory: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                user_id?: number;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingWalletPageEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingAdminEntryHistory: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                user_id?: number;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingEntryPageEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingAdminOrderHistory: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                user_id?: number;
+                from?: string;
+                to?: string;
+                /** @description Recover a particular committed purchase after a lost response. */
+                request_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingOrderPageEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingAdminMembershipHistory: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                user_id?: number;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingMembershipPageEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingBillingAdjustment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingAdjustment"];
+            };
+        };
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingEntryEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    billingBillingReversal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingReversal"];
+            };
+        };
+        responses: {
+            /** @description Committed result or an identical idempotent replay. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingEntryEnvelope"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web session missing, revoked or expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API token or wrong account role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Billing unavailable or record not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Insufficient balance (30024/billing_insufficient), or changed offer, conflicting membership, reversal or request (30025/billing_conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mutation rate exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
