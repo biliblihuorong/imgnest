@@ -64,13 +64,15 @@ func TestBillingPurchaseRollback(t *testing.T) {
 		injected := errors.New("injected ledger failure")
 		if err := db.Callback().Create().After("gorm:create").Register("billing-fail", func(tx *gorm.DB) {
 			if tx.Statement.Table == "billing_entries" {
-				tx.AddError(injected)
+				_ = tx.AddError(injected)
 			}
 		}); err != nil {
 			t.Fatal(err)
 		}
 		_, err := f.r.Purchase(t.Context(), f.buyer, extension.BillingPurchase{PlanID: p.ID, PlanVersion: p.Version, RequestID: "rollback"})
-		db.Callback().Create().Remove("billing-fail")
+		if removeErr := db.Callback().Create().Remove("billing-fail"); removeErr != nil {
+			t.Fatal(removeErr)
+		}
 		if !errors.Is(err, injected) {
 			t.Fatalf("failure=%v", err)
 		}
@@ -272,6 +274,77 @@ func TestBillingBackupRoundTrip(t *testing.T) {
 		}
 		if before.String() != after.String() {
 			t.Fatal("billing backup differs after restore")
+		}
+	})
+}
+
+func TestBillingPurchaseCannotOutliveSourceSession(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		f := billingSetup(t, db)
+		p := f.plan(t)
+		f.topup(t, 10000)
+		expires := f.now.Add(time.Hour)
+		if err := db.Model(&model.Token{}).Where("id = ?", f.buyer.TokenID).Update("expires_at", expires).Error; err != nil {
+			t.Fatal(err)
+		}
+		// Model a request waiting for the target group lock until its session expires.
+		if err := db.Callback().Query().After("gorm:query").Register("billing-session-deadline", func(tx *gorm.DB) {
+			if tx.Statement.Table == "groups" {
+				f.now = expires
+			}
+		}); err != nil {
+			t.Fatal(err)
+		}
+		_, err := f.r.Purchase(t.Context(), f.buyer, extension.BillingPurchase{PlanID: p.ID, PlanVersion: p.Version, RequestID: "expired-session"})
+		if removeErr := db.Callback().Query().Remove("billing-session-deadline"); removeErr != nil {
+			t.Fatal(removeErr)
+		}
+		if !errors.Is(err, model.ErrUnauthenticated) {
+			t.Fatalf("session expired before debit: %v", err)
+		}
+		var wallet billingWallet
+		if e := db.First(&wallet, "user_id = ?", f.buyer.UserID).Error; e != nil {
+			t.Fatal(e)
+		}
+		if wallet.BalanceCents != 10000 {
+			t.Fatal("expired session was charged")
+		}
+	})
+}
+
+func TestBillingPurchaseCrossingMembershipExpiryKeepsBaseGroup(t *testing.T) {
+	forEachRepoDatabase(t, func(t *testing.T, db *gorm.DB) {
+		f := billingSetup(t, db)
+		p := f.plan(t)
+		f.topup(t, 10000)
+		first, err := f.r.Purchase(t.Context(), f.buyer, extension.BillingPurchase{PlanID: p.ID, PlanVersion: p.Version, RequestID: "first"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.relogin(t)
+		if err = db.Callback().Query().After("gorm:query").Register("billing-lease-deadline", func(tx *gorm.DB) {
+			if tx.Statement.Table == "groups" {
+				f.now = first.ExpiresAt
+			}
+		}); err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.r.Purchase(t.Context(), f.buyer, extension.BillingPurchase{PlanID: p.ID, PlanVersion: p.Version, RequestID: "crossing"})
+		if removeErr := db.Callback().Query().Remove("billing-lease-deadline"); removeErr != nil {
+			t.Fatal(removeErr)
+		}
+		if !errors.Is(err, model.ErrUnauthenticated) {
+			t.Fatalf("crossed lease expiry: %v", err)
+		}
+		var user model.User
+		db.First(&user, "id = ?", f.buyer.UserID)
+		if user.GroupID != f.base {
+			t.Fatal("paid group became the new permanent base")
+		}
+		var wallet billingWallet
+		db.First(&wallet, "user_id = ?", f.buyer.UserID)
+		if wallet.BalanceCents != 7000 {
+			t.Fatal("crossing expiry charged twice")
 		}
 	})
 }

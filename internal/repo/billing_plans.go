@@ -42,6 +42,9 @@ func (r *BillingRepository) SavePlan(ctx context.Context, a extension.BillingAct
 		if group.IsGuest {
 			return model.ErrInvalidInput
 		}
+		if _, _, e = r.actor(tx, a, true, 0); e != nil {
+			return e
+		}
 		now := r.now().UTC()
 		p := billingPlan{ID: in.ID, Name: in.Name, Description: in.Description, PriceCents: in.PriceCents, DurationDays: in.DurationDays, GroupID: in.GroupID, Published: in.Published, Archived: in.Archived, Version: old.Version + 1, CreatedAt: old.CreatedAt, UpdatedAt: now}
 		if in.ID == 0 {

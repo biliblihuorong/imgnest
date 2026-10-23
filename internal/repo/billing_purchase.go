@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+var errBillingLeaseExpired = errors.New("membership expired while acquiring purchase locks")
+
 // Purchase commits the immutable order, debit, lease and group transition together.
 func (r *BillingRepository) Purchase(ctx context.Context, a extension.BillingActor, in extension.BillingPurchase) (out extension.BillingOrder, err error) {
 	if in.PlanID == 0 || in.PlanVersion == 0 || !billingRequestID(in.RequestID) {
@@ -45,11 +47,21 @@ func (r *BillingRepository) Purchase(ctx context.Context, a extension.BillingAct
 		if group.IsGuest {
 			return model.ErrInvalidInput
 		}
-		now := r.now().UTC()
+		wallet, e := r.wallet(tx, user)
+		if e != nil {
+			return e
+		}
 		var lease billingMembership
 		e = tx.First(&lease, "user_id = ?", user.ID).Error
 		if e != nil && !errors.Is(e, gorm.ErrRecordNotFound) {
 			return e
+		}
+		if _, _, e = r.actor(tx, a, false, 0); e != nil {
+			return e
+		}
+		now := r.now().UTC()
+		if lease.Status == "active" && !now.Before(lease.ExpiresAt) {
+			return errBillingLeaseExpired
 		}
 		current := lease.Status == "active" && user.GroupID == lease.GroupID && now.Before(lease.ExpiresAt)
 		start := now
@@ -67,10 +79,6 @@ func (r *BillingRepository) Purchase(ctx context.Context, a extension.BillingAct
 		expiry := start.Add(time.Duration(plan.DurationDays) * 24 * time.Hour)
 		if expiry.Year() > 9999 {
 			return model.ErrInvalidInput
-		}
-		wallet, e := r.wallet(tx, user)
-		if e != nil {
-			return e
 		}
 		if wallet.BalanceCents < plan.PriceCents {
 			return extension.ErrBillingInsufficient
@@ -95,5 +103,11 @@ func (r *BillingRepository) Purchase(ctx context.Context, a extension.BillingAct
 		out = extension.BillingOrder(order)
 		return r.recordRequest(tx, user.ID, "purchase", in.RequestID, in, out)
 	})
+	if errors.Is(err, errBillingLeaseExpired) {
+		if expireErr := r.Expire(ctx, a.UserID); expireErr != nil {
+			return out, expireErr
+		}
+		return out, model.ErrUnauthenticated
+	}
 	return out, err
 }

@@ -31,7 +31,7 @@ var backupTables = []string{
 	"user_identities", "albums", "images", "image_exif", "image_variant_jobs",
 	"variant_backfill", "random_links", "email_codes", "plugin_counters",
 	"plugin_user_settings",
- "billing_wallets", "billing_plans", "billing_orders", "billing_entries", "billing_memberships", "billing_requests",
+	"billing_wallets", "billing_plans", "billing_orders", "billing_entries", "billing_memberships", "billing_requests",
 }
 
 // backupDeferred names the forward reference written as NULL first and

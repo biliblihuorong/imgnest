@@ -31,12 +31,13 @@ func (r *BillingRepository) Expire(ctx context.Context, userID uint64) error {
 	if err := r.db.WithContext(ctx).Model(&billingMembership{}).Where("status = ? AND expires_at <= ?", "active", r.now().UTC()).Order("expires_at ASC, user_id ASC").Limit(200).Pluck("user_id", &users).Error; err != nil {
 		return repositoryError("list expired memberships", err)
 	}
+	var failures []error
 	for _, id := range users {
 		if err := settleBillingUser(ctx, r.db, id, r.now); err != nil {
-			return err
+			failures = append(failures, err)
 		}
 	}
-	return nil
+	return errors.Join(failures...)
 }
 func settleBillingUser(ctx context.Context, db *gorm.DB, id uint64, now func() time.Time) error {
 	if id == 0 {

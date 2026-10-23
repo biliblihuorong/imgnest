@@ -98,6 +98,9 @@ func (r *BillingRepository) Adjust(ctx context.Context, a extension.BillingActor
 		if e != nil {
 			return e
 		}
+		if _, _, e = r.actor(tx, a, true, in.UserID); e != nil {
+			return e
+		}
 		kind := "admin_credit"
 		if in.AmountCents < 0 {
 			kind = "admin_debit"
@@ -142,6 +145,9 @@ func (r *BillingRepository) Reverse(ctx context.Context, a extension.BillingActo
 		}
 		w, e := r.wallet(tx, owner)
 		if e != nil {
+			return e
+		}
+		if _, _, e = r.actor(tx, a, true, original.UserID); e != nil {
 			return e
 		}
 		out, e = r.appendEntry(tx, actor, owner, w, -original.AmountCents, "reversal", in.Reason, nil, &original.ID)
