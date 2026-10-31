@@ -169,7 +169,7 @@ func TestNativeEnvelopeAndErrorCodes(t *testing.T) {
 		err          error
 		status, code int
 	}{
-		{service.ErrInvalidInput, 400, 10001}, {service.ErrRegistrationDisabled, 403, 30001}, {service.ErrUserExists, 409, 30002}, {errors.New("private-password-and-dsn"), 500, 50001},
+		{service.ErrInvalidInput, 400, 10001}, {service.ErrRegistrationDisabled, 403, 30001}, {service.ErrUserExists, 409, 30002}, {errors.New("connect postgres://imgnest:private-password-and-dsn@db/imgnest failed: password=private-password-and-dsn"), 500, 50001},
 	} {
 		router, users, _, logs := routerFixture(t)
 		users.err = tc.err
@@ -180,6 +180,13 @@ func TestNativeEnvelopeAndErrorCodes(t *testing.T) {
 		}
 		if strings.Contains(w.Body.String(), "private-password-and-dsn") || strings.Contains(logs.String(), "private-password-and-dsn") {
 			t.Fatal("technical secret leaked")
+		}
+		if tc.status == 500 {
+			// The cause and the handler's stack reach the log, redacted; the
+			// response stays generic.
+			if strings.Contains(w.Body.String(), "connect postgres") || !strings.Contains(logs.String(), "connect postgres://[redacted]@db/imgnest failed") || !strings.Contains(logs.String(), `"stack":"goroutine`) {
+				t.Fatalf("internal failure cause not logged: %s", logs.String())
+			}
 		}
 	}
 }
@@ -284,5 +291,8 @@ func TestPanicRecoveryAvoidsCredentialLogging(t *testing.T) {
 		if strings.Contains(panicLog.String(), secret) || strings.Contains(logs.String(), secret) || strings.Contains(w.Body.String(), secret) {
 			t.Fatal("recovery logged a credential or panic payload")
 		}
+	}
+	if !strings.Contains(logs.String(), `"msg":"request panic"`) || !strings.Contains(logs.String(), `"panic":"panic value of type string"`) || !strings.Contains(logs.String(), `"stack":"goroutine`) {
+		t.Fatalf("panic logged without its stack: %s", logs.String())
 	}
 }

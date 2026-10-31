@@ -10,6 +10,7 @@ import (
 	mathrand "math/rand/v2"
 	"time"
 
+	"github.com/biliblihuorong/imgnest/internal/logx"
 	"github.com/biliblihuorong/imgnest/internal/model"
 )
 
@@ -280,7 +281,7 @@ func (s *RandomLinkService) view(ctx context.Context, ownerID uint64, link model
 func (s *RandomLinkService) candidates(ctx context.Context, albumID uint64) ([]model.RandomCandidate, error) {
 	cached, ok, err := s.deps.Pool.Get(ctx, albumID)
 	if err != nil {
-		s.deps.Logger.WarnContext(ctx, "random pool read failed", "album_id", albumID)
+		s.deps.Logger.WarnContext(ctx, "random pool read failed", "album_id", albumID, "error", logx.Redact(err.Error()))
 	} else if ok {
 		return cached, nil
 	}
@@ -289,14 +290,14 @@ func (s *RandomLinkService) candidates(ctx context.Context, albumID uint64) ([]m
 		return nil, err
 	}
 	if err := s.deps.Pool.Set(ctx, albumID, fresh, RandomPoolTTL); err != nil {
-		s.deps.Logger.WarnContext(ctx, "random pool write failed", "album_id", albumID)
+		s.deps.Logger.WarnContext(ctx, "random pool write failed", "album_id", albumID, "error", logx.Redact(err.Error()))
 	}
 	return fresh, nil
 }
 
 func (s *RandomLinkService) invalidate(ctx context.Context, albumID uint64) {
 	if err := s.deps.Pool.Invalidate(ctx, albumID); err != nil {
-		s.deps.Logger.WarnContext(ctx, "random pool invalidation failed", "album_id", albumID)
+		s.deps.Logger.WarnContext(ctx, "random pool invalidation failed", "album_id", albumID, "error", logx.Redact(err.Error()))
 	}
 }
 

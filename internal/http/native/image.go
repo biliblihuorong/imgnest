@@ -2,6 +2,7 @@ package native
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strconv"
 	"sync"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/biliblihuorong/imgnest/extension"
 	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
+	"github.com/biliblihuorong/imgnest/internal/http/reqlog"
+	"github.com/biliblihuorong/imgnest/internal/logx"
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/searchquery"
 	"github.com/biliblihuorong/imgnest/internal/service"
@@ -377,6 +380,14 @@ func (h *imageHandler) batchActions(c *gin.Context, ids []uint64, action string,
 		results[i] = imageResult{ID: id, Status: 200, Response: Response{Code: 0, Message: "ok"}}
 	}
 	subject := identity(c).Subject
+	// Each item's internal failure is logged with the stack of the goroutine
+	// that met it; gin's error list is not safe for concurrent use, so the
+	// causes are recorded once every item finished.
+	type cause struct {
+		err   error
+		stack string
+	}
+	causes := make([]cause, len(ids))
 	sem := make(chan struct{}, batchConcurrency)
 	var wg sync.WaitGroup
 	for i, id := range ids {
@@ -386,20 +397,27 @@ func (h *imageHandler) batchActions(c *gin.Context, ids []uint64, action string,
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			defer func() {
-				if recover() != nil {
+				if recovered := recover(); recovered != nil {
 					results[idx].Status = 500
 					results[idx].Response = Response{Code: 50001, Message: "internal error", Data: nil}
+					causes[idx] = cause{fmt.Errorf("batch %s image %d panicked: %s", action, imageID, logx.Describe(recovered)), logx.Stack()}
 				}
 			}()
 			data, err := h.perform(c.Request.Context(), subject, imageID, action, public, albumID)
 			if err != nil {
 				results[idx].Status, results[idx].Response = errorResponse(err)
+				if results[idx].Code >= 50000 {
+					causes[idx] = cause{fmt.Errorf("batch %s image %d: %w", action, imageID, err), logx.Stack()}
+				}
 			} else {
 				results[idx].Data = data
 			}
 		}(i, id)
 	}
 	wg.Wait()
+	for _, failure := range causes {
+		reqlog.FailWithStack(c, failure.err, failure.stack)
+	}
 	respond(c, 207, results)
 }
 func (h *imageHandler) perform(ctx context.Context, subject service.TokenSubject, id uint64, action string, public bool, albumID uint64) (any, error) {

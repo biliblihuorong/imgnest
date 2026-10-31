@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -294,4 +295,26 @@ func writeConfig(t *testing.T, content string) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func TestLoadLogSettings(t *testing.T) {
+	cfg, err := Load(t.Context(), "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Log != (Log{Level: "info", SlowQuery: 500 * time.Millisecond, AuditDays: 90}) {
+		t.Fatalf("log defaults = %+v", cfg.Log)
+	}
+	cfg, err = Load(t.Context(), writeConfig(t, "log:\n  level: warn\n  slow_query: 0s\n  audit_days: 7\n"), []string{"IMGNEST_LOG_LEVEL=DEBUG"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if level, ok := LogLevel(cfg.Log.Level); !ok || level != slog.LevelDebug || cfg.Log.SlowQuery != 0 || cfg.Log.AuditDays != 7 {
+		t.Fatalf("log = %+v", cfg.Log)
+	}
+	for _, environ := range [][]string{{"IMGNEST_LOG_LEVEL=verbose"}, {"IMGNEST_LOG_SLOW_QUERY=-1s"}, {"IMGNEST_LOG_AUDIT_DAYS=0"}} {
+		if _, err := Load(t.Context(), "", environ); !errors.Is(err, errInvalid) {
+			t.Errorf("%v accepted: %v", environ, err)
+		}
+	}
 }

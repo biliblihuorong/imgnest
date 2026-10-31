@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/biliblihuorong/imgnest/extension"
+	"github.com/biliblihuorong/imgnest/internal/logx"
 	"github.com/biliblihuorong/imgnest/internal/service"
 )
 
@@ -63,8 +64,8 @@ func (p *pluginEvents) deliver(ctx context.Context, name string, subscriber exte
 	for event := range queue {
 		func() {
 			defer func() {
-				if recover() != nil {
-					p.logger.ErrorContext(ctx, "plugin event handler panicked", "plugin", name, "event", event.Type)
+				if recovered := recover(); recovered != nil {
+					p.logger.ErrorContext(ctx, "plugin event handler panicked", append([]any{"plugin", name, "event", event.Type}, logx.Panic(recovered)...)...)
 				}
 			}()
 			subscriber.HandleEvent(ctx, event)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/biliblihuorong/imgnest/extension"
 	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
+	"github.com/biliblihuorong/imgnest/internal/http/reqlog"
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
@@ -169,6 +170,7 @@ func (h *Handler) authenticate(c *gin.Context) {
 		}
 	}
 	c.Set(identityKey, id)
+	reqlog.SetUser(c, id.User.ID, id.User.Username)
 }
 
 // errAPITokenForbidden refuses an API token on a route only a signed-in
@@ -263,6 +265,7 @@ func (h *Handler) login(c *gin.Context) {
 		fail(c, err)
 		return
 	}
+	reqlog.SetUser(c, user.User.ID, user.User.Username)
 	// A successful login frees the shared window so one NAT address can sign
 	// in several accounts inside a minute, matching the v1 endpoint.
 	h.limits.Reset(c.FullPath() + ":" + ratelimit.ClientKey(c.ClientIP()))
@@ -335,11 +338,12 @@ func respond(c *gin.Context, status int, data any) {
 }
 func fail(c *gin.Context, err error) {
 	status, response := errorResponse(err)
-	if errors.Is(err, service.ErrStorage) {
-		// Storage errors are redacted to operation names and provider error
-		// codes; the request log carries them so operators can see which
-		// step failed without the response exposing it.
-		_ = c.Error(err)
+	if response.Code >= 50000 {
+		// Internal, storage and processing failures keep their cause and the
+		// handler's stack in the request log; the response stays generic.
+		// Database and storage errors are already redacted to operation
+		// names and provider codes.
+		reqlog.Fail(c, err)
 	}
 	c.JSON(status, response)
 }

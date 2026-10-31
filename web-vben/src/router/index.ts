@@ -43,6 +43,7 @@ export const ADMIN_ROUTER_NAMES = {
   adminPolicies: "admin-policies",
   adminSettings: "admin-settings",
   adminImages: "admin-images",
+  adminAuditLogs: "admin-audit-logs",
   adminLskyImport: "admin-lsky-import",
 } as const;
 
@@ -259,6 +260,12 @@ export function setupRouter(): Router {
             name: ADMIN_ROUTER_NAMES.adminImages,
             component: () => import("@/views/admin/ImagesAdminView.vue"),
             meta: { title: "common.nav.allImages" },
+          },
+          {
+            path: "audit-logs",
+            name: ADMIN_ROUTER_NAMES.adminAuditLogs,
+            component: () => import("@/views/admin/AuditLogsView.vue"),
+            meta: { title: "common.nav.auditLogs" },
           },
           // 蓝空迁移已并入 站点设置 → 备份/导出；保留旧地址的跳转。
           {

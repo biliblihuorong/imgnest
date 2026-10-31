@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/exif"
@@ -150,6 +151,9 @@ type ImageDependencies struct {
 	// MaxFileBytes is the per-file limit of a group that sets none
 	// (server.max_upload_mb); a group's own limit replaces it, larger or not.
 	MaxFileBytes int64
+	// Logger receives failures of background work, such as an image the
+	// variant backfill could not process; nil discards them.
+	Logger *slog.Logger
 }
 
 // ImageService implements synchronous uploads and retryable recycle-bin operations.
@@ -301,6 +305,9 @@ func NewImageService(ctx context.Context, deps ImageDependencies) (*ImageService
 	}
 	if deps.Images == nil || deps.Policies == nil || deps.Storages == nil || deps.Users == nil || deps.Tokens == nil || deps.Drivers == nil || deps.Paths == nil || deps.Imaging == nil || deps.Extractor == nil || deps.Scrubber == nil || deps.Cache == nil || deps.Settings == nil || deps.Now == nil || deps.MaxFileBytes <= 0 {
 		return nil, ErrInvalidInput
+	}
+	if deps.Logger == nil {
+		deps.Logger = slog.New(slog.DiscardHandler)
 	}
 	return &ImageService{deps: deps, operations: make(chan struct{}, 1)}, nil
 }

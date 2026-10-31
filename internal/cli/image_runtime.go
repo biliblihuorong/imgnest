@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"runtime"
 	"strings"
 	"sync"
@@ -118,13 +119,15 @@ func (f *driverFactory) close() error {
 	return result
 }
 
-// runtimeCaches are the serving process's caches; one-off commands leave them
-// empty.
+// runtimeCaches are the serving process's caches and log; one-off commands
+// leave them empty.
 type runtimeCaches struct {
 	// Random is told which albums' random-link candidates changed.
 	Random service.RandomPoolInvalidator
 	// Lookup remembers responsive-variant lookups.
 	Lookup service.ByteCache
+	// Logger receives background image failures; nil discards them.
+	Logger *slog.Logger
 }
 
 // newImageServices wires the image runtime together with the album repository
@@ -191,7 +194,7 @@ func newImageServices(ctx context.Context, db *gorm.DB, cfg config.Config, cache
 		_ = cleanup()
 		return nil, nil, nil, service.ErrProcessing
 	}
-	svc, err := service.NewImageService(ctx, service.ImageDependencies{Images: images, Policies: policies, Storages: stores, Users: users, Tokens: tokens, Drivers: drivers, Paths: service.PathFunctions{BuildPath: pathtpl.Build, CleanPath: pathtpl.Sanitize}, Imaging: processor, Extractor: metadata, Scrubber: metadata, Cache: cache, Settings: settings, Albums: albumsRepo, RandomPool: caches.Random, LookupCache: caches.Lookup, Events: hooks.Events, Inspectors: hooks.Inspectors, TrashPolicies: hooks.Trash, Display: hooks.Display, Now: time.Now, MaxFileBytes: int64(cfg.Server.MaxUploadMB) << 20})
+	svc, err := service.NewImageService(ctx, service.ImageDependencies{Images: images, Policies: policies, Storages: stores, Users: users, Tokens: tokens, Drivers: drivers, Paths: service.PathFunctions{BuildPath: pathtpl.Build, CleanPath: pathtpl.Sanitize}, Imaging: processor, Extractor: metadata, Scrubber: metadata, Cache: cache, Settings: settings, Albums: albumsRepo, RandomPool: caches.Random, LookupCache: caches.Lookup, Events: hooks.Events, Inspectors: hooks.Inspectors, TrashPolicies: hooks.Trash, Display: hooks.Display, Now: time.Now, MaxFileBytes: int64(cfg.Server.MaxUploadMB) << 20, Logger: caches.Logger})
 	if err != nil {
 		_ = cleanup()
 		return nil, nil, nil, err

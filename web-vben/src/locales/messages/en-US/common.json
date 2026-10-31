@@ -14,7 +14,8 @@
     "settings": "Site settings",
     "allImages": "All images",
     "lskyImport": "Lsky migration",
-    "overview": "Site overview"
+    "overview": "Site overview",
+    "auditLogs": "Operation log"
   },
   "account": "Account",
   "administrator": "Administrator",

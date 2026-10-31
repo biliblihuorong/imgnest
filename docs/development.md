@@ -71,6 +71,9 @@ PicGo（picgo-plugin-lankong）或 uPic 手工联调步骤：
 | cache.redis_url | IMGNEST_CACHE_REDIS_URL | 空；`redis://` 或 `rediss://`，随机图片候选与响应式查询缓存放进 Redis，多实例共享；空则用进程内存。启动时连不上会记一条警告并改用内存 |
 | backup.dir | IMGNEST_BACKUP_DIR | data/backup；后台与定时备份目录，归档 0600 |
 | updates.check | IMGNEST_UPDATES_CHECK | true；后台「关于」向 GitHub 查新版本（缓存 6 小时），false 则从不外连 |
+| log.level | IMGNEST_LOG_LEVEL | info；stdout JSON 日志的最低级别：debug / info / warn / error |
+| log.slow_query | IMGNEST_LOG_SLOW_QUERY | 500ms；更慢的 SQL 记为 warn（字符串值被替换成 `'?'`），0s 关闭；上限 1h |
+| log.audit_days | IMGNEST_LOG_AUDIT_DAYS | 90；操作日志（`audit_logs` 表）保留天数，1–3650 |
 | security.master_key | IMGNEST_SECURITY_MASTER_KEY | 本机可空；S3需base64编码32bytes |
 
 生产 PostgreSQL DSN 从部署配置/秘密环境注入，不打印或提交。先对选定数据库执行 migrate，再执行 init-admin 和 serve。迁移脚本被编译进程序，重复执行不会重复种子；脚本校验和改变、版本缺失或未知版本会报错，不能用 AutoMigrate 绕过。

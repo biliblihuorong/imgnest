@@ -1615,6 +1615,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Page the operation audit trail
+         * @description Requires the administrator role and a web session. Every POST, PUT,
+         *     PATCH and DELETE that reached an `/api/` route is recorded (failed
+         *     ones too, such as a rejected sign-in), except `POST /api/variants`
+         *     and `POST /api/admin/policies/preview`. An entry keeps the signed-in
+         *     account's id and a snapshot of its username (zero and empty for an
+         *     anonymous request), the client address, the method, the route
+         *     template, the `id`, `name` and `key` route parameters as
+         *     `target`, the response status and the request ID that the request
+         *     log line carries too. Request bodies and query strings are never
+         *     recorded. Entries are newest first and kept for `log.audit_days`
+         *     days (default 90).
+         */
+        get: operations["adminListAuditLogs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/system/version": {
         parameters: {
             query?: never;
@@ -3457,6 +3487,40 @@ export interface components {
             code: 0;
             message: string;
             data: components["schemas"]["AdminOverview"];
+        };
+        AuditEntry: {
+            id: components["schemas"]["ID"];
+            /** Format: date-time */
+            at: string;
+            /**
+             * Format: int64
+             * @description Zero for an anonymous request.
+             */
+            user_id: number;
+            /** @description Username at the time of the request. */
+            user_name: string;
+            ip: string;
+            /** @enum {string} */
+            method: "POST" | "PUT" | "PATCH" | "DELETE";
+            /** @description Route template, such as /api/images/:id. */
+            route: string;
+            /** @description Kept route parameters, such as id=12. */
+            target: string;
+            status: number;
+            request_id: string;
+        };
+        AuditPage: {
+            items: components["schemas"]["AuditEntry"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            size: number;
+        };
+        AuditPageEnvelope: {
+            /** @enum {integer} */
+            code: 0;
+            message: string;
+            data: components["schemas"]["AuditPage"];
         };
         SystemVersionEnvelope: {
             /** @enum {integer} */
@@ -6567,6 +6631,37 @@ export interface operations {
                     "application/json": components["schemas"]["AdminOverviewEnvelope"];
                 };
             };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["AdminForbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    adminListAuditLogs: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                /** @description Keep one account's entries. */
+                user_id?: number;
+                /** @description Keep requests answered with a 4xx or 5xx status. */
+                failed?: "true";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of entries. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditPageEnvelope"];
+                };
+            };
+            400: components["responses"]["InvalidInput"];
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["AdminForbidden"];
             500: components["responses"]["InternalError"];

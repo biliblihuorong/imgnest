@@ -11,6 +11,7 @@ import (
 
 	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
 	"github.com/biliblihuorong/imgnest/internal/http/reqbody"
+	"github.com/biliblihuorong/imgnest/internal/http/reqlog"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -221,6 +222,7 @@ func (h *Handler) uploadFailure(c *gin.Context, err error) {
 	case errors.Is(err, service.ErrImageBusy):
 		c.JSON(200, failure("相同的上传正在进行中，请稍后再试"))
 	case errors.Is(err, service.ErrProcessing):
+		reqlog.Fail(c, err)
 		c.JSON(200, failure("图片处理失败，请稍后再试"))
 	case errors.Is(err, service.ErrContentRejected):
 		c.JSON(200, failure("图片未通过内容审核"))
@@ -229,10 +231,12 @@ func (h *Handler) uploadFailure(c *gin.Context, err error) {
 	case errors.Is(err, service.ErrUploadLimitReached):
 		c.JSON(200, failure("已达到上传次数上限"))
 	case errors.Is(err, service.ErrStorage):
+		reqlog.Fail(c, err)
 		c.JSON(200, failure("存储服务异常，请稍后再试"))
 	case isCanceled(err):
 		c.JSON(200, failure("请求超时或已取消"))
 	default:
+		reqlog.Fail(c, err)
 		c.JSON(200, failure("上传失败，请稍后再试"))
 	}
 }
