@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/biliblihuorong/imgnest/internal/logx"
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"gorm.io/gorm"
@@ -29,6 +31,8 @@ type RunnerDeps struct {
 	HTTP     *http.Client
 	MaxBytes int64
 	Now      func() time.Time
+	// Logger receives a failed or crashed import; nil discards it.
+	Logger *slog.Logger
 }
 
 // Runner keeps one uploaded Lsky export in memory and imports it in the
@@ -57,6 +61,9 @@ func NewRunner(base context.Context, deps RunnerDeps) (*Runner, error) {
 	}
 	if deps.HTTP == nil {
 		deps.HTTP = &http.Client{Timeout: 2 * time.Minute}
+	}
+	if deps.Logger == nil {
+		deps.Logger = slog.New(slog.DiscardHandler)
 	}
 	return &Runner{deps: deps, base: base, status: service.LskyImportStatus{Phase: service.LskyPhaseIdle}}, nil
 }
@@ -172,6 +179,7 @@ func (r *Runner) Start(ctx context.Context, opts service.LskyImportOptions) (ser
 			r.status.Phase = service.LskyPhaseCanceled
 		case err != nil:
 			r.status.Phase, r.status.Error = service.LskyPhaseFailed, err.Error()
+			r.deps.Logger.ErrorContext(runCtx, "lsky import failed", "error", logx.Redact(err.Error()))
 		default:
 			r.status.Phase = service.LskyPhaseDone
 		}
@@ -183,11 +191,13 @@ func (r *Runner) Start(ctx context.Context, opts service.LskyImportOptions) (ser
 // runSafely contains panics from import dependencies (including upload plugins)
 // within this background job. HTTP recovery cannot protect another goroutine.
 // Return a fixed error so the normal finalizer clears the running state without
-// exposing panic payloads through the console or process output.
+// exposing panic payloads through the console; the log gets the stack and,
+// for runtime faults only, the fault message.
 func (r *Runner) runSafely(ctx context.Context, snap Snapshot, policy model.Policy, opts service.LskyImportOptions, fetch Fetcher, open service.ObjectOpener) (err error) {
 	defer func() {
-		if recover() != nil {
+		if recovered := recover(); recovered != nil {
 			err = fmt.Errorf("run background import: %w", service.ErrProcessing)
+			r.deps.Logger.ErrorContext(ctx, "lsky import panicked", logx.Panic(recovered)...)
 		}
 	}()
 	return r.run(ctx, snap, policy, opts, fetch, open)

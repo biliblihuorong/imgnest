@@ -64,6 +64,17 @@ docker compose -f deploy/compose.sqlite.yaml exec imgnest imgnest init-local --b
 | `IMGNEST_SECURITY_MASTER_KEY` | 仅 S3 存储需要：32 字节随机数的 base64。丢失后已加密的存储凭据无法解密，需私下备份 |
 | `IMGNEST_SERVER_TRUSTED_PROXIES` | 反向代理地址，逗号分隔 |
 | `IMGNEST_IMAGES_VARIANT_CORS_ORIGINS` | 允许在浏览器里调用 `/api/variants` 的来源（如博客），逗号分隔 |
+| `IMGNEST_LOG_LEVEL` | 日志级别：`debug` / `info`（默认）/ `warn` / `error` |
+
+## 日志
+
+- **运行日志**：JSON 一行一条，写到 stdout，用 `docker compose -f deploy/compose.sqlite.yaml logs -f imgnest` 查看。compose 已配置 Docker 轮转（单文件 20 MB，保留 5 个）。
+  - 每个请求一条 `http request`：`request_id`、`method`、`route`（路由模板，不含真实路径和查询参数）、`status`、`duration_ms`、`client_ip`、`bytes`，已登录时有 `user_id`。5xx 记为 `ERROR` 并带 `error`（底层原因）和 `stack`（处理该错误的调用栈）。
+  - 请求 ID 沿用反向代理传来的合法 `X-Request-ID`，否则自动生成，并在响应头里返回，可据此把用户报错和日志对上。请求期间其他日志也带同一个 `request_id`。
+  - panic 记为 `request panic` / `… panicked`，带 `stack`；`panic` 字段只写运行时错误的消息（如空指针、越界），其他 panic 值只写类型，避免把请求数据写进日志。
+  - 慢 SQL：超过 `log.slow_query`（默认 500ms，`IMGNEST_LOG_SLOW_QUERY`）记为 `slow database query`，SQL 里的字符串值被替换成 `'?'`。
+  - 写日志前会遮盖 URL 里的账号密码、`password=` / `token=` 一类键值和 Bearer 令牌。
+- **操作日志（审计）**：所有 `/api/` 下的 POST / PUT / PATCH / DELETE 请求（上传、删除、清空回收站、改设置、管理用户、登录等，含失败的）写入数据库 `audit_logs` 表，后台「操作日志」页面可按用户、只看失败筛选。只记账号、IP、路由、目标 ID、状态码和请求 ID，不记请求体。保留 `log.audit_days` 天（默认 90，`IMGNEST_LOG_AUDIT_DAYS`）。
 
 ## 数据与运行约束
 

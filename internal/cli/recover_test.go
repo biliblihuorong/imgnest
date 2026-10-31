@@ -20,12 +20,14 @@ func TestRecoverAtStartupKeepsServingWhenStorageFails(t *testing.T) {
 	var deadline time.Time
 	recoverAtStartup(t.Context(), recovererFunc(func(ctx context.Context) error {
 		deadline, _ = ctx.Deadline()
-		return errors.New("storage unreachable: secret-provider-detail")
+		return errors.New("storage unreachable: token=secret-provider-detail")
 	}), logger)
 	if deadline.IsZero() {
 		t.Fatal("startup recovery has no deadline")
 	}
-	if !strings.Contains(logs.String(), "50002") || strings.Contains(logs.String(), "secret-provider-detail") {
+	// The cause is logged so operators can act on it, with credential-shaped
+	// values masked.
+	if !strings.Contains(logs.String(), "50002") || !strings.Contains(logs.String(), "storage unreachable") || strings.Contains(logs.String(), "secret-provider-detail") {
 		t.Fatalf("recovery failure not logged safely: %s", logs.String())
 	}
 }

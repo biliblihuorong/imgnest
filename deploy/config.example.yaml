@@ -36,6 +36,15 @@ updates:
   # About). Set false on servers that must not call out.
   check: true
 
+log:
+  # JSON log on stdout. Lowest level written: debug, info, warn or error.
+  level: info
+  # Database statements slower than this are logged at warn level with their
+  # values blanked; 0s turns it off.
+  slow_query: 500ms
+  # Days of the operation audit trail (Console > Operation log) kept.
+  audit_days: 90
+
 security:
   # Empty is sufficient for local-only storage. For S3, inject a base64 32-byte
   # key through IMGNEST_SECURITY_MASTER_KEY and preserve it with private backups.

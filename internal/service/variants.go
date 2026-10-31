@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/imaging"
+	"github.com/biliblihuorong/imgnest/internal/logx"
 	"github.com/biliblihuorong/imgnest/internal/model"
 	"github.com/biliblihuorong/imgnest/internal/storage"
 )
@@ -706,6 +707,11 @@ func (s *ImageService) backfillOne(ctx context.Context, image model.Image) (adde
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			added, err = false, fmt.Errorf("generate variants for image %d: %w", image.ID, ErrProcessing)
+			s.deps.Logger.ErrorContext(ctx, "variant backfill panicked", append([]any{"image_id", image.ID}, logx.Panic(recovered)...)...)
+			return
+		}
+		if err != nil && ctx.Err() == nil {
+			s.deps.Logger.WarnContext(ctx, "variant backfill image failed", "image_id", image.ID, "error", logx.Redact(err.Error()))
 		}
 	}()
 	return s.generateVariants(ctx, image)

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
+	"github.com/biliblihuorong/imgnest/internal/http/reqlog"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -43,13 +44,14 @@ func (h *Handler) createToken(c *gin.Context) {
 	}
 	h.logins.Reset(account)
 	h.logins.Reset(network)
+	reqlog.SetUser(c, verified.User.ID, verified.User.Username)
 	issued, err := h.tokens.Issue(c.Request.Context(), verified.Subject, service.TokenInput{Name: "api", Kind: service.TokenKindAPI, Abilities: []string{"*"}})
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			c.JSON(200, failure("The email address or password is incorrect."))
 			return
 		}
-		h.serverError(c)
+		h.serverError(c, err)
 		return
 	}
 	c.JSON(200, success("success", gin.H{"token": issued.Token}))
@@ -89,7 +91,7 @@ func (h *Handler) revokeTokens(c *gin.Context) {
 			c.JSON(200, failure("请求超时或已取消"))
 			return
 		}
-		h.serverError(c)
+		h.serverError(c, err)
 		return
 	}
 	c.JSON(200, success("success", nil))
@@ -102,7 +104,7 @@ func (h *Handler) strategies(c *gin.Context) {
 	if id := currentIdentity(c); id != nil {
 		list, err := h.lsky.Strategies(ctx, id.User.GroupID)
 		if err != nil {
-			h.serverError(c)
+			h.serverError(c, err)
 			return
 		}
 		c.JSON(200, success("success", gin.H{"strategies": list}))
@@ -110,7 +112,7 @@ func (h *Handler) strategies(c *gin.Context) {
 	}
 	enabled, group, ok, err := h.lsky.GuestUploadState(ctx)
 	if err != nil {
-		h.serverError(c)
+		h.serverError(c, err)
 		return
 	}
 	empty := make([]service.PolicySummary, 0)
@@ -120,7 +122,7 @@ func (h *Handler) strategies(c *gin.Context) {
 	}
 	list, err := h.lsky.Strategies(ctx, group.ID)
 	if err != nil {
-		h.serverError(c)
+		h.serverError(c, err)
 		return
 	}
 	c.JSON(200, success("success", gin.H{"strategies": list}))
@@ -138,7 +140,7 @@ func (h *Handler) listImages(c *gin.Context) {
 	albumID := queryUint(c, "album_id")
 	items, total, err := h.images.ListV1(c.Request.Context(), id.User.ID, page, 40, c.Query("order"), c.Query("permission"), c.Query("keyword"), albumID)
 	if err != nil {
-		h.serverError(c)
+		h.serverError(c, err)
 		return
 	}
 	var album any
@@ -150,7 +152,7 @@ func (h *Handler) listImages(c *gin.Context) {
 		case errors.Is(findErr, service.ErrNotFound), errors.Is(findErr, service.ErrForbidden):
 			// A foreign or deleted album lists as album: null, like an empty filter.
 		default:
-			h.serverError(c)
+			h.serverError(c, findErr)
 			return
 		}
 	}
@@ -205,7 +207,7 @@ func (h *Handler) listAlbums(c *gin.Context) {
 	page := queryInt(c, "page", 1)
 	result, err := h.albums.List(c.Request.Context(), id.User.ID, service.AlbumQuery{Page: page, Size: 40, Order: c.Query("order"), Keyword: c.Query("keyword")})
 	if err != nil {
-		h.serverError(c)
+		h.serverError(c, err)
 		return
 	}
 	data := make([]albumItem, 0, len(result.Items))
@@ -234,7 +236,7 @@ func (h *Handler) deleteAlbum(c *gin.Context) {
 		case isCanceled(err):
 			c.JSON(200, failure("请求超时或已取消"))
 		default:
-			h.serverError(c)
+			h.serverError(c, err)
 		}
 		return
 	}
@@ -250,7 +252,7 @@ func (h *Handler) profile(c *gin.Context) {
 	}
 	view, err := h.lsky.Profile(c.Request.Context(), id.User)
 	if err != nil {
-		h.serverError(c)
+		h.serverError(c, err)
 		return
 	}
 	c.JSON(200, success("success", gin.H{

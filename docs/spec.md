@@ -470,6 +470,8 @@ imgnest/
 - 每个对外函数第一个参数是 `context.Context`；错误用 `fmt.Errorf("...: %w", err)` 包装，业务错误用哨兵值 `ErrQuotaExceeded` 等，handler 统一映射错误码。
 - 上传流程要有补偿：任一对象写入失败或数据库写入失败，删除已写入的对象。
 - 密钥、Token、密码不进日志；slog 字段名用 snake\_case。
+- 日志（2026-10-31）：`internal/logx` 建 JSON logger，级别由 `log.level` 决定；带请求 ID 的 context 记录的日志自动加 `request_id`。handler 遇到 5xxxx 错误调用 `reqlog.Fail`，访问日志以 ERROR 记录 `error`（经 `logx.Redact` 遮盖 URL 用户信息、`password=` 等键值和 Bearer/ImgNest Token）与 `stack`；panic 用 `logx.Panic` 记录栈，panic 值只写运行时错误消息或类型。数据库错误本身已脱敏为操作名。
+- 操作审计（2026-10-31）：路由中间件把 `/api/` 下每个 POST/PUT/PATCH/DELETE（`POST /api/variants`、策略预览除外）异步写入 `audit_logs`（迁移 0016）：账号 ID 与用户名快照、IP、方法、路由模板、白名单参数 `id`/`name`/`key`、状态码、请求 ID，不记请求体与查询参数；保留 `log.audit_days` 天。管理员经 `GET /api/admin/audit-logs?page&size&user_id&failed=true` 查看。
 
 **Vue / TS**
 

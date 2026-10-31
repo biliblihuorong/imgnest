@@ -24,6 +24,7 @@ describe("Vben 工作区导航权限", () => {
       "/admin/policies",
       "/admin/settings",
       "/admin/images",
+      "/admin/audit-logs",
     ]);
     expect(workspaceMenus("admin").some((menu) => menu.path === "/albums")).toBe(true);
   });

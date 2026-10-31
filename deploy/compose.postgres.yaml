@@ -22,6 +22,15 @@ services:
       IMGNEST_IMAGES_VARIANT_CORS_ORIGINS: ${IMGNEST_IMAGES_VARIANT_CORS_ORIGINS:-}
       # Optional Redis shared by several instances, e.g. redis://redis:6379/0.
       IMGNEST_CACHE_REDIS_URL: ${IMGNEST_CACHE_REDIS_URL:-}
+      # Lowest log level written to stdout: debug, info, warn or error.
+      IMGNEST_LOG_LEVEL: ${IMGNEST_LOG_LEVEL:-info}
+    # JSON logs on stdout (docker compose logs imgnest), rotated by Docker:
+    # at most 5 files of 20 MB.
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     volumes:
       # Local image objects and the thumbnail cache.
       - imgnest-data:/app/data
@@ -37,6 +46,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     volumes:
       - postgres-data:/var/lib/postgresql
 volumes:

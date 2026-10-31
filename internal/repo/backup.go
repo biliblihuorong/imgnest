@@ -30,7 +30,7 @@ var backupTables = []string{
 	"login_events", "api_usage_daily",
 	"user_identities", "albums", "images", "image_exif", "image_variant_jobs",
 	"variant_backfill", "random_links", "email_codes", "plugin_counters",
-	"plugin_user_settings",
+	"plugin_user_settings", "audit_logs",
 }
 
 // backupDeferred names the forward reference written as NULL first and

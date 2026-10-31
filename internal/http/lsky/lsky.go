@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
+	"github.com/biliblihuorong/imgnest/internal/http/reqlog"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -143,7 +144,7 @@ func (h *Handler) APIEnabled(ctx context.Context) (bool, error) {
 func (h *Handler) apiEnabled(c *gin.Context) {
 	enabled, err := h.lsky.APIEnabled(c.Request.Context())
 	if err != nil {
-		h.serverError(c)
+		h.serverError(c, err)
 		c.Abort()
 		return
 	}
@@ -161,6 +162,7 @@ func (h *Handler) authenticate(c *gin.Context) {
 		return
 	}
 	c.Set(identityKey, id)
+	reqlog.SetUser(c, id.User.ID, id.User.Username)
 }
 
 // optionalIdentity authenticates a present Authorization header (an invalid
@@ -177,6 +179,7 @@ func (h *Handler) optionalIdentity(c *gin.Context) {
 		return
 	}
 	c.Set(identityKey, id)
+	reqlog.SetUser(c, id.User.ID, id.User.Username)
 }
 
 // verifyAuthorization resolves the bearer token and writes the failure
@@ -198,7 +201,7 @@ func (h *Handler) verifyAuthorization(c *gin.Context) (*service.Identity, bool) 
 		c.JSON(200, failure("请求超时或已取消"))
 		return nil, false
 	default:
-		h.serverError(c)
+		h.serverError(c, err)
 		return nil, false
 	}
 	return &id, true
@@ -289,7 +292,10 @@ func success(message string, data any) envelope {
 	return envelope{Status: true, Message: message, Data: data}
 }
 
-func (h *Handler) serverError(c *gin.Context) {
+// serverError answers an unexpected failure; err and the handler's stack go
+// to the request log only.
+func (h *Handler) serverError(c *gin.Context, err error) {
+	reqlog.Fail(c, err)
 	c.JSON(500, failure("服务器内部错误"))
 }
 

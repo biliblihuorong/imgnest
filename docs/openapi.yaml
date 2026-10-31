@@ -2408,6 +2408,43 @@ paths:
           $ref: '#/components/responses/AdminForbidden'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/admin/audit-logs:
+    get:
+      operationId: adminListAuditLogs
+      tags: [Admin]
+      summary: Page the operation audit trail
+      description: |
+        Requires the administrator role and a web session. Every POST, PUT,
+        PATCH and DELETE that reached an `/api/` route is recorded (failed
+        ones too, such as a rejected sign-in), except `POST /api/variants`
+        and `POST /api/admin/policies/preview`. An entry keeps the signed-in
+        account's id and a snapshot of its username (zero and empty for an
+        anonymous request), the client address, the method, the route
+        template, the `id`, `name` and `key` route parameters as
+        `target`, the response status and the request ID that the request
+        log line carries too. Request bodies and query strings are never
+        recorded. Entries are newest first and kept for `log.audit_days`
+        days (default 90).
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+        - {name: size, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+        - {name: user_id, in: query, schema: {type: integer, format: int64, minimum: 1}, description: Keep one account's entries.}
+        - {name: failed, in: query, schema: {type: string, enum: ['true']}, description: Keep requests answered with a 4xx or 5xx status.}
+      responses:
+        '200':
+          description: One page of entries.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditPageEnvelope'}
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/admin/system/version:
     get:
       operationId: adminGetSystemVersion
@@ -4986,6 +5023,40 @@ components:
         code: {type: integer, enum: [0]}
         message: {type: string}
         data: {$ref: '#/components/schemas/AdminOverview'}
+    AuditEntry:
+      type: object
+      additionalProperties: false
+      required: [id, at, user_id, user_name, ip, method, route, target, status, request_id]
+      properties:
+        id: {$ref: '#/components/schemas/ID'}
+        at: {type: string, format: date-time}
+        user_id: {type: integer, format: int64, minimum: 0, description: Zero for an anonymous request.}
+        user_name: {type: string, description: Username at the time of the request.}
+        ip: {type: string}
+        method: {type: string, enum: [POST, PUT, PATCH, DELETE]}
+        route: {type: string, description: 'Route template, such as /api/images/:id.'}
+        target: {type: string, description: 'Kept route parameters, such as id=12.'}
+        status: {type: integer}
+        request_id: {type: string}
+    AuditPage:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/AuditEntry'}
+        total: {type: integer, format: int64, minimum: 0}
+        page: {type: integer, minimum: 1}
+        size: {type: integer, minimum: 1, maximum: 100}
+    AuditPageEnvelope:
+      type: object
+      additionalProperties: false
+      required: [code, message, data]
+      properties:
+        code: {type: integer, enum: [0]}
+        message: {type: string}
+        data: {$ref: '#/components/schemas/AuditPage'}
     SystemVersionEnvelope:
       type: object
       additionalProperties: false

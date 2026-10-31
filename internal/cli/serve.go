@@ -14,6 +14,7 @@ import (
 	httpapi "github.com/biliblihuorong/imgnest/internal/http"
 	"github.com/biliblihuorong/imgnest/internal/http/lsky"
 	"github.com/biliblihuorong/imgnest/internal/http/ratelimit"
+	"github.com/biliblihuorong/imgnest/internal/logx"
 	"github.com/biliblihuorong/imgnest/internal/migrate"
 	lskymigrate "github.com/biliblihuorong/imgnest/internal/migrate/lsky"
 	"github.com/biliblihuorong/imgnest/internal/pathtpl"
@@ -38,7 +39,9 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			logger := slog.New(slog.NewJSONHandler(cmd.OutOrStdout(), nil))
+			level, _ := config.LogLevel(cfg.Log.Level)
+			logger := logx.New(cmd.OutOrStdout(), level)
+			repo.LogSlowQueries(db, logger, cfg.Log.SlowQuery)
 			// One pool is shared by the link service that fills it and the
 			// image service that invalidates it: Redis when configured, so
 			// every instance sees each invalidation, else this process's memory.
@@ -55,13 +58,13 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			if events != nil {
 				users.UseEvents(events)
 			}
-			images, albums, closeImages, err := newImageServices(cmd.Context(), db, cfg, runtimeCaches{Random: randomPool, Lookup: caches.lookup}, pluginImageHooks(plugins, events))
+			images, albums, closeImages, err := newImageServices(cmd.Context(), db, cfg, runtimeCaches{Random: randomPool, Lookup: caches.lookup, Logger: logger}, pluginImageHooks(plugins, events))
 			if err != nil {
 				return err
 			}
 			defer func() {
 				if err := closeImages(); err != nil {
-					logger.Error("close image runtime", "code", 50002)
+					logger.Error("close image runtime", "code", 50002, "error", logx.Redact(err.Error()))
 				}
 			}()
 			recoverAtStartup(cmd.Context(), images, logger)
@@ -105,7 +108,7 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			// stop with the server; a rerun resumes with what is missing.
 			importCtx, stopImports := context.WithCancel(cmd.Context())
 			defer stopImports()
-			lskyImport, err := lskymigrate.NewRunner(importCtx, lskymigrate.RunnerDeps{DB: db, Ingest: lskyIngest(images), Adoption: images.AdoptionReader, MaxBytes: service.MaxImportFileBytes})
+			lskyImport, err := lskymigrate.NewRunner(importCtx, lskymigrate.RunnerDeps{DB: db, Ingest: lskyIngest(images), Adoption: images.AdoptionReader, MaxBytes: service.MaxImportFileBytes, Logger: logger})
 			if err != nil {
 				return err
 			}
@@ -115,6 +118,10 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 				return err
 			}
 			activity, err := newActivityService(cmd.Context(), db)
+			if err != nil {
+				return err
+			}
+			audit, err := newAuditService(cmd.Context(), db, cfg, logger)
 			if err != nil {
 				return err
 			}
@@ -138,7 +145,7 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("open embedded web app: %w", err)
 			}
-			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Email: users, Mail: mailService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads, Slots: uploadSlots}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Guest: guestState, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, PluginSettings: pluginSettings, UserPluginSettings: userPluginSettings, ExternalSignIn: users, LskyImport: lskyImport, Backups: backups, Activity: activity, System: system, Overview: overview, Variants: images, VariantOptions: httpapi.VariantOptions{CORSOrigins: cfg.Images.VariantCORSOrigins, PerMinute: cfg.Images.VariantLookupPerMinute, CDNMaxAge: cfg.Images.VariantCDNMaxAge}, Crawler: crawler})
+			handler, err := httpapi.NewRouter(cmd.Context(), httpapi.Dependencies{Users: users, Tokens: tokens, Captcha: captchaService, Email: users, Mail: mailService, Images: images, ImageOptions: httpapi.ImageOptions{MaxRequestBytes: int64(cfg.Server.MaxRequestMB) << 20, MaxConcurrent: cfg.Server.UploadConcurrency, Timeout: cfg.Server.ProcessingTimeout, Uploads: uploads, Slots: uploadSlots}, Albums: albums, RandomLinks: randomLinks, Lsky: lskyHandler, Guest: guestState, Admin: adminService, AdminImages: images, Logger: logger, Server: cfg.Server, Now: time.Now, Health: sqlDB.PingContext, Web: webFS, Plugins: plugins, PluginSettings: pluginSettings, UserPluginSettings: userPluginSettings, ExternalSignIn: users, LskyImport: lskyImport, Backups: backups, Activity: activity, System: system, Overview: overview, Audit: audit, Variants: images, VariantOptions: httpapi.VariantOptions{CORSOrigins: cfg.Images.VariantCORSOrigins, PerMinute: cfg.Images.VariantLookupPerMinute, CDNMaxAge: cfg.Images.VariantCDNMaxAge}, Crawler: crawler})
 			if err != nil {
 				return err
 			}
@@ -153,15 +160,22 @@ func serveCommand(path *string, plugins []extension.Plugin) *cobra.Command {
 			go func() { defer close(workerDone); runImageWorker(workerCtx, images, logger) }()
 			backupDone := make(chan struct{})
 			go func() { defer close(backupDone); backups.RunSchedule(workerCtx, backupScheduleCheck) }()
+			// The audit writer stops after the server, so requests still in
+			// flight at shutdown are written.
+			auditCtx, stopAudit := context.WithCancel(context.WithoutCancel(cmd.Context()))
+			auditDone := make(chan struct{})
+			go func() { defer close(auditDone); audit.Run(auditCtx) }()
 			// A variant backfill that was running before a restart resumes.
 			if err := images.StartBackground(workerCtx); err != nil {
-				logger.ErrorContext(cmd.Context(), "variant backfill not resumed", "code", 50002)
+				logger.ErrorContext(cmd.Context(), "variant backfill not resumed", "code", 50002, "error", logx.Redact(err.Error()))
 			}
 			result := runServer(cmd.Context(), server, listener, cfg.Server.ShutdownTimeout)
 			stopWorker()
 			images.WaitBackground()
 			<-workerDone
 			<-backupDone
+			stopAudit()
+			<-auditDone
 			return result
 		})
 	}}
@@ -181,7 +195,7 @@ func recoverAtStartup(ctx context.Context, images imageRecoverer, logger *slog.L
 	recoverCtx, cancel := context.WithTimeout(ctx, startupRecovery)
 	defer cancel()
 	if err := images.Recover(recoverCtx); err != nil && ctx.Err() == nil {
-		logger.ErrorContext(ctx, "image recovery pending; retrying in background", "code", 50002)
+		logger.ErrorContext(ctx, "image recovery pending; retrying in background", "code", 50002, "error", logx.Redact(err.Error()))
 	}
 }
 
@@ -197,7 +211,7 @@ func runImageWorker(ctx context.Context, images *service.ImageService, logger *s
 			err := images.Sweep(jobCtx)
 			cancel()
 			if err != nil && ctx.Err() == nil {
-				logger.ErrorContext(ctx, "image cleanup retry pending", "code", 50002)
+				logger.ErrorContext(ctx, "image cleanup retry pending", "code", 50002, "error", logx.Redact(err.Error()))
 			}
 		}
 	}
@@ -352,7 +366,7 @@ func usePluginCounters(ctx context.Context, db *gorm.DB, plugins []extension.Plu
 	}
 	if used {
 		if _, err := counters.Prune(ctx); err != nil {
-			logger.WarnContext(ctx, "prune plugin counters failed", "code", 50001)
+			logger.WarnContext(ctx, "prune plugin counters failed", "code", 50001, "error", logx.Redact(err.Error()))
 		}
 	}
 	return nil
@@ -378,4 +392,14 @@ func runServer(ctx context.Context, server *http.Server, listener net.Listener, 
 		}
 		return nil
 	}
+}
+
+// newAuditService records every state-changing API request for the console's
+// operation log, keeping log.audit_days of history.
+func newAuditService(ctx context.Context, db *gorm.DB, cfg config.Config, logger *slog.Logger) (*service.AuditService, error) {
+	audits, err := repo.NewAuditRepository(ctx, db)
+	if err != nil {
+		return nil, fmt.Errorf("create audit repository: %w", err)
+	}
+	return service.NewAuditService(ctx, service.AuditDependencies{Repo: audits, Logger: logger, Now: time.Now, Retention: time.Duration(cfg.Log.AuditDays) * 24 * time.Hour})
 }

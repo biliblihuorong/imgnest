@@ -37,6 +37,7 @@ export function workspaceMenus(
         { name: "common.nav.policies", path: "/admin/policies", icon: "List" },
         { name: "common.nav.settings", path: "/admin/settings", icon: "Settings", ...dot },
         { name: "common.nav.allImages", path: "/admin/images", icon: "LayoutGrid" },
+        { name: "common.nav.auditLogs", path: "/admin/audit-logs", icon: "List" },
       ],
     });
   return menus;

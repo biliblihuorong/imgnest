@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/biliblihuorong/imgnest/internal/logx"
 	"github.com/biliblihuorong/imgnest/internal/model"
 )
 
@@ -352,7 +353,7 @@ func (s *BackupService) RunSchedule(ctx context.Context, every time.Duration) {
 			return
 		case <-ticker.C:
 			if err := s.RunScheduled(ctx); err != nil && ctx.Err() == nil {
-				s.deps.Logger.ErrorContext(ctx, "scheduled backup failed", "code", 50001)
+				s.deps.Logger.ErrorContext(ctx, "scheduled backup failed", "code", 50001, "error", logx.Redact(err.Error()))
 			}
 		}
 	}

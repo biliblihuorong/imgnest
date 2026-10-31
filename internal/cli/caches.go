@@ -7,6 +7,7 @@ import (
 
 	"github.com/biliblihuorong/imgnest/internal/cache"
 	"github.com/biliblihuorong/imgnest/internal/config"
+	"github.com/biliblihuorong/imgnest/internal/logx"
 	"github.com/biliblihuorong/imgnest/internal/randompool"
 	"github.com/biliblihuorong/imgnest/internal/service"
 )
@@ -38,13 +39,13 @@ func openCaches(ctx context.Context, cfg config.Cache, logger *slog.Logger) (ser
 			return servingCaches{}, nil, ctx.Err()
 		}
 		// The error never carries the URL, which may hold a password.
-		logger.Warn("redis unavailable, caching in memory", "error", err.Error())
+		logger.Warn("redis unavailable, caching in memory", "error", logx.Redact(err.Error()))
 		return memory, func() {}, nil
 	}
 	logger.Info("cache backend", "backend", "redis")
 	closeRedis := func() {
 		if err := redis.Close(); err != nil {
-			logger.Error("close redis", "error", err.Error())
+			logger.Error("close redis", "error", logx.Redact(err.Error()))
 		}
 	}
 	return servingCaches{pool: randompool.NewShared(redis), lookup: redis}, closeRedis, nil

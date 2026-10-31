@@ -15,6 +15,8 @@ import (
 	"github.com/biliblihuorong/imgnest/internal/config"
 	"github.com/biliblihuorong/imgnest/internal/http/lsky"
 	"github.com/biliblihuorong/imgnest/internal/http/native"
+	"github.com/biliblihuorong/imgnest/internal/http/reqlog"
+	"github.com/biliblihuorong/imgnest/internal/logx"
 	"github.com/biliblihuorong/imgnest/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -77,6 +79,15 @@ type Dependencies struct {
 	VariantOptions native.VariantOptions
 	// Crawler serves /robots.txt and /sitemap.xml; nil leaves both 404.
 	Crawler native.Crawler
+	// Audit records every state-changing API request and serves the
+	// console's operation log; nil records nothing.
+	Audit AuditLog
+}
+
+// AuditLog records operations and lists them for administrators.
+type AuditLog interface {
+	Record(context.Context, service.AuditEntry)
+	native.AuditLogs
 }
 
 var pluginName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
@@ -104,6 +115,9 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	}
 	router.Use(func(c *gin.Context) {
 		started := time.Now()
+		requestID := requestID(c.GetHeader("X-Request-ID"))
+		c.Header("X-Request-ID", requestID)
+		c.Request = c.Request.WithContext(logx.WithRequestID(c.Request.Context(), requestID))
 		c.Header("Cache-Control", "no-store")
 		c.Header("X-Content-Type-Options", "nosniff")
 		// API answers and random-image redirects are never search results,
@@ -116,16 +130,39 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 		if path == "" {
 			path = "unmatched"
 		}
-		attrs := []any{"method", c.Request.Method, "route", path, "status", c.Writer.Status(), "duration_ms", time.Since(started).Milliseconds()}
-		if last := c.Errors.Last(); last != nil {
-			attrs = append(attrs, "error", last.Error())
+		status := c.Writer.Status()
+		attrs := []any{"request_id", requestID, "method", c.Request.Method, "route", path, "status", status, "duration_ms", time.Since(started).Milliseconds(), "client_ip", c.ClientIP(), "bytes", c.Writer.Size()}
+		user, signedIn := reqlog.CurrentUser(c)
+		if signedIn {
+			attrs = append(attrs, "user_id", user.ID)
 		}
-		deps.Logger.InfoContext(c.Request.Context(), "http request", attrs...)
+		if len(c.Errors) > 0 {
+			messages := make([]string, 0, len(c.Errors))
+			for _, recorded := range c.Errors {
+				messages = append(messages, logx.Redact(recorded.Error()))
+			}
+			attrs = append(attrs, "error", strings.Join(messages, "; "))
+			if stack, ok := c.Errors.Last().Meta.(reqlog.Stack); ok {
+				attrs = append(attrs, "stack", string(stack))
+			}
+		}
+		level := slog.LevelInfo
+		if status >= 500 {
+			level = slog.LevelError
+		}
+		deps.Logger.Log(c.Request.Context(), level, "http request", attrs...)
+		if deps.Audit != nil && audited(c.Request.Method, path) {
+			entry := service.AuditEntry{At: started.UTC(), Method: c.Request.Method, Route: path, Target: auditTarget(c.Params), Status: status, IP: c.ClientIP(), RequestID: requestID}
+			if signedIn {
+				entry.UserID, entry.UserName = user.ID, user.Name
+			}
+			deps.Audit.Record(c.Request.Context(), entry)
+		}
 	})
 	router.Use(func(c *gin.Context) {
 		defer func() {
-			if recover() != nil {
-				deps.Logger.ErrorContext(c.Request.Context(), "request panic", "route", c.FullPath())
+			if recovered := recover(); recovered != nil {
+				deps.Logger.ErrorContext(c.Request.Context(), "request panic", append([]any{"route", c.FullPath()}, logx.Panic(recovered)...)...)
 				// The Lsky-compatible routes answer with their own envelope
 				// so a panic never breaks a v1 client's error parsing.
 				if strings.HasPrefix(c.FullPath(), "/api/v1") {
@@ -208,6 +245,11 @@ func NewRouter(ctx context.Context, deps Dependencies) (stdhttp.Handler, error) 
 	if deps.Activity != nil {
 		if err := handler.RegisterActivityRoutes(ctx, router, deps.Activity); err != nil {
 			return nil, fmt.Errorf("register activity routes: %w", err)
+		}
+	}
+	if deps.Audit != nil {
+		if err := handler.RegisterAuditRoutes(ctx, router, deps.Audit); err != nil {
+			return nil, fmt.Errorf("register audit routes: %w", err)
 		}
 	}
 	if deps.System != nil {

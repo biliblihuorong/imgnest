@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 	"net/url"
@@ -47,6 +48,9 @@ var environmentKeys = map[string]string{
 	"IMGNEST_DATABASE_BUSY_TIMEOUT":            "database.busy_timeout",
 	"IMGNEST_BACKUP_DIR":                       "backup.dir",
 	"IMGNEST_UPDATES_CHECK":                    "updates.check",
+	"IMGNEST_LOG_LEVEL":                        "log.level",
+	"IMGNEST_LOG_SLOW_QUERY":                   "log.slow_query",
+	"IMGNEST_LOG_AUDIT_DAYS":                   "log.audit_days",
 }
 
 // Config contains the HTTP server and database deployment settings.
@@ -58,6 +62,18 @@ type Config struct {
 	Backup   Backup
 	Updates  Updates
 	Cache    Cache
+	Log      Log
+}
+
+// Log configures the process log on stdout and the operation audit trail.
+type Log struct {
+	// Level is the lowest level written: debug, info, warn or error.
+	Level string
+	// SlowQuery logs database statements slower than this at warn level;
+	// zero turns slow-query logging off.
+	SlowQuery time.Duration
+	// AuditDays is how long operation audit entries are kept.
+	AuditDays int
 }
 
 // Cache selects where random-link candidates and variant lookups are cached.
@@ -139,7 +155,7 @@ func Load(ctx context.Context, path string, environ []string) (Config, error) {
 			// YAML diagnostics may quote DSNs, so do not retain their raw error.
 			return Config{}, fmt.Errorf("parse configuration YAML: %w", errInvalid)
 		}
-		for _, section := range []string{"server", "database", "images", "security", "backup", "updates", "cache"} {
+		for _, section := range []string{"server", "database", "images", "security", "backup", "updates", "cache", "log"} {
 			if k.Exists(section) {
 				if _, ok := k.Get(section).(map[string]any); !ok {
 					return Config{}, invalid(section, "must be a mapping")
@@ -209,6 +225,9 @@ func Load(ctx context.Context, path string, environ []string) (Config, error) {
 		"security.master_key":              "",
 		"backup.dir":                       "data/backup",
 		"updates.check":                    true,
+		"log.level":                        "info",
+		"log.slow_query":                   "500ms",
+		"log.audit_days":                   90,
 		"database.driver":                  driver,
 		"database.dsn":                     "data/imgnest.db",
 		"database.max_open":                1,
@@ -258,6 +277,7 @@ func decode(k *koanf.Koanf) (Config, error) {
 		{key: "security.master_key", value: &cfg.Security.MasterKey},
 		{key: "backup.dir", value: &cfg.Backup.Dir},
 		{key: "cache.redis_url", value: &cfg.Cache.RedisURL},
+		{key: "log.level", value: &cfg.Log.Level},
 	} {
 		value, ok := k.Get(field.key).(string)
 		if !ok {
@@ -276,6 +296,7 @@ func decode(k *koanf.Koanf) (Config, error) {
 		{key: "server.upload_concurrency", value: &cfg.Server.UploadConcurrency},
 		{key: "server.max_pixels", value: &cfg.Server.MaxPixels},
 		{key: "images.variant_lookup_per_minute", value: &cfg.Images.VariantLookupPerMinute},
+		{key: "log.audit_days", value: &cfg.Log.AuditDays},
 	} {
 		switch value := k.Get(field.key).(type) {
 		case int:
@@ -300,6 +321,7 @@ func decode(k *koanf.Koanf) (Config, error) {
 		{key: "database.busy_timeout", value: &cfg.Database.BusyTimeout},
 		{key: "server.processing_timeout", value: &cfg.Server.ProcessingTimeout},
 		{key: "images.variant_cdn_max_age", value: &cfg.Images.VariantCDNMaxAge},
+		{key: "log.slow_query", value: &cfg.Log.SlowQuery},
 	} {
 		value, ok := k.Get(field.key).(string)
 		if !ok {
@@ -387,6 +409,15 @@ func validate(cfg Config) error {
 	if cfg.Images.VariantCDNMaxAge < 0 || cfg.Images.VariantCDNMaxAge > 7*24*time.Hour {
 		return invalid("images.variant_cdn_max_age", "must be between 0s and 168h")
 	}
+	if _, ok := LogLevel(cfg.Log.Level); !ok {
+		return invalid("log.level", "must be debug, info, warn or error")
+	}
+	if cfg.Log.SlowQuery < 0 || cfg.Log.SlowQuery > time.Hour {
+		return invalid("log.slow_query", "must be between 0s and 1h")
+	}
+	if cfg.Log.AuditDays < 1 || cfg.Log.AuditDays > 3650 {
+		return invalid("log.audit_days", "must be between 1 and 3650")
+	}
 	if cfg.Cache.RedisURL != "" && !validRedisURL(cfg.Cache.RedisURL) {
 		return invalid("cache.redis_url", "must be a redis:// or rediss:// URL")
 	}
@@ -452,6 +483,21 @@ func validOrigin(origin string) bool {
 		return false
 	}
 	return !strings.ContainsAny(host, "/?#@ *")
+}
+
+// LogLevel parses a log.level value, ignoring case.
+func LogLevel(name string) (slog.Level, bool) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "debug":
+		return slog.LevelDebug, true
+	case "info":
+		return slog.LevelInfo, true
+	case "warn", "warning":
+		return slog.LevelWarn, true
+	case "error":
+		return slog.LevelError, true
+	}
+	return 0, false
 }
 
 func invalid(field, reason string) error {
