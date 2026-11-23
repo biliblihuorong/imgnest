@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { Page } from "@vben/common-ui";
 import { useI18n } from "@vben/locales";
+import { NAlert, NButton, NSpin } from "naive-ui";
+import { provideUserPlugins } from "./useUserPlugins";
 
-/** 账户页外壳：令牌与资料两个标签共用同一个标题、说明和标签栏。 */
+/** 账户页外壳：通用标签与当前账户可用的个人设置入口。 */
 const { t } = useI18n();
+const { plugins, loading, error, load } = provideUserPlugins();
 
 const tabs = [
   { to: "/account/tokens", label: "account.tabs.tokens" },
@@ -30,7 +33,19 @@ const tabs = [
         exact-active-class="is-active"
         >{{ t(tab.label) }}</RouterLink
       >
+      <RouterLink
+        v-for="plugin in plugins"
+        :key="plugin.name"
+        :to="`/account/plugins/${encodeURIComponent(plugin.name)}`"
+        class="account-page__tab"
+        exact-active-class="is-active"
+        >{{ plugin.title }}</RouterLink
+      >
     </nav>
+    <NSpin v-if="loading" size="small" />
+    <NAlert v-if="error" type="error" class="mb-4">
+      {{ error }} <NButton size="small" @click="load">{{ t("account.retry") }}</NButton>
+    </NAlert>
     <slot />
   </Page>
 </template>
@@ -43,6 +58,7 @@ const tabs = [
 }
 .account-page__tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 16px;
   border-bottom: 1px solid hsl(var(--border));

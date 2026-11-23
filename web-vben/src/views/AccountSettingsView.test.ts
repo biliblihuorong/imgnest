@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as authApi from "@/api/auth";
 import { ApiError, TOKEN_STORAGE_KEY } from "@/api/client";
 import type { UserView } from "@/api/types";
+import * as pluginApi from "@/api/plugins";
 import { useAuthStore } from "@/stores/auth";
 import AccountSettingsView from "./AccountSettingsView.vue";
 
@@ -80,6 +81,25 @@ beforeEach(async () => {
 });
 
 describe("AccountSettingsView", () => {
+  it("个人设置提供独立的我的水印标签，资料与安全不再混入水印表单", async () => {
+    vi.mocked(pluginApi.listUserPluginSettings).mockResolvedValue([
+      {
+        name: "watermark",
+        title: "我的水印",
+        fields: [],
+        values: {},
+        read_only: false,
+        has_asset: false,
+      },
+    ]);
+    const wrapper = await mountView();
+    const entry = wrapper
+      .findAll("[data-testid='account-tabs'] a")
+      .find((tab) => tab.text() === "我的水印");
+    expect(entry?.attributes("href")).toBe("/account/plugins/watermark");
+    expect(wrapper.find("[data-user-plugin]").exists()).toBe(false);
+    expect(pluginApi.listUserPluginSettings).toHaveBeenCalledTimes(1);
+  });
   it("展示只读账户信息与头像说明，未修改时保存禁用", async () => {
     const wrapper = await mountView();
     expect(wrapper.find("h1").text()).toBe("账户");
