@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, getToken, request, TOKEN_STORAGE_KEY } from "@/api/client";
 import { flushPromises } from "@vue/test-utils";
 import * as authApi from "@/api/auth";
-import type { LoginData, UserView } from "@/api/types";
+import type { LoginResult, UserView } from "@/api/types";
 import { useAuthStore } from "./auth";
 
 vi.mock("@/api/auth", () => ({
@@ -42,19 +42,16 @@ describe("auth store", () => {
     authApiMock.login.mockResolvedValue({
       token: "7|token",
       user: userFixture,
-      expires_at: "2026-10-05T00:00:00Z",
     });
     const store = useAuthStore();
 
-    await store.login("alice@example.com", "password-123");
+    await store.login({ email: "alice@example.com", password: "password-123" });
 
     expect(store.token).toBe("7|token");
     expect(store.user).toEqual(userFixture);
     expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBe("7|token");
     expect(authApiMock.login).toHaveBeenCalledWith(
-      "alice@example.com",
-      "password-123",
-      undefined,
+      { email: "alice@example.com", password: "password-123" },
       expect.any(AbortSignal),
     );
   });
@@ -67,11 +64,12 @@ describe("auth store", () => {
       authApiMock.login.mockResolvedValue({
         token: "7|token",
         user: userFixture,
-        expires_at: "2026-10-05T00:00:00Z",
       });
       const store = useAuthStore();
 
-      await expect(store.login("alice@example.com", "password-123")).resolves.toEqual(userFixture);
+      await expect(
+        store.login({ email: "alice@example.com", password: "password-123" }),
+      ).resolves.toEqual(userFixture);
 
       expect(store.token).toBe("7|token");
       expect(store.user).toEqual(userFixture);
@@ -226,16 +224,18 @@ describe("auth store", () => {
   it("跨标签清空 storage 撤销未完成登录", async () => {
     localStorage.setItem(TOKEN_STORAGE_KEY, "7|alice");
     const store = useAuthStore();
-    let finish!: (value: LoginData) => void;
+    let finish!: (value: LoginResult) => void;
     authApiMock.login.mockReturnValue(
       new Promise((resolve) => {
         finish = resolve;
       }),
     );
-    const login = store.login("alice@example.com", "password-123").catch((error: unknown) => error);
+    const login = store
+      .login({ email: "alice@example.com", password: "password-123" })
+      .catch((error: unknown) => error);
     localStorage.clear();
     window.dispatchEvent(new StorageEvent("storage", { key: null, storageArea: localStorage }));
-    finish({ token: "7|late", user: userFixture, expires_at: "2026-10-05T00:00:00Z" });
+    finish({ token: "7|late", user: userFixture });
     expect(await login).toMatchObject({ name: "AbortError" });
     expect(store.token).toBeNull();
     expect(store.user).toBeNull();
@@ -244,10 +244,9 @@ describe("auth store", () => {
     authApiMock.login.mockResolvedValue({
       token: "7|new",
       user: userFixture,
-      expires_at: "2026-10-14T00:00:00Z",
     });
     const store = useAuthStore();
-    await store.login("alice@example.com", "password-123");
+    await store.login({ email: "alice@example.com", password: "password-123" });
     const cleared = vi.fn();
     window.addEventListener("imgnest:session-cleared", cleared);
     try {
@@ -263,10 +262,9 @@ describe("auth store", () => {
     authApiMock.login.mockResolvedValue({
       token: "7|alice",
       user: userFixture,
-      expires_at: "2026-10-14T00:00:00Z",
     });
     const store = useAuthStore();
-    await store.login("alice@example.com", "password-123");
+    await store.login({ email: "alice@example.com", password: "password-123" });
     const bob = { ...userFixture, id: 2, username: "bob" };
     authApiMock.me.mockResolvedValue(bob);
     const fetchMock = vi
@@ -331,14 +329,15 @@ describe("auth store", () => {
     authApiMock.login.mockResolvedValue({
       token: "7|token",
       user: userFixture,
-      expires_at: "2026-10-05T00:00:00Z",
     });
     const store = useAuthStore();
-    await store.login("alice@example.com", "password-123", "transient-challenge");
+    await store.login({
+      email: "alice@example.com",
+      password: "password-123",
+      captchaToken: "transient-challenge",
+    });
     expect(authApiMock.login).toHaveBeenCalledWith(
-      "alice@example.com",
-      "password-123",
-      "transient-challenge",
+      { email: "alice@example.com", password: "password-123", captchaToken: "transient-challenge" },
       expect.any(AbortSignal),
     );
     expect(JSON.stringify(store.$state)).not.toContain("transient-challenge");
@@ -346,7 +345,7 @@ describe("auth store", () => {
   });
 
   it("keeps the newest successful identity when an earlier login completes last", async () => {
-    let finishFirst!: (value: LoginData) => void;
+    let finishFirst!: (value: LoginResult) => void;
     authApiMock.login.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -354,7 +353,9 @@ describe("auth store", () => {
         }),
     );
     const store = useAuthStore();
-    const first = store.login("alice@example.com", "password-123").catch((error: unknown) => error);
+    const first = store
+      .login({ email: "alice@example.com", password: "password-123" })
+      .catch((error: unknown) => error);
     const secondUser = {
       ...userFixture,
       id: 2,
@@ -365,20 +366,19 @@ describe("auth store", () => {
     authApiMock.login.mockResolvedValueOnce({
       token: "8|second",
       user: secondUser,
-      expires_at: "2026-10-05T00:00:00Z",
     });
-    await store.login("bob@example.com", "password-456");
-    finishFirst({ token: "7|first", user: userFixture, expires_at: "2026-10-05T00:00:00Z" });
+    await store.login({ email: "bob@example.com", password: "password-456" });
+    finishFirst({ token: "7|first", user: userFixture });
     const firstResult = await first;
     expect(store.token).toBe("8|second");
     expect(store.user).toEqual(secondUser);
     expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBe("8|second");
     expect(firstResult).toMatchObject({ name: "AbortError" });
-    expect(authApiMock.login.mock.calls[0]?.[3]?.aborted).toBe(true);
+    expect(authApiMock.login.mock.calls[0]?.[1]?.aborted).toBe(true);
   });
 
   it("does not recreate a cleared session when a pending login completes", async () => {
-    let finish!: (value: LoginData) => void;
+    let finish!: (value: LoginResult) => void;
     authApiMock.login.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -387,15 +387,15 @@ describe("auth store", () => {
     );
     const store = useAuthStore();
     const result = store
-      .login("alice@example.com", "password-123")
+      .login({ email: "alice@example.com", password: "password-123" })
       .catch((error: unknown) => error);
     store.clear();
-    finish({ token: "7|late", user: userFixture, expires_at: "2026-10-05T00:00:00Z" });
+    finish({ token: "7|late", user: userFixture });
     await result;
     expect(store.token).toBeNull();
     expect(store.user).toBeNull();
     expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
-    expect(authApiMock.login.mock.calls[0]?.[3]?.aborted).toBe(true);
+    expect(authApiMock.login.mock.calls[0]?.[1]?.aborted).toBe(true);
   });
 
   it("does not let completion of an old logout clear a newer login", async () => {
@@ -413,9 +413,8 @@ describe("auth store", () => {
     authApiMock.login.mockResolvedValueOnce({
       token: "8|new",
       user: userFixture,
-      expires_at: "2026-10-05T00:00:00Z",
     });
-    await store.login("alice@example.com", "password-123");
+    await store.login({ email: "alice@example.com", password: "password-123" });
     finishLogout(null);
     await logout;
     expect(store.token).toBe("8|new");

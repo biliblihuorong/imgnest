@@ -1,0 +1,5 @@
+# 固定工具链版本（package.json 的 engines 要求 Node >=24.21 <25）。
+# 融合进其他项目时，如果外层已有 mise.toml，把这两行合并过去即可。
+[tools]
+node = "24.21.0"
+pnpm = "12.9.1"

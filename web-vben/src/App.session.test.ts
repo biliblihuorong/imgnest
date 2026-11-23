@@ -8,9 +8,9 @@ import { TOKEN_STORAGE_KEY } from "@/api/client";
 import type { UserView } from "@/api/types";
 import { useAccountScope } from "@/components/account/useAccountScope";
 import { useUploadQueue } from "@/components/upload/useUploadQueue";
-import { initShell, setShell } from "@/integrations/shell/useShell";
-import { connectVbenSession } from "@/integrations/vben/session";
-import { imgnestPreferences } from "@/integrations/vben/preferences";
+import { initShell, setShell } from "@/shell/useShell";
+import { connectVbenSession } from "@/shell/session";
+import { appPreferences } from "@/shell/preferences";
 import { setupRouter } from "@/router";
 import { useAuthStore } from "@/stores/auth";
 import App from "./App.vue";
@@ -22,14 +22,12 @@ vi.mock("@/api/auth", () => ({
   exchangeSsoTicket: vi.fn(),
 }));
 vi.mock("@/api/site", () => ({
-  fetchSite: vi
-    .fn()
-    .mockResolvedValue({
-      site_name: "ImgNest",
-      register_enabled: false,
-      gallery_enabled: false,
-      login_providers: [],
-    }),
+  fetchSite: vi.fn().mockResolvedValue({
+    site_name: "ImgNest",
+    register_enabled: false,
+    gallery_enabled: false,
+    login_providers: [],
+  }),
 }));
 vi.mock("@/api/albums", () => ({
   listAlbums: vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, size: 20 }),
@@ -56,7 +54,7 @@ beforeEach(() => {
     removeListener() {},
     dispatchEvent: () => false,
   }));
-  updatePreferences(imgnestPreferences);
+  updatePreferences(appPreferences);
   initShell();
   vi.stubGlobal(
     "ResizeObserver",

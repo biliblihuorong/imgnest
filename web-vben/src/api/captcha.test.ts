@@ -54,14 +54,17 @@ describe("CAPTCHA HTTP contract", () => {
     });
   });
   it("preserves the exact legacy login body and adds the optional token only when supplied", async () => {
-    const fetcher = mockResponse({});
-    await login("a@example.test", "password");
+    const fetcher = mockResponse({ token: "t", user: {} });
+    await login({ email: "a@example.test", password: "password" });
     expect(JSON.parse(fetcher.mock.calls[0]?.[1].body)).toEqual({
       email: "a@example.test",
       password: "password",
     });
     const controller = new AbortController();
-    await login("a@example.test", "password", "one-use", controller.signal);
+    await login(
+      { email: "a@example.test", password: "password", captchaToken: "one-use" },
+      controller.signal,
+    );
     expect(fetcher.mock.calls[1]?.[1].signal).toBe(controller.signal);
     expect(JSON.parse(fetcher.mock.calls[1]?.[1].body)).toEqual({
       email: "a@example.test",

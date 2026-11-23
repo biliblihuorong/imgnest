@@ -4,10 +4,11 @@ import { me } from "@/api/auth";
 import { TOKEN_STORAGE_KEY } from "@/api/client";
 import type { UserView } from "@/api/types";
 import { useAuthStore } from "@/stores/auth";
-import { ADMIN_ROUTER_NAMES, setupRouter } from "./index";
+import { setupRouter } from "./index";
+import { ADMIN_ROUTER_NAMES } from "./routes";
 
 // 守卫测试只关心导航行为：stub 掉涉事视图模块，避免在测试阶段加载 naive-ui
-vi.mock("@/components/layout/AuthLayout.vue", () => ({
+vi.mock("@/shell/AuthLayout.vue", () => ({
   default: { name: "AuthLayoutStub", template: "<RouterView />" },
 }));
 vi.mock("@/api/auth", () => ({

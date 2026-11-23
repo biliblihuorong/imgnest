@@ -1,0 +1,22 @@
+{
+  "brandBadge": "Images",
+  "search": "Search images",
+  "albums": {
+    "create": "New album",
+    "all": "All albums",
+    "loadFailed": "Could not load albums",
+    "collapse": "Collapse albums",
+    "expand": "Expand albums"
+  },
+  "palette": {
+    "placeholder": "Search images, or type a page name",
+    "conditions": "Search conditions",
+    "pages": "Pages",
+    "searchFor": "Search my images for \"{query}\"",
+    "openImages": "Open my images"
+  },
+  "detailPanel": {
+    "empty": "Click the info area under an image to see its details",
+    "close": "Close details"
+  }
+}

@@ -690,7 +690,7 @@ describe("admin account forms", () => {
     bodyButton("保存").click();
     await flushPromises();
     expect(adminApiMock.patchUser).toHaveBeenCalledWith(1, { display_name: "Alice renamed" });
-    expect(auth.user).toEqual(updated);
+    expect(auth.user).toEqual({ ...updated, displayName: updated.display_name });
     expect(auth.token).toBe("current-session");
     expect(replaceRoute).not.toHaveBeenCalled();
   });

@@ -50,5 +50,6 @@ ImgNest 是用 Go + Vue 3 自研的图床，替代蓝空图床（Lsky Pro）社�
 - 发版：在 PR 里执行 `python3 scripts/bump-version.py X.Y.Z`（改 `VERSION` 和文档里的版本号），合并到 `main` 后自动打 tag、建 Release、推镜像，见 `docs/deployment.md`。不要手动建 tag。
 - Go：每个对外函数第一个参数是 `context.Context`；错误用 `%w` 包装，业务错误用哨兵值，handler 统一映射错误码（1xxxx 参数、2xxxx 鉴权、3xxxx 业务、5xxxx 存储/处理）。
 - Vue：`<script setup lang="ts">` + Composition API；请求只写在 `src/api/`，类型由 `docs/openapi.yaml` 生成；全局状态只放用户信息与站点配置。
+- 前端外壳来自 admin-kit 模板：`web-vben/kit.manifest.json` 列出的核心文件（`src/shell/`、`src/router/index.ts`、`src/stores/auth.ts`、`src/api/client.ts` 等）不要在本仓库直接改，先改 admin-kit，再在 admin-kit 里运行 `pnpm kit:sync <imgnest>/web-vben --write` 同步过来。ImgNest 自己的行为写在 `src/app.config.ts`、`src/app.hooks.ts`、`src/router/routes.ts`。
 - 测试目标：`pathtpl`、`imaging`、`service/upload` 覆盖率 ≥ 80%；S3 用 MinIO 做集成测试；蓝空 API 用黄金 JSON 做契约测试。
 - 改了规范、版本或 Skill，同步更新 `docs/` 与对应 `SKILL.md`。

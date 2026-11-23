@@ -1,62 +1,51 @@
 {
   "switchToMarvis": "Switch to the new layout",
-  "layoutLoadFailed": "The layout failed to load, so the other one is shown",
-  "brandBadge": "Images",
-  "search": "Search images",
+  "layoutLoadFailed": "The layout failed to load, so the other layout is shown",
+  "layoutBothFailed": "The page layout failed to load. Check your connection and reload.",
+  "reload": "Reload",
+  "search": "Search",
   "openMenu": "Open navigation",
   "openSettings": "Settings",
   "logout": "Sign out",
   "login": "Sign in",
-  "albums": {
-    "create": "New album",
-    "all": "All albums",
-    "loadFailed": "Could not load albums",
-    "collapse": "Collapse albums",
-    "expand": "Expand albums"
-  },
+  "menuDot": "New notice",
+  "collapseSidebar": "Collapse sidebar",
+  "expandSidebar": "Expand sidebar",
   "palette": {
-    "placeholder": "Search images, or type a page name",
-    "conditions": "Search conditions",
+    "placeholder": "Type a page name",
     "pages": "Pages",
-    "searchFor": "Search my images for \"{query}\"",
-    "openImages": "Open my images"
+    "empty": "No matching pages"
   },
   "settings": {
     "title": "Settings",
+    "appearance": "Appearance",
+    "account": "Account",
     "close": "Close settings",
-    "accountHint": "Profile, password and API tokens are on the Account page.",
+    "accountHint": "Manage your profile and password on the account page.",
     "accountLink": "Open account"
   },
   "appearance": {
     "layout": "Layout",
     "layoutMarvis": "New layout",
-    "layoutMarvisHint": "Floating sidebar with a preview panel",
+    "layoutMarvisHint": "Floating sidebar and card content",
     "layoutClassic": "Classic layout",
-    "layoutClassicHint": "The original header and tabs",
+    "layoutClassicHint": "Vben's original header and tabs",
     "mode": "Theme",
     "modeLight": "Light",
     "modeDark": "Dark",
     "modeAuto": "System",
-    "accent": "Accent colour",
-    "accentOption": "Accent colour {index}",
-    "radius": "Corner radius",
+    "accent": "Accent",
+    "accentOption": "Accent {index}",
+    "radius": "Corners",
     "radiusSmall": "Small",
     "radiusMedium": "Medium",
     "radiusLarge": "Large",
     "compactSidebar": "Compact sidebar",
-    "compactSidebarHint": "Show icons only",
-    "reset": "Restore default appearance",
+    "compactSidebarHint": "Icons only",
+    "reset": "Reset appearance",
     "resetHint": "Accent colour and radius return to the defaults shared by both layouts",
-    "resetAction": "Restore",
+    "resetAction": "Reset",
     "language": "Language",
-    "languageAuto": "Follow browser"
-  },
-  "detailPanel": {
-    "empty": "Click the info area under an image to see its details",
-    "close": "Close details"
-  },
-  "layoutBothFailed": "The page layout could not be loaded. Check your connection and reload.",
-  "reload": "Reload",
-  "collapseSidebar": "Collapse sidebar",
-  "expandSidebar": "Expand sidebar"
+    "languageAuto": "Browser default"
+  }
 }

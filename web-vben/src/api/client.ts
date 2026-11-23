@@ -1,44 +1,37 @@
 /**
- * 同源 HTTP 客户端：自动携带 Bearer token、解析 {code,message,data} 外壳、
- * 统一错误与 401/20001/20002 未授权回调。
+ * HTTP 客户端：自动携带 Bearer token，解析 {code, message, data} 外壳，
+ * 统一抛 ApiError；凭证失效时调用 setUnauthorizedHandler 注册的回调。
  *
- * 注意：本模块不得 import 任何 store（避免循环依赖）；当前 Token
- * 统一由 lib/session 提供，持久化失败时同样可使用内存会话。
+ * 后端约定（换后端时只改这里）：
+ * - 成功：HTTP 2xx + {"code": 0, "data": ...}
+ * - 业务错误：{"code": 非 0, "message": "..."}
+ * - 凭证失效：code === UNAUTHORIZED_CODE；响应不是 JSON 时看 HTTP 401。
+ *   带外壳的 401 以 code 为准（例如「当前密码不正确」也可能是 401，但会话仍有效）。
+ *
+ * token 统一由 lib/session.ts 提供（含跨标签同步与内存降级）。本模块不得 import 任何 store，避免循环依赖。
  */
+import { getSessionToken, setSessionToken } from "@/lib/session";
+import { ApiError } from "./errors";
 
-import { getSessionToken } from "@/lib/session";
+export { ApiError };
 export { TOKEN_STORAGE_KEY } from "@/lib/session";
 
-/**
- * 业务错误：code 为外壳业务码（网络/解析失败为 -1），status 为 HTTP 状态码
- * （仅网络失败为 0；响应体不是 JSON 时保留真实 HTTP 状态）。
- */
-export class ApiError extends Error {
-  readonly code: number;
-  readonly status: number;
-  readonly data: unknown;
+export const UNAUTHORIZED_CODE = 20001;
 
-  constructor(code: number, message: string, status: number, data?: unknown) {
-    super(message);
-    this.name = "ApiError";
-    this.code = code;
-    this.status = status;
-    this.data = data;
-  }
-}
+let unauthorizedHandler: (() => void) | null = null;
 
-export type UnauthorizedHandler = () => void;
-
-let unauthorizedHandler: UnauthorizedHandler | null = null;
-
-/** 注册未授权回调（由 main.ts 注册为「清空登录态并跳转 /login」）。传 null 注销。 */
-export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+/** 由 bootstrap 注册为「清空登录态并跳转登录页」。传 null 注销。 */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
   unauthorizedHandler = handler;
 }
 
-/** 读取当前 bearer token；无 token 返回 null。 */
 export function getToken(): string | null {
   return getSessionToken();
+}
+
+/** 直接改写会话（测试与特殊流程用）。登录、退出请走 stores/auth.ts。 */
+export function setToken(token: string | null): void {
+  setSessionToken(token);
 }
 
 interface Envelope {
@@ -48,46 +41,82 @@ interface Envelope {
 }
 
 /**
- * 发起同源请求并解包 data。
- * - 外壳 code !== 0：抛 ApiError{code, message, status}；
- * - 网络失败：抛 ApiError{code: -1, message: "网络错误", status: 0}；
- * - 响应体不是 JSON（如反代/网关的错误页）：抛 ApiError{code: -1, message: "网络错误",
- *   status: 真实 HTTP 状态}；其中 status === 401 视同 20001 先触发未授权回调
- *   （携带我们的 Bearer 却被网关拒绝，会话已不可用，与 XHR 上传通道同语义）；
- * - 业务码 20001（未鉴权/凭证失效）：先触发 setUnauthorizedHandler 注册的回调再抛错。
+ * 会话失效通知：只有 code === UNAUTHORIZED_CODE 才触发回调（清登录态并跳登录页）。
+ * 迟到的响应（请求已取消，或发请求时的 token 已经不是当前 token）不能清掉之后新建立的会话。
+ * request()、requestBlob() 内部使用；项目自己的 XHR 通道（例如带进度的上传）也应调用它。
  */
-export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export function notifyUnauthorized(
+  code: number,
+  requestToken: string | null,
+  signal?: AbortSignal | null,
+): void {
+  if (code !== UNAUTHORIZED_CODE || signal?.aborted || getToken() !== requestToken) return;
+  unauthorizedHandler?.();
+}
+
+function isAbort(error: unknown, signal?: AbortSignal | null): boolean {
+  return Boolean(signal?.aborted) || (error instanceof DOMException && error.name === "AbortError");
+}
+
+/** 只有普通对象和数组才自动 JSON 序列化；FormData、Blob、URLSearchParams、字符串等原样发送。 */
+function isJsonBody(body: unknown): boolean {
+  if (Array.isArray(body)) return true;
+  if (body === null || typeof body !== "object") return false;
+  const proto = Object.getPrototypeOf(body) as unknown;
+  return proto === Object.prototype || proto === null;
+}
+
+/** 发起请求并解包 data。body 是普通对象或数组时自动 JSON 序列化。 */
+export async function request<T>(
+  path: string,
+  init: Omit<RequestInit, "body"> & { body?: unknown } = {},
+): Promise<T> {
   const token = getToken();
+  const headers = new Headers(init.headers ?? undefined);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  let body = init.body as BodyInit | null | undefined;
+  if (isJsonBody(init.body)) {
+    headers.set("Content-Type", "application/json");
+    body = JSON.stringify(init.body);
+  }
+
+  // 条件必须和 ./mode.ts 的 MOCK_MODE 一致，且原地直接读 import.meta.env：构建时被替换成字面量，
+  // 关闭时这个分支连同 mock.ts（演示账号、假数据）不会出现在产物里。跨模块引用常量做不到这一点。
+  if (
+    import.meta.env.DEV
+      ? import.meta.env.VITE_USE_MOCK !== "false"
+      : import.meta.env.VITE_USE_MOCK === "true"
+  ) {
+    try {
+      const { mockRequest } = await import("./mock");
+      return (await mockRequest(init.method ?? "GET", path, init.body, token)) as T;
+    } catch (error) {
+      if (error instanceof ApiError) notifyUnauthorized(error.code, token, init.signal);
+      throw error;
+    }
+  }
+
   let response: Response;
   try {
-    const headers = new Headers(init.headers ?? undefined);
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
-    response = await fetch(path, { ...init, headers });
+    response = await fetch(path, { ...init, headers, body });
   } catch (error) {
-    if (init.signal?.aborted || (error instanceof DOMException && error.name === "AbortError"))
-      throw error;
-    throw new ApiError(-1, "网络错误", 0);
+    if (isAbort(error, init.signal)) throw error;
+    throw new ApiError(-1, "network", 0);
   }
 
   let envelope: Envelope;
   try {
     envelope = (await response.json()) as Envelope;
   } catch (error) {
-    if (init.signal?.aborted || (error instanceof DOMException && error.name === "AbortError"))
-      throw error;
-    // 非 JSON 响应：保留真实 HTTP 状态。401 说明「携带我们的 Bearer 却被反代/网关拒绝」，
-    // 会话已失效，按 20001 同语义清会话（同 XHR 上传通道 parseUploadResponse）。
-    if (response.status === 401) {
-      notifyUnauthorized(20001, token, init.signal);
-    }
-    throw new ApiError(-1, "网络错误", response.status);
+    if (isAbort(error, init.signal)) throw error;
+    // 非 JSON 响应（反代/网关的错误页）：保留真实 HTTP 状态。401 说明带着我们的 token
+    // 却被网关拒绝，会话已不可用，按凭证失效处理。
+    if (response.status === 401) notifyUnauthorized(UNAUTHORIZED_CODE, token, init.signal);
+    throw new ApiError(-1, "network", response.status);
   }
 
   const code = typeof envelope.code === "number" ? envelope.code : -1;
-  const message = typeof envelope.message === "string" ? envelope.message : "未知错误";
-
+  const message = typeof envelope.message === "string" ? envelope.message : "unknown";
   if (code !== 0) {
     notifyUnauthorized(code, token, init.signal);
     throw new ApiError(code, message, response.status, envelope.data);
@@ -96,46 +125,43 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 }
 
 /**
- * 会话失效通知：仅凭证本身失效（20001：过期/吊销/用户禁用）才触发回调，
- * 清态跳登录；20002 是"凭证内容错误"（如改密时旧密码写错），token 仍有效，
- * 只把错误抛给调用方。request() 内部与 XHR 上传通道共用。
+ * 下载非 JSON 的响应体（CSV 导出、私有图片、文件等），带同样的 token、取消与错误处理：
+ * 失败响应按 {code, message} 外壳解析；不是 JSON 的 401 当作凭证失效。演示模式下不走假后端。
  */
-export function notifyUnauthorized(
-  code: number,
-  requestToken: string | null,
-  signal?: AbortSignal | null,
-): void {
-  // Late responses must never clear a newer login or an already-cancelled view.
-  if (code !== 20001 || signal?.aborted || getToken() !== requestToken) {
-    return;
-  }
-  unauthorizedHandler?.();
-}
-
-/** Read a private binary asset using the same session and cancellation rules. */
-export async function requestBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+export async function requestBlob(
+  path: string,
+  init: { signal?: AbortSignal } = {},
+): Promise<Blob> {
   const token = getToken();
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   let response: Response;
   try {
-    response = await fetch(path, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      signal,
-    });
+    response = await fetch(path, { headers, signal: init.signal });
   } catch (error) {
-    if (signal?.aborted) throw error;
-    throw new ApiError(-1, "网络错误", 0);
+    if (isAbort(error, init.signal)) throw error;
+    throw new ApiError(-1, "network", 0);
   }
-  if (!response.ok) {
-    const envelope = (await response.json().catch(() => ({}))) as Envelope;
-    const code =
-      typeof envelope.code === "number" ? envelope.code : response.status === 401 ? 20001 : -1;
-    notifyUnauthorized(code, token, signal);
-    throw new ApiError(
-      code,
-      typeof envelope.message === "string" ? envelope.message : "网络错误",
-      response.status,
-      envelope.data,
-    );
+  if (response.ok && !response.headers.get("content-type")?.includes("application/json"))
+    return response.blob();
+  let envelope: Envelope = {};
+  try {
+    envelope = (await response.json()) as Envelope;
+  } catch (error) {
+    if (isAbort(error, init.signal)) throw error;
+    // 也不是 JSON：按 HTTP 状态报错。
   }
-  return response.blob();
+  const code =
+    typeof envelope.code === "number"
+      ? envelope.code
+      : response.status === 401
+        ? UNAUTHORIZED_CODE
+        : -1;
+  notifyUnauthorized(code, token, init.signal);
+  throw new ApiError(
+    code,
+    typeof envelope.message === "string" ? envelope.message : "network",
+    response.status,
+    envelope.data,
+  );
 }

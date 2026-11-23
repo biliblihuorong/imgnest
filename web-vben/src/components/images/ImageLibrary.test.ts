@@ -28,12 +28,12 @@ import ImageCard from "@/components/images/ImageCard.vue";
 import ImageDetailDrawer from "@/components/images/ImageDetailDrawer.vue";
 import { makeExif, makeImage } from "@/components/images/fixtures";
 import ImageDetailPanel from "@/components/images/ImageDetailPanel.vue";
-import { setShell } from "@/integrations/shell/useShell";
+import { setShell } from "@/shell/useShell";
 import ImageLibrary from "./ImageLibrary.vue";
 
 // jsdom 没有 matchMedia，默认按窄屏处理（沿用详情抽屉）；面板用例显式置为宽屏。
 const wideViewport = ref(false);
-vi.mock("@/components/layout/marvis/useNarrowViewport", () => ({
+vi.mock("@/shell/marvis/useNarrowViewport", () => ({
   useViewportAtLeast: () => wideViewport,
 }));
 

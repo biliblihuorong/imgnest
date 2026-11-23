@@ -4,7 +4,8 @@ import { computed, onBeforeUnmount, ref, useTemplateRef } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "@vben/locales";
 import { formatApiError } from "@/locales/errors";
-import { landingPath, safeRedirect } from "@/router/landing";
+import { homePath } from "@/app.hooks";
+import { safeRedirect } from "@/router";
 import AuthCaptcha from "@/components/captcha/AuthCaptcha.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useSiteStore } from "@/stores/site";
@@ -61,11 +62,14 @@ async function onSubmit(): Promise<void> {
   serverError.value = null;
   try {
     const captchaToken = captcha.value!.consume();
-    const login = auth.login(email.value.trim(), password.value, captchaToken, request.signal);
+    const login = auth.login(
+      { email: email.value.trim(), password: password.value, captchaToken },
+      request.signal,
+    );
     const generation = auth.sessionGeneration;
     const user = await login;
     if (disposed || request.signal.aborted || auth.sessionGeneration !== generation) return;
-    await router.push(safeRedirect(redirect, landingPath(user.role), router));
+    await router.push(safeRedirect(redirect, router, homePath(user)));
   } catch (error) {
     if (
       disposed ||

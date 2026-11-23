@@ -2,17 +2,173 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="referrer" content="same-origin" />
-    <title>ImgNest</title>
-    <link rel="icon" type="image/svg+xml" href="/src/assets/imgnest-mark.svg" />
+    <title>%APP_NAME%</title>
+    <link rel="icon" href="%APP_LOGO%" />
+    <!--
+      启动加载画面：脚本和样式加载完之前就要显示，所以全部内联、不依赖任何包。
+      颜色读取 Vben 存在 localStorage 的偏好（深浅色、强调色），避免深色用户先看到一闪白屏。
+      %APP_NAME% / %APP_LOGO% / %APP_STORAGE_PREFIX% 由 build/app-config-html.ts 从 src/app.config.ts 注入，
+      换品牌只改 app.config.ts，不用动这里。
+      应用就绪后由 src/lib/appLoading.ts 淡出并移除。
+    -->
+    <script>
+      (function () {
+        var ns = "%APP_STORAGE_PREFIX%-vben-v1-";
+        function read(key) {
+          try {
+            return JSON.parse(localStorage.getItem(ns + key) || "null");
+          } catch (e) {
+            return null;
+          }
+        }
+        var root = document.documentElement;
+        var mode = (read("preferences-theme") || {}).value || "auto";
+        var dark =
+          mode === "dark" ||
+          (mode === "auto" &&
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) root.classList.add("dark");
+        var prefs = (read("preferences") || {}).value || {};
+        var primary = prefs.theme && prefs.theme.colorPrimary;
+        if (typeof primary === "string" && /^[#a-z0-9(),.%\s-]+$/i.test(primary))
+          root.style.setProperty("--app-loading-accent", primary);
+        var locale = (read("preferences-locale") || {}).value;
+        if (locale === "en-US") root.lang = "en";
+      })();
+    </script>
+    <style>
+      #__app-loading__ {
+        --accent: var(--app-loading-accent, hsl(230 100% 62%));
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        background: hsl(240 6% 97%);
+        transition:
+          opacity 0.28s ease,
+          visibility 0.28s;
+      }
+      .dark #__app-loading__ {
+        background: hsl(240 6% 7%);
+      }
+      #__app-loading__.is-hidden {
+        visibility: hidden;
+        opacity: 0;
+      }
+      .app-loading__box {
+        display: grid;
+        gap: 22px;
+        justify-items: center;
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          "PingFang SC",
+          "Microsoft YaHei",
+          sans-serif;
+      }
+      .app-loading__logo {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        box-shadow: 0 10px 30px -8px color-mix(in srgb, var(--accent) 55%, transparent);
+        animation: app-loading-breathe 1.6s ease-in-out infinite;
+      }
+      .app-loading__bar {
+        position: relative;
+        width: 120px;
+        height: 3px;
+        overflow: hidden;
+        background: color-mix(in srgb, var(--accent) 16%, transparent);
+        border-radius: 3px;
+      }
+      .app-loading__bar::after {
+        position: absolute;
+        inset: 0;
+        width: 40%;
+        content: "";
+        background: var(--accent);
+        border-radius: inherit;
+        animation: app-loading-slide 1.1s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+      }
+      .app-loading__error {
+        display: none;
+        max-width: 280px;
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.6;
+        color: hsl(240 4% 40%);
+        text-align: center;
+      }
+      .dark .app-loading__error {
+        color: hsl(240 5% 70%);
+      }
+      .app-loading__error button {
+        margin-top: 12px;
+        padding: 6px 18px;
+        font: inherit;
+        color: #fff;
+        cursor: pointer;
+        background: var(--accent);
+        border: 0;
+        border-radius: 8px;
+      }
+      #__app-loading__.is-error .app-loading__bar {
+        display: none;
+      }
+      #__app-loading__.is-error .app-loading__logo {
+        animation: none;
+      }
+      #__app-loading__.is-error .app-loading__error {
+        display: block;
+      }
+      .app-loading__sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      @keyframes app-loading-slide {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(250%);
+        }
+      }
+      @keyframes app-loading-breathe {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(0.94);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .app-loading__logo,
+        .app-loading__bar::after {
+          animation-duration: 3s;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="app">
-      <div role="status" style="padding: 48px; font-family: system-ui; text-align: center">
-        ImageNest · Loading / 正在加载
+    <div id="__app-loading__" role="status" aria-live="polite">
+      <div class="app-loading__box">
+        <img class="app-loading__logo" src="%APP_LOGO%" alt="" />
+        <div class="app-loading__bar"></div>
+        <p class="app-loading__error"></p>
+        <span class="app-loading__sr">Loading / 正在加载</span>
       </div>
     </div>
+    <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

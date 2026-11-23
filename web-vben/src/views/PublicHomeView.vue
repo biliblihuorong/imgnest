@@ -30,7 +30,7 @@ import {
 import { useUploadQueue } from "@/components/upload/useUploadQueue";
 import { copyText } from "@/lib/clipboard";
 import { formatBytes } from "@/lib/format";
-import { landingPath } from "@/router/landing";
+import { landingPath } from "@/app.hooks";
 import { useAuthStore } from "@/stores/auth";
 import { useSiteStore } from "@/stores/site";
 

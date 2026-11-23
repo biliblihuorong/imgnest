@@ -24,7 +24,7 @@ const { t } = useI18n();
           type="button"
           class="image-detail-panel__close"
           data-testid="detail-panel-close"
-          :aria-label="t('shell.detailPanel.close')"
+          :aria-label="t('workspace.detailPanel.close')"
           @click="emit('close')"
         >
           <X class="image-detail-panel__icon" />
@@ -35,7 +35,7 @@ const { t } = useI18n();
       </div>
     </template>
     <div v-else class="image-detail-panel__empty" data-testid="detail-panel-empty">
-      {{ t("shell.detailPanel.empty") }}
+      {{ t("workspace.detailPanel.empty") }}
     </div>
   </aside>
 </template>

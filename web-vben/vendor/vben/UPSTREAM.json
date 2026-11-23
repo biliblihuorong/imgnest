@@ -824,57 +824,57 @@
     {
       "path": "packages/@core/ui-kit/form-ui/src/form-render/form-field.vue",
       "upstreamSha256": "beebce0e0d39401155d3a09e271fc213c9e9b2256bc34a960ccffd0295e753b2",
-      "imgnestSha256": "2f380c1cb5d4ec3a76b0d3ab7b0bc31c60b09f6bd035a03071515c39fb62b32e"
+      "integratedSha256": "2f380c1cb5d4ec3a76b0d3ab7b0bc31c60b09f6bd035a03071515c39fb62b32e"
     },
     {
       "path": "packages/@core/ui-kit/form-ui/src/form-render/form.vue",
       "upstreamSha256": "771b09d6dd652eba842fce50d878e91d5446bd8dc1c77deda36ee7a014420129",
-      "imgnestSha256": "b4a7b1086495e6f464dde1db761e1c3b21eacef6408337a82078aab77d579412"
+      "integratedSha256": "b4a7b1086495e6f464dde1db761e1c3b21eacef6408337a82078aab77d579412"
     },
     {
       "path": "packages/@core/ui-kit/popup-ui/src/modal/modal.vue",
       "upstreamSha256": "8e2879d88d85f8b2be874cee179e9674e40b130ae3f952e7e545f1a3e43d2afb",
-      "imgnestSha256": "ee6f9c647c669a0a1babcf85feedbf91162bdfd8e815f61fb5ea5e6e86bc2eac"
+      "integratedSha256": "ee6f9c647c669a0a1babcf85feedbf91162bdfd8e815f61fb5ea5e6e86bc2eac"
     },
     {
       "path": "packages/@core/ui-kit/popup-ui/src/drawer/drawer.vue",
       "upstreamSha256": "8679d799e533458b7e933970e970d498ffeddc01d3f3cb7119a4b7e975d71c24",
-      "imgnestSha256": "dde1dff1e5767de3054887b5718698fd168b33b0af1bb29d82b6503669e31492"
+      "integratedSha256": "dde1dff1e5767de3054887b5718698fd168b33b0af1bb29d82b6503669e31492"
     },
     {
       "path": "packages/@core/ui-kit/tabs-ui/src/tabs-view.vue",
       "upstreamSha256": "0267aad7131d7e960c159e57eccc580272dc41b171b2522294721129748b08da",
-      "imgnestSha256": "5b76224711d0af38a65661527568c30fbdd9c2a973c25950447e8af30b94fd97"
+      "integratedSha256": "5b76224711d0af38a65661527568c30fbdd9c2a973c25950447e8af30b94fd97"
     },
     {
       "path": "packages/@core/ui-kit/tabs-ui/src/components/tabs-chrome/tabs.vue",
       "upstreamSha256": "0672c2625a7cd296ca3b58be0420dd7d8a5cd00a00cdd5333f6d57931393b9bb",
-      "imgnestSha256": "12e4390669bca5ce95f5b880157af6a599cee5e632851f77d5ceee7f2cd593ee"
+      "integratedSha256": "12e4390669bca5ce95f5b880157af6a599cee5e632851f77d5ceee7f2cd593ee"
     },
     {
       "path": "packages/@core/base/typings/vue-router.d.ts",
       "upstreamSha256": "f400a3e497ff2ce5aecac18e3377b46c8588532d31215cda7b026f46807e3a8b",
-      "imgnestSha256": "dc7ef0bc4e69ed585da56e17866c33a3e654a53da5811f4bce76e7d7af306bee"
+      "integratedSha256": "dc7ef0bc4e69ed585da56e17866c33a3e654a53da5811f4bce76e7d7af306bee"
     },
     {
       "path": "packages/effects/common-ui/src/components/icon-picker/icons.ts",
       "upstreamSha256": "b1d270c97a25658560250c8e6cbcb7e9e4fab1c55e08113dc309bff0fb33b0d7",
-      "imgnestSha256": "e018e82864ccfd42852ab9bab7123664158eeafcea3cf55e482372ac5f18017a"
+      "integratedSha256": "e018e82864ccfd42852ab9bab7123664158eeafcea3cf55e482372ac5f18017a"
     },
     {
       "path": "internal/tailwind-config/src/theme.css",
       "upstreamSha256": "6c2e6cc0ec0a807af4374145ab800e5147ee6171f687376d6d976e1d13df2b2c",
-      "imgnestSha256": "e7d996973b0dcf1d8eb45f0ff1e948e8b92d6f987a621d559eabe34a77922538"
+      "integratedSha256": "e7d996973b0dcf1d8eb45f0ff1e948e8b92d6f987a621d559eabe34a77922538"
     },
     {
       "path": "packages/utils/src/helpers/generate-menus.ts",
       "upstreamSha256": "43744932e3ef89b9b64a0f1ac17155c0eb9e930d85ee164ad979e6ff8d62e690",
-      "imgnestSha256": "7e2b71b0e29697aa0e71a03918176b2aa9c2782e0481c83dfad7ad72701d7be9"
+      "integratedSha256": "7e2b71b0e29697aa0e71a03918176b2aa9c2782e0481c83dfad7ad72701d7be9"
     },
     {
       "path": "packages/effects/layouts/src/basic/layout.vue",
       "upstreamSha256": "5bef780c260f55bee63ccc54059755f19c19095e7310c6d5dac62134f0bb0b18",
-      "imgnestSha256": "c4a4e307b6fd9ce5ae2eaf3211fc972e0d489f5683ef3aea3b682d87a7ddbf14"
+      "integratedSha256": "c4a4e307b6fd9ce5ae2eaf3211fc972e0d489f5683ef3aea3b682d87a7ddbf14"
     }
   ]
 }

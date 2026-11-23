@@ -4,7 +4,12 @@ import { NButton, NDrawer, NDrawerContent, NTag, useMessage } from "naive-ui";
 import { computed } from "vue";
 import type { ImageView } from "@/api/images";
 import { copyText } from "@/lib/clipboard";
-import { buildLinkText, resolveImageLink, type LinkFormat, type LinkVersion } from "@/components/upload/linkText";
+import {
+  buildLinkText,
+  resolveImageLink,
+  type LinkFormat,
+  type LinkVersion,
+} from "@/components/upload/linkText";
 
 /**
  * 复制链接抽屉：一个图片的全部「版本 × 格式」矩阵。
@@ -73,11 +78,7 @@ async function copy(section: VersionSection, format: LinkFormat): Promise<void> 
 </script>
 
 <template>
-  <NDrawer
-    :show="props.show"
-    width="min(460px, 100vw)"
-    @update:show="emit('update:show', $event)"
-  >
+  <NDrawer :show="props.show" width="min(460px, 100vw)" @update:show="emit('update:show', $event)">
     <NDrawerContent :title="t('user.upload.linksTitle')" closable>
       <p class="copy-drawer__name" :title="name">{{ name }}</p>
       <section v-for="section in sections" :key="section.value" class="copy-drawer__section">

@@ -11,6 +11,26 @@ export type UserView = components["schemas"]["UserView"];
 /** 登录成功数据，对应 openapi components.schemas.LoginData。 */
 export type LoginData = components["schemas"]["LoginData"];
 
+/**
+ * 外壳（src/shell）认识的当前用户：UserView 加上 admin-kit 约定的 displayName。
+ * 由 api/auth.ts 的 toCurrentUser 转换；auth store 里存的都是这个形状。
+ */
+export type CurrentUser = UserView & { displayName?: string };
+
+/** auth store 的 login 收到的登录表单。 */
+export interface LoginCredentials {
+  email: string;
+  password: string;
+  /** 开启人机验证时的验证码 token。 */
+  captchaToken?: string;
+}
+
+/** admin-kit 约定的登录结果形状（LoginData 转换后）。 */
+export interface LoginResult {
+  token: string;
+  user: CurrentUser;
+}
+
 /** GET /api/site 返回数据（公开，仅含站点名与注册开关），对应 SiteView。 */
 export type SiteInfo = components["schemas"]["SiteView"];
 /** 服务端扩展提供的登录方式，对应 LoginProvider。 */
