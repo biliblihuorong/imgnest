@@ -4,7 +4,7 @@ import { usePreferences } from "@vben/preferences";
 import { NButton } from "naive-ui";
 import { computed, onBeforeUnmount, shallowRef, useTemplateRef, watch } from "vue";
 import type { CaptchaAction, PublicCaptchaConfig } from "@/api/captcha";
-import { loadTurnstile, type TurnstileApi } from "./turnstile";
+import { loadTurnstile, type TurnstileApi, type TurnstileOptions } from "./turnstile";
 
 const props = withDefaults(
   defineProps<{
@@ -24,6 +24,8 @@ const { isDark } = usePreferences();
 const theme = computed(() => (isDark.value ? "dark" : "light"));
 let api: TurnstileApi | undefined;
 let widgetId: string | undefined;
+/** 当前小组件渲染时用的语言；切换语言后点「重试」时据此决定重建还是原地 reset。 */
+let renderedLanguage: TurnstileOptions["language"] | undefined;
 let generation = 0;
 let disposed = false;
 let acceptingToken = false;
@@ -44,6 +46,7 @@ function remove(): void {
     }
   }
   widgetId = undefined;
+  renderedLanguage = undefined;
 }
 async function render(): Promise<void> {
   remove();
@@ -66,10 +69,11 @@ async function render(): Promise<void> {
       clearToken();
       state.value = next;
     };
+    renderedLanguage = language.value;
     widgetId = provider.render(container.value, {
       sitekey: props.config.site_key,
       action: props.action,
-      language: language.value,
+      language: renderedLanguage,
       size: props.size,
       theme: theme.value,
       "response-field": false,
@@ -105,7 +109,8 @@ async function render(): Promise<void> {
 function reset(): void {
   acceptingToken = false;
   clearToken();
-  if (!api || widgetId === undefined) {
+  // 语言变过就重建：Turnstile 的 reset 会沿用渲染时的语言。
+  if (!api || widgetId === undefined || renderedLanguage !== language.value) {
     void render();
     return;
   }
@@ -118,7 +123,7 @@ function reset(): void {
     state.value = "unavailable";
   }
 }
-// theme 只在渲染时读取：Turnstile 不能原地换主题，重建会作废已通过或进行中的验证。
+// theme 与 language 只在渲染时读取：Turnstile 不能原地换主题或语言，重建会作废已通过或进行中的验证。
 watch(
   () => [
     container.value,
@@ -128,13 +133,17 @@ watch(
     props.config.version,
     props.action,
     props.size,
-    language.value,
   ],
   () => {
     void render();
   },
   { flush: "post" },
 );
+// 切换语言时，只有已失效/不可用（反正要重新验证）的小组件才按新语言重建；
+// 已通过或进行中的保留，等下次 reset/重试 时再换语言。界面上的状态文案本身随语言即时切换。
+watch(language, () => {
+  if (state.value === "expired" || state.value === "unavailable") void render();
+});
 watch(() => props.resetKey, reset, { flush: "sync" });
 onBeforeUnmount(() => {
   disposed = true;
