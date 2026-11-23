@@ -62,25 +62,64 @@ describe("CAPTCHA widget lifecycle", () => {
     expect(wrapper.emitted("token")?.at(-1)).toEqual(["fresh-token"]);
     wrapper.unmount();
   });
-  it("removes stale widgets on language/config/action changes and ignores old callbacks", async () => {
+  it("removes stale widgets on config/action changes and ignores old callbacks", async () => {
     const wrapper = mount(CaptchaChallenge, { props: { config, action: "login" } });
     await flushPromises();
     options[0]!.callback("old");
+    await wrapper.setProps({
+      config: { ...config, version: 2, site_key: "new-key" },
+      action: "register",
+    });
+    await flushPromises();
+    expect(remove).toHaveBeenCalledWith("widget-1");
+    expect(options[1]).toMatchObject({ sitekey: "new-key", action: "register" });
+    options[0]!.callback("stale");
+    expect(wrapper.emitted("token")?.at(-1)).toEqual([null]);
+    wrapper.unmount();
+    options[1]!.callback("after-unmount");
+    expect(wrapper.emitted("token")?.at(-1)).toEqual([null]);
+  });
+  it("keeps a solved or in-progress challenge when the language changes", async () => {
+    const wrapper = mount(CaptchaChallenge, { props: { config, action: "login" } });
+    await flushPromises();
+    i18n.global.locale.value = "en-US";
+    await flushPromises();
+    expect(render).toHaveBeenCalledTimes(1);
+    options[0]!.callback("solved");
+    i18n.global.locale.value = "zh-CN";
+    await flushPromises();
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(remove).not.toHaveBeenCalled();
+    expect(wrapper.emitted("token")?.at(-1)).toEqual(["solved"]);
+    expect(wrapper.text()).toContain("验证已完成");
+    wrapper.unmount();
+  });
+  it("re-renders an expired challenge in the new language", async () => {
+    const wrapper = mount(CaptchaChallenge, { props: { config, action: "login" } });
+    await flushPromises();
+    options[0]!["expired-callback"]();
+    await flushPromises();
     i18n.global.locale.value = "en-US";
     await flushPromises();
     expect(remove).toHaveBeenCalledWith("widget-1");
     expect(options[1]?.language).toBe("en");
     options[0]!.callback("stale");
     expect(wrapper.emitted("token")?.at(-1)).toEqual([null]);
-    await wrapper.setProps({
-      config: { ...config, version: 2, site_key: "new-key" },
-      action: "register",
-    });
-    await flushPromises();
-    expect(options[2]).toMatchObject({ sitekey: "new-key", action: "register" });
     wrapper.unmount();
-    options[2]!.callback("after-unmount");
-    expect(wrapper.emitted("token")?.at(-1)).toEqual([null]);
+  });
+  it("uses the new language when retrying after a language change", async () => {
+    const wrapper = mount(CaptchaChallenge, { props: { config, action: "login" } });
+    await flushPromises();
+    i18n.global.locale.value = "en-US";
+    await flushPromises();
+    options[0]!["error-callback"]();
+    await flushPromises();
+    expect(render).toHaveBeenCalledTimes(1);
+    await wrapper.find("button").trigger("click");
+    await flushPromises();
+    expect(reset).not.toHaveBeenCalled();
+    expect(options[1]?.language).toBe("en");
+    wrapper.unmount();
   });
   it("keeps a solved or in-progress challenge when the colour mode changes", async () => {
     updatePreferences({ theme: { mode: "light" } });
