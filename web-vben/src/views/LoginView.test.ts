@@ -8,7 +8,7 @@ import * as authApi from "@/api/auth";
 import { fetchCaptcha } from "@/api/captcha";
 import type { TurnstileOptions } from "@/components/captcha/turnstile";
 import * as siteApi from "@/api/site";
-import type { LoginData, LoginProvider, UserView } from "@/api/types";
+import type { LoginResult, LoginProvider, UserView } from "@/api/types";
 import { useAuthStore } from "@/stores/auth";
 import LoginView from "./LoginView.vue";
 
@@ -160,16 +160,13 @@ describe("LoginView", () => {
     authApiMock.login.mockResolvedValue({
       token: "7|token",
       user: userFixture,
-      expires_at: "2026-10-05T00:00:00Z",
     });
     const { wrapper, router } = await mountLoginView({ initialRoute: "/login?redirect=/images" });
 
     await fillAndSubmit(wrapper);
 
     expect(authApiMock.login).toHaveBeenCalledWith(
-      "alice@example.com",
-      "password-123",
-      undefined,
+      { email: "alice@example.com", password: "password-123" },
       expect.any(AbortSignal),
     );
     expect(router.currentRoute.value.path).toBe("/images");
@@ -179,7 +176,6 @@ describe("LoginView", () => {
     authApiMock.login.mockResolvedValue({
       token: "7|token",
       user: userFixture,
-      expires_at: "2026-10-05T00:00:00Z",
     });
     const { wrapper, router } = await mountLoginView();
 
@@ -214,7 +210,6 @@ describe("LoginView", () => {
     authApiMock.login.mockResolvedValue({
       token: "7|token",
       user: { ...userFixture, role: "admin" },
-      expires_at: "2026-10-05T00:00:00Z",
     });
     const { wrapper, router } = await mountLoginView();
     await fillAndSubmit(wrapper);
@@ -234,7 +229,6 @@ describe("LoginView", () => {
     authApiMock.login.mockResolvedValue({
       token: "7|token",
       user: userFixture,
-      expires_at: "2026-10-05T00:00:00Z",
     });
     const { wrapper, router } = await mountLoginView({
       initialRoute: "/login?redirect=" + encodeURIComponent("/\\evil.test"),
@@ -243,7 +237,7 @@ describe("LoginView", () => {
     expect(router.currentRoute.value.path).toBe("/upload");
   });
   it("cancels an unmounted login and ignores its eventual success and redirect", async () => {
-    let finish!: (value: LoginData) => void;
+    let finish!: (value: LoginResult) => void;
     authApiMock.login.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -254,15 +248,15 @@ describe("LoginView", () => {
     await fillAndSubmit(wrapper);
     wrapper.unmount();
     await router.push("/register");
-    finish({ token: "7|late", user: userFixture, expires_at: "2026-10-05T00:00:00Z" });
+    finish({ token: "7|late", user: userFixture });
     await flushPromises();
     expect(useAuthStore(pinia).token).toBeNull();
     expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
     expect(router.currentRoute.value.path).toBe("/register");
-    expect(authApiMock.login.mock.calls[0]?.[3]?.aborted).toBe(true);
+    expect(authApiMock.login.mock.calls[0]?.[1]?.aborted).toBe(true);
   });
   it("keeps a reopened login's account and destination after the first view completes late", async () => {
-    let finishFirst!: (value: LoginData) => void;
+    let finishFirst!: (value: LoginResult) => void;
     authApiMock.login.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -277,11 +271,10 @@ describe("LoginView", () => {
     authApiMock.login.mockResolvedValueOnce({
       token: "8|second",
       user: secondUser,
-      expires_at: "2026-10-05T00:00:00Z",
     });
     const second = await mountLoginView({ pinia: first.pinia });
     await fillAndSubmit(second.wrapper);
-    finishFirst({ token: "7|first", user: userFixture, expires_at: "2026-10-05T00:00:00Z" });
+    finishFirst({ token: "7|first", user: userFixture });
     await flushPromises();
     expect(useAuthStore(first.pinia).user).toEqual(secondUser);
     expect(localStorage.getItem(TOKEN_STORAGE_KEY)).toBe("8|second");
@@ -290,7 +283,7 @@ describe("LoginView", () => {
     second.wrapper.unmount();
   });
   it("preserves an in-flight valid login and its inputs when language changes", async () => {
-    let finish!: (value: LoginData) => void;
+    let finish!: (value: LoginResult) => void;
     authApiMock.login.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -304,11 +297,10 @@ describe("LoginView", () => {
     expect((wrapper.get('input[aria-label="Password"]').element as HTMLInputElement).value).toBe(
       "password-123",
     );
-    expect(authApiMock.login.mock.calls[0]?.[3]?.aborted).toBe(false);
+    expect(authApiMock.login.mock.calls[0]?.[1]?.aborted).toBe(false);
     finish({
       token: "7|valid",
       user: { ...userFixture, role: "admin" },
-      expires_at: "2026-10-05T00:00:00Z",
     });
     await flushPromises();
     expect(router.currentRoute.value.path).toBe("/dashboard");
@@ -356,9 +348,7 @@ describe("LoginView CAPTCHA integration", () => {
     await wrapper.find("form").trigger("submit");
     expect(authApiMock.login).toHaveBeenCalledTimes(1);
     expect(authApiMock.login).toHaveBeenCalledWith(
-      "alice@example.com",
-      "password-123",
-      "one-use-token",
+      { email: "alice@example.com", password: "password-123", captchaToken: "one-use-token" },
       expect.any(AbortSignal),
     );
     expect(localStorage.length).toBe(0);

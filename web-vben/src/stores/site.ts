@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { fetchSite } from "@/api/site";
+import { applySite } from "@/shell/site";
 import type { LoginProvider } from "@/api/types";
 
 interface SiteState {
@@ -49,6 +50,8 @@ export const useSiteStore = defineStore("site", {
           const site = await fetchSite();
           if (pendingRefresh.get(this)?.token !== token) return;
           this.siteName = site.site_name;
+          // 外壳（侧栏、登录页、经典布局、浏览器标题）的站名跟着站点设置走。
+          applySite({ name: site.site_name });
           this.registerEnabled = site.register_enabled;
           this.galleryEnabled = site.gallery_enabled;
           this.emailVerification = site.email_verification ?? false;

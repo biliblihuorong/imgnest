@@ -14,6 +14,7 @@ import {
 } from "naive-ui";
 import { computed, reactive, ref, shallowRef, watch } from "vue";
 import { updateDisplayName } from "@/api/auth";
+import { toCurrentUser } from "@/api/currentUser";
 import { useAccountScope } from "./useAccountScope";
 import { useUserAvatar } from "./useUserAvatar";
 import { formatApiError } from "@/locales/errors";
@@ -77,7 +78,7 @@ async function onSave(): Promise<void> {
     const updated = await updateDisplayName(model.display_name);
     // 迟到的成功响应不得写回别的会话。
     if (!scope.isCurrent(version)) return;
-    auth.setUser(updated);
+    auth.setUser(toCurrentUser(updated));
     message.success(() => t("account.profile.saved"));
   } catch (error) {
     if (scope.isCurrent(version)) serverError.value = error;

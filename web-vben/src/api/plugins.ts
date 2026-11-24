@@ -49,7 +49,7 @@ export function saveUserPluginSettings(
   });
 }
 export function getUserPluginAsset(name: string, signal?: AbortSignal): Promise<Blob> {
-  return requestBlob(`${userPluginPath(name)}/asset`, signal);
+  return requestBlob(`${userPluginPath(name)}/asset`, { signal });
 }
 export function putUserPluginAsset(
   name: string,

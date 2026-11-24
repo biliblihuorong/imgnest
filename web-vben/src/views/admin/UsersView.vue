@@ -29,6 +29,7 @@ import {
 } from "naive-ui";
 import { computed, h, onMounted, onUnmounted, reactive, ref, shallowRef } from "vue";
 import { useRouter } from "vue-router";
+import { toCurrentUser } from "@/api/currentUser";
 import { useAuthStore } from "@/stores/auth";
 import {
   createUser,
@@ -198,7 +199,7 @@ async function applyUserUpdate(
       await router.replace("/login");
       return false;
     }
-    auth.setUser(updated);
+    auth.setUser(toCurrentUser(updated));
   }
   if (disposed) return false;
   users.value = users.value.map((user) => (user.id === updated.id ? updated : user));

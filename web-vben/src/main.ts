@@ -1,21 +1,26 @@
 import { initPreferences, preferences } from "@vben/preferences";
 import "@vben/styles";
 import "@vben/styles/naive";
-import { imgnestPreferences } from "./integrations/vben/preferences";
+import { appConfig } from "./app.config";
+import { showAppLoadError } from "./lib/appLoading";
+import { appPreferences } from "./shell/preferences";
+import "./assets/kit.css";
 import "./assets/app.css";
 import "./assets/marvis.css";
 
 async function start(): Promise<void> {
-  await initPreferences({ namespace: "imgnest-vben-v1", overrides: imgnestPreferences });
+  await initPreferences({
+    namespace: `${appConfig.storagePrefix}-vben-v1`,
+    overrides: appPreferences,
+  });
   const { bootstrap } = await import("./bootstrap");
   await bootstrap();
 }
 
 void start().catch(() => {
-  const root = document.getElementById("app");
-  if (root)
-    root.textContent =
-      preferences.app.locale === "en-US"
-        ? "Unable to load the app. Please refresh."
-        : "页面加载失败，请刷新后重试。";
+  const en = preferences.app.locale === "en-US";
+  showAppLoadError(
+    en ? "Unable to load the app. Please try again." : "页面加载失败，请稍后重试。",
+    en ? "Reload" : "重新加载",
+  );
 });

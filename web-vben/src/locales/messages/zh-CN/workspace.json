@@ -1,0 +1,22 @@
+{
+  "brandBadge": "图床",
+  "search": "搜索图片",
+  "albums": {
+    "create": "新建相册",
+    "all": "全部相册",
+    "loadFailed": "相册加载失败",
+    "collapse": "收起相册",
+    "expand": "展开相册"
+  },
+  "palette": {
+    "placeholder": "搜索图片，或输入页面名称",
+    "conditions": "搜索条件",
+    "pages": "页面",
+    "searchFor": "在我的图片中搜索「{query}」",
+    "openImages": "打开我的图片"
+  },
+  "detailPanel": {
+    "empty": "点击图片下方的信息区查看详情",
+    "close": "关闭详情"
+  }
+}

@@ -16,7 +16,7 @@ import {
   NNotificationProvider,
   zhCN,
 } from "naive-ui";
-import AppLayout from "@/components/layout/AppLayout.vue";
+import AppLayout from "@/shell/AppLayout.vue";
 import { useAuthStore } from "@/stores/auth";
 
 const { locale } = useI18n();
@@ -29,6 +29,8 @@ const themeOverrides = computed(() => ({ common: commonTokens }));
 const route = useRoute();
 const auth = useAuthStore();
 const isBare = computed(() => route.meta.bare === true);
+// 首次导航完成前 route 还是空的起始位置；此时挂外壳会给经典布局塞一个没有标题的“/”标签页。
+const ready = computed(() => route.matched.length > 0);
 </script>
 
 <template>
@@ -44,7 +46,7 @@ const isBare = computed(() => route.meta.bare === true);
         <NDialogProvider>
           <NGlobalStyle />
           <RouterView v-if="isBare" />
-          <AppLayout v-else :key="auth.sessionGeneration" />
+          <AppLayout v-else-if="ready" :key="auth.sessionGeneration" />
         </NDialogProvider>
       </NMessageProvider>
     </NNotificationProvider>

@@ -167,7 +167,7 @@ describe("api client request", () => {
     const error = await request("/api/x").catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).code).toBe(-1);
-    expect((error as ApiError).message).toBe("网络错误");
+    expect((error as ApiError).message).toBe("network");
     expect((error as ApiError).status).toBe(0);
   });
 
@@ -191,7 +191,7 @@ describe("api client request", () => {
     const error = await request("/api/x").catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).code).toBe(-1);
-    expect((error as ApiError).message).toBe("网络错误");
+    expect((error as ApiError).message).toBe("network");
     expect((error as ApiError).status).toBe(502);
     expect(handler).not.toHaveBeenCalled();
   });

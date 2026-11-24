@@ -3,10 +3,11 @@ import { useAuthStore } from "@/stores/auth";
 import { useSiteStore } from "@/stores/site";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TOKEN_STORAGE_KEY } from "@/api/client";
-import { ROUTER_NAMES, setupRouter } from "./index";
+import { setupRouter } from "./index";
+import { ROUTER_NAMES } from "./routes";
 
 // 守卫测试只关心导航行为：用轻量 stub 替换真实视图模块，避免在测试阶段加载 naive-ui
-vi.mock("@/components/layout/AuthLayout.vue", () => ({
+vi.mock("@/shell/AuthLayout.vue", () => ({
   default: { name: "AuthLayoutStub", template: "<RouterView />" },
 }));
 vi.mock("@/views/LoginView.vue", () => ({
@@ -93,7 +94,6 @@ describe("router 守卫", () => {
           data: {
             token: "7|memory",
             user: { id: 1, role: "user" },
-            expires_at: "2026-10-14T00:00:00Z",
           },
         }),
       ),
@@ -103,7 +103,7 @@ describe("router 守卫", () => {
       throw new DOMException("quota", "QuotaExceededError");
     });
     try {
-      await useAuthStore().login("alice@example.com", "password-123");
+      await useAuthStore().login({ email: "alice@example.com", password: "password-123" });
       const router = setupRouter();
       await router.push("/images");
       expect(router.currentRoute.value.path).toBe("/images");

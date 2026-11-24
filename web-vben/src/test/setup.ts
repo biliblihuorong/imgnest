@@ -23,7 +23,9 @@ for (const [path, messages] of Object.entries(dictionaries)) {
 }
 i18n.global.locale.value = "zh-CN";
 config.global.plugins.push(i18n);
+
 beforeEach(() => {
+  localStorage.clear();
   setSessionToken(null);
   i18n.global.locale.value = "zh-CN";
   // 全部组件 afterEach/unmount 完成后，才撤销 store 的全局会话订阅。
@@ -33,7 +35,7 @@ beforeEach(() => {
   });
 });
 
-// jsdom 未实现滚动 API；上传页入队后会调用 scrollIntoView
+// jsdom 没有实现滚动 API。
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }

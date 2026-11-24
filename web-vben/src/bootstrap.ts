@@ -1,51 +1,53 @@
 import { createPinia } from "pinia";
 import { createApp, watch } from "vue";
 import { $t, i18n } from "@vben/locales";
-import { setupAppI18n } from "./locales";
-import { updatePreferences } from "@vben/preferences";
 import App from "./App.vue";
+import { appConfig } from "./app.config";
 import { setUnauthorizedHandler } from "./api/client";
-import { connectVbenSession } from "./integrations/vben/session";
-import { initShell } from "./integrations/shell/useShell";
-import { initLocaleMode } from "./integrations/locale/useLocaleMode";
-import { enforceImgnestPreferences } from "./integrations/vben/preferences";
+import { hideAppLoading } from "./lib/appLoading";
+import { setupAppI18n } from "./locales";
 import { setupRouter } from "./router";
+import { initLocaleMode } from "./shell/useLocaleMode";
+import { enforcePreferences } from "./shell/preferences";
+import { connectVbenSession } from "./shell/session";
+import { loadSite, site } from "./shell/site";
+import { initShell } from "./shell/useShell";
 import { useAuthStore } from "./stores/auth";
-import { useSiteStore } from "./stores/site";
 
 export async function bootstrap(): Promise<void> {
-  enforceImgnestPreferences();
+  enforcePreferences();
   initShell();
   initLocaleMode();
+
   const app = createApp(App);
   const pinia = createPinia();
   app.use(pinia);
   await setupAppI18n(app);
+
   const router = setupRouter();
   const auth = useAuthStore(pinia);
-  const site = useSiteStore(pinia);
   connectVbenSession(pinia, router);
-  // 不阻塞首屏：公开页面直接渲染，受保护路由由守卫等待同一次 restore()。
-  void auth.restore();
   app.use(router);
 
   setUnauthorizedHandler(() => {
     auth.clear();
-    void router.push("/login").catch(() => {});
+    void router.push(appConfig.loginPath).catch(() => {});
   });
 
+  // 运行时站点信息（app.hooks.ts 的 loadSite），最多等 3 秒，失败用 app.config.ts 的默认值。
+  await loadSite();
+
   watch(
-    () => site.siteName,
-    (name) => updatePreferences({ app: { name } }),
-    { immediate: true },
-  );
-  watch(
-    () => [router.currentRoute.value.meta.title, site.siteName, i18n.global.locale.value],
+    () => [router.currentRoute.value.meta.title, i18n.global.locale.value, site.title],
     () => {
-      document.title = `${$t(String(router.currentRoute.value.meta.title ?? "common.nav.upload"))} - ${site.siteName}`;
+      const title = router.currentRoute.value.meta.title;
+      document.title = title ? `${$t(title)} - ${site.title}` : site.title;
     },
     { immediate: true },
   );
+
   app.mount("#app");
-  void site.ensureLoaded();
+  // 首次导航（含登录守卫里的 /me）完成、页面组件渲染出来后再撤掉加载画面，避免中间露出空白。
+  await router.isReady().catch(() => {});
+  requestAnimationFrame(() => hideAppLoading());
 }

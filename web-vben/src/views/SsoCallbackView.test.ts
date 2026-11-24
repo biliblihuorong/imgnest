@@ -56,7 +56,6 @@ describe("SsoCallbackView", () => {
     authApiMock.exchangeSsoTicket.mockResolvedValue({
       token: "9|sso-token",
       user,
-      expires_at: "2026-10-10T00:00:00Z",
     });
 
     const { router } = await mountCallback("#ticket=abc123");

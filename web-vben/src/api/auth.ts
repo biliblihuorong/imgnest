@@ -1,5 +1,10 @@
 import { request } from "./client";
-import type { LoginData, UserView } from "./types";
+import { toCurrentUser } from "./currentUser";
+import type { CurrentUser, LoginCredentials, LoginData, LoginResult, UserView } from "./types";
+
+function toLoginResult(data: LoginData): LoginResult {
+  return { token: data.token, user: toCurrentUser(data.user) };
+}
 
 export interface RegisterPayload {
   captcha_token?: string;
@@ -13,13 +18,11 @@ export interface RegisterPayload {
 export type EmailCodePurpose = "register" | "reset_password";
 
 /** 登录并颁发 web token（有效期 24 小时）；字段契约见 openapi /api/auth/login。 */
-export function login(
-  email: string,
-  password: string,
-  captchaToken?: string,
+export async function login(
+  { email, password, captchaToken }: LoginCredentials,
   signal?: AbortSignal,
-): Promise<LoginData> {
-  return request<LoginData>("/api/auth/login", {
+): Promise<LoginResult> {
+  const data = await request<LoginData>("/api/auth/login", {
     method: "POST",
     signal,
     headers: { "Content-Type": "application/json" },
@@ -29,6 +32,7 @@ export function login(
       ...(captchaToken === undefined ? {} : { captcha_token: captchaToken }),
     }),
   });
+  return toLoginResult(data);
 }
 
 /** 注册普通用户；注册响应不颁发 token。 */
@@ -42,8 +46,11 @@ export function register(payload: RegisterPayload, signal?: AbortSignal): Promis
 }
 
 /** 当前登录用户信息。 */
-export function me(signal?: AbortSignal): Promise<UserView> {
-  return signal ? request<UserView>("/api/auth/me", { signal }) : request<UserView>("/api/auth/me");
+export async function me(signal?: AbortSignal): Promise<CurrentUser> {
+  const user = signal
+    ? await request<UserView>("/api/auth/me", { signal })
+    : await request<UserView>("/api/auth/me");
+  return toCurrentUser(user);
 }
 
 /** 吊销当前 bearer token；失败可忽略（本地登出不受影响）。 */
@@ -70,13 +77,17 @@ export function updateDisplayName(displayName: string): Promise<UserView> {
 }
 
 /** 用单点登录回调给出的一次性票据换取 web token；响应与 /api/auth/login 相同。 */
-export function exchangeSsoTicket(ticket: string, signal?: AbortSignal): Promise<LoginData> {
-  return request<LoginData>("/api/auth/sso/exchange", {
+export async function exchangeSsoTicket(
+  ticket: string,
+  signal?: AbortSignal,
+): Promise<LoginResult> {
+  const data = await request<LoginData>("/api/auth/sso/exchange", {
     method: "POST",
     signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ticket }),
   });
+  return toLoginResult(data);
 }
 
 /** 发送注册或找回密码的邮件验证码；人机验证开启时需附带对应表单的 token。 */

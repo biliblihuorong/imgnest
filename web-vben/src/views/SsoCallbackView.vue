@@ -3,7 +3,8 @@ import { NButton, NSpin, NText } from "naive-ui";
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "@vben/locales";
-import { landingPath } from "@/router/landing";
+import { exchangeSsoTicket } from "@/api/auth";
+import { homePath } from "@/app.hooks";
 import { useAuthStore } from "@/stores/auth";
 
 const { t } = useI18n();
@@ -27,8 +28,10 @@ onMounted(async () => {
     return;
   }
   try {
-    const user = await auth.loginWithSsoTicket(ticket, request.signal);
-    await router.replace(landingPath(user.role));
+    const user = await auth.establish(request.signal, (signal) =>
+      exchangeSsoTicket(ticket, signal),
+    );
+    await router.replace(homePath(user));
   } catch {
     if (!request.signal.aborted) failed.value = true;
   }

@@ -26,8 +26,8 @@ import { buildLinkText, resolveImageLink } from "@/components/upload/linkText";
 import type { ImageView } from "@/api/images";
 import { copyText } from "@/lib/clipboard";
 import { formatApiError } from "@/locales/errors";
-import { useViewportAtLeast } from "@/components/layout/marvis/useNarrowViewport";
-import { shell } from "@/integrations/shell/useShell";
+import { useViewportAtLeast } from "@/shell/marvis/useNarrowViewport";
+import { shell } from "@/shell/useShell";
 import { usePreviewSwipe } from "./usePreviewSwipe";
 
 /**

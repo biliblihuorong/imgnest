@@ -1,4 +1,4 @@
-# Vben source workspace used by ImageNest
+# Vben source workspace (vendored)
 
 This directory vendors real runtime sources from the official
 [vue-vben-admin repository](https://github.com/vbenjs/vue-vben-admin), version
@@ -13,7 +13,7 @@ runtime dependency closure of `@vben/layouts`, `@vben/common-ui`,
 Vben's own Tailwind 4 theme/configuration package. These include the genuine
 Vben shadcn/Reka UI primitives, shell, menu, tabs, dialogs, forms, preferences,
 translations, stores, design tokens and icon components. They are not
-ImageNest replacements or facade packages.
+app-level replacements or facade packages.
 
 Only runtime source/assets, package manifests and relevant declarations are
 included. Upstream apps, playground, documentation, demo data, tests,
@@ -31,7 +31,7 @@ package paths, allowing comparison against the immutable upstream commit.
   `exports` conditions point to genuine upstream `src` entries, including
   their default condition, so no untracked upstream `dist` is required.
 - Upstream `catalog:` references are resolved to exact versions from the
-  upstream lockfile, except the existing ImageNest versions of Vue, Vue Router,
+  upstream lockfile, except the host app's versions of Vue, Vue Router,
   Pinia, VueUse and test/build tools remain pinned. `@vue/shared` tracks the
   existing Vue 3.5.43; VueUse integrations use the existing core major 15.
 - `@vben-core/design` explicitly depends on `@vben/tailwind-config`, which its
@@ -51,16 +51,16 @@ package paths, allowing comparison against the immutable upstream commit.
   and function redirects remain routed through the original menu path.
 - The app TypeScript DOM compilation includes ES2023, matching upstream's
   `toSorted`/`toReversed` usage. JSX tooling is omitted because none of this
-  runtime closure or the ImageNest application contains JSX/TSX.
+  runtime closure or the host application contains JSX/TSX.
 
-`adaptedSourceFiles` in the manifest records both upstream and integrated
-hashes for each deliberately patched source file; unlisted source files are
+`adaptedSourceFiles` in the manifest records both upstream (`upstreamSha256`)
+and integrated (`integratedSha256`) hashes for each deliberately patched source file; unlisted source files are
 byte-for-byte upstream copies.
 
 Application tests still use `src/**/*.test.ts`, and application lint excludes
 this vendor snapshot. Imported source is checked by `vue-tsc`; it is not
-replaced by ambient `any` module declarations. Build output remains `web/dist`
-for the existing Go embed.
+replaced by ambient `any` module declarations. Build output is `dist/` next to
+the host app's `vite.config.ts`.
 
 ## Updating
 
@@ -68,11 +68,11 @@ Choose and review an explicit official upstream commit. Recompute the package
 closure, copy runtime sources, record their original hashes, reapply only the
 integration adaptations above, update notices/version documentation and the
 pnpm lockfile, and run application tests, lint, typecheck and production build.
-Do not pull in the upstream sample application or change ImageNest API/auth
-contracts. From `web`, use `pnpm install --frozen-lockfile` in normal CI.
-The existing `/go/pnpm-store` setting is for the Docker development volume;
-other environments may supply `--store-dir` and `--state-dir` explicitly.
+Do not pull in the upstream sample application or change the host app's
+API/auth contracts. From the host app's root (the directory with
+`pnpm-workspace.yaml`), use `pnpm install --frozen-lockfile` in normal CI;
+supply `--store-dir` / `--state-dir` explicitly if your environment needs them.
 
-## ImageNest language lifecycle adapter
+## Host-app language lifecycle adapter
 
-BasicLayout adds optional `refreshOnLocaleChange` (upstream behavior defaults true). ImageNest passes false because all business text reacts to the shared locale; refreshing the route would discard active forms, upload queues and one-time credentials. A mounted-shell regression test verifies both language directions preserve the component instance. No layout component is replaced.
+BasicLayout adds optional `refreshOnLocaleChange` (upstream behavior defaults true). The host app passes false because all business text reacts to the shared locale; refreshing the route would discard active forms, upload queues and one-time credentials. No layout component is replaced.
