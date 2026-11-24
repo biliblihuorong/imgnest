@@ -5,7 +5,8 @@ import type { Plugin } from "vite";
  * 把 src/app.config.ts 里的品牌信息注入 index.html，让 app.config.ts 成为唯一的配置源：
  *
  * - %APP_NAME%            ← appConfig.name（<title> 的初始值）
- * - %APP_LOGO%            ← `import logo from "..."` 的文件（favicon 与启动加载画面的图标）
+ * - %APP_LOGO%            ← `import logo from "..."` 的文件（favicon）
+ * - %APP_LOADING_LOGO%    ← `import loadingLogo from "..."` 的文件（启动加载画面的图标，可选，没有就用 logo）
  * - %APP_STORAGE_PREFIX%  ← appConfig.storagePrefix（加载画面在脚本加载前读取深浅色/强调色偏好）
  *
  * index.html 在任何脚本执行前就要用到这些值，没法 import TS，所以这里按文本读取。
@@ -15,6 +16,8 @@ export interface AppHtmlBrand {
   name: string;
   /** 以 / 开头、相对项目根目录的路径，交给 Vite 处理成带哈希的资源。 */
   logo: string;
+  /** 启动加载画面的图标，可以是带动画的 SVG；没有单独配置时等于 logo。 */
+  loadingLogo: string;
   storagePrefix: string;
 }
 
@@ -25,6 +28,7 @@ export function readAppBrand(source: string): AppHtmlBrand {
   const name = /^\s*name:\s*["'`]([^"'`\n]+)["'`]/m.exec(config)?.[1];
   const storagePrefix = /^\s*storagePrefix:\s*["'`]([\w.-]+)["'`]/m.exec(config)?.[1];
   const logoImport = /^import\s+logo\s+from\s+["']([^"']+)["']/m.exec(source)?.[1];
+  const loadingLogoImport = /^import\s+loadingLogo\s+from\s+["']([^"']+)["']/m.exec(source)?.[1];
   const missing = [
     !name && "appConfig.name",
     !storagePrefix && "appConfig.storagePrefix",
@@ -36,6 +40,7 @@ export function readAppBrand(source: string): AppHtmlBrand {
     name: name!,
     storagePrefix: storagePrefix!,
     logo: toRootPath(logoImport!),
+    loadingLogo: toRootPath(loadingLogoImport ?? logoImport!),
   };
 }
 
@@ -64,6 +69,7 @@ export function appConfigHtmlPlugin(configFile: URL): Plugin {
         const brand = readAppBrand(readFileSync(configFile, "utf8"));
         return html
           .replaceAll("%APP_NAME%", escapeHtml(brand.name))
+          .replaceAll("%APP_LOADING_LOGO%", brand.loadingLogo)
           .replaceAll("%APP_LOGO%", brand.logo)
           .replaceAll("%APP_STORAGE_PREFIX%", brand.storagePrefix);
       },

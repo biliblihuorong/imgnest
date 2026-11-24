@@ -21,6 +21,20 @@ export const appConfig = {
     name: "Acme 后台",
     storagePrefix: "acme",
     logo: "/src/assets/brand/acme.png",
+    loadingLogo: "/src/assets/brand/acme.png",
+  });
+});
+
+it("uses a separate loading logo when the project imports one", () => {
+  const source = `import logo from "@/assets/acme.svg";
+import loadingLogo from "@/assets/acme-loading.svg";
+export const appConfig = {
+  name: "Acme",
+  storagePrefix: "acme",
+};`;
+  expect(readAppBrand(source)).toMatchObject({
+    logo: "/src/assets/acme.svg",
+    loadingLogo: "/src/assets/acme-loading.svg",
   });
 });
 

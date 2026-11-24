@@ -9,7 +9,7 @@
     <!--
       启动加载画面：脚本和样式加载完之前就要显示，所以全部内联、不依赖任何包。
       颜色读取 Vben 存在 localStorage 的偏好（深浅色、强调色），避免深色用户先看到一闪白屏。
-      %APP_NAME% / %APP_LOGO% / %APP_STORAGE_PREFIX% 由 build/app-config-html.ts 从 src/app.config.ts 注入，
+      %APP_NAME% / %APP_LOGO% / %APP_LOADING_LOGO% / %APP_STORAGE_PREFIX% 由 build/app-config-html.ts 从 src/app.config.ts 注入，
       换品牌只改 app.config.ts，不用动这里。
       应用就绪后由 src/lib/appLoading.ts 淡出并移除。
     -->
@@ -162,7 +162,7 @@
   <body>
     <div id="__app-loading__" role="status" aria-live="polite">
       <div class="app-loading__box">
-        <img class="app-loading__logo" src="%APP_LOGO%" alt="" />
+        <img class="app-loading__logo" src="%APP_LOADING_LOGO%" alt="" />
         <div class="app-loading__bar"></div>
         <p class="app-loading__error"></p>
         <span class="app-loading__sr">Loading / 正在加载</span>

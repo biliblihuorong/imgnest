@@ -9,8 +9,10 @@ import {
   Settings,
   UserRoundPen,
 } from "@vben/icons";
-// 这个 logo 同时用于侧栏、登录页、浏览器图标和启动加载画面（build/app-config-html.ts 会读这一行）。
+// logo 用于侧栏、登录页和浏览器图标；loadingLogo 是同一图标的动画版，只在启动加载画面显示。
+// build/app-config-html.ts 会读这两行，改名或改路径时保持 `import xxx from "…"` 的写法。
 import logo from "@/assets/imgnest-mark.svg";
+import loadingLogo from "@/assets/imgnest-loading.svg";
 import avatar from "@/assets/account-avatar.svg";
 import type { AccessRule } from "@/app.hooks";
 
@@ -41,6 +43,8 @@ export const appConfig = {
   /** Marvis 侧栏站名旁的小徽标（i18n key）。 */
   badge: "workspace.brandBadge",
   logo,
+  /** 启动加载画面用的动画图标（照片落进巢里）。 */
+  loadingLogo,
   defaultAvatar: avatar,
   /** localStorage 前缀：token 存在 imgnest.token，偏好在 imgnest-vben-v1-*，不要改，否则用户要重新登录。 */
   storagePrefix: "imgnest",
